@@ -218,7 +218,7 @@ export function BrandFormDialog({
                     <Input
                       {...field}
                       placeholder={t('brandForm.slugPh')}
-                      className="font-mono text-xs"
+                      className="font-mono text-base md:text-xs"
                       onChange={(e) => {
                         field.onChange(e)
                         setSlugTouched(true)
@@ -301,7 +301,7 @@ export function BrandFormDialog({
                         <Input
                           {...field}
                           value={field.value ?? ''}
-                          className="font-mono text-xs flex-1"
+                          className="font-mono text-base md:text-xs flex-1"
                         />
                       </div>
                     </FormControl>

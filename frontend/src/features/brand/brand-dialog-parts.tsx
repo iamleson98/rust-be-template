@@ -14,7 +14,7 @@ export function StatCard({
   color: string
 }) {
   return (
-    <div className="flex items-center gap-2.5 rounded-lg bg-white ring-1 ring-black/5 px-3 py-2">
+    <div className="flex items-center gap-2.5 rounded-lg border bg-card px-3 py-2">
       <div
         className="h-8 w-8 rounded-md flex items-center justify-center text-white shrink-0"
         style={{ background: color }}

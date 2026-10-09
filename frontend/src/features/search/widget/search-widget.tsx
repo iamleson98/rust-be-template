@@ -185,7 +185,7 @@ export function SearchWidget({ compact = false }: { compact?: boolean }) {
   return (
     <div
       className={cn(
-        'relative z-50 rounded-2xl bg-white/95 backdrop-blur-xl border border-slate-200 ring-1 ring-black/5',
+        'relative z-50 rounded-2xl bg-white/95 backdrop-blur-xl border border-slate-200',
         compact ? 'p-2.5 md:p-3' : 'p-4 md:p-5',
       )}
     >

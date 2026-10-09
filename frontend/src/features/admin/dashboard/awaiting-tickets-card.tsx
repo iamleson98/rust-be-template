@@ -3,9 +3,8 @@
 import { useState } from 'react'
 import { ArrowRight, CheckCircle2, PhoneCall, PhoneIncoming, RefreshCw } from 'lucide-react'
 import type { BookingOut } from '@/api'
-import { Badge } from '@/components/ui/badge'
+import { CountPill, Panel } from '@/components/console/panel'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useAdminBookings } from '@/features/admin/tickets/api'
 import { BookingDetailDialog } from '@/features/admin/tickets/booking-detail-dialog'
@@ -27,50 +26,52 @@ export function AwaitingTicketsCard() {
   const tickets = query.data?.items ?? []
 
   return (
-    <Card className="border-amber-200">
-      <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
-        <CardTitle className="flex items-center gap-2 text-sm">
-          <PhoneIncoming className="h-4 w-4 text-amber-600" />
+    <Panel
+      className={tickets.length > 0 ? 'border-amber-300 dark:border-amber-500/40' : undefined}
+      icon={<PhoneIncoming className="text-amber-600" />}
+      title={
+        <span className="inline-flex items-center gap-2">
           {t('adminDash.awaitingTitle')}
-          <Badge className="border-0 bg-amber-100 text-amber-800">{query.data?.total ?? 0}</Badge>
-        </CardTitle>
+          <CountPill n={query.data?.total ?? 0} tone="amber" />
+        </span>
+      }
+      action={
         <Button
           variant="ghost"
           size="sm"
-          className="h-7 text-xs"
+          className="h-8 gap-1 text-xs"
           onClick={() => query.refetch()}
           disabled={query.isFetching}
         >
-          <RefreshCw className={`mr-1 h-3.5 w-3.5 ${query.isFetching ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`size-3.5 ${query.isFetching ? 'animate-spin' : ''}`} />
           {t('common.refresh')}
         </Button>
-      </CardHeader>
-      <CardContent>
-        {query.isLoading ? (
-          <div className="space-y-2">
-            <Skeleton className="h-16 w-full" />
-            <Skeleton className="h-16 w-full" />
-          </div>
-        ) : tickets.length === 0 ? (
-          <p className="py-6 text-center text-sm text-muted-foreground">
-            {t('adminDash.awaitingEmpty')}
-          </p>
-        ) : (
-          <ul className="divide-y">
-            {tickets.map((ticket) => (
-              <AwaitingRow
-                key={ticket.id}
-                ticket={ticket}
-                busy={status.pending}
-                onOpen={() => setOpenId(ticket.id)}
-                onConfirm={() => status.set(ticket, 'confirmed', t('adminTickets.confirmedByCall'))}
-              />
-            ))}
-          </ul>
-        )}
-      </CardContent>
+      }
+    >
+      {query.isLoading ? (
+        <div className="space-y-2">
+          <Skeleton className="h-14 w-full" />
+          <Skeleton className="h-14 w-full" />
+        </div>
+      ) : tickets.length === 0 ? (
+        <p className="py-4 text-center text-sm text-muted-foreground">
+          {t('adminDash.awaitingEmpty')}
+        </p>
+      ) : (
+        <ul className="divide-y">
+          {tickets.map((ticket) => (
+            <AwaitingRow
+              key={ticket.id}
+              ticket={ticket}
+              busy={status.pending}
+              onOpen={() => setOpenId(ticket.id)}
+              onConfirm={() => status.set(ticket, 'confirmed', t('adminTickets.confirmedByCall'))}
+            />
+          ))}
+        </ul>
+      )}
       <BookingDetailDialog bookingId={openId} onClose={() => setOpenId(null)} />
-    </Card>
+    </Panel>
   )
 }
 

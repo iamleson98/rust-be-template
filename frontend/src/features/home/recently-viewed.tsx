@@ -63,7 +63,7 @@ function RecentlyViewedImpl() {
           {recentlyViewed.slice(0, 4).map((rv) => (
             <Card
               key={rv.tripId}
-              className="ring-1 ring-black/5 hover:ring-violet-300 transition-all cursor-pointer overflow-hidden group"
+              className="cursor-pointer overflow-hidden transition-colors hover:border-primary/40 group"
               onClick={() => handleReopen(rv.tripId, rv.label, rv.brandName, rv.routeId)}
             >
               <div className="p-4">

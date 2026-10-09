@@ -5,7 +5,7 @@ import type { BookingItem } from '@/features/booking/history/booking-types'
 import { formatDay } from '@/lib/format'
 import { useT } from '@/lib/i18n'
 import { BusTile } from '@/components/bus-tile'
-import { ConsoleCard, CountBadge } from './console-card'
+import { CountPill, Panel } from '@/components/console/panel'
 
 /** Finished trips still waiting for a review (hidden when there are none). */
 export function AwaitingFeedbackCard({ bookings }: { bookings: BookingItem[] }) {
@@ -14,18 +14,17 @@ export function AwaitingFeedbackCard({ bookings }: { bookings: BookingItem[] }) 
   if (bookings.length === 0) return null
 
   return (
-    <ConsoleCard
-      bar="from-amber-400 to-orange-500"
-      icon={<MessageSquareHeart className="h-4 w-4 text-amber-500" />}
+    <Panel
+      icon={<MessageSquareHeart />}
       title={t('accountPage.console.rateYourTrips')}
-      badge={<CountBadge n={bookings.length} tone="amber" />}
+      action={<CountPill n={bookings.length} tone="amber" />}
     >
       <p className="mb-3 text-xs text-muted-foreground">
         {t('accountPage.console.rateYourTripsDesc')}
       </p>
       <ul className="space-y-2">
         {bookings.slice(0, 3).map((b) => (
-          <li key={b.id} className="flex items-center gap-3 rounded-lg border bg-slate-50/60 p-3">
+          <li key={b.id} className="flex items-center gap-3 rounded-lg border p-3">
             <BusTile accent={b.trip?.brandAccent} size="md" />
             <div className="min-w-0 flex-1">
               <div className="truncate text-sm font-semibold">
@@ -47,14 +46,11 @@ export function AwaitingFeedbackCard({ bookings }: { bookings: BookingItem[] }) 
           </li>
         ))}
       </ul>
-      <Button
-        className="mt-3 w-full gap-1.5 bg-linear-to-r from-amber-500 to-orange-500 text-white hover:from-amber-600 hover:to-orange-600"
-        onClick={() => navigate({ to: '/account/feedback' })}
-      >
+      <Button className="mt-3 w-full gap-1.5" onClick={() => navigate({ to: '/account/feedback' })}>
         <MessageSquareHeart className="h-4 w-4" />
         {t('accountPage.console.giveFeedbackCta')}
         <ArrowRight className="h-4 w-4" />
       </Button>
-    </ConsoleCard>
+    </Panel>
   )
 }

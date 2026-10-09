@@ -47,6 +47,8 @@
   --color-info-foreground: var(--info-foreground);
   /* Brand accent — gold for loyalty / promo badges */
   --color-brand-accent: var(--brand-accent);
+  /* Console canvas: the soft ground white panels sit on (no shadows needed) */
+  --color-canvas: var(--canvas);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -100,6 +102,15 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.5 0.18 250);
+  --canvas: oklch(0.982 0.003 250);
+  /* Site header height — console shells fill the viewport below it */
+  --header-h: 3.5rem;
+}
+
+@media (width >= 48rem) {
+  :root {
+    --header-h: 4rem;
+  }
 }
 
 .dark {
@@ -153,6 +164,7 @@
   --sidebar-border: oklch(1 0 0 / 10%);
   /* Brand ring in dark mode — matches --ring */
   --sidebar-ring: oklch(0.62 0.16 250);
+  --canvas: oklch(0.17 0 0);
 }
 
 @layer base {

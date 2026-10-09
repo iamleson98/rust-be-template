@@ -7,15 +7,15 @@ import {
   type BookingItem,
 } from '@/features/booking/history/booking-types'
 import { useLoyalty } from '@/features/loyalty/api'
+import { ConsolePage } from '@/components/console/page'
 import { ActiveTicketsCard } from './active-tickets-card'
 import { AwaitingFeedbackCard } from './awaiting-feedback-card'
-import { ConsoleHero } from './console-hero'
+import { ConsoleGreeting } from './console-greeting'
 import { ConsoleStatCards } from './console-stats'
 import { LoyaltySnapshotCard } from './loyalty-snapshot-card'
-import { QuickLinks } from './quick-links'
 import { RecentPurchasesCard } from './recent-purchases-card'
 
-/** `/account`: the customer's home — hero, headline numbers, tickets, reviews owed, recent purchases, loyalty. */
+/** `/account`: the customer's home — greeting, headline numbers, tickets, reviews owed, recent purchases, loyalty. */
 export function UserConsole() {
   const bookingsQuery = useQuery(bookingsListOptions())
   const { data: loyalty } = useLoyalty()
@@ -37,20 +37,17 @@ export function UserConsole() {
   const loading = bookingsQuery.isLoading
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-6 md:px-6">
-      <ConsoleHero upcoming={stats.upcoming} loyalty={loyalty} />
+    <ConsolePage>
+      <ConsoleGreeting upcoming={stats.upcoming} loyalty={loyalty} />
       <ConsoleStatCards stats={stats} loading={loading} loyalty={loyalty} />
-      <div className="mb-5">
-        <ActiveTicketsCard bookings={bookings} loading={loading} />
-      </div>
-      <div className="mb-5">
-        <AwaitingFeedbackCard bookings={awaiting} />
-      </div>
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <RecentPurchasesCard bookings={bookings} loading={loading} />
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+        <div className="space-y-5 lg:col-span-2">
+          <ActiveTicketsCard bookings={bookings} loading={loading} />
+          <AwaitingFeedbackCard bookings={awaiting} />
+          <RecentPurchasesCard bookings={bookings} loading={loading} />
+        </div>
         <LoyaltySnapshotCard />
       </div>
-      <QuickLinks />
-    </div>
+    </ConsolePage>
   )
 }

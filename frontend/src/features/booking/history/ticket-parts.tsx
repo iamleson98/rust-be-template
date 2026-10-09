@@ -19,8 +19,8 @@ export function TicketStops({ pickup, dropoff }: { pickup: Stop; dropoff: Stop }
 
 function StopTile({ label, stop, tone }: { label: string; stop: Stop; tone: string }) {
   return (
-    <div className="rounded-lg bg-white p-3 ring-1 ring-black/5">
-      <div className="mb-0.5 flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+    <div className="rounded-lg border bg-card p-3">
+      <div className="mb-0.5 flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
         <MapPin className={`h-3.5 w-3.5 ${tone}`} />
         {label}
       </div>
@@ -39,15 +39,15 @@ export function TicketPassengers({ seats }: { seats: BookingOut['seats'] }) {
       {seats.map((s, i) => (
         <li
           key={s.seatId ?? i}
-          className="flex items-center justify-between gap-3 rounded-lg bg-white px-3 py-2.5 text-sm ring-1 ring-black/5"
+          className="flex items-center justify-between gap-3 rounded-lg border bg-card px-3 py-2.5 text-sm"
         >
           <div className="flex min-w-0 items-center gap-3">
             <span
-              className="inline-flex h-9 min-w-12 shrink-0 flex-col items-center justify-center rounded-md bg-blue-50 px-1.5 leading-none text-blue-700 ring-1 ring-blue-100"
+              className="inline-flex h-9 min-w-12 shrink-0 flex-col items-center justify-center rounded-md bg-primary/10 px-1.5 leading-none text-primary"
               title={t('bookingHistory.seatNumber')}
             >
               <span className="text-[9px] font-semibold uppercase">{t('bookingHistory.seat')}</span>
-              <span className="font-mono text-sm font-extrabold">{s.seatCode ?? '—'}</span>
+              <span className="font-mono text-sm font-bold">{s.seatCode ?? '—'}</span>
             </span>
             <div className="min-w-0">
               <div className="truncate font-semibold">

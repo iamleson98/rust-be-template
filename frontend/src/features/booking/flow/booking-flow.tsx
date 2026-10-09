@@ -72,7 +72,10 @@ export function BookingFlow() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col">
+    // min-h-0 + flex-1: the dialog caps the height, so the step body below
+    // gets a bounded height and scrolls (else it is clipped and the step's
+    // buttons are unreachable on short screens).
+    <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col">
       <BookingStepHeader step={step} trip={trip} seats={booking.seats} />
 
       <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">

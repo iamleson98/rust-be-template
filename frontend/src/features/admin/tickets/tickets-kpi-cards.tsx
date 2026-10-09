@@ -1,58 +1,51 @@
 'use client'
 
-import { Ticket as TicketIcon, DollarSign, CheckCircle2, TrendingUp, Ban } from 'lucide-react'
+import { Ban, CheckCircle2, DollarSign, Flag, Ticket as TicketIcon } from 'lucide-react'
 import type { AdminBookingTotals } from '@/api'
-import { KpiCard } from '@/features/admin/dashboard/kpi-card'
+import { StatGrid, StatTile } from '@/components/console/stat-tile'
+import { formatNum } from '@/lib/format'
 import { useT } from '@/lib/i18n'
 import { formatVND } from './tickets-helpers'
 
 /**
- * KPI cards row — totals come from the dedicated /stats endpoint
- * (`AdminBookingStatsResponse.totals`), not from the list response.
+ * The tickets the filters select, by status, and what they brought in —
+ * totals from the dedicated /stats endpoint, not the paged list.
  */
 export function TicketsKpiCards({ totals }: { totals: AdminBookingTotals | undefined }) {
   const t = useT()
+  const n = (v: number | undefined) => (totals ? formatNum(v ?? 0) : '—')
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-      <KpiCard
-        icon={<TicketIcon className="h-5 w-5" />}
+    <StatGrid className="sm:grid-cols-3 lg:grid-cols-5">
+      <StatTile
+        icon={<TicketIcon />}
+        tone="blue"
         label={t('adminTickets.kpiTotal')}
-        value={totals ? String(totals.total) : '—'}
-        change=""
-        up
-        color="#2563eb"
+        value={n(totals?.total)}
       />
-      <KpiCard
-        icon={<DollarSign className="h-5 w-5" />}
+      <StatTile
+        icon={<DollarSign />}
+        tone="green"
         label={t('adminTickets.kpiRevenue')}
         value={totals ? formatVND(totals.revenue) : '—'}
-        change=""
-        up
-        color="#16a34a"
       />
-      <KpiCard
-        icon={<CheckCircle2 className="h-5 w-5" />}
+      <StatTile
+        icon={<CheckCircle2 />}
+        tone="sky"
         label={t('adminTickets.statusConfirmed')}
-        value={totals ? String(totals.confirmed) : '—'}
-        change=""
-        up
-        color="#0ea5e9"
+        value={n(totals?.confirmed)}
       />
-      <KpiCard
-        icon={<TrendingUp className="h-5 w-5" />}
+      <StatTile
+        icon={<Flag />}
+        tone="violet"
         label={t('adminTickets.statusCompleted')}
-        value={totals ? String(totals.completed) : '—'}
-        change=""
-        up
-        color="#10b981"
+        value={n(totals?.completed)}
       />
-      <KpiCard
-        icon={<Ban className="h-5 w-5" />}
+      <StatTile
+        icon={<Ban />}
+        tone="rose"
         label={t('adminTickets.statusCancelled')}
-        value={totals ? String(totals.cancelled) : '—'}
-        change=""
-        color="#f43f5e"
+        value={n(totals?.cancelled)}
       />
-    </div>
+    </StatGrid>
   )
 }

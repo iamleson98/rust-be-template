@@ -210,7 +210,7 @@ export function BookingDetailDialog({
                     value={reason}
                     onChange={(e) => setReason(e.target.value)}
                     placeholder={t('adminTickets.reasonPlaceholder')}
-                    className="min-h-10 resize-none text-xs"
+                    className="min-h-10 resize-none text-base md:text-xs"
                   />
                   <div className="flex flex-wrap gap-2">
                     {ticket.status === 'pending' && (

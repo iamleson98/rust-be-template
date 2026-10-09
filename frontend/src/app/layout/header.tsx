@@ -60,21 +60,23 @@ export const Header = memo(function Header() {
     .toUpperCase()
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-white/10 text-white">
+    <header className="sticky top-0 z-40 w-full text-white">
       {/* Gradient background layer */}
       <div className="absolute inset-0 -z-10 bg-blue-900/90 backdrop-blur-xl bg-linear-to-r from-blue-900 via-blue-800 to-blue-900" />
 
-      <div className="container mx-auto px-4 h-16 flex items-center justify-between gap-4">
+      <div className="container mx-auto flex h-(--header-h) items-center justify-between gap-3 border-b border-white/10 px-4">
         <button onClick={() => navigate({ to: '/' })} className="flex items-center gap-2.5 group">
           <img
             src="/logo.svg"
             alt=""
             aria-hidden
-            className="h-9 w-9 shrink-0 transition-transform duration-300 group-hover:scale-105"
+            className="size-8 shrink-0 transition-transform duration-300 group-hover:scale-105 md:size-9"
           />
           <div className="leading-tight">
             <div className="font-extrabold text-lg tracking-tight">DatXeVui</div>
-            <div className="text-[10px] text-blue-200 -mt-0.5">{t('trips.imageTagline')}</div>
+            <div className="-mt-0.5 hidden text-[10px] text-blue-200 sm:block">
+              {t('trips.imageTagline')}
+            </div>
           </div>
         </button>
 
@@ -114,7 +116,8 @@ export const Header = memo(function Header() {
                 />
               }
             >
-              <Globe className="h-4 w-4" /> {lang === 'vi' ? 'VI' : 'EN'}
+              <Globe className="h-4 w-4" />
+              <span className="hidden sm:inline">{lang === 'vi' ? 'VI' : 'EN'}</span>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem
@@ -149,7 +152,8 @@ export const Header = memo(function Header() {
                   <button
                     type="button"
                     title={user.name}
-                    className="inline-flex items-center gap-2 rounded-full pl-1 pr-3 h-9 bg-white/10 hover:bg-white/15 transition-colors ring-1 ring-white/20"
+                    aria-label={user.name}
+                    className="inline-flex h-9 items-center gap-2 rounded-full bg-white/10 p-1 ring-1 ring-white/20 transition-colors hover:bg-white/15 sm:pr-3"
                   />
                 }
               >
@@ -158,7 +162,7 @@ export const Header = memo(function Header() {
                     {initials || 'U'}
                   </AvatarFallback>
                 </Avatar>
-                <span className="sm:inline text-xs font-semibold max-w-30 truncate">
+                <span className="hidden max-w-30 truncate text-xs font-semibold sm:inline">
                   {user.name}
                 </span>
               </DropdownMenuTrigger>

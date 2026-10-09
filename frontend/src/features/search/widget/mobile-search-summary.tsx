@@ -23,7 +23,7 @@ import type { SearchParams } from '@/lib/search-params'
 import { SearchRouteFields } from './route-fields'
 import { SearchDateFields } from './date-fields'
 import { SearchPassengerPicker } from './passenger-picker'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { SearchFormValues } from './schema'
 
 /** '2026-10-10' → '10/10' (Vietnamese short form). '' when unset. */
@@ -56,6 +56,7 @@ export function MobileSearchSummary({
 }) {
   const t = useT()
   const [paxOpen, setPaxOpen] = useState(false)
+  const formAreaRef = useRef<HTMLDivElement>(null)
   const pax = (searchParams.adults ?? 1) + (searchParams.children ?? 0)
   const dateShort = shortDate(searchParams.date)
 
@@ -89,17 +90,27 @@ export function MobileSearchSummary({
 
       {/* Full form in a bottom sheet */}
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-        <SheetContent side="bottom" className="max-h-[85dvh] flex flex-col p-0 gap-0">
+        {/* Focus lands on the form, not the first field: opening the sheet
+            must not pop the keyboard and the place suggestions over it. */}
+        <SheetContent
+          side="bottom"
+          initialFocus={formAreaRef}
+          className="max-h-[85dvh] flex flex-col p-0 gap-0"
+        >
           <SheetHeader className="px-4 py-3 border-b shrink-0">
             <SheetTitle className="text-base">{t('search.title')}</SheetTitle>
             <SheetDescription className="sr-only">{t('search.title')}</SheetDescription>
           </SheetHeader>
-          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 py-4">
+          <div
+            ref={formAreaRef}
+            tabIndex={-1}
+            className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 py-4 outline-none"
+          >
             <Form {...form}>
               {/* Not `contents`: the sheet needs a real block form element. */}
               <form
                 onSubmit={onSubmit}
-                className="space-y-3.5"
+                className="space-y-3"
                 noValidate
                 aria-label={t('search.title')}
               >
@@ -107,20 +118,22 @@ export function MobileSearchSummary({
                     (hidden in the stacked mobile layout) — in the sheet it
                     gets its own centered row between the two fields. */}
                 <SearchRouteFields form={form} swap={swap} compact stackedSwap />
-                <SearchDateFields
-                  form={form}
-                  searchParams={searchParams}
-                  setSearchParams={setSearchParams}
-                  compact
-                />
-                <SearchPassengerPicker
-                  form={form}
-                  searchParams={searchParams}
-                  setSearchParams={setSearchParams}
-                  paxOpen={paxOpen}
-                  setPaxOpen={setPaxOpen}
-                  compact
-                />
+                <div className="grid grid-cols-2 gap-3">
+                  <SearchDateFields
+                    form={form}
+                    searchParams={searchParams}
+                    setSearchParams={setSearchParams}
+                    compact
+                  />
+                  <SearchPassengerPicker
+                    form={form}
+                    searchParams={searchParams}
+                    setSearchParams={setSearchParams}
+                    paxOpen={paxOpen}
+                    setPaxOpen={setPaxOpen}
+                    compact
+                  />
+                </div>
                 <Button
                   type="submit"
                   disabled={submitting}

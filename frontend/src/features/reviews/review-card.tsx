@@ -58,7 +58,7 @@ export function ReviewCard({
 }) {
   const t = useT()
   return (
-    <div key={r.id} className="rounded-xl bg-white ring-1 ring-black/5 p-4">
+    <div key={r.id} className="rounded-xl border bg-card p-4">
       <div className="flex items-start gap-3">
         <div
           className="h-10 w-10 rounded-full text-white inline-flex items-center justify-center text-sm font-bold shrink-0"

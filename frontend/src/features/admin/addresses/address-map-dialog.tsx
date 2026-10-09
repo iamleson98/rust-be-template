@@ -377,7 +377,7 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
                   tabIndex={-1}
                   value={form.lat != null ? form.lat.toFixed(6) : ''}
                   placeholder={t('adminAddresses.autoFromMap')}
-                  className="font-mono text-xs bg-muted/40"
+                  className="font-mono text-base md:text-xs bg-muted/40"
                 />
               </div>
               <div className="grid gap-1.5">
@@ -387,7 +387,7 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
                   tabIndex={-1}
                   value={form.lon != null ? form.lon.toFixed(6) : ''}
                   placeholder={t('adminAddresses.autoFromMap')}
-                  className="font-mono text-xs bg-muted/40"
+                  className="font-mono text-base md:text-xs bg-muted/40"
                 />
               </div>
             </div>
@@ -418,7 +418,7 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
                   onChange={(e) => onInput(e.target.value)}
                   onFocus={() => setSearchOpen(true)}
                   placeholder={t('map.searchField')}
-                  className="w-full h-10 pl-10 pr-9 rounded-lg border border-slate-200 bg-white/95 backdrop-blur text-sm outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-400"
+                  className="w-full h-10 pl-10 pr-9 rounded-lg border border-slate-200 bg-white/95 backdrop-blur text-base md:text-sm outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-400"
                 />
                 {searchLoading ? (
                   <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-blue-600" />

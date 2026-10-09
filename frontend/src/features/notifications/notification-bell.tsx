@@ -144,7 +144,7 @@ export function NotificationBell() {
             className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm"
             onClick={() => setNotifOpen(false)}
           />
-          <div className="fixed right-2 sm:right-4 top-16 z-50 w-[calc(100vw-1rem)] sm:w-100 max-h-[80dvh] bg-white rounded-2xl ring-1 ring-black/10 flex flex-col overflow-hidden">
+          <div className="fixed right-2 sm:right-4 top-(--header-h) z-50 w-[calc(100vw-1rem)] sm:w-100 max-h-[80dvh] bg-white rounded-2xl ring-1 ring-black/10 flex flex-col overflow-hidden">
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b bg-linear-to-r from-blue-50 to-blue-50">
               <div className="flex items-center gap-2">

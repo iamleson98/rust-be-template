@@ -131,7 +131,7 @@ export function BookingList({
 
   if (count === 0) {
     return (
-      <Card className="ring-1 ring-black/5 overflow-hidden">
+      <Card className="overflow-hidden">
         {variant === 'reviews' ? (
           <NoReviewsYet onWrite={onExploreOther ?? (() => {})} />
         ) : variant === 'search' ? (

@@ -51,7 +51,7 @@ export function BookingCardDetails({
   const t = useT()
   const stage = ticketStage(b)
   return (
-    <div className="border-t bg-slate-50/70">
+    <div className="border-t bg-muted/30">
       <button
         onClick={onToggleExpand}
         aria-expanded={isExpanded}
@@ -70,7 +70,7 @@ export function BookingCardDetails({
           <TicketStops pickup={b.pickup} dropoff={b.dropoff} />
 
           <div>
-            <div className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase text-muted-foreground">
+            <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
               <User className="h-3.5 w-3.5" />
               {t('bookingHistory.passengersAndSeats', { count: b.seats.length })}
             </div>
@@ -100,11 +100,11 @@ export function BookingCardDetails({
           <Separator />
 
           <div>
-            <div className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase text-muted-foreground">
+            <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
               <CreditCard className="h-3.5 w-3.5" />
               {t('bookingHistory.priceDetails')}
             </div>
-            <div className="space-y-1.5 rounded-lg bg-white p-3 text-sm ring-1 ring-black/5">
+            <div className="space-y-1.5 rounded-lg border bg-card p-3 text-sm">
               <PriceRow
                 label={t('bookingHistory.subtotalSeats', { count: b.seats.length })}
                 value={formatCurrency(b.subtotal, currency)}
@@ -113,7 +113,7 @@ export function BookingCardDetails({
                 <PriceRow
                   label={t('bookingHistory.discount')}
                   value={`- ${formatCurrency(b.discount, currency)}`}
-                  valueClass="text-blue-600 font-semibold"
+                  valueClass="text-emerald-600 font-semibold"
                 />
               )}
               {b.paymentMethod && (
@@ -123,8 +123,8 @@ export function BookingCardDetails({
                 />
               )}
               <div className="mt-1.5 flex items-center justify-between border-t pt-1.5">
-                <span className="font-bold">{t('bookingHistory.grandTotal')}</span>
-                <span className="text-lg font-extrabold text-blue-700">
+                <span className="font-semibold">{t('bookingHistory.grandTotal')}</span>
+                <span className="text-lg font-semibold tabular-nums">
                   {formatCurrency(b.total, currency)}
                 </span>
               </div>
@@ -134,7 +134,7 @@ export function BookingCardDetails({
           <Separator />
 
           <div>
-            <div className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase text-muted-foreground">
+            <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
               <Calendar className="h-3.5 w-3.5" />
               {t('common.status')}
             </div>
@@ -174,7 +174,10 @@ export function BookingCardDetails({
           </div>
 
           <BookingCardActions
+            bookingId={b.id}
             bookingCode={b.code}
+            total={b.total}
+            payable={stage === 'paying'}
             hasQr={stage !== 'cancelled' && stage !== 'completed'}
             canCancel={b.canCancel}
             cancelling={cancelling}

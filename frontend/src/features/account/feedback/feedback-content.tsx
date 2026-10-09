@@ -1,34 +1,29 @@
 import { useState } from 'react'
-import { Link } from '@tanstack/react-router'
-import { ArrowRight, Clock, MessageSquareHeart, Star } from 'lucide-react'
-import { Card, CardContent } from '@/components/ui/card'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Clock, MessageSquareHeart, Star } from 'lucide-react'
+import { ConsolePage, PageHeader } from '@/components/console/page'
+import { EmptyState, Panel } from '@/components/console/panel'
+import { PillTab, PillTabs } from '@/components/console/pill-tabs'
+import { Tabs, TabsContent } from '@/components/ui/tabs'
 import { useT } from '@/lib/i18n'
-import { FeedbackHero } from './feedback-hero'
 import { FeedbackPager } from './feedback-pager'
 import { PendingRideCard, PendingRideSkeleton } from './pending-ride-card'
 import { SentFeedbackCard, SentFeedbackSkeleton } from './sent-feedback-card'
 import { PAGE_SIZE, useFeedbackData } from './use-feedback-data'
 
-function EmptyCard({
-  icon,
-  tone,
-  title,
-  desc,
-}: {
-  icon: React.ReactNode
-  tone: string
-  title: string
-  desc: string
-}) {
+/** Nothing to show in a tab: what it means and that it is fine. */
+function EmptyCard({ icon, title, desc }: { icon: React.ReactNode; title: string; desc: string }) {
   return (
-    <Card className="border-border">
-      <CardContent className="space-y-2 px-6 py-12 text-center">
-        <div className={`mx-auto grid size-12 place-items-center rounded-2xl ${tone}`}>{icon}</div>
-        <div className="font-semibold">{title}</div>
-        <p className="mx-auto max-w-md text-sm text-muted-foreground">{desc}</p>
-      </CardContent>
-    </Card>
+    <Panel>
+      <EmptyState
+        icon={icon}
+        text={
+          <>
+            <span className="block font-medium text-foreground">{title}</span>
+            {desc}
+          </>
+        }
+      />
+    </Panel>
   )
 }
 
@@ -41,40 +36,37 @@ export function AccountFeedbackContent() {
   const [page, setPage] = useState(0)
   const data = useFeedbackData(page)
 
-  const average = data.reviews.length
-    ? data.reviews.reduce((sum, r) => sum + r.rating, 0) / data.reviews.length
-    : 0
-  const approved = data.reviews.filter((r) => r.status === 'approved').length
   const toggle = (id: string | null, current: string | null) => (id === current ? null : id)
 
   return (
-    <div className="mx-auto w-full max-w-5xl space-y-5 px-4 py-6 md:px-6">
-      <FeedbackHero average={average} sent={data.total} approved={approved} />
+    <ConsolePage>
+      <PageHeader
+        title={t('accountPage.feedback.heroTitle')}
+        description={t('accountPage.feedback.heroDesc')}
+      />
 
-      <Tabs value={tab} onValueChange={(v) => setTab(v as 'pending' | 'sent')}>
-        <TabsList className="h-10 rounded-lg bg-muted p-1">
-          <TabsTrigger value="pending" className="gap-1.5 rounded-md px-4">
-            <Clock className="size-3.5" />
-            {t('accountPage.feedback.tabPending')}
-            {data.pending.length > 0 && (
-              <span className="ml-1 grid h-4 min-w-4 place-items-center rounded-full bg-amber-500 px-1 text-[10px] font-bold text-white">
-                {data.pending.length}
-              </span>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="sent" className="gap-1.5 rounded-md px-4">
-            <Star className="size-3.5" />
-            {t('accountPage.feedback.tabSent')} ({data.total})
-          </TabsTrigger>
-        </TabsList>
+      <Tabs value={tab} onValueChange={(v) => setTab(v as 'pending' | 'sent')} className="gap-4">
+        <PillTabs>
+          <PillTab
+            value="pending"
+            icon={<Clock />}
+            label={t('accountPage.feedback.tabPending')}
+            count={data.pending.length}
+          />
+          <PillTab
+            value="sent"
+            icon={<Star />}
+            label={t('accountPage.feedback.tabSent')}
+            count={data.total}
+          />
+        </PillTabs>
 
-        <TabsContent value="pending" className="mt-4 space-y-3 outline-none">
+        <TabsContent value="pending" className="space-y-3 outline-none">
           {data.ridesLoading ? (
             Array.from({ length: 3 }, (_, i) => <PendingRideSkeleton key={i} />)
           ) : data.pending.length === 0 ? (
             <EmptyCard
-              icon={<Star className="size-6 fill-emerald-500 text-emerald-500" />}
-              tone="bg-emerald-500/10"
+              icon={<Star />}
               title={t('accountPage.feedback.allRatedTitle')}
               desc={t('accountPage.feedback.allRatedDesc')}
             />
@@ -99,13 +91,12 @@ export function AccountFeedbackContent() {
           )}
         </TabsContent>
 
-        <TabsContent value="sent" className="mt-4 space-y-3 outline-none">
+        <TabsContent value="sent" className="space-y-3 outline-none">
           {data.reviewsLoading ? (
             Array.from({ length: 3 }, (_, i) => <SentFeedbackSkeleton key={i} />)
           ) : data.reviews.length === 0 ? (
             <EmptyCard
-              icon={<MessageSquareHeart className="size-6 text-amber-500" />}
-              tone="bg-amber-500/10"
+              icon={<MessageSquareHeart />}
               title={t('accountPage.feedback.emptySentTitle')}
               desc={t('accountPage.feedback.emptySentDesc')}
             />
@@ -135,16 +126,6 @@ export function AccountFeedbackContent() {
           )}
         </TabsContent>
       </Tabs>
-
-      <div className="pt-1 text-center">
-        <Link
-          to="/account/trips"
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
-        >
-          {t('accountPage.feedback.viewTrips')}
-          <ArrowRight className="size-3.5" />
-        </Link>
-      </div>
-    </div>
+    </ConsolePage>
   )
 }

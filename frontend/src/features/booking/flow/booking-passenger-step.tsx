@@ -8,6 +8,7 @@ import { SeatSelector } from './seat-selector'
 import { PassengerSummary } from './passenger-list'
 import { PassengerFormCard } from './passenger-form-card'
 import type { BookingForm } from './use-booking-form'
+import { StepActions } from './step-actions'
 
 /** Step 1: who travels on which seat, with helpers to fill names and hand out seats. */
 export function BookingPassengerStep({
@@ -93,15 +94,15 @@ export function BookingPassengerStep({
         </div>
       )}
 
-      <div className="flex justify-end">
+      <StepActions>
         <Button
           onClick={onContinue}
           disabled={!booking.canContinue}
-          className="gap-1 bg-primary hover:bg-primary/90"
+          className="ml-auto gap-1 max-sm:h-11 max-sm:flex-1"
         >
           {t('bookingFlow.continue')} <ChevronRight className="h-4 w-4" />
         </Button>
-      </div>
+      </StepActions>
     </div>
   )
 }

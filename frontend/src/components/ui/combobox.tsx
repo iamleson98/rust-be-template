@@ -93,7 +93,7 @@ function ComboboxInput({
     <ComboboxPrimitive.Input
       data-slot="combobox-input"
       className={cn(
-        'border-input placeholder:text-muted-foreground h-9 w-full cursor-text border-b bg-transparent px-3 py-2 text-sm outline-none',
+        'border-input placeholder:text-muted-foreground h-9 w-full cursor-text border-b bg-transparent px-3 py-2 text-base outline-none md:text-sm',
         className,
       )}
       {...props}
@@ -326,7 +326,7 @@ export function ComboboxField({
           <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <ComboboxInput
             placeholder={searchPlaceholder ?? t('combobox.search')}
-            className="h-8 border-b pl-8 text-sm"
+            className="h-8 border-b pl-8 text-base md:text-sm"
           />
         </div>
         <ComboboxList>

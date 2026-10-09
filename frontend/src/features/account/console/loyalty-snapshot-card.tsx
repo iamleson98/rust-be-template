@@ -5,7 +5,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { tierView, useLoyalty } from '@/features/loyalty/api'
 import { formatNum } from '@/lib/format'
 import { useT } from '@/lib/i18n'
-import { ConsoleCard } from './console-card'
+import { Panel } from '@/components/console/panel'
 
 /** Points, tier badge and progress toward the next tier. */
 export function LoyaltySnapshotCard() {
@@ -15,11 +15,7 @@ export function LoyaltySnapshotCard() {
   const { tier, nextTier, style, progress } = tierView(summary)
 
   return (
-    <ConsoleCard
-      bar="from-violet-500 to-fuchsia-500"
-      icon={<Gift className="h-4 w-4 text-violet-600" />}
-      title={t('nav.loyalty')}
-    >
+    <Panel icon={<Gift />} title={t('nav.loyalty')}>
       {!summary || !tier ? (
         <div className="space-y-3">
           <Skeleton className="h-10 w-36" />
@@ -30,7 +26,7 @@ export function LoyaltySnapshotCard() {
         <>
           <div className="flex items-end justify-between">
             <div>
-              <div className="text-3xl font-extrabold tabular-nums text-violet-700">
+              <div className="text-3xl font-semibold tracking-tight tabular-nums">
                 {formatNum(summary.points)}
               </div>
               <div className="text-[11px] text-muted-foreground">{t('home.currentPoints')}</div>
@@ -46,9 +42,9 @@ export function LoyaltySnapshotCard() {
 
           {nextTier ? (
             <div className="mt-3">
-              <div className="mb-1 h-2 overflow-hidden rounded-full bg-slate-200">
+              <div className="mb-1 h-2 overflow-hidden rounded-full bg-muted">
                 <div
-                  className="h-full rounded-full bg-linear-to-r from-violet-600 to-fuchsia-500 transition-all duration-500"
+                  className="h-full rounded-full bg-violet-500 transition-[width] duration-500"
                   style={{ width: `${progress}%` }}
                 />
               </div>
@@ -60,7 +56,7 @@ export function LoyaltySnapshotCard() {
               </div>
             </div>
           ) : (
-            <div className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-violet-50 p-2 text-[11px] font-semibold text-violet-700">
+            <div className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-violet-50 p-2 text-[11px] font-medium text-violet-700 dark:bg-violet-500/15 dark:text-violet-300">
               <Sparkles className="h-3.5 w-3.5" aria-hidden />
               {t('home.topTierReached')}
             </div>
@@ -69,7 +65,7 @@ export function LoyaltySnapshotCard() {
           <Button
             variant="ghost"
             size="sm"
-            className="mt-3 w-full gap-1 text-violet-700 hover:bg-violet-50"
+            className="mt-3 w-full gap-1 text-primary hover:bg-primary/5"
             onClick={() => navigate({ to: '/account/loyalty' })}
           >
             {t('accountPage.console.viewLoyaltyDetails')}
@@ -77,6 +73,6 @@ export function LoyaltySnapshotCard() {
           </Button>
         </>
       )}
-    </ConsoleCard>
+    </Panel>
   )
 }

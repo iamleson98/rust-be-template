@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { useRouterState } from '@tanstack/react-router'
 import { Phone, X } from 'lucide-react'
 import { useT } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
@@ -23,6 +24,10 @@ function CallSurface({ embedded, children }: { embedded: boolean; children: Reac
 /** Staff's persistent button for noticing and answering calls while the panel is closed. */
 function AgentButton({ call }: { call: AudioCall }) {
   const t = useT()
+  // Customer pages and the account console have a bottom bar on phones; the admin console doesn't.
+  const inConsole = useRouterState({
+    select: (s) => /^\/admin(\/|$)/.test(s.location.pathname),
+  })
   return (
     <button
       type="button"
@@ -31,7 +36,9 @@ function AgentButton({ call }: { call: AudioCall }) {
       className={cn(
         // Left of the SupportFab, which owns the bottom-right corner.
         'fixed right-17 z-40 flex h-10 w-10 items-center justify-center rounded-full border text-white md:right-21 md:h-12 md:w-12',
-        'bottom-[calc(5rem+env(safe-area-inset-bottom))] mb-[env(safe-area-inset-bottom)] md:bottom-6',
+        inConsole
+          ? 'bottom-[calc(1rem+env(safe-area-inset-bottom))] md:bottom-6'
+          : 'bottom-[calc(5rem+env(safe-area-inset-bottom))] md:bottom-6',
         'transition-all hover:scale-105 active:scale-95',
         call.presence.agentInCall
           ? 'border-amber-400/30 bg-amber-600 hover:bg-amber-700'

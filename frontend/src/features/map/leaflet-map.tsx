@@ -269,7 +269,7 @@ function MapSearchBox({
           onChange={(e) => onInput(e.target.value)}
           onFocus={() => setOpen(true)}
           placeholder={placeholder ?? t('mapPage.searchPlaceholder')}
-          className="w-full h-11 pl-11 pr-10 rounded-lg border border-slate-200 bg-white/95 backdrop-blur text-sm outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-400"
+          className="w-full h-11 pl-11 pr-10 rounded-lg border border-slate-200 bg-white/95 backdrop-blur text-base md:text-sm outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-400"
         />
         {loading && (
           <Loader2 className="absolute right-3.5 top-1/2 -translate-y-1/2 h-5 w-5 animate-spin text-blue-600" />

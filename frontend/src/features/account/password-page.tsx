@@ -4,10 +4,11 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation } from '@tanstack/react-query'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { KeyRound, Loader2 } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { changePasswordMutation } from '@/api'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { ConsolePage, PageHeader } from '@/components/console/page'
+import { Panel } from '@/components/console/panel'
 import {
   Form,
   FormControl,
@@ -84,43 +85,42 @@ export function AccountPasswordPage() {
   )
 
   return (
-    <div className="mx-auto w-full max-w-xl px-4 py-6 md:px-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <KeyRound className="h-4 w-4 text-blue-600" />
-            {t('accountPage.passwordTitle')}
-          </CardTitle>
-          <CardDescription>{t('accountPage.passwordDesc')}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Form {...form}>
-            <form
-              className="grid gap-4"
-              onSubmit={form.handleSubmit((v) =>
-                change.mutate({
-                  body: {
-                    currentPassword: v.currentPassword || undefined,
-                    newPassword: v.newPassword,
-                  },
-                }),
-              )}
+    <ConsolePage width="narrow">
+      <PageHeader
+        title={t('accountPage.passwordTitle')}
+        description={t('accountPage.passwordDesc')}
+      />
+      <Panel>
+        <Form {...form}>
+          <form
+            className="grid gap-4"
+            onSubmit={form.handleSubmit((v) =>
+              change.mutate({
+                body: {
+                  currentPassword: v.currentPassword || undefined,
+                  newPassword: v.newPassword,
+                },
+              }),
+            )}
+          >
+            {field(
+              'currentPassword',
+              t('accountPage.currentPassword'),
+              t('accountPage.currentPasswordHint'),
+            )}
+            {field('newPassword', t('accountPage.newPassword'))}
+            {field('confirm', t('accountPage.confirmNewPassword'))}
+            <Button
+              type="submit"
+              disabled={change.isPending}
+              className="h-11 w-full sm:h-9 sm:w-auto sm:justify-self-end"
             >
-              {field(
-                'currentPassword',
-                t('accountPage.currentPassword'),
-                t('accountPage.currentPasswordHint'),
-              )}
-              {field('newPassword', t('accountPage.newPassword'))}
-              {field('confirm', t('accountPage.confirmNewPassword'))}
-              <Button type="submit" disabled={change.isPending} className="justify-self-end">
-                {change.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-                {t('accountPage.updatePassword')}
-              </Button>
-            </form>
-          </Form>
-        </CardContent>
-      </Card>
-    </div>
+              {change.isPending && <Loader2 className="size-4 animate-spin" />}
+              {t('accountPage.updatePassword')}
+            </Button>
+          </form>
+        </Form>
+      </Panel>
+    </ConsolePage>
   )
 }

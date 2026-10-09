@@ -10,7 +10,7 @@ import {
 import { formatDay, formatVND } from '@/lib/format'
 import { useT } from '@/lib/i18n'
 import { BusTile } from '@/components/bus-tile'
-import { ConsoleCard, EmptyHint } from './console-card'
+import { EmptyState, Panel } from '@/components/console/panel'
 
 /** The five latest bookings with their price and (localised) status. */
 export function RecentPurchasesCard({
@@ -24,11 +24,7 @@ export function RecentPurchasesCard({
   const navigate = useNavigate()
 
   return (
-    <ConsoleCard
-      bar="from-blue-500 to-blue-400"
-      icon={<Ticket className="h-4 w-4 text-blue-600" />}
-      title={t('accountPage.console.recentPurchases')}
-    >
+    <Panel icon={<Ticket />} title={t('accountPage.console.recentPurchases')}>
       {loading ? (
         <div className="space-y-2">
           {Array.from({ length: 4 }, (_, i) => (
@@ -36,12 +32,14 @@ export function RecentPurchasesCard({
           ))}
         </div>
       ) : bookings.length === 0 ? (
-        <EmptyHint
-          icon={<Bus className="size-5" aria-hidden />}
-          tone="bg-blue-500/10 text-blue-600"
+        <EmptyState
+          icon={<Bus />}
           text={t('accountPage.console.noPurchasesYet')}
-          ctaLabel={t('home.bookATrip')}
-          onCta={() => navigate({ to: '/' })}
+          action={
+            <Button variant="outline" size="sm" onClick={() => navigate({ to: '/' })}>
+              {t('home.bookATrip')}
+            </Button>
+          }
         />
       ) : (
         <>
@@ -70,7 +68,7 @@ export function RecentPurchasesCard({
           <Button
             variant="ghost"
             size="sm"
-            className="mt-2 w-full gap-1 text-blue-700 hover:bg-blue-50"
+            className="mt-2 w-full gap-1 text-primary hover:bg-primary/5"
             onClick={() => navigate({ to: '/account/trips' })}
           >
             {t('accountPage.console.viewAllPurchases')}
@@ -78,6 +76,6 @@ export function RecentPurchasesCard({
           </Button>
         </>
       )}
-    </ConsoleCard>
+    </Panel>
   )
 }

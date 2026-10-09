@@ -15,8 +15,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { campaignsOptions } from '@/api'
 import { Sparkles, Percent, Tag } from 'lucide-react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
+import { CountPill, Panel } from '@/components/console/panel'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useT } from '@/lib/i18n'
 import type { CampaignOut } from '@/api'
@@ -47,61 +46,53 @@ export function CampaignsSummaryCard() {
   const campaigns = data?.items ?? []
 
   return (
-    <Card className="overflow-hidden h-full flex flex-col">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base flex items-center gap-2">
-          <Sparkles className="h-4 w-4 text-amber-500" />
-          {t('adminDash.campaignsTitle')}
-          {campaigns.length > 0 && (
-            <Badge variant="secondary" className="ml-auto tabular-nums">
-              {campaigns.length}
-            </Badge>
-          )}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="pt-0 flex-1">
-        {isLoading ? (
-          <div className="space-y-2">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <Skeleton key={i} className="h-10 w-full" />
-            ))}
-          </div>
-        ) : campaigns.length === 0 ? (
-          <div className="flex flex-col items-center justify-center gap-2 py-10 text-muted-foreground">
-            <Tag className="h-5 w-5" aria-hidden />
-            <p className="text-xs">{t('adminDash.noCampaignsDesc')}</p>
-          </div>
-        ) : (
-          <ul className="divide-y divide-border/60">
-            {campaigns.slice(0, 6).map((c) => {
-              const expiry = formatExpiry(c.endsAt, t)
-              return (
-                <li key={c.id} className="flex items-center gap-3 py-2.5">
-                  <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-amber-500/10 text-amber-600">
-                    <Percent className="size-4" aria-hidden />
+    <Panel
+      className="h-full"
+      icon={<Sparkles />}
+      title={t('adminDash.campaignsTitle')}
+      action={campaigns.length > 0 && <CountPill n={campaigns.length} />}
+    >
+      {isLoading ? (
+        <div className="space-y-2">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className="h-10 w-full" />
+          ))}
+        </div>
+      ) : campaigns.length === 0 ? (
+        <div className="flex flex-col items-center justify-center gap-2 py-10 text-muted-foreground">
+          <Tag className="h-5 w-5" aria-hidden />
+          <p className="text-xs">{t('adminDash.noCampaignsDesc')}</p>
+        </div>
+      ) : (
+        <ul className="divide-y divide-border/60">
+          {campaigns.slice(0, 6).map((c) => {
+            const expiry = formatExpiry(c.endsAt, t)
+            return (
+              <li key={c.id} className="flex items-center gap-3 py-2.5">
+                <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-amber-500/10 text-amber-600">
+                  <Percent className="size-4" aria-hidden />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <code className="font-mono text-sm font-bold text-blue-700 dark:text-blue-400">
+                    {c.code}
+                  </code>
+                  <div className="text-xs text-muted-foreground">
+                    {expiry ?? t('adminDash.campaignNoExpiry')}
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <code className="font-mono text-sm font-bold text-blue-700 dark:text-blue-400">
-                      {c.code}
-                    </code>
-                    <div className="text-xs text-muted-foreground">
-                      {expiry ?? t('adminDash.campaignNoExpiry')}
-                    </div>
-                  </div>
-                  <span className="shrink-0 text-sm font-bold tabular-nums text-emerald-600">
-                    {formatDiscount(c)}
-                  </span>
-                </li>
-              )
-            })}
-            {campaigns.length > 6 && (
-              <li className="pt-2 text-center text-xs text-muted-foreground">
-                {t('adminDash.campaignMore', { count: campaigns.length - 6 })}
+                </div>
+                <span className="shrink-0 text-sm font-bold tabular-nums text-emerald-600">
+                  {formatDiscount(c)}
+                </span>
               </li>
-            )}
-          </ul>
-        )}
-      </CardContent>
-    </Card>
+            )
+          })}
+          {campaigns.length > 6 && (
+            <li className="pt-2 text-center text-xs text-muted-foreground">
+              {t('adminDash.campaignMore', { count: campaigns.length - 6 })}
+            </li>
+          )}
+        </ul>
+      )}
+    </Panel>
   )
 }

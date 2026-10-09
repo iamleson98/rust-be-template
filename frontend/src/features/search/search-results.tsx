@@ -70,7 +70,7 @@ export function SearchResults() {
 
   return (
     <div className="min-h-[60vh] bg-slate-50">
-      <div className="sticky top-16 z-30 border-b bg-white/90 backdrop-blur-lg">
+      <div className="sticky top-(--header-h) z-30 border-b bg-white/90 backdrop-blur-lg">
         <div className="container mx-auto px-4 py-2 md:py-3">
           <SearchWidget compact />
         </div>

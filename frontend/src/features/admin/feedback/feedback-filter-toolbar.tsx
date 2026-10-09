@@ -77,7 +77,7 @@ export function FeedbackFilterToolbar({
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder={t('adminFeedback.searchPlaceholder')}
-          className="pl-8 h-9 text-sm"
+          className="pl-8 h-9 text-base md:text-sm"
         />
       </div>
       {brandId && (

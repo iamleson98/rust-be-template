@@ -191,7 +191,7 @@ export function VehicleTypeFormDialog({
                         {...field}
                         value={field.value ?? ''}
                         placeholder="limousine"
-                        className="font-mono text-sm"
+                        className="font-mono text-base md:text-sm"
                       />
                     </FormControl>
                     <FormMessage />

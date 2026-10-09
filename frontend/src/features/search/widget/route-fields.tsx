@@ -2,6 +2,7 @@
 
 // Extracted from the original 'search-widget.tsx'.
 
+import { Fragment } from 'react'
 import { useSearchForm } from '@/stores/search-form'
 import type { UseFormReturn } from 'react-hook-form'
 import { useT } from '@/lib/i18n'
@@ -37,22 +38,23 @@ export function SearchRouteFields({
   form: UseFormReturn<SearchFormValues>
   swap: () => void
   compact?: boolean
-  /** Render the swap button on its own centered row (mobile bottom-sheet
-   *  layout — the desktop grid hides it below md). */
+  /** The phone bottom-sheet layout: the two fields stacked as one group,
+   *  the swap button between them, labels for screen readers only. */
   stackedSwap?: boolean
 }) {
   const t = useT()
   const setSearchParams = useSearchForm((s) => s.setSearchParams)
 
+  const Group = stackedSwap ? 'div' : Fragment
   return (
-    <>
+    <Group {...(stackedSwap ? { className: 'relative space-y-2' } : {})}>
       {/* From */}
       <FormField
         control={form.control}
         name="from"
         render={({ field }) => (
           <FormItem className={compact ? 'space-y-1' : 'space-y-1.5'}>
-            <FormLabel className={LABEL_CLASS}>
+            <FormLabel className={stackedSwap ? 'sr-only' : LABEL_CLASS}>
               {t('search.from')}{' '}
               <span className="text-destructive" aria-hidden="true">
                 *
@@ -87,9 +89,13 @@ export function SearchRouteFields({
                 className="[&_input]:h-10"
               />
             </FormControl>
-            <MessageSlot compact>
-              <FormMessage className={compact ? 'text-xs leading-4' : undefined} />
-            </MessageSlot>
+            {stackedSwap ? (
+              <FormMessage className="text-xs leading-4" />
+            ) : (
+              <MessageSlot compact>
+                <FormMessage className={compact ? 'text-xs leading-4' : undefined} />
+              </MessageSlot>
+            )}
           </FormItem>
         )}
       />
@@ -99,14 +105,19 @@ export function SearchRouteFields({
           `stackedSwap`, centered on its own row). */}
       <div
         className={cn(
-          stackedSwap ? 'flex justify-center py-0.5' : 'hidden md:flex items-center justify-center',
-          compact ? 'pb-0.5' : 'pb-1',
+          stackedSwap
+            ? 'absolute right-12 top-11 z-10 -translate-y-1/2'
+            : 'hidden md:flex items-center justify-center',
+          !stackedSwap && (compact ? 'pb-0.5' : 'pb-1'),
         )}
       >
         <button
           type="button"
           onClick={swap}
-          className="relative h-10 w-10 rounded-full border bg-white hover:bg-blue-50 hover:border-blue-300 hover:rotate-180 transition-all duration-300 flex items-center justify-center text-blue-600"
+          className={cn(
+            'relative flex items-center justify-center rounded-full border bg-white text-blue-600 transition-all duration-300 hover:rotate-180 hover:border-blue-300 hover:bg-blue-50',
+            stackedSwap ? 'size-9 rotate-90 hover:rotate-270' : 'size-10',
+          )}
           title={t('home.swapDirection')}
           aria-label={t('home.swapDirection')}
         >
@@ -120,7 +131,7 @@ export function SearchRouteFields({
         name="to"
         render={({ field }) => (
           <FormItem className={compact ? 'space-y-1' : 'space-y-1.5'}>
-            <FormLabel className={LABEL_CLASS}>
+            <FormLabel className={stackedSwap ? 'sr-only' : LABEL_CLASS}>
               {t('search.to')}{' '}
               <span className="text-destructive" aria-hidden="true">
                 *
@@ -151,12 +162,16 @@ export function SearchRouteFields({
                 className="[&_input]:h-10"
               />
             </FormControl>
-            <MessageSlot compact>
-              <FormMessage className={compact ? 'text-xs leading-4' : undefined} />
-            </MessageSlot>
+            {stackedSwap ? (
+              <FormMessage className="text-xs leading-4" />
+            ) : (
+              <MessageSlot compact>
+                <FormMessage className={compact ? 'text-xs leading-4' : undefined} />
+              </MessageSlot>
+            )}
           </FormItem>
         )}
       />
-    </>
+    </Group>
   )
 }

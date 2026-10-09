@@ -15,7 +15,8 @@ import {
 } from 'lucide-react'
 import { bookingsDetailOptions, type PaymentOut } from '@/api'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { ConsolePage, PageHeader } from '@/components/console/page'
+import { Panel } from '@/components/console/panel'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useBookingPayments } from '@/features/booking/api'
 import { PaymentDialog } from '@/features/booking/flow/payment-dialog'
@@ -45,34 +46,34 @@ export function TicketDetailPage() {
   const payments = useBookingPayments(ticket?.id, stage === 'paying')
 
   const back = (
-    <Button asChild variant="ghost" size="sm" className="mb-3 -ml-2">
+    <Button asChild variant="ghost" size="sm" className="mb-2 -ml-2 text-muted-foreground">
       <Link to="/account/trips">
-        <ArrowLeft className="mr-1 h-4 w-4" /> {t('layout.account.tripHistory')}
+        <ArrowLeft className="size-4" /> {t('layout.account.tripHistory')}
       </Link>
     </Button>
   )
 
   if (isLoading) {
     return (
-      <div className="mx-auto w-full max-w-3xl space-y-4 px-4 py-6 md:px-6">
+      <ConsolePage width="narrow">
         <Skeleton className="h-8 w-56" />
         <Skeleton className="h-48 w-full rounded-xl" />
         <Skeleton className="h-40 w-full rounded-xl" />
-      </div>
+      </ConsolePage>
     )
   }
   if (isError || !ticket) {
     return (
-      <div className="mx-auto w-full max-w-3xl px-4 py-6 md:px-6">
+      <ConsolePage width="narrow">
         {back}
         <div className="flex flex-col items-center py-16 text-center">
-          <AlertCircle className="mb-3 h-12 w-12 text-rose-400" />
+          <AlertCircle className="mb-3 size-10 text-muted-foreground" />
           <h2 className="text-lg font-semibold">{t('bookingDetail.notFoundTitle')}</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             {t('bookingDetail.invalidCode', { code })}
           </p>
         </div>
-      </div>
+      </ConsolePage>
     )
   }
 
@@ -87,48 +88,48 @@ export function TicketDetailPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-4 px-4 py-6 md:px-6">
-      <div>
-        {back}
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-2.5">
-            <h1 className="font-mono text-2xl font-extrabold tracking-tight text-blue-700">
-              {ticket.code}
-            </h1>
+    <ConsolePage width="narrow">
+      <PageHeader
+        before={back}
+        title={
+          <span className="flex flex-wrap items-center gap-2.5">
+            <span className="font-mono">{ticket.code}</span>
             <TicketStatusBadge booking={ticket} />
-          </div>
-          {ticket.ticketQr && (
+          </span>
+        }
+        actions={
+          ticket.ticketQr && (
             <Button variant="outline" className="gap-1.5" onClick={() => setQrOpen(true)}>
-              <QrCode className="h-4 w-4" />
+              <QrCode className="size-4" />
               {t('bookingHistory.qrCode')}
             </Button>
-          )}
-        </div>
-      </div>
+          )
+        }
+      />
 
       {stage === 'awaiting' && (
-        <p className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-          <PhoneCall className="mt-0.5 h-4 w-4 shrink-0" />
+        <p className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+          <PhoneCall className="mt-0.5 size-4 shrink-0" />
           {t('bookingHistory.awaitingNotice', { phone: ticket.contactPhone ?? '' })}
         </p>
       )}
 
       {trip && (
-        <Card>
-          <CardContent className="space-y-4 p-5">
+        <Panel>
+          <div className="space-y-4">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Bus className="h-4 w-4" />
+              <Bus className="size-4" />
               <span className="font-medium text-foreground">{trip.brandName ?? '—'}</span>
               {trip.busLayoutName && <span>· {trip.busLayoutName}</span>}
             </div>
-            <div className="flex items-center gap-2 text-lg font-bold">
+            <div className="flex flex-wrap items-center gap-2 text-lg font-semibold">
               {trip.fromName ?? '—'}
-              <ArrowRight className="h-4 w-4 text-blue-600" />
+              <ArrowRight className="size-4 text-muted-foreground" />
               {trip.toName ?? '—'}
             </div>
-            <div className="flex items-center gap-2 text-sm">
-              <CalendarClock className="h-4 w-4 text-blue-600" />
-              <span className="font-semibold">
+            <div className="flex flex-wrap items-center gap-x-2 text-sm">
+              <CalendarClock className="size-4 text-primary" />
+              <span className="font-medium">
                 {formatDateVN(trip.departureAt ?? trip.departureDate, {
                   weekday: 'long',
                   day: '2-digit',
@@ -136,29 +137,24 @@ export function TicketDetailPage() {
                   year: 'numeric',
                 })}
               </span>
-              <span className="font-mono font-semibold">
+              <span className="font-semibold tabular-nums">
                 {trip.departureAt ? formatTimeVN(trip.departureAt) : trip.departureTime}
               </span>
             </div>
             <TicketStops pickup={ticket.pickup} dropoff={ticket.dropoff} />
-          </CardContent>
-        </Card>
+          </div>
+        </Panel>
       )}
 
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-sm">
-            <Users className="h-4 w-4 text-blue-600" />
-            {t('bookingHistory.passengersAndSeats', { count: ticket.seats.length })}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <TicketPassengers seats={ticket.seats} />
-        </CardContent>
-      </Card>
+      <Panel
+        icon={<Users />}
+        title={t('bookingHistory.passengersAndSeats', { count: ticket.seats.length })}
+      >
+        <TicketPassengers seats={ticket.seats} />
+      </Panel>
 
-      <Card>
-        <CardContent className="space-y-1.5 p-5 text-sm">
+      <Panel>
+        <div className="space-y-1.5 text-sm">
           {ticket.paymentMethod && (
             <Row
               label={t('payment.method')}
@@ -173,27 +169,27 @@ export function TicketDetailPage() {
             <Row label={t('bookingHistory.discount')} value={`- ${money(ticket.discount)}`} />
           )}
           <div className="flex items-center justify-between border-t pt-2">
-            <span className="font-bold">{t('bookingHistory.grandTotal')}</span>
-            <span className="text-xl font-extrabold text-blue-700">{money(ticket.total)}</span>
+            <span className="font-semibold">{t('bookingHistory.grandTotal')}</span>
+            <span className="text-xl font-semibold tabular-nums">{money(ticket.total)}</span>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </Panel>
 
       {(ticket.canCancel || stage === 'paying') && (
-        <div className="flex flex-wrap justify-end gap-2">
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           {ticket.canCancel && (
             <Button
               variant="outline"
-              className="gap-1.5 border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+              className="gap-1.5 border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700 dark:border-rose-500/30 dark:hover:bg-rose-500/10"
               onClick={() => openCancel(ticket.id)}
             >
-              <Ban className="h-4 w-4" />
+              <Ban className="size-4" />
               {t('cancel.title')}
             </Button>
           )}
           {stage === 'paying' && (
             <Button className="gap-1.5" onClick={() => setPaying(true)}>
-              <CreditCard className="h-4 w-4" />
+              <CreditCard className="size-4" />
               {t('booking.payment')}
             </Button>
           )}
@@ -209,7 +205,7 @@ export function TicketDetailPage() {
         onClose={() => setPaying(false)}
         onPaid={onPaid}
       />
-    </div>
+    </ConsolePage>
   )
 }
 

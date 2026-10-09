@@ -14,7 +14,7 @@ import { formatDayTime } from '@/lib/format'
 import { useT } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 import { BusTile } from '@/components/bus-tile'
-import { ConsoleCard, CountBadge, EmptyHint } from './console-card'
+import { CountPill, EmptyState, Panel } from '@/components/console/panel'
 
 type Translate = ReturnType<typeof useT>
 
@@ -42,8 +42,8 @@ function DepartureChip({ departureMs }: { departureMs: number }) {
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-bold tabular-nums',
-        urgent ? 'bg-blue-600 text-white' : 'bg-blue-500/10 text-blue-700 ring-1 ring-blue-500/20',
+        'inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-semibold tabular-nums',
+        urgent ? 'bg-primary text-primary-foreground' : 'bg-primary/10 text-primary',
       )}
     >
       <Clock className="size-3" aria-hidden />
@@ -72,11 +72,10 @@ export function ActiveTicketsCard({
   )
 
   return (
-    <ConsoleCard
-      bar="from-sky-500 to-blue-600"
-      icon={<CalendarClock className="h-4 w-4 text-blue-600" />}
+    <Panel
+      icon={<CalendarClock />}
       title={t('accountPage.console.activeTickets')}
-      badge={upcoming.length > 0 && <CountBadge n={upcoming.length} />}
+      action={upcoming.length > 0 && <CountPill n={upcoming.length} />}
     >
       {loading ? (
         <div className="space-y-2">
@@ -85,12 +84,14 @@ export function ActiveTicketsCard({
           ))}
         </div>
       ) : upcoming.length === 0 ? (
-        <EmptyHint
-          icon={<CalendarClock className="size-5" aria-hidden />}
-          tone="bg-sky-500/10 text-sky-600"
+        <EmptyState
+          icon={<CalendarClock />}
           text={t('accountPage.console.noActiveTickets')}
-          ctaLabel={t('home.bookATrip')}
-          onCta={() => navigate({ to: '/' })}
+          action={
+            <Button variant="outline" size="sm" onClick={() => navigate({ to: '/' })}>
+              {t('home.bookATrip')}
+            </Button>
+          }
         />
       ) : (
         <ul className="space-y-2">
@@ -102,45 +103,44 @@ export function ActiveTicketsCard({
                 <button
                   type="button"
                   onClick={() => navigate({ to: '/account/trips/$code', params: { code: b.code } })}
-                  className="group flex w-full items-center gap-3 rounded-xl border bg-slate-50/60 p-3 text-left transition-all hover:border-blue-300 hover:bg-blue-50/40"
+                  className="group flex w-full items-start gap-3 rounded-lg border p-3 text-left transition-colors hover:border-primary/40 hover:bg-primary/[0.03]"
                 >
-                  <BusTile accent={b.trip?.brandAccent} size="lg" />
+                  <BusTile accent={b.trip?.brandAccent} size="md" />
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-semibold">
-                      {b.trip?.routeName ?? t('accountPage.feedback.tripFallback')}
+                    <div className="flex items-center gap-2">
+                      <span className="min-w-0 flex-1 truncate text-sm font-semibold">
+                        {b.trip?.routeName ?? t('accountPage.feedback.tripFallback')}
+                      </span>
+                      <ChevronRight
+                        className="size-4 shrink-0 text-muted-foreground/60 transition-transform group-hover:translate-x-0.5"
+                        aria-hidden
+                      />
                     </div>
-                    <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
+                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                       <span className="inline-flex items-center gap-1">
-                        <CalendarClock className="size-3" aria-hidden />
+                        <CalendarClock className="size-3.5" aria-hidden />
                         {formatDayTime(b.trip?.departureAt ?? b.trip?.departureDate)}
                       </span>
                       <span className="inline-flex items-center gap-1">
-                        <Ticket className="size-3" aria-hidden />
+                        <Ticket className="size-3.5" aria-hidden />
                         {b.seats?.length ?? 0} {t('accountPage.console.seatsUnit')}
-                        <code className="font-mono">{b.code}</code>
                       </span>
+                      <code className="font-mono">{b.code}</code>
                     </div>
-                  </div>
-                  <div className="flex shrink-0 flex-col items-end gap-1.5">
-                    {i === 0 && departureMs > 0 ? (
-                      <DepartureChip departureMs={departureMs} />
-                    ) : (
-                      <span
-                        className={cn(
-                          'inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide',
-                          status.cls,
-                        )}
-                      >
-                        {t(status.labelKey)}
-                      </span>
-                    )}
-                    <span className="hidden items-center gap-0.5 text-[11px] font-medium text-blue-700 group-hover:flex sm:inline-flex">
-                      {t('accountPage.console.manageTicket')}
-                      <ChevronRight
-                        className="size-3 transition-transform group-hover:translate-x-0.5"
-                        aria-hidden
-                      />
-                    </span>
+                    <div className="mt-2">
+                      {i === 0 && departureMs > 0 ? (
+                        <DepartureChip departureMs={departureMs} />
+                      ) : (
+                        <span
+                          className={cn(
+                            'inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold',
+                            status.cls,
+                          )}
+                        >
+                          {t(status.labelKey)}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </button>
               </li>
@@ -150,7 +150,7 @@ export function ActiveTicketsCard({
             <Button
               variant="ghost"
               size="sm"
-              className="mt-1 w-full gap-1 text-blue-700 hover:bg-blue-50"
+              className="mt-1 w-full gap-1 text-primary hover:bg-primary/5"
               onClick={() => navigate({ to: '/account/trips' })}
             >
               {t('accountPage.console.viewAllTickets')}
@@ -159,6 +159,6 @@ export function ActiveTicketsCard({
           </li>
         </ul>
       )}
-    </ConsoleCard>
+    </Panel>
   )
 }

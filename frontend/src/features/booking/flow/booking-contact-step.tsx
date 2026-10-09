@@ -8,6 +8,7 @@ import { PrivacyNotice } from '@/components/seo/trust-signals'
 import { useT } from '@/lib/i18n'
 import { ChevronLeft, ChevronRight, User, Phone, Mail } from 'lucide-react'
 import { type BookingValues } from './booking-form'
+import { StepActions } from './step-actions'
 
 /** Step 2: who to send the ticket to. */
 export function BookingContactStep({
@@ -112,14 +113,14 @@ export function BookingContactStep({
         </div>
       )}
 
-      <div className="flex justify-between">
-        <Button variant="outline" onClick={onBack} className="gap-1">
+      <StepActions>
+        <Button variant="outline" onClick={onBack} className="gap-1 max-sm:h-11">
           <ChevronLeft className="h-4 w-4" /> {t('common.back')}
         </Button>
-        <Button onClick={onContinue} className="gap-1 bg-primary hover:bg-primary/90">
+        <Button onClick={onContinue} className="gap-1 max-sm:h-11 max-sm:flex-1">
           {t('bookingFlow.continue')} <ChevronRight className="h-4 w-4" />
         </Button>
-      </div>
+      </StepActions>
     </div>
   )
 }

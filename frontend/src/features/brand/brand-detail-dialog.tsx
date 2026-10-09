@@ -265,7 +265,7 @@ export function BrandDetailDialog({ slug, onClose }: { slug: string; onClose: ()
                         </div>
                         <div className="space-y-3">
                           {reviews.map((r) => (
-                            <div key={r.id} className="rounded-xl bg-white ring-1 ring-black/5 p-4">
+                            <div key={r.id} className="rounded-xl border bg-card p-4">
                               <div className="flex items-start gap-3">
                                 <div
                                   className="h-9 w-9 rounded-full text-white inline-flex items-center justify-center text-sm font-bold shrink-0"

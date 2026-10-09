@@ -166,7 +166,7 @@ export function FeedbackDetailDialog({
                   onChange={(e) => setReplyText(e.target.value)}
                   placeholder={t('adminFeedback.brandReplyPlaceholder')}
                   rows={3}
-                  className="bg-background text-sm resize-none"
+                  className="bg-background text-base md:text-sm resize-none"
                 />
                 <div className="flex items-center justify-end gap-2">
                   <Button

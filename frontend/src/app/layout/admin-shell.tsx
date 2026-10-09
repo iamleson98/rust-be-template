@@ -1,258 +1,77 @@
-import { useSession } from '@/stores/session'
-import { useState, useEffect, useRef } from 'react'
-import { Link, useRouterState } from '@tanstack/react-router'
-import { Button } from '@/components/ui/button'
-import { Separator } from '@/components/ui/separator'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import type { ReactNode } from 'react'
 import {
+  Activity,
+  Armchair,
+  Building2,
+  Bus,
+  CalendarClock,
+  CreditCard,
+  Eye,
   LayoutDashboard,
-  Ticket,
   MessageSquare,
   MessageSquareWarning,
-  Building2,
-  Armchair,
-  CreditCard,
-  Activity,
-  CalendarClock,
-  Eye,
-  LogOut,
-  Bus,
-  PanelLeftClose,
-  PanelLeft,
+  Ticket,
   Users,
 } from 'lucide-react'
-import { useLogout } from '@/features/auth/api'
+import { ConsoleShell, type ConsoleNavGroup } from '@/components/console/console-shell'
 import { useT } from '@/lib/i18n'
-import { cn } from '@/lib/utils'
+import { useSession } from '@/stores/session'
 
-const navGroups = (t: (k: string) => string) => [
-  {
-    label: t('admin.group.overview'),
-    items: [{ title: t('admin.dashboard'), icon: LayoutDashboard, url: '/admin' }],
-  },
-  {
-    label: t('admin.group.operations'),
-    items: [
-      { title: t('admin.ticketsSold'), icon: Ticket, url: '/admin/tickets' },
-      { title: t('admin.chatOnline'), icon: MessageSquare, url: '/admin/chat' },
-      { title: t('admin.feedback'), icon: MessageSquareWarning, url: '/admin/feedback' },
-    ],
-  },
-  {
-    label: t('admin.group.catalog'),
-    items: [
-      { title: t('admin.brands'), icon: Building2, url: '/admin/brands' },
-      { title: t('admin.busLayouts'), icon: Armchair, url: '/admin/bus-layouts' },
-      { title: t('admin.vehicleTypes'), icon: Bus, url: '/admin/vehicle-types' },
-    ],
-  },
-  {
-    label: t('admin.group.finance'),
-    items: [{ title: t('admin.payments'), icon: CreditCard, url: '/admin/payments' }],
-  },
-  {
-    label: t('admin.group.system'),
-    items: [
-      { title: t('admin.systemMonitoring'), icon: Activity, url: '/admin/system' },
-      { title: t('admin.cronJobs'), icon: CalendarClock, url: '/admin/cron-jobs' },
-    ],
-  },
-  // admin groups
-  {
-    label: t('admin.group.governance'),
-    items: [{ title: t('admin.users'), icon: Users, url: '/admin/users' }],
-  },
-]
-
-export function AdminShell({ children }: { children: React.ReactNode }) {
-  const pathname = useRouterState({ select: (s) => s.location.pathname })
-  const contentScrollRef = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    contentScrollRef.current?.scrollTo({ top: 0 })
-  }, [pathname])
-  const user = useSession((s) => s.user)
-  const logout = useLogout()
+/** The admin console: operations, catalog, finance and system; user management for admins only. */
+export function AdminShell({ children }: { children: ReactNode }) {
   const t = useT()
+  const isAdmin = useSession((s) => s.user?.type === 'admin')
 
-  const isAdmin = user?.type === 'admin'
-  const groups = navGroups(t).slice(0, isAdmin ? 6 : 5)
-
-  const [collapsed, setCollapsed] = useState(false)
-  const [mobileOpen, setMobileOpen] = useState(false)
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'b' && (e.metaKey || e.ctrlKey)) {
-        e.preventDefault()
-        setCollapsed((c) => !c)
-      }
-    }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [])
-
-  const isActive = (url: string) => {
-    if (url === '/admin') return pathname === '/admin'
-    return pathname.startsWith(url)
-  }
-
-  const initials = user?.name
-    ? user.name
-        .split(' ')
-        .map((n) => n[0])
-        .slice(0, 2)
-        .join('')
-        .toUpperCase()
-    : 'A'
-
-  const navContent = (
-    <>
-      {/* Nav */}
-      <nav className="flex-1 overflow-y-auto px-2 py-3 gap-1">
-        {groups.map((group) => (
-          <div key={group.label} className="mb-3">
-            {!collapsed && (
-              <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 px-3 py-1.5">
-                {group.label}
-              </div>
-            )}
-            <div className="space-y-0.5">
-              {group.items.map((item) => {
-                const Icon = item.icon
-                const active = isActive(item.url)
-                return (
-                  <Link
-                    key={item.url}
-                    to={item.url as never}
-                    onClick={() => setMobileOpen(false)}
-                    title={collapsed ? item.title : undefined}
-                    className={cn(
-                      'flex items-center gap-2.5 rounded-lg text-sm font-medium transition-all h-9',
-                      collapsed ? 'justify-center px-0' : 'px-3',
-                      active
-                        ? 'bg-primary/10 text-primary font-semibold'
-                        : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-                    )}
-                  >
-                    <Icon
-                      className={cn(
-                        'size-4 shrink-0',
-                        active ? 'text-primary' : 'text-muted-foreground/60',
-                      )}
-                    />
-                    {!collapsed && <span className="truncate">{item.title}</span>}
-                  </Link>
-                )
-              })}
-            </div>
-          </div>
-        ))}
-      </nav>
-
-      {/* Footer */}
-      <div className="border-t border-border/40 px-2 py-2 shrink-0">
-        <div className="space-y-0.5">
-          <Link
-            to="/"
-            onClick={() => setMobileOpen(false)}
-            title={collapsed ? t('admin.customerSite') : undefined}
-            className={cn(
-              'flex items-center gap-2.5 rounded-lg text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-all h-9',
-              collapsed ? 'justify-center px-0' : 'px-3',
-            )}
-          >
-            <Eye className="size-4 shrink-0" />
-            {!collapsed && <span>{t('admin.customerSite')}</span>}
-          </Link>
-          <button
-            onClick={() => {
-              logout()
-              setMobileOpen(false)
-            }}
-            title={collapsed ? t('auth.logout') : undefined}
-            className={cn(
-              'flex items-center gap-2.5 rounded-lg text-sm text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-all h-9 w-full',
-              collapsed ? 'justify-center px-0' : 'px-3',
-            )}
-          >
-            <LogOut className="size-4 shrink-0" />
-            {!collapsed && <span>{t('auth.logout')}</span>}
-          </button>
-        </div>
-        {!collapsed && (
-          <div className="flex items-center gap-2.5 px-3 py-2 mt-1 rounded-lg bg-muted/50">
-            <Avatar className="size-8 ring-2 ring-primary/20 shrink-0">
-              <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">
-                {initials}
-              </AvatarFallback>
-            </Avatar>
-            <div className="grid flex-1 text-left text-xs leading-tight overflow-hidden">
-              <span className="truncate font-semibold">{user?.name || 'Admin'}</span>
-              <span className="truncate text-muted-foreground">{user?.email || ''}</span>
-            </div>
-          </div>
-        )}
-      </div>
-    </>
-  )
+  const groups: ConsoleNavGroup[] = [
+    {
+      label: t('admin.group.overview'),
+      items: [{ title: t('admin.dashboard'), icon: LayoutDashboard, url: '/admin', exact: true }],
+    },
+    {
+      label: t('admin.group.operations'),
+      items: [
+        { title: t('admin.ticketsSold'), icon: Ticket, url: '/admin/tickets' },
+        { title: t('admin.chatOnline'), icon: MessageSquare, url: '/admin/chat' },
+        { title: t('admin.feedback'), icon: MessageSquareWarning, url: '/admin/feedback' },
+      ],
+    },
+    {
+      label: t('admin.group.catalog'),
+      items: [
+        { title: t('admin.brands'), icon: Building2, url: '/admin/brands' },
+        { title: t('admin.busLayouts'), icon: Armchair, url: '/admin/bus-layouts' },
+        { title: t('admin.vehicleTypes'), icon: Bus, url: '/admin/vehicle-types' },
+      ],
+    },
+    {
+      label: t('admin.group.finance'),
+      items: [{ title: t('admin.payments'), icon: CreditCard, url: '/admin/payments' }],
+    },
+    {
+      label: t('admin.group.system'),
+      items: [
+        { title: t('admin.systemMonitoring'), icon: Activity, url: '/admin/system' },
+        { title: t('admin.cronJobs'), icon: CalendarClock, url: '/admin/cron-jobs' },
+      ],
+    },
+    ...(isAdmin
+      ? [
+          {
+            label: t('admin.group.governance'),
+            items: [{ title: t('admin.users'), icon: Users, url: '/admin/users' }],
+          },
+        ]
+      : []),
+  ]
 
   return (
-    <div className="flex w-full h-[calc(100dvh-4rem)] overflow-hidden bg-background">
-      <aside
-        className={cn(
-          'hidden md:flex flex-col shrink-0 h-full border-r border-border/40 text-sidebar-foreground transition-[width] duration-200 ease-linear',
-          collapsed ? 'w-14' : 'w-64',
-        )}
-      >
-        {navContent}
-      </aside>
-
-      {/* Mobile sidebar — Sheet drawer */}
-      <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-        <SheetContent
-          side="left"
-          className="w-72 p-0 [&>button]:hidden bg-sidebar text-sidebar-foreground"
-        >
-          <SheetHeader className="sr-only">
-            <SheetTitle>Admin sidebar</SheetTitle>
-          </SheetHeader>
-          <div className="flex h-full w-full flex-col">{navContent}</div>
-        </SheetContent>
-      </Sheet>
-
-      <div className="flex flex-1 flex-col min-w-0 h-full overflow-hidden">
-        <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border/40 bg-background/95 backdrop-blur px-4">
-          {/* Mobile hamburger */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="md:hidden size-9"
-            onClick={() => setMobileOpen(true)}
-          >
-            <PanelLeft className="size-4" />
-          </Button>
-          {/* Desktop collapse toggle */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="hidden md:flex size-9"
-            onClick={() => setCollapsed((c) => !c)}
-          >
-            {collapsed ? <PanelLeft className="size-4" /> : <PanelLeftClose className="size-4" />}
-          </Button>
-          <Separator orientation="vertical" className="mr-2 h-full" />
-          <span className="text-sm font-medium text-muted-foreground truncate">
-            {user?.name || 'Admin'} · DatXeVui Admin
-          </span>
-        </header>
-        <div
-          ref={contentScrollRef}
-          className="flex-1 overflow-y-auto overscroll-contain bg-muted/30"
-        >
-          {children}
-        </div>
-      </div>
-    </div>
+    <ConsoleShell
+      label={t('nav.admin')}
+      groups={groups}
+      exit={{ title: t('admin.customerSite'), icon: Eye, to: '/' }}
+      mobileNav="drawer"
+    >
+      {children}
+    </ConsoleShell>
   )
 }

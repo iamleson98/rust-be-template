@@ -12,6 +12,7 @@ import type { PaymentProvider } from '@/lib/payment'
 import { ProviderTile } from './provider-tile'
 import type { PromoCode } from './use-promo-code'
 import type { Ticket } from './use-booking-form'
+import { StepActions } from './step-actions'
 
 export type PaymentMethodKey = 'momo' | 'vnpay' | 'bank' | 'cod'
 
@@ -168,14 +169,14 @@ export function PaymentMethodStep({
 
       <PaymentTrustBadges className="mb-1" />
 
-      <div className="flex justify-between gap-3">
-        <Button variant="outline" onClick={onBack} className="gap-1">
+      <StepActions>
+        <Button variant="outline" onClick={onBack} className="gap-1 max-sm:h-11">
           <ChevronLeft className="h-4 w-4" /> {t('common.back')}
         </Button>
         <Button
           onClick={onSubmit}
           disabled={submitting}
-          className="gap-2 bg-primary hover:bg-primary/90"
+          className="gap-2 max-sm:h-11 max-sm:flex-1"
         >
           {submitting ? (
             <>
@@ -187,7 +188,7 @@ export function PaymentMethodStep({
             </>
           )}
         </Button>
-      </div>
+      </StepActions>
     </div>
   )
 }
