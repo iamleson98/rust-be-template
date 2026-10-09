@@ -38,15 +38,22 @@ pub fn set_auth_cookies(
     jar.add(access_cookie).add(refresh_cookie)
 }
 
+/// Expire both auth cookies. The removal must carry the same Path and
+/// Domain the cookies were set with, or the browser keeps the originals.
 pub fn clear_auth_cookies(jar: CookieJar, cfg: &CookieConfig) -> CookieJar {
     let mut jar = jar;
     for name in [ACCESS_COOKIE, REFRESH_COOKIE] {
-        let c = Cookie::build(name)
+        let mut c = Cookie::build(name)
             .path("/")
+            .http_only(true)
+            .same_site(cfg.samesite.as_axum())
+            .secure(cfg.secure)
             .max_age(time::Duration::seconds(0));
+        if !cfg.domain.is_empty() {
+            c = c.domain(cfg.domain.clone());
+        }
         jar = jar.remove(c.build());
     }
-    let _ = cfg;
     jar
 }
 

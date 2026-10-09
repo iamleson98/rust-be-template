@@ -110,6 +110,31 @@ fn hops() -> usize {
     })
 }
 
+async fn serve_service_worker(path: std::path::PathBuf) -> axum::response::Response {
+    use axum::http::{header, HeaderValue, StatusCode};
+    match tokio::fs::read(&path).await {
+        Ok(bytes) => (
+            [
+                (
+                    header::CONTENT_TYPE,
+                    HeaderValue::from_static("application/javascript; charset=utf-8"),
+                ),
+                (
+                    header::CACHE_CONTROL,
+                    HeaderValue::from_static("no-cache, must-revalidate"),
+                ),
+                (
+                    HeaderName::from_static("service-worker-allowed"),
+                    HeaderValue::from_static("/"),
+                ),
+            ],
+            bytes,
+        )
+            .into_response(),
+        Err(_) => StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
 /// Build the complete app router.
 ///
 /// Order of operations:
@@ -202,6 +227,7 @@ pub fn build_router(state: AppState) -> Router<()> {
     let static_cache_age = state.config.static_files.cache_max_age;
     let static_root = std::path::Path::new(&static_dir).to_path_buf();
     let index_html_path = static_root.join("index.html");
+    let sw_path = static_root.join("sw.js");
 
     // Plain 404 for missing hashed assets — no HTML fallback, no caching.
     let asset_not_found = service_fn(|_req: axum::http::Request<axum::body::Body>| async {
@@ -345,32 +371,11 @@ pub fn build_router(state: AppState) -> Router<()> {
             axum::routing::get(crate::routes::seo::robots),
         )
         // PWA service worker — bypass the rate limiter (loaded on every page load).
+        // Served from the configured static dir, never cached: a stale worker
+        // would pin users to an old build.
         .route(
             "/sw.js",
-            axum::routing::get(|| async {
-                let path = std::path::Path::new("./frontend/dist/sw.js");
-                if path.exists() {
-                    let bytes = tokio::fs::read(path).await.unwrap_or_default();
-                    let mut resp = axum::response::Response::new(axum::body::Body::from(bytes));
-                    resp.headers_mut().insert(
-                        axum::http::header::CONTENT_TYPE,
-                        axum::http::HeaderValue::from_static(
-                            "application/javascript; charset=utf-8",
-                        ),
-                    );
-                    resp.headers_mut().insert(
-                        "Service-Worker-Allowed",
-                        axum::http::HeaderValue::from_static("/"),
-                    );
-                    resp.headers_mut().insert(
-                        axum::http::header::CACHE_CONTROL,
-                        axum::http::HeaderValue::from_static("no-cache, must-revalidate"),
-                    );
-                    resp
-                } else {
-                    axum::http::StatusCode::NOT_FOUND.into_response()
-                }
-            }),
+            axum::routing::get(move || serve_service_worker(sw_path.clone())),
         )
         .nest("/api", api_routes)
         // Media proxy (`/api/media/{key}`) — mounted at the root, NOT
