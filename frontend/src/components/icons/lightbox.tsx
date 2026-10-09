@@ -126,10 +126,11 @@ export function Lightbox({ open, images, initialIndex = 0, onClose }: Props) {
                     e.stopPropagation()
                     setIdx(i)
                   }}
-                  className={`h-14 w-14 rounded-md overflow-hidden ring-2 transition-all ${i === idx
+                  className={`h-14 w-14 rounded-md overflow-hidden ring-2 transition-all ${
+                    i === idx
                       ? 'ring-white scale-105'
                       : 'ring-white/20 opacity-70 hover:opacity-100'
-                    }`}
+                  }`}
                   aria-label={t('lightbox.imageAlt', { index: i + 1 })}
                 >
                   <img

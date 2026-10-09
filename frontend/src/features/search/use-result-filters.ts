@@ -19,7 +19,8 @@ export function useResultFilters(results: TripResult[]) {
   const [lastKey, setLastKey] = useState(boundsKey)
   if (boundsKey !== lastKey) {
     setLastKey(boundsKey)
-    if (filters.priceMin || filters.priceMax) setFilters((f) => ({ ...f, priceMin: 0, priceMax: 0 }))
+    if (filters.priceMin || filters.priceMax)
+      setFilters((f) => ({ ...f, priceMin: 0, priceMax: 0 }))
   }
 
   const range = useMemo(() => effectiveRange(filters, bounds), [filters, bounds])

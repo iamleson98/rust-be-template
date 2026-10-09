@@ -21,7 +21,9 @@ const asPayload = (json: string | null | undefined): CreatedTicketPayload | null
 export function parseTicketPayload(message: ChatMessageOut): CreatedTicketPayload | null {
   return (
     asPayload(message.attachments) ??
-    (message.kind === 'ticket' && message.content?.trim().startsWith('{') ? asPayload(message.content) : null)
+    (message.kind === 'ticket' && message.content?.trim().startsWith('{')
+      ? asPayload(message.content)
+      : null)
   )
 }
 

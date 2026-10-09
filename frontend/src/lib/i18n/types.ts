@@ -1,4 +1,3 @@
-
 /** Supported UI languages. Adding one: create a dictionary file and
  *  register it in `./index.ts` (see the header docs there). */
 export type Lang = 'vi' | 'en'

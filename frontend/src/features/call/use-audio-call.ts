@@ -9,7 +9,10 @@ import { useCallDuration, useCallSounds, useWakeLock } from './call-effects'
 
 export type IncomingCall = AudioCallEventMap['incoming']
 export type CallQuality = AudioCallEventMap['quality']
-export type CallError = { message: string; /** needs a manual browser-permission fix: stays until retried */ micDenied: boolean }
+export type CallError = {
+  message: string
+  /** needs a manual browser-permission fix: stays until retried */ micDenied: boolean
+}
 
 const NO_PRESENCE = { known: false, online: 0, agentInCall: false, available: false }
 /** The customer sees WHY a call ended for this long before the panel folds back into the chat. */
@@ -204,7 +207,11 @@ export function useAudioCall() {
 
   // Closing the customer panel mid-call hangs up.
   useEffect(() => {
-    if (!open && !isAgent && (state === 'calling' || state === 'connecting' || state === 'active')) {
+    if (
+      !open &&
+      !isAgent &&
+      (state === 'calling' || state === 'connecting' || state === 'active')
+    ) {
       hangup()
     }
   }, [open, isAgent, state, hangup])

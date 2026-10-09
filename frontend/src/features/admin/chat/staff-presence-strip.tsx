@@ -9,7 +9,11 @@ import type { StaffPresenceSnapshot } from '@/features/chat/events'
  * Who can answer right now (pushed over the socket): online staff by availability,
  * recently dropped staff dimmed with when they were last seen, and whether the bot is covering.
  */
-export function StaffPresenceStrip({ presence: staffPresence }: { presence: StaffPresenceSnapshot | null }) {
+export function StaffPresenceStrip({
+  presence: staffPresence,
+}: {
+  presence: StaffPresenceSnapshot | null
+}) {
   const t = useT()
   return (
     <div className="flex flex-wrap items-center gap-1.5">

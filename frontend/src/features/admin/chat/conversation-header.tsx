@@ -83,12 +83,17 @@ export function ConversationHeader({
           <div className="font-semibold text-sm truncate flex items-center gap-2">
             {customerName(channel)}
             {userOnline && (
-              <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" title={t('chat.online')} />
+              <span
+                className="h-2 w-2 rounded-full bg-emerald-500 shrink-0"
+                title={t('chat.online')}
+              />
             )}
           </div>
           <div className="text-[11px] text-muted-foreground truncate flex items-center gap-2">
             {typingUser ? (
-              <span className="text-blue-600 italic">{t('chat.typing', { name: typingUser.name })}</span>
+              <span className="text-blue-600 italic">
+                {t('chat.typing', { name: typingUser.name })}
+              </span>
             ) : (
               <>
                 {user?.phone && (

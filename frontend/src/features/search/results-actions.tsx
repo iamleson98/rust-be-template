@@ -43,7 +43,9 @@ export function ResultsActions({
       <Button
         variant="outline"
         size="sm"
-        onClick={() => openPriceAlert({ fromName: search.from, toName: search.to, minPrice: cheapest })}
+        onClick={() =>
+          openPriceAlert({ fromName: search.from, toName: search.to, minPrice: cheapest })
+        }
         className="gap-1.5"
       >
         <Bell className="h-3.5 w-3.5 text-blue-600" />

@@ -20,7 +20,13 @@ type Options = {
  * their place when older messages are prepended, and loads them at the top.
  * Prepends and appends both grow the list, so they are told apart by which end changed.
  */
-export function useMessageScroll({ messages, trailing, hasMore, loadingMore, onLoadMore }: Options) {
+export function useMessageScroll({
+  messages,
+  trailing,
+  hasMore,
+  loadingMore,
+  onLoadMore,
+}: Options) {
   const ref = useRef<HTMLDivElement>(null)
   const following = useRef(true)
   const before = useRef({ first: null as string | null, last: null as string | null, height: 0 })

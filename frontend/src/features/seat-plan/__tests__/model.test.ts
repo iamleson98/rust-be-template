@@ -106,7 +106,10 @@ describe('labels', () => {
     const p = plan(deck(1, 2, [seat(1, 1, '1')]))
     // width 2 → "02"; but "02" is free here, so take the next after max
     expect(nextLabel(p, 0)).toBe('02')
-    const crowded = plan(deck(1, 3, [seat(1, 1, '01'), seat(1, 2, '02')]), deck(1, 1, [seat(1, 1, '03')]))
+    const crowded = plan(
+      deck(1, 3, [seat(1, 1, '01'), seat(1, 2, '02')]),
+      deck(1, 1, [seat(1, 1, '03')]),
+    )
     expect(nextLabel(crowded, 0)).toBe('04')
   })
 
@@ -239,9 +242,7 @@ describe('toDeckViews', () => {
 
   it('flows seats into rows of four when they carry no usable position', () => {
     const [view] = toDeckViews([
-      tripDeck(
-        Array.from({ length: 6 }, (_, i) => tripSeat({ id: `S${i + 1}`, row: 0, col: 0 })),
-      ),
+      tripDeck(Array.from({ length: 6 }, (_, i) => tripSeat({ id: `S${i + 1}`, row: 0, col: 0 }))),
     ])
     expect(view.seats.map((p) => [p.row, p.col])).toEqual([
       [2, 1],

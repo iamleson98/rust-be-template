@@ -106,13 +106,19 @@ const adminPages = {
   vehicleTypes: createRoute({
     getParentRoute: () => admin,
     path: '/vehicle-types',
-    component: lazy(() => import('@/features/admin/vehicle-types/vehicle-types-panel'), 'VehicleTypesPanel'),
+    component: lazy(
+      () => import('@/features/admin/vehicle-types/vehicle-types-panel'),
+      'VehicleTypesPanel',
+    ),
     staticData: { seo: 'adminVehicleTypes' },
   }),
   busLayouts: createRoute({
     getParentRoute: () => admin,
     path: '/bus-layouts',
-    component: lazy(() => import('@/features/admin/bus-layouts/bus-layouts-page'), 'AdminBusLayoutsPage'),
+    component: lazy(
+      () => import('@/features/admin/bus-layouts/bus-layouts-page'),
+      'AdminBusLayoutsPage',
+    ),
     staticData: { seo: 'adminBusLayouts' },
   }),
   tickets: createRoute({
@@ -164,7 +170,11 @@ const adminPages = {
 const toBrands = () => {
   throw redirect({ to: '/admin/brands', replace: true })
 }
-const oldRoutes = createRoute({ getParentRoute: () => admin, path: '/routes', beforeLoad: toBrands })
+const oldRoutes = createRoute({
+  getParentRoute: () => admin,
+  path: '/routes',
+  beforeLoad: toBrands,
+})
 const oldSchedules = createRoute({
   getParentRoute: () => admin,
   path: '/schedules',
@@ -203,7 +213,10 @@ const accountPages = {
   notifications: createRoute({
     getParentRoute: () => account,
     path: '/notifications',
-    component: lazy(() => import('@/features/notifications/notifications-page'), 'AccountNotificationsPage'),
+    component: lazy(
+      () => import('@/features/notifications/notifications-page'),
+      'AccountNotificationsPage',
+    ),
     staticData: { seo: 'accountNotifications' },
   }),
   security: createRoute({
@@ -215,7 +228,10 @@ const accountPages = {
   feedback: createRoute({
     getParentRoute: () => account,
     path: '/feedback',
-    component: lazy(() => import('@/features/account/feedback/feedback-content'), 'AccountFeedbackContent'),
+    component: lazy(
+      () => import('@/features/account/feedback/feedback-content'),
+      'AccountFeedbackContent',
+    ),
     staticData: { seo: 'accountFeedback' },
   }),
 }

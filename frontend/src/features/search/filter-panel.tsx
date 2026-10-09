@@ -192,7 +192,9 @@ function PriceRange({ rf }: { rf: ResultFilters }) {
         min={bounds[0]}
         max={bounds[1]}
         step={50000}
-        onValueChange={([priceMin, priceMax]) => rf.setFilters({ ...rf.filters, priceMin, priceMax })}
+        onValueChange={([priceMin, priceMax]) =>
+          rf.setFilters({ ...rf.filters, priceMin, priceMax })
+        }
         className="py-2"
       />
       <div className="mt-1 flex justify-between text-[10px] tabular-nums text-muted-foreground">

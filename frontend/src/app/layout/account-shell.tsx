@@ -80,11 +80,11 @@ export function AccountShell({ children }: { children: React.ReactNode }) {
 
   const initials = user?.name
     ? user.name
-      .split(' ')
-      .map((n) => n[0])
-      .slice(0, 2)
-      .join('')
-      .toUpperCase()
+        .split(' ')
+        .map((n) => n[0])
+        .slice(0, 2)
+        .join('')
+        .toUpperCase()
     : 'U'
 
   const navContent = (

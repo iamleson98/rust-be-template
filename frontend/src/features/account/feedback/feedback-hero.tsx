@@ -17,7 +17,9 @@ function Chip({
       ? ['bg-white/10 ring-white/20', 'text-blue-100']
       : ['bg-emerald-400/15 ring-emerald-300/25', 'text-emerald-100']
   return (
-    <div className={`flex items-center gap-2 rounded-full px-3.5 py-1.5 text-sm ring-1 backdrop-blur ${chip}`}>
+    <div
+      className={`flex items-center gap-2 rounded-full px-3.5 py-1.5 text-sm ring-1 backdrop-blur ${chip}`}
+    >
       {icon}
       <span className="font-semibold tabular-nums">{value}</span>
       <span className={text}>{label}</span>
@@ -49,7 +51,9 @@ export function FeedbackHero({
           <MessageSquareHeart className="size-6 text-amber-300" />
           {t('accountPage.feedback.heroTitle')}
         </h1>
-        <p className="mt-1.5 max-w-xl text-sm text-blue-100">{t('accountPage.feedback.heroDesc')}</p>
+        <p className="mt-1.5 max-w-xl text-sm text-blue-100">
+          {t('accountPage.feedback.heroDesc')}
+        </p>
         <div className="mt-4 flex flex-wrap gap-2.5">
           <Chip
             tone="blue"

@@ -39,7 +39,13 @@ const BADGE_TONES = {
   amber: 'bg-amber-500/10 text-amber-600 ring-amber-500/20',
 }
 
-export const CountBadge = ({ n, tone = 'blue' }: { n: number; tone?: keyof typeof BADGE_TONES }) => (
+export const CountBadge = ({
+  n,
+  tone = 'blue',
+}: {
+  n: number
+  tone?: keyof typeof BADGE_TONES
+}) => (
   <span
     className={cn(
       'ml-auto inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold ring-1',
@@ -67,7 +73,9 @@ export function EmptyHint({
 }) {
   return (
     <div className="flex flex-col items-center gap-2 py-8 text-center">
-      <div className={cn('flex size-11 items-center justify-center rounded-full', tone)}>{icon}</div>
+      <div className={cn('flex size-11 items-center justify-center rounded-full', tone)}>
+        {icon}
+      </div>
       <p className="text-xs text-muted-foreground">{text}</p>
       <Button variant="outline" size="sm" className="gap-1.5" onClick={onCta}>
         <Bus className="h-3.5 w-3.5" /> {ctaLabel}

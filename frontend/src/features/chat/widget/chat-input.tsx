@@ -27,7 +27,14 @@ type Props = {
 }
 
 /** Message box with quick-start chips and a length guard; touch targets and font size suit phones. */
-export function ChatInput({ value, onChange, onSend, sending, showQuickActions, onQuickAction }: Props) {
+export function ChatInput({
+  value,
+  onChange,
+  onSend,
+  sending,
+  showQuickActions,
+  onQuickAction,
+}: Props) {
   const t = useT()
   // Count code points, not UTF-16 units: accented Vietnamese would otherwise read too long.
   const length = Array.from(value).length

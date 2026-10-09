@@ -1,8 +1,18 @@
 import { describe, expect, it } from 'vitest'
-import { editorReducer, initEditor, type EditorAction, type EditorState } from '../editor/editor-state'
+import {
+  editorReducer,
+  initEditor,
+  type EditorAction,
+  type EditorState,
+} from '../editor/editor-state'
 import { cellAt, sellableCount, type PlanCell, type SeatPlan } from '../model'
 
-const seat = (row: number, col: number, label: string, extra: Partial<PlanCell> = {}): PlanCell => ({
+const seat = (
+  row: number,
+  col: number,
+  label: string,
+  extra: Partial<PlanCell> = {},
+): PlanCell => ({
   row,
   col,
   kind: 'seat',
@@ -10,11 +20,14 @@ const seat = (row: number, col: number, label: string, extra: Partial<PlanCell> 
   ...extra,
 })
 
-const plan = (cells: PlanCell[], rows = 3, cols = 3): SeatPlan => ({ decks: [{ rows, cols, cells }] })
+const plan = (cells: PlanCell[], rows = 3, cols = 3): SeatPlan => ({
+  decks: [{ rows, cols, cells }],
+})
 
 const run = (state: EditorState, ...actions: EditorAction[]) => actions.reduce(editorReducer, state)
 
-const base = () => plan([{ row: 1, col: 1, kind: 'driver' }, seat(2, 1, '01', { seatId: 's1' }), seat(2, 3, '02')])
+const base = () =>
+  plan([{ row: 1, col: 1, kind: 'driver' }, seat(2, 1, '01', { seatId: 's1' }), seat(2, 3, '02')])
 
 describe('select tool', () => {
   it('selects an occupied cell and moves the selection to an empty one', () => {
@@ -46,25 +59,45 @@ describe('select tool', () => {
 
 describe('paint and erase', () => {
   it('paints a seat with the next free label and selects it', () => {
-    const s = run(initEditor(base(), false), { type: 'tool', tool: 'seat' }, { type: 'click', pos: { row: 3, col: 2 } })
+    const s = run(
+      initEditor(base(), false),
+      { type: 'tool', tool: 'seat' },
+      { type: 'click', pos: { row: 3, col: 2 } },
+    )
     expect(cellAt(s.plan.decks[0], { row: 3, col: 2 })).toMatchObject({ kind: 'seat', label: '03' })
     expect(s.selected).toEqual({ row: 3, col: 2 })
     expect(sellableCount(s.plan)).toBe(3)
   })
 
   it('keeps the label and seat id when repainting a seat as a berth', () => {
-    const s = run(initEditor(base(), false), { type: 'tool', tool: 'bed' }, { type: 'click', pos: { row: 2, col: 1 } })
-    expect(cellAt(s.plan.decks[0], { row: 2, col: 1 })).toMatchObject({ kind: 'bed', label: '01', seatId: 's1' })
+    const s = run(
+      initEditor(base(), false),
+      { type: 'tool', tool: 'bed' },
+      { type: 'click', pos: { row: 2, col: 1 } },
+    )
+    expect(cellAt(s.plan.decks[0], { row: 2, col: 1 })).toMatchObject({
+      kind: 'bed',
+      label: '01',
+      seatId: 's1',
+    })
   })
 
   it('keeps one driver per deck: painting a new one moves it', () => {
-    const s = run(initEditor(base(), false), { type: 'tool', tool: 'driver' }, { type: 'click', pos: { row: 1, col: 3 } })
+    const s = run(
+      initEditor(base(), false),
+      { type: 'tool', tool: 'driver' },
+      { type: 'click', pos: { row: 1, col: 3 } },
+    )
     const drivers = s.plan.decks[0].cells.filter((c) => c.kind === 'driver')
     expect(drivers).toEqual([{ row: 1, col: 3, kind: 'driver' }])
   })
 
   it('erases a cell', () => {
-    const s = run(initEditor(base(), false), { type: 'tool', tool: 'erase' }, { type: 'click', pos: { row: 2, col: 3 } })
+    const s = run(
+      initEditor(base(), false),
+      { type: 'tool', tool: 'erase' },
+      { type: 'click', pos: { row: 2, col: 3 } },
+    )
     expect(sellableCount(s.plan)).toBe(1)
   })
 })
@@ -82,14 +115,22 @@ describe('a layout in use keeps its seat set', () => {
     const erase = run(locked(), { type: 'tool', tool: 'erase' })
     expect(run(erase, { type: 'click', pos: { row: 2, col: 1 } }).plan).toBe(erase.plan)
     expect(sellableCount(run(erase, { type: 'click', pos: { row: 1, col: 1 } }).plan)).toBe(2)
-    const door = run(locked(), { type: 'tool', tool: 'door' }, { type: 'click', pos: { row: 1, col: 3 } })
+    const door = run(
+      locked(),
+      { type: 'tool', tool: 'door' },
+      { type: 'click', pos: { row: 1, col: 3 } },
+    )
     expect(cellAt(door.plan.decks[0], { row: 1, col: 3 })?.kind).toBe('door')
   })
 
   it('may re-class a seat as a berth, relabel it and move it', () => {
     let s = run(locked(), { type: 'select', pos: { row: 2, col: 1 } })
     s = run(s, { type: 'patch', patch: { kind: 'bed' } }, { type: 'patch', patch: { label: 'Z9' } })
-    expect(cellAt(s.plan.decks[0], { row: 2, col: 1 })).toMatchObject({ kind: 'bed', label: 'Z9', seatId: 's1' })
+    expect(cellAt(s.plan.decks[0], { row: 2, col: 1 })).toMatchObject({
+      kind: 'bed',
+      label: 'Z9',
+      seatId: 's1',
+    })
     s = run(s, { type: 'click', pos: { row: 3, col: 1 } })
     expect(cellAt(s.plan.decks[0], { row: 3, col: 1 })?.seatId).toBe('s1')
   })

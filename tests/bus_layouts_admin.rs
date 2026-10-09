@@ -171,7 +171,7 @@ async fn bus_layout_create_generates_seats_and_drives_trip_capacity() -> anyhow:
     let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
     let res = st
         .public
-        .search_trips("sài gòn", "cần thơ", &today, 20, vec![], "departure", 1)
+        .search_trips("sài gòn", "cần thơ", &today, 20, 0, vec![], "departure", 1)
         .await?;
     let trip = res
         .items
@@ -416,7 +416,7 @@ async fn trip_on_layout(
     let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
     let res = st
         .public
-        .search_trips("sài gòn", "cần thơ", &today, 20, vec![], "departure", 1)
+        .search_trips("sài gòn", "cần thơ", &today, 20, 0, vec![], "departure", 1)
         .await?;
     Ok(res
         .items

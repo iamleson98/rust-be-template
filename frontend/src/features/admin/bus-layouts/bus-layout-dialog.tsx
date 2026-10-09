@@ -4,7 +4,13 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { adminBusLayoutsDetailOptions, type AdminBusLayoutOut, type BusLayoutPreset } from '@/api'
 import { ErrorState } from '@/components/error-state'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { PresetPicker, blankPlan } from '@/features/seat-plan'
 import { useT } from '@/lib/i18n'

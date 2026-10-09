@@ -34,7 +34,10 @@ export function RouteMeta() {
     document.documentElement.lang = lang
     const title = translate(lang, `seo.${seo}.title`)
     document.title = title
-    const description = translate(lang, seo === 'default' ? 'seo.home.description' : `seo.${seo}.description`)
+    const description = translate(
+      lang,
+      seo === 'default' ? 'seo.home.description' : `seo.${seo}.description`,
+    )
     document.querySelector('meta[name="description"]')?.setAttribute('content', description)
     setMeta('robots', isPrivate ? 'noindex, nofollow' : null)
     // Private pages never reach analytics (PII + abuse protection).

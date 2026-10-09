@@ -10,7 +10,13 @@
  */
 
 import { useQuery, useMutation } from '@tanstack/react-query'
-import { adminCronJobsListOptions, listRunsOptions, adminCronJobsCancelMutation, adminCronJobsTriggerMutation, adminCronJobsUpdateMutation } from '@/api'
+import {
+  adminCronJobsListOptions,
+  listRunsOptions,
+  adminCronJobsCancelMutation,
+  adminCronJobsTriggerMutation,
+  adminCronJobsUpdateMutation,
+} from '@/api'
 import { useMemo, useState } from 'react'
 import { createColumnHelper } from '@tanstack/react-table'
 import {

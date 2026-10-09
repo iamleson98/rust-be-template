@@ -12,7 +12,11 @@
  */
 
 import { useQuery, useMutation } from '@tanstack/react-query'
-import { placesListOptions, adminPickupPointsDeleteMutation, adminPickupPointsListOptions } from '@/api'
+import {
+  placesListOptions,
+  adminPickupPointsDeleteMutation,
+  adminPickupPointsListOptions,
+} from '@/api'
 import { useMemo, useState } from 'react'
 import {
   Dialog,

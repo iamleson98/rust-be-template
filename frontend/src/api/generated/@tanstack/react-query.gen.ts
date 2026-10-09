@@ -3192,6 +3192,36 @@ export const searchTripsOptions = (options: Options<SearchTripsData>) => queryOp
     queryKey: searchTripsQueryKey(options)
 });
 
+export const searchTripsInfiniteQueryKey = (options: Options<SearchTripsData>): QueryKey<Options<SearchTripsData>> => createQueryKey('searchTrips', options, true, ['search']);
+
+/**
+ * `GET /api/search` — search trips.
+ */
+export const searchTripsInfiniteOptions = (options: Options<SearchTripsData>) => {
+    const opts = infiniteQueryOptions<SearchTripsResponse, DefaultError, InfiniteData<SearchTripsResponse>, QueryKey<Options<SearchTripsData>>, number | null | Pick<QueryKey<Options<SearchTripsData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<SearchTripsData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    offset: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await searchTrips({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: searchTripsInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
+
 export const searchTripsGeoQueryKey = (options: Options<SearchTripsGeoData>) => createQueryKey('searchTripsGeo', options, false, ['search']);
 
 export const searchTripsGeoOptions = (options: Options<SearchTripsGeoData>) => queryOptions<SearchTripsGeoResponse, DefaultError, SearchTripsGeoResponse, ReturnType<typeof searchTripsGeoQueryKey>>({

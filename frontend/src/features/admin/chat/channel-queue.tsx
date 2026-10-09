@@ -46,7 +46,8 @@ export function ChannelQueue({ queue, activeId, onOpen }: Props) {
           {t('chat.queue')}
           <span className="text-xs font-normal text-muted-foreground ml-auto">
             {queue.channels.length}
-            {queue.total !== queue.channels.length ? `/${queue.total}` : ''} {t('adminChat.channelNoun')}
+            {queue.total !== queue.channels.length ? `/${queue.total}` : ''}{' '}
+            {t('adminChat.channelNoun')}
           </span>
           <Button
             variant={queue.mineOnly ? 'default' : 'outline'}
@@ -67,7 +68,9 @@ export function ChannelQueue({ queue, activeId, onOpen }: Props) {
             {queue.loading ? (
               <ChatChannelListSkeleton count={6} />
             ) : queue.channels.length === 0 && !queue.hasMore ? (
-              <div className="p-8 text-center text-sm text-muted-foreground">{t('chat.noChannels')}</div>
+              <div className="p-8 text-center text-sm text-muted-foreground">
+                {t('chat.noChannels')}
+              </div>
             ) : (
               queue.channels.map((channel) => (
                 <ChannelRow

@@ -9,8 +9,7 @@ import { tSync } from '@/lib/i18n'
 
 /** Resolve a dictionary key in the CURRENT app language (vi default).
  *  Called at render/compute time so VI/EN switches re-localize. */
-const L = (key: string, params?: Record<string, string | number>) =>
-  tSync(key, params)
+const L = (key: string, params?: Record<string, string | number>) => tSync(key, params)
 import type { AdminBrandOut, AdminRouteOut, AdminScheduleOut } from '@/api'
 
 /** Sort-key labels — I18N KEYS (resolved by the consumer's `t`). */

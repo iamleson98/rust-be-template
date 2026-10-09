@@ -35,12 +35,10 @@ const LISTS = {
 /** Requests with a body, recorded so tests can read them after the fact. */
 function recorder() {
   const sent: { method: string; path: string; request: Request }[] = []
-  const handler =
-    (response: unknown) =>
-    (url: URL, request: Request) => {
-      sent.push({ method: request.method, path: url.pathname, request: request.clone() })
-      return response
-    }
+  const handler = (response: unknown) => (url: URL, request: Request) => {
+    sent.push({ method: request.method, path: url.pathname, request: request.clone() })
+    return response
+  }
   return { sent, handler, body: (i: number) => sent[i].request.json() }
 }
 
@@ -49,9 +47,7 @@ describe('BusLayoutDialog — create', () => {
     const rec = recorder()
     mockApi({ ...LISTS, 'POST /api/admin/bus-layouts': rec.handler({ id: 'new-1' }) })
     const onSaved = vi.fn()
-    renderWithQuery(
-      <BusLayoutDialog open layout={null} onOpenChange={vi.fn()} onSaved={onSaved} />,
-    )
+    renderWithQuery(<BusLayoutDialog open layout={null} onOpenChange={vi.fn()} onSaved={onSaved} />)
 
     await userEvent.click(await screen.findByRole('button', { name: /Xe 4 chỗ/ }))
 
@@ -110,7 +106,9 @@ describe('BusLayoutDialog — edit', () => {
       <BusLayoutDialog open layout={layout as never} onOpenChange={vi.fn()} onSaved={onSaved} />,
     )
 
-    expect(await screen.findByText(/Sơ đồ này được tạo theo kiểu lưới đơn giản/)).toBeInTheDocument()
+    expect(
+      await screen.findByText(/Sơ đồ này được tạo theo kiểu lưới đơn giản/),
+    ).toBeInTheDocument()
     expect(screen.getByText(/Sơ đồ đã có chuyến hoặc vé sử dụng/)).toBeInTheDocument()
 
     const name = screen.getByLabelText(/Tên sơ đồ/)

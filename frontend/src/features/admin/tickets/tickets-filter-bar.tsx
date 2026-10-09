@@ -154,9 +154,7 @@ export function TicketsFilterBar({
               >
                 <Download className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">
-                  {exporting
-                    ? t('adminTickets.exporting')
-                    : t('adminTickets.exportCsv')}
+                  {exporting ? t('adminTickets.exporting') : t('adminTickets.exportCsv')}
                 </span>
               </Button>
             </div>

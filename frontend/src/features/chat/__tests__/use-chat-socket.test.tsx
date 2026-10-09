@@ -47,7 +47,10 @@ type FakeSocket = {
   drop(): void
 }
 const socket = () => mocks.sockets.at(-1) as FakeSocket
-const joins = () => socket().sent.filter(([type]) => type === 'join').map(([, data]) => data?.channelId)
+const joins = () =>
+  socket()
+    .sent.filter(([type]) => type === 'join')
+    .map(([, data]) => data?.channelId)
 
 beforeEach(() => {
   mocks.sockets.length = 0
@@ -57,7 +60,8 @@ function setup(props: { enabled?: boolean; channelId?: string | null } = {}) {
   const onEvent = vi.fn<(event: ChatEvent) => void>()
   const onGiveUp = vi.fn()
   const hook = renderHook(
-    (p: { enabled: boolean; channelId?: string | null }) => useChatSocket({ ...p, onEvent, onGiveUp }),
+    (p: { enabled: boolean; channelId?: string | null }) =>
+      useChatSocket({ ...p, onEvent, onGiveUp }),
     { initialProps: { enabled: true, ...props } },
   )
   return { onEvent, onGiveUp, ...hook }
@@ -107,8 +111,15 @@ describe('useChatSocket', () => {
 
   it('forwards every server frame to onEvent', () => {
     const { onEvent } = setup()
-    act(() => socket().emit('_message', { type: 'typing', channelId: 'c1', name: 'An', isTyping: true }))
-    expect(onEvent).toHaveBeenCalledWith({ type: 'typing', channelId: 'c1', name: 'An', isTyping: true })
+    act(() =>
+      socket().emit('_message', { type: 'typing', channelId: 'c1', name: 'An', isTyping: true }),
+    )
+    expect(onEvent).toHaveBeenCalledWith({
+      type: 'typing',
+      channelId: 'c1',
+      name: 'An',
+      isTyping: true,
+    })
   })
 
   it('gives up only when the socket never opened', () => {

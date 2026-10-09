@@ -55,7 +55,8 @@ export function useAdminChatSocket(activeChannelId?: string) {
           void invalidateResources(queryClient, 'chat')
           break
         case 'typing':
-          if (here && event.userId !== user?.id) setTypingUser(event.isTyping ? { name: event.name } : null)
+          if (here && event.userId !== user?.id)
+            setTypingUser(event.isTyping ? { name: event.name } : null)
           break
         case 'presence':
           if (here) setUserOnline(event.online)

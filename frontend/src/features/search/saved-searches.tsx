@@ -27,7 +27,10 @@ export function SavedSearchesList({
             key={s.id}
             className="inline-flex items-center gap-1.5 rounded-full border border-rose-200 bg-white px-2 py-1 text-[11px]"
           >
-            <button onClick={() => onApply(s)} className="font-medium text-rose-700 hover:underline">
+            <button
+              onClick={() => onApply(s)}
+              className="font-medium text-rose-700 hover:underline"
+            >
               {s.from} → {s.to}
             </button>
             <span className="text-muted-foreground">• {s.date}</span>

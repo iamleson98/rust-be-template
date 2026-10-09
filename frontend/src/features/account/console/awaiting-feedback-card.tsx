@@ -20,7 +20,9 @@ export function AwaitingFeedbackCard({ bookings }: { bookings: BookingItem[] }) 
       title={t('accountPage.console.rateYourTrips')}
       badge={<CountBadge n={bookings.length} tone="amber" />}
     >
-      <p className="mb-3 text-xs text-muted-foreground">{t('accountPage.console.rateYourTripsDesc')}</p>
+      <p className="mb-3 text-xs text-muted-foreground">
+        {t('accountPage.console.rateYourTripsDesc')}
+      </p>
       <ul className="space-y-2">
         {bookings.slice(0, 3).map((b) => (
           <li key={b.id} className="flex items-center gap-3 rounded-lg border bg-slate-50/60 p-3">

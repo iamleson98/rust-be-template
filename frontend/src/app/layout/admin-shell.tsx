@@ -62,9 +62,8 @@ const navGroups = (t: (k: string) => string) => [
   {
     label: t('admin.group.governance'),
     items: [{ title: t('admin.users'), icon: Users, url: '/admin/users' }],
-  }
+  },
 ]
-
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname })
@@ -100,11 +99,11 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 
   const initials = user?.name
     ? user.name
-      .split(' ')
-      .map((n) => n[0])
-      .slice(0, 2)
-      .join('')
-      .toUpperCase()
+        .split(' ')
+        .map((n) => n[0])
+        .slice(0, 2)
+        .join('')
+        .toUpperCase()
     : 'A'
 
   const navContent = (

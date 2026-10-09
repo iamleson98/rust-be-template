@@ -13,7 +13,11 @@
  */
 
 import { useQuery, useMutation, keepPreviousData } from '@tanstack/react-query'
-import { adminBrandsListOptions, adminBusLayoutsDeleteMutation, adminBusLayoutsListOptions } from '@/api'
+import {
+  adminBrandsListOptions,
+  adminBusLayoutsDeleteMutation,
+  adminBusLayoutsListOptions,
+} from '@/api'
 import { useMemo, useState } from 'react'
 import { createColumnHelper } from '@tanstack/react-table'
 import { Armchair, Bus, LayoutGrid, Loader2, Pencil, Plus, Trash2 } from 'lucide-react'
@@ -83,7 +87,9 @@ export function AdminBusLayoutsPage() {
   const brandById = useMemo(() => new Map(brands.map((b) => [b.id, b])), [brands])
 
   const { data, isLoading } = useQuery({
-    ...adminBusLayoutsListOptions({ query: { brandId, limit: PAGE_SIZE, offset: page * PAGE_SIZE } }),
+    ...adminBusLayoutsListOptions({
+      query: { brandId, limit: PAGE_SIZE, offset: page * PAGE_SIZE },
+    }),
     placeholderData: keepPreviousData,
   })
 

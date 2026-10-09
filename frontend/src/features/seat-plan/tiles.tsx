@@ -57,7 +57,8 @@ export type TileState = 'idle' | 'available' | 'selected' | 'locked' | 'taken'
 
 const STATE: Record<TileState, string> = {
   idle: 'border-slate-300 bg-white text-slate-700',
-  available: 'border-slate-200 bg-white text-slate-700 hover:-translate-y-0.5 hover:border-primary/50',
+  available:
+    'border-slate-200 bg-white text-slate-700 hover:-translate-y-0.5 hover:border-primary/50',
   selected: 'scale-105 border-primary bg-primary text-primary-foreground',
   locked: 'cursor-not-allowed border-warning/40 bg-warning/20 text-warning-foreground',
   taken: 'cursor-not-allowed border-slate-300 bg-slate-200 text-slate-400 line-through',

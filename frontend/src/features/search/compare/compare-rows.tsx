@@ -68,7 +68,9 @@ export const COMPARE_ROWS: CompareRow[] = [
   {
     labelKey: 'common.fromPrice',
     icon: icon(Wallet),
-    render: (t) => <span className="text-lg font-extrabold text-blue-700">{formatVND(t.minPrice)}</span>,
+    render: (t) => (
+      <span className="text-lg font-extrabold text-blue-700">{formatVND(t.minPrice)}</span>
+    ),
     score: (t) => t.minPrice,
   },
   {

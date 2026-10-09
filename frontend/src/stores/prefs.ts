@@ -7,7 +7,8 @@ export type Currency = 'VND' | 'USD'
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365
 
 function initialLang(): Lang {
-  const cookie = typeof document === 'undefined' ? undefined : /bus_lang=(vi|en)/.exec(document.cookie)?.[1]
+  const cookie =
+    typeof document === 'undefined' ? undefined : /bus_lang=(vi|en)/.exec(document.cookie)?.[1]
   return (storage.get('bus_lang') ?? cookie) === 'en' ? 'en' : 'vi'
 }
 

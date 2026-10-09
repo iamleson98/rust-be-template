@@ -57,7 +57,15 @@ type Props = {
 }
 
 /** The conversation: oldest first, own messages on the right, load-more at the top. */
-export function MessageList({ scrollRef, messages, loading, peerTyping, hasMore, loadingMore, onLoadMore }: Props) {
+export function MessageList({
+  scrollRef,
+  messages,
+  loading,
+  peerTyping,
+  hasMore,
+  loadingMore,
+  onLoadMore,
+}: Props) {
   const t = useT()
   return (
     <div className="flex-1 flex flex-col min-h-0">

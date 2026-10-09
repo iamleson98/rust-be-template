@@ -15,7 +15,10 @@ export function WelcomeBar() {
   const user = useSession((s) => s.user)
 
   // Only authenticated users trigger the fetch — guests render instantly.
-  const bookingsQuery = useQuery({ ...bookingsListOptions({ query: { status: 'all' } }), enabled: !!user })
+  const bookingsQuery = useQuery({
+    ...bookingsListOptions({ query: { status: 'all' } }),
+    enabled: !!user,
+  })
   const activeCount = useMemo(() => {
     if (!user || !bookingsQuery.data) return 0
     const items = (bookingsQuery.data.items ?? []) as unknown as BookingItem[]

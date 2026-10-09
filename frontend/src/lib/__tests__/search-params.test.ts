@@ -52,7 +52,10 @@ describe('parseSearch', () => {
       'sleeper',
     ])
     expect(parseSearch({ vehicleTypes: '["limousine"]' }).vehicleTypes).toEqual(['limousine'])
-    expect(parseSearch({ vt: 'limousine, sleeper,' }).vehicleTypes).toEqual(['limousine', 'sleeper'])
+    expect(parseSearch({ vt: 'limousine, sleeper,' }).vehicleTypes).toEqual([
+      'limousine',
+      'sleeper',
+    ])
     expect(parseSearch({ vehicleTypes: '[oops' }).vehicleTypes).toEqual(['[oops'])
     expect(parseSearch({ vehicleTypes: 7 }).vehicleTypes).toEqual([])
   })
@@ -128,7 +131,9 @@ describe('buildSearchInput', () => {
   })
 
   it('keeps coordinates when both ends are precise, dropping the city fallbacks', () => {
-    expect(buildSearchInput({ from: 'Bến xe A', to: 'Bến xe B', ...geo, fromCity: 'X', toCity: 'Y' })).toEqual({
+    expect(
+      buildSearchInput({ from: 'Bến xe A', to: 'Bến xe B', ...geo, fromCity: 'X', toCity: 'Y' }),
+    ).toEqual({
       from: 'Bến xe A',
       to: 'Bến xe B',
       ...geo,
@@ -136,13 +141,24 @@ describe('buildSearchInput', () => {
   })
 
   it('keeps vt through the precise-pick branch', () => {
-    const out = buildSearchInput({ from: 'Bến xe A', to: 'Bến xe B', vehicleTypes: ['limousine'], ...geo })
+    const out = buildSearchInput({
+      from: 'Bến xe A',
+      to: 'Bến xe B',
+      vehicleTypes: ['limousine'],
+      ...geo,
+    })
     expect(out).toMatchObject({ vt: 'limousine', fromLat: 1 })
   })
 
   it('degrades a mixed pick to its cities and drops the half coordinates', () => {
     expect(
-      buildSearchInput({ from: 'Bến xe A', to: 'Đà Nẵng', fromLat: 1, fromLon: 2, fromCity: 'Hà Nội' }),
+      buildSearchInput({
+        from: 'Bến xe A',
+        to: 'Đà Nẵng',
+        fromLat: 1,
+        fromLon: 2,
+        fromCity: 'Hà Nội',
+      }),
     ).toEqual({ from: 'Hà Nội', to: 'Đà Nẵng' })
   })
 })

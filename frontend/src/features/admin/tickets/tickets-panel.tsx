@@ -30,7 +30,12 @@ import { DataTableColumnHeader, type DataTableFeatures } from '@/components/data
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { AlertCircle, RefreshCw, Ticket as TicketIcon, TrendingUp } from 'lucide-react'
-import { useAdminBookings, useAdminBookingStats, useBookingsCsvExport, type AdminBookingFilter } from './api'
+import {
+  useAdminBookings,
+  useAdminBookingStats,
+  useBookingsCsvExport,
+  type AdminBookingFilter,
+} from './api'
 import type { AdminBookingOut } from '@/api'
 
 import { BookingStatusBadge } from '@/features/admin/dashboard/booking-status-badge'

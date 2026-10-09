@@ -66,7 +66,8 @@ export function CancelDialog() {
     error?: string
   }
 
-  const cancelMutation = useMutation({ ...bookingsCancelMutation(),
+  const cancelMutation = useMutation({
+    ...bookingsCancelMutation(),
     onSuccess: (data) => {
       const d =
         ((data ?? {}) as { data?: CancelResult })?.data ?? (data as CancelResult | undefined)

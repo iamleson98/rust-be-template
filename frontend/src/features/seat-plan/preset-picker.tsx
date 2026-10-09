@@ -28,7 +28,11 @@ export function PresetPicker({
   return (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
       {onBlank && (
-        <button type="button" className={cn(card, 'items-center justify-center text-center')} onClick={onBlank}>
+        <button
+          type="button"
+          className={cn(card, 'items-center justify-center text-center')}
+          onClick={onBlank}
+        >
           <LayoutTemplate className="h-8 w-8 text-muted-foreground" />
           <span className="text-sm font-semibold">{t('seatPlan.presets.blank')}</span>
           <span className="text-xs text-muted-foreground">{t('seatPlan.presets.blankDesc')}</span>

@@ -5722,6 +5722,19 @@
             }
           },
           {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
             "name": "vehicleTypes",
             "in": "query",
             "required": false,
@@ -13205,16 +13218,50 @@
       },
       "TripSearchResponse": {
         "type": "object",
-        "description": "Response of `GET /api/search` and `GET /api/recommendations`.",
+        "description": "Response of `GET /api/search`, `GET /api/search/geo` and `GET /api/recommendations`. The search endpoints are paginated; `/api/recommendations` omits the page metadata.",
         "required": [
           "items"
         ],
         "properties": {
+          "hasMore": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "True when more matching trips exist past this page — the signal for the frontend's \"load more\" button. Omitted on non-paginated responses."
+          },
           "items": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/TripResult"
             }
+          },
+          "limit": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Page size the server actually applied (after clamping). Omitted on non-paginated responses.",
+            "minimum": 0
+          },
+          "offset": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Index of the first item inside this page. Omitted on non-paginated responses.",
+            "minimum": 0
+          },
+          "total": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Total matching trips across ALL pages (before the offset window is applied). Omitted on non-paginated responses.",
+            "minimum": 0
           }
         }
       },

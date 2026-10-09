@@ -64,7 +64,8 @@ export function summarizeStats(report: RTCStatsReport): QualityStats {
 
   const local = selected.local ? candidateTypes.get(selected.local) : undefined
   const remote = selected.remote ? candidateTypes.get(selected.remote) : undefined
-  const relayed = local === undefined && remote === undefined ? null : local === 'relay' || remote === 'relay'
+  const relayed =
+    local === undefined && remote === undefined ? null : local === 'relay' || remote === 'relay'
   return { rttMs, jitterMs, lossPct, relayed }
 }
 

@@ -32,7 +32,13 @@ const kindOf = (seat: TripSeat): CellKind =>
   seat.kind ?? (seat.seatClass?.startsWith('bed_') ? 'bed' : 'seat')
 
 /** Seat selection over the vehicle's real floor plan. */
-export function SeatMap({ decks, selectedSeatIds, onToggleSeat, maxSeats, compact = false }: Props) {
+export function SeatMap({
+  decks,
+  selectedSeatIds,
+  onToggleSeat,
+  maxSeats,
+  compact = false,
+}: Props) {
   const t = useT()
   const views = useMemo(() => toDeckViews(decks), [decks])
   const selected = useMemo(() => new Set(selectedSeatIds), [selectedSeatIds])
@@ -167,13 +173,19 @@ function Legend({ cheapest }: { cheapest: number | null }) {
   const t = useT()
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs">
-      <LegendItem className="border-2 border-slate-300 bg-white" label={t('trips.legendAvailable')} />
+      <LegendItem
+        className="border-2 border-slate-300 bg-white"
+        label={t('trips.legendAvailable')}
+      />
       <LegendItem
         className="bg-primary text-primary-foreground"
         label={t('trips.legendSelected')}
       />
       <LegendItem className="bg-slate-300 text-slate-500" label={t('trips.legendBooked')} />
-      <LegendItem className="border border-warning/50 bg-warning/30" label={t('trips.legendHeld')} />
+      <LegendItem
+        className="border border-warning/50 bg-warning/30"
+        label={t('trips.legendHeld')}
+      />
       <div className="mx-0.5 h-4 w-px bg-slate-300" aria-hidden />
       {Object.entries(SEAT_CLASS_COLORS).map(([cls, color]) => (
         <div key={cls} className="flex items-center gap-1.5">

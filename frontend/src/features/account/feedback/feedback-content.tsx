@@ -10,7 +10,17 @@ import { PendingRideCard, PendingRideSkeleton } from './pending-ride-card'
 import { SentFeedbackCard, SentFeedbackSkeleton } from './sent-feedback-card'
 import { PAGE_SIZE, useFeedbackData } from './use-feedback-data'
 
-function EmptyCard({ icon, tone, title, desc }: { icon: React.ReactNode; tone: string; title: string; desc: string }) {
+function EmptyCard({
+  icon,
+  tone,
+  title,
+  desc,
+}: {
+  icon: React.ReactNode
+  tone: string
+  title: string
+  desc: string
+}) {
   return (
     <Card className="border-border">
       <CardContent className="space-y-2 px-6 py-12 text-center">
@@ -82,7 +92,9 @@ export function AccountFeedbackContent() {
                   }}
                 />
               ))}
-              <p className="px-1 text-xs text-muted-foreground">{t('accountPage.feedback.pendingHint')}</p>
+              <p className="px-1 text-xs text-muted-foreground">
+                {t('accountPage.feedback.pendingHint')}
+              </p>
             </>
           )}
         </TabsContent>

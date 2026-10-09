@@ -13,10 +13,16 @@ export const Footer = lazyNamed(() => import('./layout/footer'), 'Footer')
 export const MobileNav = lazyNamed(() => import('./layout/mobile-nav'), 'MobileNav')
 export const SupportFab = lazyNamed(() => import('./layout/support-fab'), 'SupportFab')
 const ChatWidget = lazyNamed(() => import('@/features/chat/widget/chat-widget'), 'ChatWidget')
-const AudioCallWidget = lazyNamed(() => import('@/features/call/audio-call-widget'), 'AudioCallWidget')
+const AudioCallWidget = lazyNamed(
+  () => import('@/features/call/audio-call-widget'),
+  'AudioCallWidget',
+)
 const TripCompare = lazyNamed(() => import('@/features/search/compare/trip-compare'), 'TripCompare')
 const LoyaltyWidget = lazyNamed(() => import('@/features/loyalty/loyalty-widget'), 'LoyaltyWidget')
-const CancelDialog = lazyNamed(() => import('@/features/booking/history/cancel-dialog'), 'CancelDialog')
+const CancelDialog = lazyNamed(
+  () => import('@/features/booking/history/cancel-dialog'),
+  'CancelDialog',
+)
 const PriceAlertDialog = lazyNamed(
   () => import('@/features/price-alert/price-alert-dialog'),
   'PriceAlertDialog',

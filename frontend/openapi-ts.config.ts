@@ -46,7 +46,11 @@ type Spec = { paths?: Record<string, Record<string, Operation>> }
 
 function nameOperations(spec: Spec) {
   const ops = Object.entries(spec.paths ?? {}).flatMap(([path, item]) =>
-    METHODS.filter((m) => item[m]).map((m) => ({ key: `${m.toUpperCase()} ${path}`, path, op: item[m] })),
+    METHODS.filter((m) => item[m]).map((m) => ({
+      key: `${m.toUpperCase()} ${path}`,
+      path,
+      op: item[m],
+    })),
   )
   const uses = new Map<string, number>()
   for (const { op } of ops) uses.set(op.operationId, (uses.get(op.operationId) ?? 0) + 1)
@@ -61,7 +65,8 @@ function nameOperations(spec: Spec) {
       if (OVERRIDES[key]) op.operationId = OVERRIDES[key]
       else if (generic) op.operationId = verb === resource ? verb : resource + pascal(verb)
     }
-    if (taken.has(op.operationId)) throw new Error(`Duplicate operationId after naming: ${op.operationId}`)
+    if (taken.has(op.operationId))
+      throw new Error(`Duplicate operationId after naming: ${op.operationId}`)
     taken.add(op.operationId)
   }
 }

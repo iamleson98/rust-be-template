@@ -83,19 +83,26 @@ export function LayoutForm({
   const save = async () => {
     const trimmed = name.trim()
     if (!trimmed) return toast.error(t('adminBusLayouts.nameRequired'))
-    if (editor.issues.length) return toast.error(t(`seatPlan.issue.${editor.issues[0].code}`, editor.issues[0].params))
+    if (editor.issues.length)
+      return toast.error(t(`seatPlan.issue.${editor.issues[0].code}`, editor.issues[0].params))
     onBusyChange(true)
     try {
       const details = { name: trimmed, brandId: brandId || null, vehicleType: vehicleType || null }
       if (!draft.id) {
         await createMutation.mutateAsync({ body: { ...details, plan: editor.state.plan } })
-        toast.success(t('adminBusLayouts.createdWithSeats', { count: sellableCount(editor.state.plan) }))
+        toast.success(
+          t('adminBusLayouts.createdWithSeats', { count: sellableCount(editor.state.plan) }),
+        )
       } else {
         // The plan goes first: it is the part the server may refuse (409).
         if (editor.dirty) {
-          await planMutation.mutateAsync({ path: { id: draft.id }, body: { plan: editor.state.plan } })
+          await planMutation.mutateAsync({
+            path: { id: draft.id },
+            body: { plan: editor.state.plan },
+          })
         }
-        if (detailsChanged) await updateMutation.mutateAsync({ path: { id: draft.id }, body: details })
+        if (detailsChanged)
+          await updateMutation.mutateAsync({ path: { id: draft.id }, body: details })
         toast.success(t('busLayouts.updated'))
       }
       onSaved()
@@ -110,7 +117,9 @@ export function LayoutForm({
     <>
       <DialogHeader>
         <DialogTitle>{isEdit ? t('busLayouts.editTitle') : t('busLayouts.add')}</DialogTitle>
-        <DialogDescription>{t(isEdit ? 'seatPlan.editDesc' : 'seatPlan.createDesc')}</DialogDescription>
+        <DialogDescription>
+          {t(isEdit ? 'seatPlan.editDesc' : 'seatPlan.createDesc')}
+        </DialogDescription>
       </DialogHeader>
 
       <div className="grid gap-4">

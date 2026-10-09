@@ -127,7 +127,9 @@ export function buildSearchInput(input: SearchInput): SearchInput {
   for (const key of Object.keys(SEARCH_DEFAULTS) as (keyof typeof SEARCH_DEFAULTS)[]) {
     if (out[key] === SEARCH_DEFAULTS[key] || out[key] === undefined) delete out[key]
   }
-  const geo = [fromLat, fromLon, toLat, toLon].every((c) => typeof c === 'number' && Number.isFinite(c))
+  const geo = [fromLat, fromLon, toLat, toLon].every(
+    (c) => typeof c === 'number' && Number.isFinite(c),
+  )
   if (geo) return { ...out, fromLat, fromLon, toLat, toLon }
   if (typeof fromLat === 'number' || typeof toLat === 'number') {
     return { ...out, from: fromCity || out.from, to: toCity || out.to }

@@ -13,7 +13,7 @@ import { FiltersSidebar } from './filters-sidebar'
 import { ResultsActions } from './results-actions'
 import { RouteDirectory } from './route-directory'
 import { SavedSearchesList } from './saved-searches'
-import { useTripSearch } from './api'
+import { useTripSearchInfinite } from './api'
 import { TripResultsList } from './trip-results-list'
 import { useResultFilters } from './use-result-filters'
 import { useSavedSearches, type SavedSearch } from './use-saved-searches'
@@ -28,12 +28,15 @@ export function SearchResults() {
   const saved = useSavedSearches()
 
   const browsing = !search.from || !search.to
-  const query = useTripSearch(browsing ? null : search)
+  const query = useTripSearchInfinite(browsing ? null : search)
   // `keepPreviousData` keeps the old list on screen during a re-search, so `isLoading`
   // stays false; without this the new search would give no feedback at all.
   const loading = query.isLoading || query.isPlaceholderData || (query.isFetching && !query.data)
   // A search without a date is idle: ignore the previous search's trips that the cache still holds.
-  const results = search.date ? (query.data?.items ?? NO_RESULTS) : NO_RESULTS
+  const pages = search.date ? query.data?.pages : undefined
+  const results = useMemo(() => pages?.flatMap((page) => page.items) ?? NO_RESULTS, [pages])
+  // The server's total across all pages, or what is loaded when it sent no page metadata.
+  const total = pages?.at(-1)?.total ?? results.length
   const rf = useResultFilters(results)
 
   const brandNames = useMemo(
@@ -105,7 +108,7 @@ export function SearchResults() {
                         ? t('searchPage.searchingTrips')
                         : t('searchPage.tripsFound', {
                             found: rf.filtered.length,
-                            total: results.length,
+                            total,
                           })}
                     </p>
                   </div>
@@ -114,7 +117,11 @@ export function SearchResults() {
 
                 {rf.activeCount > 0 && <ActiveFilterChips rf={rf} brandNames={brandNames} />}
                 {saved.items.length > 0 && (
-                  <SavedSearchesList items={saved.items} onApply={applySaved} onRemove={saved.remove} />
+                  <SavedSearchesList
+                    items={saved.items}
+                    onApply={applySaved}
+                    onRemove={saved.remove}
+                  />
                 )}
                 <CompareTray />
                 <TripResultsList
@@ -124,6 +131,13 @@ export function SearchResults() {
                   hasActiveFilters={rf.activeCount > 0}
                   onResetFilters={rf.reset}
                   awaitingDate={!search.date}
+                  pagination={{
+                    // A new search replaces the list, so the old pages' cursor means nothing.
+                    hasMore: query.hasNextPage && !loading,
+                    loadingMore: query.isFetchingNextPage,
+                    onLoadMore: () => void query.fetchNextPage(),
+                    total,
+                  }}
                 />
               </div>
             </div>

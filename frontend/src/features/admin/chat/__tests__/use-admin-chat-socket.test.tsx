@@ -41,7 +41,10 @@ const staff = { id: 'staff-1', type: 'admin', role: 'admin', name: 'S' } as neve
 
 const fire = (event: ChatEvent) => act(() => mocks.onEvent?.(event))
 const setup = (channelId?: string) =>
-  renderHook((p: { id?: string }) => useAdminChatSocket(p.id), { initialProps: { id: channelId }, wrapper })
+  renderHook((p: { id?: string }) => useAdminChatSocket(p.id), {
+    initialProps: { id: channelId },
+    wrapper,
+  })
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -108,9 +111,20 @@ describe('useAdminChatSocket', () => {
     fire({ type: 'staff_presence', botActive: true }) // customers-style frame, no staff list: ignored
     expect(result.current.staffPresence).toBeNull()
 
-    const staffEntry = { userId: 'e1', name: 'Lan', role: 'employee', online: true, busy: false, activeChats: 2 }
+    const staffEntry = {
+      userId: 'e1',
+      name: 'Lan',
+      role: 'employee',
+      online: true,
+      busy: false,
+      activeChats: 2,
+    }
     fire({ type: 'staff_presence', staff: [staffEntry], botActive: false })
-    expect(result.current.staffPresence).toEqual({ staff: [staffEntry], offline: [], botActive: false })
+    expect(result.current.staffPresence).toEqual({
+      staff: [staffEntry],
+      offline: [],
+      botActive: false,
+    })
   })
 
   it('sends typing frames over the socket', () => {

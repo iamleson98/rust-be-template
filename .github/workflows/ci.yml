@@ -470,15 +470,15 @@ jobs:
         run: bunx tsc --noEmit
 
       - name: OpenAPI SDK freshness
-        # Regenerates src/lib/api from the committed openapi.json and
+        # Regenerates src/api/generated from the committed openapi.json and
         # fails if the checked-in SDK differs — catches "backend endpoint
         # shipped but frontend SDK never regenerated".
         run: |
           set -euo pipefail
-          cp -r src/lib/api /tmp/sdk-before
+          cp -r src/api/generated /tmp/sdk-before
           bun run openapi
-          if ! diff -rq /tmp/sdk-before src/lib/api; then
-            echo "::error::src/lib/api is STALE vs frontend/openapi.json."
+          if ! diff -rq /tmp/sdk-before src/api/generated; then
+            echo "::error::src/api/generated is STALE vs frontend/openapi.json."
             echo "Fix: cd frontend && bun run openapi, then commit the regenerated SDK."
             exit 1
           fi

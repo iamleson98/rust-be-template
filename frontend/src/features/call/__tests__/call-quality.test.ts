@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { classifyQuality, hangupReasonText, summarizeStats, type QualityStats } from '../call-quality'
+import {
+  classifyQuality,
+  hangupReasonText,
+  summarizeStats,
+  type QualityStats,
+} from '../call-quality'
 
 const base: QualityStats = { rttMs: null, jitterMs: null, lossPct: null, relayed: null }
 
@@ -83,10 +88,24 @@ describe('summarizeStats', () => {
     expect(
       summarizeStats(
         report(
-          { id: 'cp', type: 'candidate-pair', selected: true, currentRoundTripTime: 0.123, localCandidateId: 'l', remoteCandidateId: 'r' },
+          {
+            id: 'cp',
+            type: 'candidate-pair',
+            selected: true,
+            currentRoundTripTime: 0.123,
+            localCandidateId: 'l',
+            remoteCandidateId: 'r',
+          },
           { id: 'l', type: 'local-candidate', candidateType: 'relay' },
           { id: 'r', type: 'remote-candidate', candidateType: 'host' },
-          { id: 'in', type: 'inbound-rtp', kind: 'audio', jitter: 0.012, packetsLost: 1, packetsReceived: 99 },
+          {
+            id: 'in',
+            type: 'inbound-rtp',
+            kind: 'audio',
+            jitter: 0.012,
+            packetsLost: 1,
+            packetsReceived: 99,
+          },
         ),
       ),
     ).toEqual({ rttMs: 123, jitterMs: 12, lossPct: 1, relayed: true })
@@ -95,7 +114,15 @@ describe('summarizeStats', () => {
   it('accepts a nominated + succeeded pair on browsers without `selected`', () => {
     const s = summarizeStats(
       report(
-        { id: 'cp', type: 'candidate-pair', nominated: true, state: 'succeeded', currentRoundTripTime: 0.05, localCandidateId: 'l', remoteCandidateId: 'r' },
+        {
+          id: 'cp',
+          type: 'candidate-pair',
+          nominated: true,
+          state: 'succeeded',
+          currentRoundTripTime: 0.05,
+          localCandidateId: 'l',
+          remoteCandidateId: 'r',
+        },
         { id: 'l', type: 'local-candidate', candidateType: 'srflx' },
         { id: 'r', type: 'remote-candidate', candidateType: 'host' },
       ),
@@ -104,6 +131,11 @@ describe('summarizeStats', () => {
   })
 
   it('leaves everything unknown on an empty report', () => {
-    expect(summarizeStats(report())).toEqual({ rttMs: null, jitterMs: null, lossPct: null, relayed: null })
+    expect(summarizeStats(report())).toEqual({
+      rttMs: null,
+      jitterMs: null,
+      lossPct: null,
+      relayed: null,
+    })
   })
 })

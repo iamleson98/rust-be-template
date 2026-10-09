@@ -106,9 +106,31 @@ beforeEach(() => {
   FakeSocket.instances = []
   vi.stubGlobal('WebSocket', FakeSocket)
   vi.stubGlobal('RTCPeerConnection', FakePeer)
-  vi.stubGlobal('RTCSessionDescription', class { constructor(init: object) { Object.assign(this, init) } })
-  vi.stubGlobal('RTCIceCandidate', class { constructor(init: object) { Object.assign(this, init) } })
-  vi.stubGlobal('MediaStream', class { addTrack() {} getAudioTracks() { return [] } })
+  vi.stubGlobal(
+    'RTCSessionDescription',
+    class {
+      constructor(init: object) {
+        Object.assign(this, init)
+      }
+    },
+  )
+  vi.stubGlobal(
+    'RTCIceCandidate',
+    class {
+      constructor(init: object) {
+        Object.assign(this, init)
+      }
+    },
+  )
+  vi.stubGlobal(
+    'MediaStream',
+    class {
+      addTrack() {}
+      getAudioTracks() {
+        return []
+      }
+    },
+  )
   Object.defineProperty(navigator, 'mediaDevices', {
     configurable: true,
     value: { getUserMedia: vi.fn(async () => ({ getAudioTracks: () => [track()] })) },
@@ -160,9 +182,16 @@ describe('AudioCallClient', () => {
     const { client, ws } = setup('agent')
     const incoming = vi.fn()
     client.on('incoming', incoming)
-    ws.receive({ type: 'incoming', from: 'cust-1', callerName: 'An', sdp: { type: 'offer', sdp: 'o' } })
+    ws.receive({
+      type: 'incoming',
+      from: 'cust-1',
+      callerName: 'An',
+      sdp: { type: 'offer', sdp: 'o' },
+    })
     expect(client.state).toBe('incoming')
-    expect(incoming).toHaveBeenCalledWith(expect.objectContaining({ from: 'cust-1', callerName: 'An' }))
+    expect(incoming).toHaveBeenCalledWith(
+      expect.objectContaining({ from: 'cust-1', callerName: 'An' }),
+    )
 
     await client.acceptCall({ type: 'offer', sdp: 'o' }, 'cust-1')
     expect(ws.frames('call', 'answer')[0]).toMatchObject({ to: 'cust-1' })
@@ -231,9 +260,20 @@ describe('AudioCallClient', () => {
 
   it('applies the server-provided ICE servers to later connections', async () => {
     const { client, ws } = setup()
-    ws.receive({ type: 'registered', iceServers: [{ urls: 'turn:t', username: 'u', credential: 'c' }] })
+    ws.receive({
+      type: 'registered',
+      iceServers: [{ urls: 'turn:t', username: 'u', credential: 'c' }],
+    })
     const created: unknown[] = []
-    vi.stubGlobal('RTCPeerConnection', class extends FakePeer { constructor(cfg: unknown) { super(); created.push(cfg) } })
+    vi.stubGlobal(
+      'RTCPeerConnection',
+      class extends FakePeer {
+        constructor(cfg: unknown) {
+          super()
+          created.push(cfg)
+        }
+      },
+    )
     await client.startCall()
     expect(created[0]).toMatchObject({ iceServers: [{ urls: 'turn:t' }] })
   })
@@ -257,7 +297,9 @@ describe('AudioCallClient', () => {
 
   it('reports a denied microphone and does not call', async () => {
     const { client, ws, errors } = setup()
-    ;(navigator.mediaDevices.getUserMedia as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('denied'))
+    ;(navigator.mediaDevices.getUserMedia as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      new Error('denied'),
+    )
     await client.startCall()
     expect(errors).toContain('mic-denied')
     expect(ws.frames('call')).toHaveLength(0)

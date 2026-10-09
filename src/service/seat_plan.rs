@@ -624,14 +624,15 @@ mod tests {
             ],
         );
         assert_eq!(
-            sync_seats(&[a.clone()], &grew, true),
+            sync_seats(std::slice::from_ref(&a), &grew, true),
             Err(SyncError::SeatsAdded(1))
         );
         let shrank = one_deck(1, 1, vec![cell(1, 1, CellKind::Seat, Some("Z9"))]);
         // "Z9" is new and A01 is dropped: in-use layouts reject the change.
-        assert!(sync_seats(&[a.clone()], &shrank, true).is_err());
+        assert!(sync_seats(std::slice::from_ref(&a), &shrank, true).is_err());
         // Unused layouts may add and remove freely.
-        let free = sync_seats(&[a.clone()], &grew, false).expect("unused layouts are editable");
+        let free = sync_seats(std::slice::from_ref(&a), &grew, false)
+            .expect("unused layouts are editable");
         assert_eq!(
             (free.updates.len(), free.inserts.len(), free.deletes.len()),
             (1, 1, 0)

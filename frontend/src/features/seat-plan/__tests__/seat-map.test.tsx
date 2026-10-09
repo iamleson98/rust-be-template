@@ -9,8 +9,18 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import type { TripSeat, TripSeatDeck } from '@/api'
 import { SeatMap } from '../seat-map'
 
-function seat(partial: Partial<TripSeat> & Pick<TripSeat, 'id' | 'finalPrice' | 'status'>): TripSeat {
-  return { code: partial.id, seatLabel: partial.id, deck: 1, row: 1, col: 1, seatClass: 'standard', ...partial }
+function seat(
+  partial: Partial<TripSeat> & Pick<TripSeat, 'id' | 'finalPrice' | 'status'>,
+): TripSeat {
+  return {
+    code: partial.id,
+    seatLabel: partial.id,
+    deck: 1,
+    row: 1,
+    col: 1,
+    seatClass: 'standard',
+    ...partial,
+  }
 }
 
 /** Legacy shape: no frame, seats only. */
@@ -29,7 +39,14 @@ const legacy: TripSeatDeck[] = [
         row: 2,
         seats: [
           seat({ id: 'B1', finalPrice: 200000, status: 'booked', row: 2, col: 1 }),
-          seat({ id: 'B2', finalPrice: 300000, status: 'available', row: 2, col: 2, seatClass: 'vip' }),
+          seat({
+            id: 'B2',
+            finalPrice: 300000,
+            status: 'available',
+            row: 2,
+            col: 2,
+            seatClass: 'vip',
+          }),
         ],
       },
     ],
@@ -117,7 +134,12 @@ describe('SeatMap', () => {
   it('titles each deck when the vehicle has two', () => {
     const two: TripSeatDeck[] = [
       { ...legacy[0], deck: 1 },
-      { deck: 2, rows: [{ row: 1, seats: [seat({ id: 'U1', finalPrice: 1, status: 'available', deck: 2 })] }] },
+      {
+        deck: 2,
+        rows: [
+          { row: 1, seats: [seat({ id: 'U1', finalPrice: 1, status: 'available', deck: 2 })] },
+        ],
+      },
     ]
     render(<SeatMap decks={two} selectedSeatIds={[]} onToggleSeat={onToggleSeat} />)
     expect(screen.getByText('Tầng dưới')).toBeInTheDocument()

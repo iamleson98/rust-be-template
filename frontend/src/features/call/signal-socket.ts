@@ -48,7 +48,8 @@ export class SignalSocket {
     this.ws.onmessage = (ev) => {
       try {
         const msg: unknown = JSON.parse(ev.data)
-        if (typeof msg === 'object' && msg !== null) this.events.message(msg as Record<string, unknown>)
+        if (typeof msg === 'object' && msg !== null)
+          this.events.message(msg as Record<string, unknown>)
       } catch {
         // not JSON: ignore
       }
@@ -89,10 +90,13 @@ export class SignalSocket {
     if (this.reconnectTimer) return
     this.attempts++
     const ceiling = Math.min(15_000, 500 * 2 ** this.attempts)
-    this.reconnectTimer = setTimeout(() => {
-      this.reconnectTimer = null
-      this.connect()
-    }, Math.floor(Math.random() * ceiling))
+    this.reconnectTimer = setTimeout(
+      () => {
+        this.reconnectTimer = null
+        this.connect()
+      },
+      Math.floor(Math.random() * ceiling),
+    )
   }
 
   private stopHeartbeat(): void {

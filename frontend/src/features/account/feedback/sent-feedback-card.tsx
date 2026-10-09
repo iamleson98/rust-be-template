@@ -76,7 +76,9 @@ export function SentFeedbackCard({
           )}
         </div>
         {review.content && (
-          <p className="line-clamp-4 text-sm leading-relaxed text-foreground/90">{review.content}</p>
+          <p className="line-clamp-4 text-sm leading-relaxed text-foreground/90">
+            {review.content}
+          </p>
         )}
         {(review.tags?.length ?? 0) > 0 && (
           <div className="flex flex-wrap gap-1.5">

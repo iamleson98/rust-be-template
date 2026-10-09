@@ -11,7 +11,8 @@ const TIME_CLASS: Record<string, string> = {
 
 const BUBBLE_CLASS: Record<string, string> = {
   employee: 'bg-blue-600 text-white rounded-br-sm',
-  system: 'bg-amber-50 text-amber-800 text-center text-xs border border-amber-100 mx-auto rounded-lg',
+  system:
+    'bg-amber-50 text-amber-800 text-center text-xs border border-amber-100 mx-auto rounded-lg',
   assistant: 'bg-violet-50 text-violet-900 border border-violet-100 rounded-bl-sm',
 }
 
@@ -28,7 +29,12 @@ type Props = {
  * `content-visibility: auto` lets the browser skip layout and paint for rows far off
  * screen (it copes with variable heights and keeps the scroll anchor, unlike a JS virtualiser).
  */
-export const MessageRow = memo(function MessageRow({ message, dayLabel, isLast, onViewTicket }: Props) {
+export const MessageRow = memo(function MessageRow({
+  message,
+  dayLabel,
+  isLast,
+  onViewTicket,
+}: Props) {
   const isEmployee = message.senderType === 'employee'
   const ticket = parseTicketPayload(message)
   const time = messageTime(message.createdAt)
@@ -50,7 +56,9 @@ export const MessageRow = memo(function MessageRow({ message, dayLabel, isLast, 
           <div className="max-w-[88%] sm:max-w-[75%] space-y-0.5">
             <TicketCardMessage payload={ticket} isEmployee={isEmployee} onView={onViewTicket} />
             {time && (
-              <div className={`text-[10px] text-slate-400 ${isEmployee ? 'text-right' : 'text-left'}`}>
+              <div
+                className={`text-[10px] text-slate-400 ${isEmployee ? 'text-right' : 'text-left'}`}
+              >
                 {time}
               </div>
             )}
@@ -63,7 +71,9 @@ export const MessageRow = memo(function MessageRow({ message, dayLabel, isLast, 
           >
             {message.content}
             {time && (
-              <div className={`mt-0.5 text-[10px] ${TIME_CLASS[message.senderType] ?? 'text-slate-400'}`}>
+              <div
+                className={`mt-0.5 text-[10px] ${TIME_CLASS[message.senderType] ?? 'text-slate-400'}`}
+              >
                 {time}
               </div>
             )}

@@ -36,7 +36,15 @@ function Centered({ children }: { children: React.ReactNode }) {
   return <div className="flex flex-col items-center gap-2">{children}</div>
 }
 
-function ActiveCall({ duration, micOn, quality }: { duration: number; micOn: boolean; quality: CallQuality | null }) {
+function ActiveCall({
+  duration,
+  micOn,
+  quality,
+}: {
+  duration: number
+  micOn: boolean
+  quality: CallQuality | null
+}) {
   const t = useT()
   const numbers = quality
     ? [
@@ -50,7 +58,11 @@ function ActiveCall({ duration, micOn, quality }: { duration: number; micOn: boo
   return (
     <Centered>
       <div className="flex items-center gap-1.5">
-        {quality ? <QualityBars level={quality.level} /> : <Signal className="h-4 w-4 text-emerald-500" />}
+        {quality ? (
+          <QualityBars level={quality.level} />
+        ) : (
+          <Signal className="h-4 w-4 text-emerald-500" />
+        )}
         <span className="font-mono text-2xl font-semibold text-zinc-800 dark:text-zinc-100">
           {Math.floor(duration / 60)}:{String(duration % 60).padStart(2, '0')}
         </span>
@@ -92,7 +104,9 @@ export function CallStatus({ call }: { call: AudioCall }) {
 
   return (
     <div className="mb-4 text-center">
-      <div className="mb-1 text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{statusText}</div>
+      <div className="mb-1 text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+        {statusText}
+      </div>
       {state === 'idle' && (
         <div className={MUTED_TEXT}>
           {isAgent
@@ -122,8 +136,12 @@ export function CallStatus({ call }: { call: AudioCall }) {
           <PhoneIncoming className="h-8 w-8 animate-bounce text-emerald-600" />
           <div className={MUTED_TEXT}>
             {isAgent
-              ? t('layout.call.incomingFromCustomer', { name: incoming.callerName ?? t('users.roleUser') })
-              : t('layout.call.incomingFromAgent', { name: incoming.callerName ?? t('chat.agentName') })}
+              ? t('layout.call.incomingFromCustomer', {
+                  name: incoming.callerName ?? t('users.roleUser'),
+                })
+              : t('layout.call.incomingFromAgent', {
+                  name: incoming.callerName ?? t('chat.agentName'),
+                })}
           </div>
         </Centered>
       )}
@@ -133,9 +151,13 @@ export function CallStatus({ call }: { call: AudioCall }) {
           <div className={MUTED_TEXT}>{t('chatWidget.connecting')}</div>
         </Centered>
       )}
-      {state === 'active' && <ActiveCall duration={call.duration} micOn={call.micOn} quality={call.quality} />}
+      {state === 'active' && (
+        <ActiveCall duration={call.duration} micOn={call.micOn} quality={call.quality} />
+      )}
       {state === 'ended' && (
-        <div className="text-sm text-zinc-500 dark:text-zinc-400">{hangupReasonText(call.endReason, isAgent)}</div>
+        <div className="text-sm text-zinc-500 dark:text-zinc-400">
+          {hangupReasonText(call.endReason, isAgent)}
+        </div>
       )}
     </div>
   )

@@ -48,7 +48,10 @@ export function NotificationBell() {
   // Polling + dedup + caching handled by the centralized hook (60s interval).
   // The hook is disabled entirely for guests — no point fetching notifications
   // for an unauthenticated session.
-  const { data, isLoading, isError, refetch } = useQuery({ ...notificationsListOptions({ query: { limit: 20 } }), enabled: isLoggedIn })
+  const { data, isLoading, isError, refetch } = useQuery({
+    ...notificationsListOptions({ query: { limit: 20 } }),
+    enabled: isLoggedIn,
+  })
   const { mutateAsync: markRead } = useMutation(notificationsMarkReadMutation())
 
   // Local optimistic map of id → readAt so the UI updates instantly when the

@@ -12,7 +12,9 @@ export function useTypingBroadcast(
   channelId: string | undefined,
   send: (channelId: string, isTyping: boolean) => boolean,
 ) {
-  const burst = useRef<{ active: boolean; timer?: ReturnType<typeof setTimeout> }>({ active: false })
+  const burst = useRef<{ active: boolean; timer?: ReturnType<typeof setTimeout> }>({
+    active: false,
+  })
 
   const stop = useCallback(() => {
     clearTimeout(burst.current.timer)

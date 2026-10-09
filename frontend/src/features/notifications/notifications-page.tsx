@@ -48,7 +48,10 @@ export function AccountNotificationsPage() {
   const t = useT()
   const isLoggedIn = !!user
 
-  const { data, isLoading, isError, refetch } = useQuery({ ...notificationsListOptions({ query: { limit: 50 } }), enabled: isLoggedIn })
+  const { data, isLoading, isError, refetch } = useQuery({
+    ...notificationsListOptions({ query: { limit: 50 } }),
+    enabled: isLoggedIn,
+  })
   const { mutateAsync: markRead, isPending } = useMutation(notificationsMarkReadMutation())
   const [optimisticReads, setOptimisticReads] = useState<Record<string, string>>({})
 

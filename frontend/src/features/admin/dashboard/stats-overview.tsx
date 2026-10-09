@@ -34,11 +34,7 @@ import {
   useAdminBookings,
   type AdminBookingFilter,
 } from '@/features/admin/tickets/api'
-import type {
-  AdminBookingOut,
-  AdminBookingDayBucket,
-  AdminBookingTotals,
-} from '@/api'
+import type { AdminBookingOut, AdminBookingDayBucket, AdminBookingTotals } from '@/api'
 import type { DateRange } from './types'
 import { formatVNDShort } from './helpers'
 import { KpiCard } from './kpi-card'

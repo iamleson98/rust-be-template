@@ -24,7 +24,9 @@ const vehicleType = (i: number, extra = {}) => ({
 
 describe('VehicleTypesPanel (DataTable conversion)', () => {
   it('renders rows inside the data table with sortable headers', async () => {
-    mockApi({ [LIST]: { items: [vehicleType(0, { label: 'Giường nằm', totalSeats: 40 })], total: 1 } })
+    mockApi({
+      [LIST]: { items: [vehicleType(0, { label: 'Giường nằm', totalSeats: 40 })], total: 1 },
+    })
 
     renderWithQuery(<VehicleTypesPanel />)
 

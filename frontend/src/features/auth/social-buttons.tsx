@@ -2,7 +2,6 @@ import { useEffect } from 'react'
 import { toast } from 'sonner'
 import { useT } from '@/lib/i18n'
 
-
 export function SocialAuthButtons() {
   const t = useT()
 

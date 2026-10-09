@@ -65,7 +65,11 @@ export function ConsoleStatCards({
         icon={<CalendarClock className="h-5 w-5 text-sky-600" />}
         label={t('accountPage.console.activeTickets')}
         value={count(stats.upcoming)}
-        sub={t(stats.upcoming > 0 ? 'accountPage.console.activeTicketsSub' : 'accountPage.console.noActiveTickets')}
+        sub={t(
+          stats.upcoming > 0
+            ? 'accountPage.console.activeTicketsSub'
+            : 'accountPage.console.noActiveTickets',
+        )}
         accent="bg-sky-500/10"
         to="/account/trips"
       />

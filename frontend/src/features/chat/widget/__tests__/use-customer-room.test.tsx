@@ -36,7 +36,8 @@ const fire = (event: ChatEvent) => act(() => mocks.onEvent?.(event))
 function setup(initial: { channelId?: string } = { channelId: 'c1' }) {
   const onBanned = vi.fn()
   const hook = renderHook(
-    (p: { channelId?: string }) => useCustomerRoom({ userId: 'me', channelId: p.channelId, onBanned }),
+    (p: { channelId?: string }) =>
+      useCustomerRoom({ userId: 'me', channelId: p.channelId, onBanned }),
     { initialProps: initial, wrapper },
   )
   return { onBanned, ...hook }
@@ -59,7 +60,7 @@ describe('useCustomerRoom', () => {
     expect(result.current.peerTyping).toBe(false)
   })
 
-  it('ignores typing frames echoed from the customer\'s own other tabs', () => {
+  it("ignores typing frames echoed from the customer's own other tabs", () => {
     const { result } = setup()
     fire({ type: 'typing', channelId: 'c1', userId: 'me', name: 'Me', isTyping: true })
     expect(result.current.peerTyping).toBe(false)
@@ -93,14 +94,20 @@ describe('useCustomerRoom', () => {
   it('notifies and sounds for a support message, and refreshes the chat queries', () => {
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
     setup()
-    fire({ type: 'message', channelId: 'c1', senderType: 'employee', senderName: 'Lan', text: 'Xin chào' })
+    fire({
+      type: 'message',
+      channelId: 'c1',
+      senderType: 'employee',
+      senderName: 'Lan',
+      text: 'Xin chào',
+    })
     expect(mocks.notifyChatMessage).toHaveBeenCalledWith('Lan', 'Xin chào')
     expect(mocks.startTitleNotification).toHaveBeenCalled()
     expect(mocks.playSound).toHaveBeenCalledWith('message')
     expect(invalidate).toHaveBeenCalled()
   })
 
-  it('only sounds for the customer\'s own message in the open channel', () => {
+  it("only sounds for the customer's own message in the open channel", () => {
     setup()
     fire({ type: 'message', channelId: 'c1', senderType: 'user', text: 'hi' })
     expect(mocks.playSound).toHaveBeenCalledTimes(1)

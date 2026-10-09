@@ -3084,10 +3084,26 @@ export type TripSchedulePoint = {
 };
 
 /**
- * Response of `GET /api/search` and `GET /api/recommendations`.
+ * Response of `GET /api/search`, `GET /api/search/geo` and `GET /api/recommendations`. The search endpoints are paginated; `/api/recommendations` omits the page metadata.
  */
 export type TripSearchResponse = {
+    /**
+     * True when more matching trips exist past this page — the signal for the frontend's "load more" button. Omitted on non-paginated responses.
+     */
+    hasMore?: boolean | null;
     items: Array<TripResult>;
+    /**
+     * Page size the server actually applied (after clamping). Omitted on non-paginated responses.
+     */
+    limit?: number | null;
+    /**
+     * Index of the first item inside this page. Omitted on non-paginated responses.
+     */
+    offset?: number | null;
+    /**
+     * Total matching trips across ALL pages (before the offset window is applied). Omitted on non-paginated responses.
+     */
+    total?: number | null;
 };
 
 export type TripSeat = {
@@ -7423,6 +7439,7 @@ export type SearchTripsData = {
         to: string;
         date: string;
         limit?: number | null;
+        offset?: number | null;
         vehicleTypes?: string | null;
         sort?: string | null;
         minSeats?: number | null;

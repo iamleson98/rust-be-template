@@ -4,7 +4,10 @@ import { cn } from '@/lib/utils'
 
 export const BlueCheckbox = ({ className, ...props }: ComponentProps<typeof Checkbox>) => (
   <Checkbox
-    className={cn('data-[state=checked]:border-blue-600 data-[state=checked]:bg-blue-600', className)}
+    className={cn(
+      'data-[state=checked]:border-blue-600 data-[state=checked]:bg-blue-600',
+      className,
+    )}
     {...props}
   />
 )

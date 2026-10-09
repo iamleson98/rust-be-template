@@ -28,7 +28,13 @@ const trip = (over: Partial<TripResult>): TripResult =>
   }) as TripResult
 
 const results = [
-  trip({ tripId: '1', minPrice: 180_000, maxPrice: 220_000, departureTime: '05:10', brandSlug: 'a' }),
+  trip({
+    tripId: '1',
+    minPrice: 180_000,
+    maxPrice: 220_000,
+    departureTime: '05:10',
+    brandSlug: 'a',
+  }),
   trip({
     tripId: '2',
     minPrice: 320_000,
@@ -63,9 +69,9 @@ describe('price range', () => {
 
   it('follows the bounds until the user picks a range, and clamps stale picks', () => {
     expect(effectiveRange(NO_FILTERS, bounds)).toEqual(bounds)
-    expect(effectiveRange({ ...NO_FILTERS, priceMin: 200_000, priceMax: 300_000 }, bounds)).toEqual([
-      200_000, 300_000,
-    ])
+    expect(effectiveRange({ ...NO_FILTERS, priceMin: 200_000, priceMax: 300_000 }, bounds)).toEqual(
+      [200_000, 300_000],
+    )
     expect(effectiveRange({ ...NO_FILTERS, priceMin: 100_000, priceMax: 900_000 }, bounds)).toEqual(
       bounds,
     )
@@ -102,7 +108,9 @@ describe('helpers', () => {
   it('reads the departure hour from the timestamp or the HH:mm text', () => {
     expect(departureHour(trip({ departureTime: '07:05' }))).toBe(7)
     expect(departureHour(trip({ departureTime: undefined }))).toBe(12)
-    expect(departureHour(trip({ departureAt: new Date(2026, 9, 10, 22, 30).toISOString() }))).toBe(22)
+    expect(departureHour(trip({ departureAt: new Date(2026, 9, 10, 22, 30).toISOString() }))).toBe(
+      22,
+    )
   })
 
   it('treats time ranges as [start, end)', () => {

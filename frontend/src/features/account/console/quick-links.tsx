@@ -1,6 +1,14 @@
 import type { ReactNode } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { Bell, ChevronRight, Gift, History, MessageSquareHeart, ShieldCheck, Ticket } from 'lucide-react'
+import {
+  Bell,
+  ChevronRight,
+  Gift,
+  History,
+  MessageSquareHeart,
+  ShieldCheck,
+  Ticket,
+} from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useT } from '@/lib/i18n'
 
@@ -11,15 +19,47 @@ type LinkTarget =
   | '/account/notifications'
   | '/account/security'
 
-const icon = (Icon: typeof Ticket, color: string): ReactNode => <Icon className={`h-4 w-4 ${color}`} />
+const icon = (Icon: typeof Ticket, color: string): ReactNode => (
+  <Icon className={`h-4 w-4 ${color}`} />
+)
 
 const LINKS: { to: LinkTarget; icon: ReactNode; label: string; desc: string }[] = [
-  { to: '/account/trips', icon: icon(Ticket, 'text-blue-600'), label: 'nav.tickets', desc: 'accountPage.qkBookingsDesc' },
-  { to: '/account/trips', icon: icon(History, 'text-blue-600'), label: 'layout.account.tripHistory', desc: 'accountPage.console.qkTripsDesc' },
-  { to: '/account/feedback', icon: icon(MessageSquareHeart, 'text-amber-600'), label: 'layout.account.tripFeedback', desc: 'accountPage.console.qkFeedbackDesc' },
-  { to: '/account/loyalty', icon: icon(Gift, 'text-violet-600'), label: 'nav.loyalty', desc: 'accountPage.qkLoyaltyDesc' },
-  { to: '/account/notifications', icon: icon(Bell, 'text-blue-600'), label: 'account.notifications', desc: 'accountPage.qkNotificationsDesc' },
-  { to: '/account/security', icon: icon(ShieldCheck, 'text-emerald-600'), label: 'accountPage.qkSecurity', desc: 'accountPage.qkSecurityDesc' },
+  {
+    to: '/account/trips',
+    icon: icon(Ticket, 'text-blue-600'),
+    label: 'nav.tickets',
+    desc: 'accountPage.qkBookingsDesc',
+  },
+  {
+    to: '/account/trips',
+    icon: icon(History, 'text-blue-600'),
+    label: 'layout.account.tripHistory',
+    desc: 'accountPage.console.qkTripsDesc',
+  },
+  {
+    to: '/account/feedback',
+    icon: icon(MessageSquareHeart, 'text-amber-600'),
+    label: 'layout.account.tripFeedback',
+    desc: 'accountPage.console.qkFeedbackDesc',
+  },
+  {
+    to: '/account/loyalty',
+    icon: icon(Gift, 'text-violet-600'),
+    label: 'nav.loyalty',
+    desc: 'accountPage.qkLoyaltyDesc',
+  },
+  {
+    to: '/account/notifications',
+    icon: icon(Bell, 'text-blue-600'),
+    label: 'account.notifications',
+    desc: 'accountPage.qkNotificationsDesc',
+  },
+  {
+    to: '/account/security',
+    icon: icon(ShieldCheck, 'text-emerald-600'),
+    label: 'accountPage.qkSecurity',
+    desc: 'accountPage.qkSecurityDesc',
+  },
 ]
 
 /** Shortcuts into the other account pages. */

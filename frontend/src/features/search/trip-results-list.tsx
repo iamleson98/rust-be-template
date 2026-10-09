@@ -1,28 +1,80 @@
 'use client'
 
 import { useNavigate } from '@tanstack/react-router'
-import { AlertCircle, X } from 'lucide-react'
+import { AlertCircle, ChevronDown, Loader2, X } from 'lucide-react'
 import type { TripResult } from '@/api'
 import { Button } from '@/components/ui/button'
 import { useT } from '@/lib/i18n'
 import { TripCard } from './trip-card'
 import { TripCardSkeleton } from './trip-card-skeleton'
 
+export type Pagination = {
+  /** The server has more matching trips past the loaded pages. */
+  hasMore: boolean
+  loadingMore: boolean
+  onLoadMore: () => void
+  /** Matching trips across all pages. */
+  total: number
+}
+
+/** "Load more" button with a showing-X-of-Y line. */
+function LoadMore({ pagination, showing }: { pagination: Pagination; showing: number }) {
+  const t = useT()
+  const { loadingMore, onLoadMore, total } = pagination
+  const remaining = Math.max(total - showing, 0)
+  return (
+    <div className="mt-1 flex flex-col items-center gap-2 py-2" data-testid="load-more-tail">
+      <Button
+        variant="outline"
+        size="lg"
+        onClick={onLoadMore}
+        disabled={loadingMore}
+        data-testid="load-more-button"
+        className="w-full max-w-xs gap-2 rounded-xl border-blue-200 text-blue-700 hover:bg-blue-50 hover:text-blue-800"
+      >
+        {loadingMore ? (
+          <>
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span>{t('searchPage.loadingMore')}</span>
+          </>
+        ) : (
+          <>
+            <ChevronDown className="h-4 w-4" />
+            <span>
+              {remaining > 0
+                ? t('searchPage.loadMoreRemaining', { count: remaining })
+                : t('searchPage.loadMore')}
+            </span>
+          </>
+        )}
+      </Button>
+      {total > 0 && (
+        <p className="text-xs text-muted-foreground">
+          {t('searchPage.showingOf', { showing, total })}
+        </p>
+      )}
+    </div>
+  )
+}
+
 type Props = {
   /** First fetch, or a re-search while the previous results are still on screen. */
   loading: boolean
+  /** Every trip loaded so far, before the client-side filters. */
   results: TripResult[]
   filtered: TripResult[]
   hasActiveFilters: boolean
   onResetFilters: () => void
   /** from/to are set but no date: the query is idle. */
   awaitingDate: boolean
+  pagination: Pagination
 }
 
 /**
- * The results column: skeletons while loading, an explanatory empty state, or the trip cards.
- * The list is free height and the page scrolls; the backend caps a search at 100 trips,
- * which memoised cards render without virtualisation.
+ * The results column: skeletons while loading, an explanatory empty state, or the trip cards,
+ * each followed by "load more" while the server has further pages. The list is free height and
+ * the page scrolls. Filters apply to the loaded trips only, so the empty state offers the next
+ * page too: it may hold matches.
  */
 export function TripResultsList({
   loading,
@@ -31,6 +83,7 @@ export function TripResultsList({
   hasActiveFilters,
   onResetFilters,
   awaitingDate,
+  pagination,
 }: Props) {
   const t = useT()
   const navigate = useNavigate()
@@ -66,6 +119,11 @@ export function TripResultsList({
             {t('searchPage.clearAllFilters')}
           </Button>
         )}
+        {pagination.hasMore && (
+          <div className="mt-4">
+            <LoadMore pagination={pagination} showing={results.length} />
+          </div>
+        )}
       </div>
     )
   }
@@ -80,6 +138,7 @@ export function TripResultsList({
           isRecommended={i === 0 && filtered.length > 1}
         />
       ))}
+      {pagination.hasMore && <LoadMore pagination={pagination} showing={results.length} />}
     </div>
   )
 }

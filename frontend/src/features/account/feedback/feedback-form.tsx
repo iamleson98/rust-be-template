@@ -49,7 +49,8 @@ export const FeedbackForm = memo(function FeedbackForm({
   const [editMode, setEditMode] = useState(!isEditingExisting)
   const [submitted, setSubmitted] = useState(false)
 
-  const createMut = useMutation({ ...reviewsCreateMutation(),
+  const createMut = useMutation({
+    ...reviewsCreateMutation(),
     onSuccess: (data) => {
       const review = (((data ?? {}) as { review?: unknown; data?: { review?: unknown } }).review ??
         ((data ?? {}) as { data?: { review?: unknown } }).data?.review) as ReviewSummary | undefined
@@ -62,7 +63,8 @@ export const FeedbackForm = memo(function FeedbackForm({
     },
   })
 
-  const updateMut = useMutation({ ...reviewsUpdateMutation(),
+  const updateMut = useMutation({
+    ...reviewsUpdateMutation(),
     onSuccess: (data) => {
       const review = (((data ?? {}) as { review?: unknown; data?: { review?: unknown } }).review ??
         ((data ?? {}) as { data?: { review?: unknown } }).data?.review) as ReviewSummary | undefined

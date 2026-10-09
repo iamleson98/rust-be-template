@@ -51,12 +51,7 @@ import { Form } from '@/components/ui/form'
 import { Clock, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useT } from '@/lib/i18n'
-import type {
-  AdminAddressOut,
-  AdminBusLayoutOut,
-  AdminRouteOut,
-  AdminScheduleOut,
-} from '@/api'
+import type { AdminAddressOut, AdminBusLayoutOut, AdminRouteOut, AdminScheduleOut } from '@/api'
 import { AddressMapDialog } from '@/features/admin/addresses/address-map-dialog'
 import { scheduleSchema, type ScheduleFormValues } from './schedule-schema'
 import { ScheduleRouteSection } from './schedule-route-section'

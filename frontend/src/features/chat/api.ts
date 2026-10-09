@@ -29,7 +29,8 @@ export function flattenMessagePages<T extends { id: string }>(
 ): T[] {
   const newest = new Map<string, T>()
   for (const page of pages) {
-    for (const message of page?.items ?? []) if (!newest.has(message.id)) newest.set(message.id, message)
+    for (const message of page?.items ?? [])
+      if (!newest.has(message.id)) newest.set(message.id, message)
   }
   const seen = new Set<string>()
   const messages: T[] = []

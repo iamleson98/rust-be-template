@@ -37,7 +37,10 @@ export function createQueryClient() {
     mutationCache: new MutationCache({
       onSuccess: (_data, _vars, _ctx, { meta }) => {
         const { resource, invalidates = [] } = meta ?? {}
-        const stale = [...(resource ? [resource, ...(ALSO_REFRESH[resource] ?? [])] : []), ...invalidates]
+        const stale = [
+          ...(resource ? [resource, ...(ALSO_REFRESH[resource] ?? [])] : []),
+          ...invalidates,
+        ]
         if (stale.length) void invalidateResources(queryClient, ...stale)
       },
     }),

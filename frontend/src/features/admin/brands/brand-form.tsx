@@ -320,18 +320,10 @@ export function BrandFormDialog({
             </div>
 
             <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-                disabled={saving}
-              >
+              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
                 {t('common.cancel')}
               </Button>
-              <Button
-                type="submit"
-                disabled={saving}
-                className="bg-rose-600 hover:bg-rose-700"
-              >
+              <Button type="submit" disabled={saving} className="bg-rose-600 hover:bg-rose-700">
                 {saving ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> {t('common.saving')}

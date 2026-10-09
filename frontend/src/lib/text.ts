@@ -1,10 +1,6 @@
 /** NFD does not decompose đ/Đ, so they are replaced explicitly. */
 const stripTones = (s: string) =>
-  s
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/đ/g, 'd')
-    .replace(/Đ/g, 'D')
+  s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D')
 
 /** Diacritic-insensitive form for matching: "Hà Nội" → "ha noi". */
 export const noTones = (s: string) => stripTones(s).toLowerCase().trim()

@@ -1,7 +1,13 @@
 'use client'
 
 import { invalidateResources } from '@/api/query-client'
-import { bookingsConfirmMutation, bookingsHoldMutation, cancelPaymentMutation, createPaymentMutation, validateCampaign } from '@/api'
+import {
+  bookingsConfirmMutation,
+  bookingsHoldMutation,
+  cancelPaymentMutation,
+  createPaymentMutation,
+  validateCampaign,
+} from '@/api'
 import { useBookingFlow } from '@/stores/booking-flow'
 import { useGuest } from '@/stores/guest'
 import { usePrefs } from '@/stores/prefs'
@@ -349,7 +355,8 @@ export function BookingFlow() {
   )
 
   // ── COD path: hold → confirm ──────────────────────────────────
-  const confirmMut = useMutation({ ...bookingsConfirmMutation(),
+  const confirmMut = useMutation({
+    ...bookingsConfirmMutation(),
     onSuccess: (_data, vars) => {
       const v = (vars ?? {}) as { path?: { id?: string } }
       const holdData = (holdResultRef.current ?? {}) as HoldBookingData
@@ -389,7 +396,8 @@ export function BookingFlow() {
     }
   }, [bookingStep, activePayment, finishSuccess])
 
-  const holdMut = useMutation({ ...bookingsHoldMutation(),
+  const holdMut = useMutation({
+    ...bookingsHoldMutation(),
     onSuccess: (holdResult) => {
       const holdData: HoldBookingData = holdResult
       if (!holdData.bookingId) {

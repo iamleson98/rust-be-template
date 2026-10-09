@@ -89,7 +89,9 @@ function place(s: EditorState, pos: Pos, kind: CellKind): EditorState {
     // one steering wheel per deck: painting a new one moves it
     base = {
       ...deck,
-      cells: deck.cells.filter((c) => c.kind !== 'driver' || (c.row === pos.row && c.col === pos.col)),
+      cells: deck.cells.filter(
+        (c) => c.kind !== 'driver' || (c.row === pos.row && c.col === pos.col),
+      ),
     }
   }
   const sellable = isSellable(kind)

@@ -7,7 +7,9 @@ afterEach(() => vi.useRealTimers())
 
 function setup(channelId: string | undefined, accepts = true) {
   const send = vi.fn(() => accepts)
-  const hook = renderHook(({ id }) => useTypingBroadcast(id, send), { initialProps: { id: channelId } })
+  const hook = renderHook(({ id }) => useTypingBroadcast(id, send), {
+    initialProps: { id: channelId },
+  })
   return { send, ...hook }
 }
 

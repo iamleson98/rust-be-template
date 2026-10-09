@@ -61,10 +61,15 @@ export function effectiveRange(f: Filters, [lo, hi]: PriceRange): PriceRange {
   ]
 }
 
-export function applyFilters(results: TripResult[], f: Filters, [pLo, pHi]: PriceRange): TripResult[] {
+export function applyFilters(
+  results: TripResult[],
+  f: Filters,
+  [pLo, pHi]: PriceRange,
+): TripResult[] {
   return results.filter((r) => {
     if (r.minPrice < pLo || r.minPrice > pHi) return false
-    if (f.timeRanges.length && !f.timeRanges.some((t) => inTimeRange(departureHour(r), t))) return false
+    if (f.timeRanges.length && !f.timeRanges.some((t) => inTimeRange(departureHour(r), t)))
+      return false
     if (f.minRating > 0 && r.brandRating < f.minRating) return false
     if (f.brands.length && !f.brands.includes(r.brandSlug)) return false
     if (f.availableOnly && r.availableSeats <= FEW_SEATS) return false
@@ -86,7 +91,7 @@ export function activeFilterCount(f: Filters, range: PriceRange, bounds: PriceRa
   )
 }
 
-export const toggle = <T,>(list: T[], item: T): T[] =>
+export const toggle = <T>(list: T[], item: T): T[] =>
   list.includes(item) ? list.filter((x) => x !== item) : [...list, item]
 
 /** Distinct brands of the results, busiest first. */
@@ -101,4 +106,4 @@ export function brandOptions(results: TripResult[]) {
   return [...bySlug.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
 }
 
-export const count = <T,>(items: T[], pred: (item: T) => boolean) => items.filter(pred).length
+export const count = <T>(items: T[], pred: (item: T) => boolean) => items.filter(pred).length

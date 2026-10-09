@@ -59,7 +59,10 @@ export function Canvas({ editor }: { editor: PlanEditorApi }) {
         <button
           type="button"
           onClick={click}
-          className={cn('h-full w-full rounded-lg', selected && 'ring-2 ring-blue-500 ring-offset-1')}
+          className={cn(
+            'h-full w-full rounded-lg',
+            selected && 'ring-2 ring-blue-500 ring-offset-1',
+          )}
         >
           <FixtureTile kind={cell.kind} />
         </button>
@@ -87,25 +90,46 @@ export function Canvas({ editor }: { editor: PlanEditorApi }) {
           </button>
         ))}
         {!multi && !state.locked && (
-          <Button type="button" variant="outline" size="sm" onClick={() => dispatch({ type: 'addDeck' })}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => dispatch({ type: 'addDeck' })}
+          >
             <Plus className="h-3.5 w-3.5" /> {t('seatPlan.addDeck')}
           </Button>
         )}
         <div className="ml-auto flex items-center gap-1">
-          <IconButton label={t('seatPlan.undo')} disabled={!state.past.length} onClick={() => dispatch({ type: 'undo' })}>
+          <IconButton
+            label={t('seatPlan.undo')}
+            disabled={!state.past.length}
+            onClick={() => dispatch({ type: 'undo' })}
+          >
             <Undo2 className="h-3.5 w-3.5" />
           </IconButton>
-          <IconButton label={t('seatPlan.redo')} disabled={!state.future.length} onClick={() => dispatch({ type: 'redo' })}>
+          <IconButton
+            label={t('seatPlan.redo')}
+            disabled={!state.future.length}
+            onClick={() => dispatch({ type: 'redo' })}
+          >
             <Redo2 className="h-3.5 w-3.5" />
           </IconButton>
           <IconButton label={t('seatPlan.mirror')} onClick={() => dispatch({ type: 'mirror' })}>
             <FlipHorizontal2 className="h-3.5 w-3.5" />
           </IconButton>
-          <IconButton label={t('seatPlan.renumber')} disabled={state.locked} onClick={() => dispatch({ type: 'renumber' })}>
+          <IconButton
+            label={t('seatPlan.renumber')}
+            disabled={state.locked}
+            onClick={() => dispatch({ type: 'renumber' })}
+          >
             <ListOrdered className="h-3.5 w-3.5" />
           </IconButton>
           {multi && (
-            <IconButton label={t('seatPlan.removeDeck')} disabled={state.locked} onClick={() => dispatch({ type: 'removeDeck' })}>
+            <IconButton
+              label={t('seatPlan.removeDeck')}
+              disabled={state.locked}
+              onClick={() => dispatch({ type: 'removeDeck' })}
+            >
               <Trash2 className="h-3.5 w-3.5" />
             </IconButton>
           )}

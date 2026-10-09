@@ -21,7 +21,11 @@
  */
 
 import { useQuery, useMutation, keepPreviousData } from '@tanstack/react-query'
-import { adminReviewsSummaryOptions, adminReviewsModerateMutation, adminReviewsListOptions } from '@/api'
+import {
+  adminReviewsSummaryOptions,
+  adminReviewsModerateMutation,
+  adminReviewsListOptions,
+} from '@/api'
 import { useState, useCallback } from 'react'
 import { DataTable } from '@/components/data-table'
 import { Button } from '@/components/ui/button'

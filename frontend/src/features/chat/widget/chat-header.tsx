@@ -15,7 +15,11 @@ type Props = {
   onClose: () => void
 }
 
-function Status({ connected, assigneeName, botActive }: Pick<Props, 'connected' | 'assigneeName' | 'botActive'>) {
+function Status({
+  connected,
+  assigneeName,
+  botActive,
+}: Pick<Props, 'connected' | 'assigneeName' | 'botActive'>) {
   const t = useT()
   if (!connected) {
     return (
@@ -38,7 +42,16 @@ function Status({ connected, assigneeName, botActive }: Pick<Props, 'connected' 
 }
 
 /** Title bar of the support panel: who is helping, connection state, call / minimise / close. */
-export function ChatHeader({ title, connected, assigneeName, botActive, inCall, onCall, onBack, onClose }: Props) {
+export function ChatHeader({
+  title,
+  connected,
+  assigneeName,
+  botActive,
+  inCall,
+  onCall,
+  onBack,
+  onClose,
+}: Props) {
   const t = useT()
   return (
     <div className="bg-linear-to-r from-rose-600 to-rose-700 text-white px-4 py-3 flex items-center justify-between">

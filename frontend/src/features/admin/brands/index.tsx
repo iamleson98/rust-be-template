@@ -20,7 +20,14 @@
  */
 
 import { useQuery, useMutation, keepPreviousData } from '@tanstack/react-query'
-import { adminBrandsListOptions, adminBrandsDeleteMutation, adminRoutesDeleteMutation, adminSchedulesDeleteMutation, adminRoutesListOptions, adminBusLayoutsListOptions } from '@/api'
+import {
+  adminBrandsListOptions,
+  adminBrandsDeleteMutation,
+  adminRoutesDeleteMutation,
+  adminSchedulesDeleteMutation,
+  adminRoutesListOptions,
+  adminBusLayoutsListOptions,
+} from '@/api'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   AlertDialog,

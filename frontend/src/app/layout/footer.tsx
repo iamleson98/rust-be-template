@@ -35,8 +35,6 @@ import { emailSchema } from '@/lib/forms'
 import { toast } from 'sonner'
 import { buildSearchInput } from '@/lib/search-params'
 
-
-
 const newsletterSchema = z.object({
   email: emailSchema,
 })
@@ -411,7 +409,6 @@ export const Footer = memo(function Footer() {
                 {t('layout.footer.dataRights')}
               </a>
             </div>
-
           </div>
         </div>
       </div>

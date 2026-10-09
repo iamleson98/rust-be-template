@@ -23,7 +23,9 @@ export function TripCompare({ inline = false }: { inline?: boolean }) {
 
   return (
     <>
-      {!inline && <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onClick={close} />}
+      {!inline && (
+        <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onClick={close} />
+      )}
       <div
         className={cn(
           'flex flex-col overflow-hidden bg-background ring-1 ring-black/10 dark:ring-white/10',

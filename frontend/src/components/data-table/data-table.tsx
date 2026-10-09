@@ -354,10 +354,10 @@ export function DataTable<TData extends RowData>({
                       onKeyDown={
                         onRowClick
                           ? (event) => {
-                            if (event.key === 'Enter' && event.target === event.currentTarget) {
-                              onRowClick(row.original)
+                              if (event.key === 'Enter' && event.target === event.currentTarget) {
+                                onRowClick(row.original)
+                              }
                             }
-                          }
                           : undefined
                       }
                     >

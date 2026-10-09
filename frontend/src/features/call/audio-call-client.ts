@@ -107,7 +107,8 @@ const MIC_CONSTRAINTS: MediaStreamConstraints = {
   video: false,
 }
 
-const asNum = (v: unknown, fallback = 0) => (typeof v === 'number' && Number.isFinite(v) ? v : fallback)
+const asNum = (v: unknown, fallback = 0) =>
+  typeof v === 'number' && Number.isFinite(v) ? v : fallback
 const asStr = (v: unknown): string | null => (typeof v === 'string' ? v : null)
 
 /** One re-armable timeout. */
@@ -219,7 +220,10 @@ export class AudioCallClient {
     this.isOfferer = true
     this.createPeerConnection()
 
-    const offer = await this.pc!.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: false })
+    const offer = await this.pc!.createOffer({
+      offerToReceiveAudio: true,
+      offerToReceiveVideo: false,
+    })
     await this.pc!.setLocalDescription(offer)
     this.socket.send({
       type: 'call',
@@ -382,7 +386,8 @@ export class AudioCallClient {
     this.registered = true
     this.onlineAgents = asNum(msg.onlineAgents)
     // Server-provided STUN/TURN applies to every connection created from now on.
-    if (Array.isArray(msg.iceServers) && msg.iceServers.length > 0) this.cfg.iceServers = msg.iceServers
+    if (Array.isArray(msg.iceServers) && msg.iceServers.length > 0)
+      this.cfg.iceServers = msg.iceServers
     for (const resolve of this.registeredWaiters.splice(0)) resolve()
 
     // A socket that dropped mid-call re-registers and the server says whether the session
@@ -401,7 +406,12 @@ export class AudioCallClient {
   private onIncoming(msg: Record<string, unknown>): void {
     // One call at a time: answer `busy` at once instead of ringing into a void.
     if (this.state !== 'idle' || this.pc) {
-      this.socket.send({ type: 'hangup', to: asStr(msg.from) ?? '', reason: 'busy', from: this.cfg.userId })
+      this.socket.send({
+        type: 'hangup',
+        to: asStr(msg.from) ?? '',
+        reason: 'busy',
+        from: this.cfg.userId,
+      })
       return
     }
     this.peerId = asStr(msg.from)
@@ -415,7 +425,12 @@ export class AudioCallClient {
     })
     this.ringTimer.set(RING_TIMEOUT_MS, () => {
       if (this.state !== 'incoming') return
-      this.socket.send({ type: 'hangup', to: this.peerId ?? '', reason: 'busy', from: this.cfg.userId })
+      this.socket.send({
+        type: 'hangup',
+        to: this.peerId ?? '',
+        reason: 'busy',
+        from: this.cfg.userId,
+      })
       this.cleanupCall()
       this.setState('idle')
     })
@@ -457,7 +472,8 @@ export class AudioCallClient {
     const pc = this.pc
     if (!sdp || !pc || !this.isCallLive()) return
     if (typeof msg.from === 'string' && !this.peerId) this.peerId = msg.from
-    const fail = (e: unknown) => this.events.emit('error', { code: 'renegotiate', message: String(e) })
+    const fail = (e: unknown) =>
+      this.events.emit('error', { code: 'renegotiate', message: String(e) })
 
     if (msg.kind === 'offer') {
       // Candidates arriving mid-restart wait until the new description settles.
@@ -527,7 +543,8 @@ export class AudioCallClient {
     const pc = new RTCPeerConnection({ iceServers: this.cfg.iceServers, iceCandidatePoolSize: 2 })
     this.pc = pc
     this.startQualitySampler()
-    for (const track of this.localStream?.getAudioTracks() ?? []) pc.addTrack(track, this.localStream!)
+    for (const track of this.localStream?.getAudioTracks() ?? [])
+      pc.addTrack(track, this.localStream!)
 
     pc.onicecandidate = (ev) => {
       const to = this.peerAddress()

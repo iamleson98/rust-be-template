@@ -12,7 +12,11 @@
  *   - Provider + status badges with semantic colors
  */
 
-import { markCodCollectedMutation, updatePaymentStatusMutation, listAdminPaymentsOptions } from '@/api'
+import {
+  markCodCollectedMutation,
+  updatePaymentStatusMutation,
+  listAdminPaymentsOptions,
+} from '@/api'
 import { useMutation, useQuery, keepPreviousData } from '@tanstack/react-query'
 import { usePrefs } from '@/stores/prefs'
 import { useMemo, useState } from 'react'

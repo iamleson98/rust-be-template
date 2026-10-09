@@ -10,7 +10,13 @@ const deckItems = (deck: DeckPlan, size: TileSize): GridItem[] =>
     col: c.col,
     tall: isBerth(c.kind),
     node: isSellable(c.kind) ? (
-      <SeatTile as="span" kind={c.kind} label={c.label ?? ''} size={size} className="bg-slate-100" />
+      <SeatTile
+        as="span"
+        kind={c.kind}
+        label={c.label ?? ''}
+        size={size}
+        className="bg-slate-100"
+      />
     ) : (
       <FixtureTile kind={c.kind} size={size} />
     ),

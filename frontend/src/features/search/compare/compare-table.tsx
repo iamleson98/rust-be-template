@@ -57,7 +57,10 @@ export function CompareTable({ trips, onPick }: { trips: TripResult[]; onPick: (
           {COMPARE_ROWS.map((row) => {
             const best = bestTripId(row, trips)
             return (
-              <tr key={row.labelKey} className="border-b transition-colors last:border-b-0 hover:bg-muted/40">
+              <tr
+                key={row.labelKey}
+                className="border-b transition-colors last:border-b-0 hover:bg-muted/40"
+              >
                 <td className="sticky left-0 z-10 bg-background px-4 py-3 text-xs text-muted-foreground sm:px-6">
                   <div className="flex items-center gap-1.5">
                     {row.icon}

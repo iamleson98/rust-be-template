@@ -3,7 +3,6 @@ import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/empty-state'
 import { useT } from '@/lib/i18n'
 
-
 function WarningSVG() {
   return (
     <svg
