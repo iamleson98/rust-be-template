@@ -15,7 +15,7 @@
 pub use self::address::{AddressStore, DbAddressStore};
 pub use self::ads_conversion::{AdConversionStore, DbAdConversionStore, NewAdConversion};
 pub use self::audit::{AuditStore, DbAuditStore};
-pub use self::booking::{BookingStore, DbBookingStore};
+pub use self::booking::{BookingStore, ConfirmOutcome, DbBookingStore, Released};
 pub use self::brands::{BrandStore, CacheBrandStore, DbBrandStore};
 pub use self::chat::{CacheChatStore, ChatStore, DbChatStore, NewChatMessage, NewNullClawExchange};
 pub use self::composite::CompositeStore;

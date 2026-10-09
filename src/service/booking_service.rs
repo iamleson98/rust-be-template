@@ -14,7 +14,7 @@ use std::sync::Arc;
 
 use chrono::Utc;
 use rand::Rng;
-use sea_orm::{Set, TransactionTrait};
+use sea_orm::Set;
 use uuid::Uuid;
 
 use crate::dto::booking::{
@@ -24,7 +24,9 @@ use crate::dto::booking::{
 };
 use crate::entity::{booking, booking_seat, seat, seat_inventory, trip_session};
 use crate::error::{AppError, AppResult};
-use crate::store::CompositeStore;
+use crate::payment::statuses as payment_status;
+use crate::service::trip_time;
+use crate::store::{CompositeStore, ConfirmOutcome};
 
 // Re-export the request DTOs at the service-module root so existing
 // `use crate::service::booking_service::HoldReq` references still resolve.
@@ -32,6 +34,55 @@ pub use crate::dto::booking::{
     CancelReq as CancelReqDto, ConfirmReq as ConfirmReqDto, HoldReq as HoldReqDto,
     PassengerReq as PassengerReqDto,
 };
+
+/// How long seats are held while the customer fills in the checkout.
+const HOLD_SECS: i64 = 10 * 60;
+
+/// How long a started payment keeps the seats.
+const PAYMENT_HOLD_SECS: i64 = 15 * 60;
+
+/// What one expiry sweep gave back.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct ExpiredHolds {
+    pub bookings: u64,
+    pub seats: u64,
+}
+
+/// How often abandoned holds are given back.
+const SWEEP_EVERY: std::time::Duration = std::time::Duration::from_secs(60);
+
+/// Holds released per sweep; a backlog is worked off over successive sweeps.
+const SWEEP_BATCH: u64 = 200;
+
+/// Run [`BookingService::expire_stale_holds`] on a timer for the life of
+/// the process. Without it a customer who walks away from the checkout
+/// keeps those seats off sale for good.
+pub fn spawn_hold_sweeper(bookings: Arc<BookingService>) {
+    tokio::spawn(async move {
+        let mut tick = tokio::time::interval(SWEEP_EVERY);
+        tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        loop {
+            tick.tick().await; // the first tick is immediate: clears what a restart left behind
+            match bookings.expire_stale_holds(SWEEP_BATCH).await {
+                Ok(done) if done.bookings > 0 => tracing::info!(
+                    bookings = done.bookings,
+                    seats = done.seats,
+                    "released expired seat holds"
+                ),
+                Ok(_) => {}
+                Err(e) => tracing::warn!(error = %e, "seat-hold sweep failed"),
+            }
+        }
+    });
+}
+
+/// True when the booking's hold deadline has passed.
+pub fn hold_expired(b: &booking::Model) -> bool {
+    b.expires_at
+        .as_deref()
+        .and_then(|e| chrono::DateTime::parse_from_rfc3339(e).ok())
+        .is_some_and(|t| t.with_timezone(&Utc) < Utc::now())
+}
 
 // ────────────────────────────────────────────────────────────────
 //  Service
@@ -426,6 +477,17 @@ impl BookingService {
             .map_err(|e| AppError::Internal(e.to_string()))?
             .ok_or_else(|| AppError::NotFound("schedule not found".into()))?;
 
+        // A trip that has left cannot be sold.
+        if trip_time::departure_instant(
+            &trip.departure_date,
+            &schedule.departure_time,
+            trip.actual_departure_at.as_deref(),
+        )
+        .is_some_and(|departs| departs <= Utc::now())
+        {
+            return Err(AppError::BadRequest("trip has already departed".into()));
+        }
+
         let route_model = self
             .store
             .route_store()
@@ -487,6 +549,7 @@ impl BookingService {
         // Campaign discount
         let mut discount: i64 = 0;
         let mut applied_campaign_id: Option<String> = None;
+        let mut applied_campaign: Option<Uuid> = None;
         if let Some(ref cc) = req.campaign_code {
             let code = cc.trim().to_uppercase();
             let now = now_iso();
@@ -498,6 +561,12 @@ impl BookingService {
                 .map_err(|e| AppError::Internal(e.to_string()))?;
 
             if let Some(c) = campaign {
+                // Promos belong to the operator that issued them.
+                if route_model.brand_id != Some(c.brand_id) {
+                    return Err(AppError::BadRequest(
+                        "this promo code does not apply to this operator".into(),
+                    ));
+                }
                 match c.discount_type.as_str() {
                     "percent" => {
                         let raw =
@@ -514,6 +583,7 @@ impl BookingService {
                     _ => {}
                 }
                 applied_campaign_id = Some(c.id.to_string());
+                applied_campaign = Some(c.id);
             } else {
                 return Err(AppError::BadRequest(
                     "invalid or expired campaign code".into(),
@@ -521,11 +591,13 @@ impl BookingService {
             }
         }
 
+        // A promo can never be worth more than the order.
+        let discount = discount.clamp(0, subtotal);
         let fees: i64 = 0;
         let total = (subtotal - discount + fees).max(0);
 
         // 10-minute hold
-        let expires_at = now_plus_iso(10 * 60);
+        let expires_at = now_plus_iso(HOLD_SECS);
         let brand_slug = brand_model
             .as_ref()
             .map(|b| b.slug.clone())
@@ -553,6 +625,7 @@ impl BookingService {
             currency: Set("VND".to_string()),
             status: Set("pending".to_string()),
             payment_method: Set(None),
+            campaign_applied_id: Set(applied_campaign),
             contact_name: Set(Some(req.contact_name.clone())),
             contact_phone: Set(Some(req.contact_phone.clone())),
             contact_email: Set(req.contact_email.clone()),
@@ -732,18 +805,14 @@ impl BookingService {
         })
     }
 
-    /// Cancel a booking (with refund calculation).
+    /// Cancel a booking.
     ///
-    /// Refund policy:
-    ///   - > 24h before departure → 90% refund
-    ///   - > 4h before departure → 50% refund
-    ///   - ≤ 4h before departure → 0% refund
+    /// Refund policy (share of what was actually PAID, by notice before
+    /// departure): more than 24 h → 90 %, more than 4 h → 50 %, less → 0.
+    /// An unpaid booking refunds nothing.
     ///
-    /// **Authorization**: `caller_user_id` must equal `booking.user_id`
-    /// or the caller must hold the `bookings:cancel:any` permission
-    /// (e.g. an admin/support role). Returns 403 Forbidden otherwise —
-    /// this is a per-row ownership check that prevents BOLA on the
-    /// cancel endpoint.
+    /// **Authorization**: only the booking's owner may cancel it (BOLA
+    /// defense); staff use the admin routes, which check RBAC instead.
     pub async fn cancel(
         &self,
         caller_user_id: Uuid,
@@ -754,141 +823,93 @@ impl BookingService {
             .store
             .booking_store()
             .find_booking_by_id(id)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("booking not found".into()))?;
 
-        // BOLA defense: verify the caller owns this booking. Admins
-        // (employees) don't reach this code path through the public
-        // cancel route — they use the admin cancel route under
-        // `/api/admin/bookings/{id}/cancel` which checks RBAC instead.
         if b.user_id != Some(caller_user_id) {
             return Err(AppError::Forbidden("not your booking".into()));
         }
-
-        if b.status == "cancelled" {
-            return Err(AppError::BadRequest("booking already cancelled".into()));
+        match b.status.as_str() {
+            "pending" | "confirmed" => {}
+            "cancelled" => return Err(AppError::BadRequest("booking already cancelled".into())),
+            other => {
+                return Err(AppError::BadRequest(format!(
+                    "a {other} booking cannot be cancelled"
+                )))
+            }
         }
 
-        // Fetch trip for refund calculation
-        let trip_id = b.trip_session_id;
+        let (refund_percent, refund_amount) = self.refund_for(&b).await?;
+
+        // Seats, counter, promo use and pending payments move together or not at all.
+        self.store
+            .booking_store()
+            .cancel_booking(id, &["pending", "confirmed"])
+            .await?
+            .ok_or_else(|| AppError::Conflict("booking was changed by another request".into()))?;
+
+        let ts_b36 = to_base36(Utc::now().timestamp_millis());
+        Ok(BookingCancelResponse {
+            success: true,
+            refund_percent,
+            refund_amount,
+            cancelled_at: now_iso(),
+            ref_code: format!("HX-{}-{}", b.code.to_uppercase(), ts_b36.to_uppercase()),
+            reason: reason.map(str::to_string),
+        })
+    }
+
+    /// `(percent, amount)` handed back for cancelling `b` now: the policy
+    /// share of the completed payments.
+    async fn refund_for(&self, b: &booking::Model) -> AppResult<(i64, i64)> {
+        let paid: i64 = self
+            .store
+            .payment_store()
+            .list_by_booking(b.id)
+            .await?
+            .iter()
+            .filter(|p| p.status == payment_status::COMPLETED)
+            .map(|p| p.amount)
+            .sum();
+        if paid <= 0 {
+            return Ok((0, 0));
+        }
+
         let trip = self
             .store
             .trip_store()
-            .find_trip_by_id(trip_id)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-
-        let hours_until =
-            if let Some(ref dep) = trip.as_ref().and_then(|t| t.actual_departure_at.clone()) {
-                chrono::DateTime::parse_from_rfc3339(dep)
-                    .map(|dt| (dt.with_timezone(&Utc) - Utc::now()).num_hours() as f64)
-                    .unwrap_or(24.0)
-            } else {
-                24.0 // default to full refund if no departure time
-            };
-
-        let refund_percent: i64 = if hours_until > 24.0 {
-            90
-        } else if hours_until > 4.0 {
-            50
-        } else {
-            0
+            .find_trip_by_id(b.trip_session_id)
+            .await?;
+        let schedule = match &trip {
+            Some(t) => {
+                self.store
+                    .schedule_store()
+                    .find_schedule_by_id(t.schedule_id)
+                    .await?
+            }
+            None => None,
         };
-        let refund_amount = b.total as i64 * refund_percent / 100;
-
-        // Release held seats — single bulk UPDATE (replaces the previous
-        // N-row load + N sequential UPDATE loop) + update trip + mark
-        // booking cancelled, all in a single DB transaction. If any step
-        // fails, the entire operation rolls back — no orphaned seats,
-        // no half-cancelled bookings.
-        let booking_id_str = b.id.to_string();
-        let booking_code = b.code.clone();
-        let reason_owned = reason.map(|s| s.to_string());
-
-        let db = self.store.db();
-        let txn_result = db
-            .transaction::<_, BookingCancelResponse, AppError>(|txn| {
-                Box::pin(async move {
-                    // 1. Bulk-release held seats (single UPDATE)
-                    use crate::entity::{
-                        booking as booking_entity, seat_inventory, trip_session as trip_entity,
-                    };
-                    use sea_orm::sea_query::Expr;
-                    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
-
-                    let released = seat_inventory::Entity::update_many()
-                        .col_expr(seat_inventory::Column::Status, Expr::value("available"))
-                        .col_expr(
-                            seat_inventory::Column::HeldUntil,
-                            Expr::value(None::<String>),
-                        )
-                        .col_expr(
-                            seat_inventory::Column::HeldByBookingId,
-                            Expr::value(None::<String>),
-                        )
-                        .filter(seat_inventory::Column::HeldByBookingId.eq(booking_id_str.clone()))
-                        .exec(txn)
-                        .await
-                        .map_err(|e| AppError::Internal(e.to_string()))?;
-                    let seat_count = released.rows_affected as i64;
-
-                    // 2. Re-add available seats to trip session
-                    if let Some(t) = &trip {
-                        let current_available = t.available_seats;
-                        trip_entity::Entity::update_many()
-                            .col_expr(
-                                trip_entity::Column::AvailableSeats,
-                                Expr::value(current_available + seat_count),
-                            )
-                            .filter(trip_entity::Column::Id.eq(t.id))
-                            .exec(txn)
-                            .await
-                            .map_err(|e| AppError::Internal(e.to_string()))?;
-                    }
-
-                    // 3. Mark booking cancelled
-                    booking_entity::Entity::update_many()
-                        .col_expr(booking_entity::Column::Status, Expr::value("cancelled"))
-                        .col_expr(booking_entity::Column::UpdatedAt, Expr::value(now_iso()))
-                        .filter(booking_entity::Column::Id.eq(booking_id_str.clone()))
-                        .exec(txn)
-                        .await
-                        .map_err(|e| AppError::Internal(e.to_string()))?;
-
-                    // 4. Generate cancellation reference code
-                    let ts_b36 = to_base36(Utc::now().timestamp_millis());
-                    let ref_code = format!(
-                        "HX-{}-{}",
-                        booking_code.to_uppercase(),
-                        ts_b36.to_uppercase()
-                    );
-
-                    Ok(BookingCancelResponse {
-                        success: true,
-                        refund_percent,
-                        refund_amount,
-                        cancelled_at: now_iso(),
-                        ref_code,
-                        reason: reason_owned,
-                    })
-                })
-            })
-            .await
-            .map_err(|e| match e {
-                sea_orm::TransactionError::Connection(e) => {
-                    AppError::Internal(format!("transaction start failed: {e}"))
-                }
-                sea_orm::TransactionError::Transaction(app_err) => app_err,
-            })?;
-
-        Ok(txn_result)
+        let departs = trip.as_ref().zip(schedule.as_ref()).and_then(|(t, s)| {
+            trip_time::departure_instant(
+                &t.departure_date,
+                &s.departure_time,
+                t.actual_departure_at.as_deref(),
+            )
+        });
+        let percent = match departs {
+            Some(at) => trip_time::refund_percent((at - Utc::now()).num_minutes() as f64 / 60.0),
+            None => {
+                tracing::warn!(booking = %b.id, "cancel: departure time unknown — refunding at the top tier");
+                90
+            }
+        };
+        Ok((percent, paid * percent / 100))
     }
 
-    /// Confirm a booking (mark paid — locked → booked).
+    /// Confirm a booking (the customer pays on the bus: held → booked).
     ///
-    /// **Authorization**: `caller_user_id` must equal `booking.user_id`.
-    /// Returns 403 Forbidden otherwise — same BOLA defense as `cancel`.
+    /// **Authorization**: the caller must own the booking — same BOLA
+    /// defense as `cancel`.
     pub async fn confirm(
         &self,
         caller_user_id: Uuid,
@@ -899,27 +920,33 @@ impl BookingService {
             .store
             .booking_store()
             .find_booking_by_id(id)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("booking not found".into()))?;
 
-        // BOLA defense: only the booking owner can confirm.
         if b.user_id != Some(caller_user_id) {
             return Err(AppError::Forbidden("not your booking".into()));
         }
-
         if b.status != "pending" {
             return Err(AppError::BadRequest(
                 "booking is not in pending status".into(),
             ));
         }
-        self.confirm_inner(&b, payment_method).await
+        if hold_expired(&b) {
+            // Too late: hand the seats back right away.
+            self.store
+                .booking_store()
+                .expire_pending(id, &now_iso())
+                .await?;
+            return Err(AppError::Gone("booking hold has expired".into()));
+        }
+        self.confirm_pending(&b, payment_method).await
     }
 
-    /// System-level confirm — used by the payment service after a verified
-    /// IPN webhook or admin manual status update. No caller_user_id, so no
-    /// per-row ownership check (the booking is being confirmed because
-    /// payment has been verified, not because a user clicked a button).
+    /// Confirm after a verified payment (gateway webhook, driver collecting
+    /// cash, admin override). Money has changed hands, so a hold that ran
+    /// past its deadline still converts as long as nothing released the
+    /// seats yet. Idempotent: a repeated notification for a booking that is
+    /// already confirmed succeeds.
     pub async fn confirm_as_system(
         &self,
         id: Uuid,
@@ -929,138 +956,80 @@ impl BookingService {
             .store
             .booking_store()
             .find_booking_by_id(id)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("booking not found".into()))?;
 
-        if b.status != "pending" {
-            return Err(AppError::BadRequest(
-                "booking is not in pending status".into(),
-            ));
+        match b.status.as_str() {
+            "pending" => self.confirm_pending(&b, payment_method).await,
+            "confirmed" => Ok(BookingConfirmResponse {
+                booking_id: b.id,
+                status: "confirmed".to_string(),
+                payment_method: b
+                    .payment_method
+                    .unwrap_or_else(|| payment_method.to_string()),
+            }),
+            other => Err(AppError::Conflict(format!("booking is {other}"))),
         }
-        self.confirm_inner(&b, payment_method).await
     }
 
-    /// Shared inner confirm logic — assumes ownership has already been
-    /// verified by the caller (either `confirm` for user-facing callers,
-    /// or `confirm_as_system` for server-side callers).
-    async fn confirm_inner(
+    async fn confirm_pending(
         &self,
         b: &booking::Model,
         payment_method: &str,
     ) -> AppResult<BookingConfirmResponse> {
-        // Check expiry
-        if let Some(ref exp) = b.expires_at {
-            if let Ok(t) = chrono::DateTime::parse_from_rfc3339(exp) {
-                if t.with_timezone(&Utc) < Utc::now() {
-                    // Expired — release seats + mark cancelled in a transaction.
-                    // Previously: per-seat loop with `let _ =` swallowing errors.
-                    let booking_id_str = b.id.to_string();
-                    let db = self.store.db();
-                    db.transaction::<_, (), AppError>(|txn| {
-                        Box::pin(async move {
-                            use crate::entity::{booking as booking_entity, seat_inventory};
-                            use sea_orm::sea_query::Expr;
-                            use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+        match self
+            .store
+            .booking_store()
+            .confirm_pending(b.id, payment_method)
+            .await?
+        {
+            ConfirmOutcome::Confirmed => Ok(BookingConfirmResponse {
+                booking_id: b.id,
+                status: "confirmed".to_string(),
+                payment_method: payment_method.to_string(),
+            }),
+            ConfirmOutcome::NotPending => Err(AppError::BadRequest(
+                "booking is not in pending status".into(),
+            )),
+            ConfirmOutcome::SeatsLost => Err(AppError::Gone("booking hold has expired".into())),
+        }
+    }
 
-                            seat_inventory::Entity::update_many()
-                                .col_expr(seat_inventory::Column::Status, Expr::value("available"))
-                                .col_expr(
-                                    seat_inventory::Column::HeldUntil,
-                                    Expr::value(None::<String>),
-                                )
-                                .col_expr(
-                                    seat_inventory::Column::HeldByBookingId,
-                                    Expr::value(None::<String>),
-                                )
-                                .filter(
-                                    seat_inventory::Column::HeldByBookingId
-                                        .eq(booking_id_str.clone()),
-                                )
-                                .exec(txn)
-                                .await
-                                .map_err(|e| AppError::Internal(e.to_string()))?;
-
-                            booking_entity::Entity::update_many()
-                                .col_expr(booking_entity::Column::Status, Expr::value("cancelled"))
-                                .col_expr(booking_entity::Column::UpdatedAt, Expr::value(now_iso()))
-                                .filter(booking_entity::Column::Id.eq(booking_id_str))
-                                .exec(txn)
-                                .await
-                                .map_err(|e| AppError::Internal(e.to_string()))?;
-                            Ok(())
-                        })
-                    })
-                    .await
-                    .map_err(|e| match e {
-                        sea_orm::TransactionError::Connection(e) => {
-                            AppError::Internal(format!("transaction start failed: {e}"))
-                        }
-                        sea_orm::TransactionError::Transaction(app_err) => app_err,
-                    })?;
-
-                    return Err(AppError::Gone("booking hold has expired".into()));
+    /// Give back every hold that ran out: the booking is cancelled, its
+    /// seats are free again and the trip's counter is restored. Run on a
+    /// timer; safe to call concurrently with confirms and cancels.
+    pub async fn expire_stale_holds(&self, batch: u64) -> AppResult<ExpiredHolds> {
+        let now = now_iso();
+        let stale = self
+            .store
+            .booking_store()
+            .list_expired_pending(&now, batch)
+            .await?;
+        let mut done = ExpiredHolds::default();
+        for b in stale {
+            match self.store.booking_store().expire_pending(b.id, &now).await {
+                Ok(Some(released)) => {
+                    done.bookings += 1;
+                    done.seats += released.seats;
+                }
+                // Confirmed, cancelled or extended since it was listed.
+                Ok(None) => {}
+                Err(e) => {
+                    tracing::warn!(booking = %b.id, error = %e, "could not release an expired hold");
                 }
             }
         }
+        Ok(done)
+    }
 
-        // Convert locked → booked + update booking status in a single
-        // transaction. Previously: per-seat loop (N UPDATEs) + booking
-        // UPDATE, all untransactional — a partial failure left some seats
-        // "held" with a "confirmed" booking.
-        let booking_id_str = b.id.to_string();
-        let booking_id = b.id; // Uuid is Copy — used in the response.
-        let payment_method_owned = payment_method.to_string();
-        let db = self.store.db();
-        let txn_result = db
-            .transaction::<_, BookingConfirmResponse, AppError>(|txn| {
-                Box::pin(async move {
-                    use crate::entity::{booking as booking_entity, seat_inventory};
-                    use sea_orm::sea_query::Expr;
-                    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
-
-                    // 1. Bulk flip held → booked (single UPDATE)
-                    seat_inventory::Entity::update_many()
-                        .col_expr(seat_inventory::Column::Status, Expr::value("booked"))
-                        .col_expr(
-                            seat_inventory::Column::HeldUntil,
-                            Expr::value(None::<String>),
-                        )
-                        .filter(seat_inventory::Column::HeldByBookingId.eq(booking_id_str.clone()))
-                        .filter(seat_inventory::Column::Status.eq("held"))
-                        .exec(txn)
-                        .await
-                        .map_err(|e| AppError::Internal(e.to_string()))?;
-
-                    // 2. Update booking status + payment method
-                    booking_entity::Entity::update_many()
-                        .col_expr(booking_entity::Column::Status, Expr::value("confirmed"))
-                        .col_expr(
-                            booking_entity::Column::PaymentMethod,
-                            Expr::value(Some(payment_method_owned.clone())),
-                        )
-                        .col_expr(booking_entity::Column::UpdatedAt, Expr::value(now_iso()))
-                        .filter(booking_entity::Column::Id.eq(booking_id_str))
-                        .exec(txn)
-                        .await
-                        .map_err(|e| AppError::Internal(e.to_string()))?;
-
-                    Ok(BookingConfirmResponse {
-                        booking_id,
-                        status: "confirmed".to_string(),
-                        payment_method: payment_method_owned,
-                    })
-                })
-            })
-            .await
-            .map_err(|e| match e {
-                sea_orm::TransactionError::Connection(e) => {
-                    AppError::Internal(format!("transaction start failed: {e}"))
-                }
-                sea_orm::TransactionError::Transaction(app_err) => app_err,
-            })?;
-
-        Ok(txn_result)
+    /// Keep a booking's seats while its payment is in progress: the
+    /// customer needs longer than the initial hold to finish at a gateway.
+    pub async fn extend_hold_for_payment(&self, id: Uuid) -> AppResult<bool> {
+        Ok(self
+            .store
+            .booking_store()
+            .extend_hold(id, &now_plus_iso(PAYMENT_HOLD_SECS))
+            .await?)
     }
 
     // ── Batched serializer ───────────────────────────────────────
@@ -1378,6 +1347,8 @@ fn now_plus_iso(secs: i64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::service::test_support::{fixture, hold_req, seed_trip_with_seats};
+    use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter};
 
     #[test]
     fn normalize_phone_leading_zero() {
@@ -1466,169 +1437,6 @@ mod tests {
     // seat inventory → pickup points), and exercises the booking hold
     // state machine end-to-end.
 
-    /// Seed one trip with `n` bookable seats; returns
-    /// (trip_id, seat_ids, pickup_point_id).
-    async fn seed_trip_with_seats(
-        store: &crate::store::CompositeStore,
-        n: usize,
-    ) -> (Uuid, Vec<Uuid>, Uuid) {
-        use crate::entity::{bus_layout, pickup_point, route, schedule, seat};
-        use sea_orm::ActiveModelTrait;
-        let now = crate::store::now_iso();
-        let db = store.db();
-
-        let brand_id = Uuid::new_v4();
-        crate::entity::brand::ActiveModel {
-            id: Set(brand_id),
-            slug: Set(format!("seed-{}", brand_id.simple())),
-            name: Set("Seed Brand".into()),
-            status: Set("active".into()),
-            total_trips: Set(0),
-            created_at: Set(now.clone()),
-            updated_at: Set(now.clone()),
-            ..Default::default()
-        }
-        .insert(db)
-        .await
-        .unwrap();
-
-        let layout_id = Uuid::new_v4();
-        bus_layout::ActiveModel {
-            id: Set(layout_id),
-            brand_id: Set(Some(brand_id)),
-            name: Set(Some("Seed Layout".into())),
-            total_seats: Set(Some(n as i16)),
-            created_at: Set(now.clone()),
-            updated_at: Set(now.clone()),
-            ..Default::default()
-        }
-        .insert(db)
-        .await
-        .unwrap();
-
-        let mut seat_ids = Vec::with_capacity(n);
-        for i in 0..n {
-            let sid = Uuid::new_v4();
-            seat::ActiveModel {
-                id: Set(sid),
-                bus_layout_id: Set(layout_id),
-                seat_label: Set(format!("{}{}", char::from(b'A' + i as u8), 1)),
-                is_window: Set(false),
-                floor: Set(1),
-                created_at: Set(now.clone()),
-                ..Default::default()
-            }
-            .insert(db)
-            .await
-            .unwrap();
-            seat_ids.push(sid);
-        }
-
-        let route_id = Uuid::new_v4();
-        route::ActiveModel {
-            id: Set(route_id),
-            brand_id: Set(Some(brand_id)),
-            name: Set("Hà Nội - Đà Nẵng".into()),
-            start_location_id: Set("ha-noi".into()),
-            end_location_id: Set("da-nang".into()),
-            status: Set("active".into()),
-            created_at: Set(now.clone()),
-            updated_at: Set(now.clone()),
-        }
-        .insert(db)
-        .await
-        .unwrap();
-
-        let point_id = Uuid::new_v4();
-        pickup_point::ActiveModel {
-            id: Set(point_id),
-            route_id: Set(route_id),
-            name: Set(Some("Bến xe".into())),
-            stop_order: Set(1),
-            kind: Set(Some("boarding".into())),
-            created_at: Set(now.clone()),
-            ..Default::default()
-        }
-        .insert(db)
-        .await
-        .unwrap();
-
-        let schedule_id = Uuid::new_v4();
-        schedule::ActiveModel {
-            id: Set(schedule_id),
-            route_id: Set(route_id),
-            departure_time: Set("08:30".into()),
-            days_of_week: Set(Some("1111111".into())),
-            base_price_adult: Set(350_000),
-            created_at: Set(now.clone()),
-            ..Default::default()
-        }
-        .insert(db)
-        .await
-        .unwrap();
-
-        let trip_id = Uuid::new_v4();
-        trip_session::ActiveModel {
-            id: Set(trip_id),
-            schedule_id: Set(schedule_id),
-            departure_date: Set(chrono::Utc::now().format("%Y-%m-%d").to_string()),
-            status: Set("scheduled".into()),
-            total_seats: Set(n as i64),
-            available_seats: Set(n as i64),
-            created_at: Set(now.clone()),
-            updated_at: Set(now),
-            ..Default::default()
-        }
-        .insert(db)
-        .await
-        .unwrap();
-
-        let inv: Vec<seat_inventory::ActiveModel> = seat_ids
-            .iter()
-            .map(|&sid| seat_inventory::ActiveModel {
-                id: Set(Uuid::new_v4()),
-                trip_session_id: Set(trip_id),
-                seat_id: Set(sid),
-                status: Set("available".into()),
-                base_price: Set(350_000),
-                final_price: Set(350_000),
-                currency: Set("VND".into()),
-                created_at: Set(crate::store::now_iso()),
-                updated_at: Set(crate::store::now_iso()),
-                ..Default::default()
-            })
-            .collect();
-        store
-            .trip_store()
-            .insert_seat_inventories_batch(inv)
-            .await
-            .unwrap();
-
-        (trip_id, seat_ids, point_id)
-    }
-
-    fn hold_req(trip_id: Uuid, seat_ids: Vec<Uuid>, point_id: Uuid) -> HoldReq {
-        use crate::dto::booking::PassengerReq;
-        HoldReq {
-            trip_id,
-            seat_ids: seat_ids.clone(),
-            passengers: seat_ids
-                .iter()
-                .map(|_| PassengerReq {
-                    name: "Nguyễn Văn A".into(),
-                    passenger_type: "adult".into(),
-                    age: 30,
-                })
-                .collect(),
-            boarding_point_id: point_id,
-            dropping_point_id: point_id,
-            contact_name: "Nguyễn Văn A".into(),
-            contact_phone: "0912345678".into(),
-            contact_email: None,
-            campaign_code: None,
-        }
-    }
-
     /// THE regression: a conflicted multi-seat hold must leave NO
     /// booking / booking_seat rows behind (the pre-bulk-fix flow inserted
     /// them first and never un-wrote them on 409), and a partially
@@ -1708,5 +1516,358 @@ mod tests {
         // 4) The still-validated response from step 1 is consistent.
         assert_eq!(resp.seats.len(), 2);
         assert_eq!(resp.status, "pending");
+    }
+
+    // ── lifecycle: confirm / cancel / expiry ──────────────────────
+
+    #[tokio::test]
+    async fn confirming_books_the_seats_and_repeats_harmlessly() {
+        let f = fixture(3).await;
+        let owner = f.owner().await;
+        let held = f.hold(owner, 2).await;
+        assert_eq!(f.seats_now().await, (1, 2, 0, 1));
+
+        f.svc
+            .confirm_as_system(held.booking_id, "vnpay")
+            .await
+            .unwrap();
+        let b = f.booking(held.booking_id).await;
+        assert_eq!(b.status, "confirmed");
+        assert_eq!(b.payment_method.as_deref(), Some("vnpay"));
+        assert_eq!(f.seats_now().await, (1, 0, 2, 1));
+        let rows = seat_inventory::Entity::find()
+            .filter(seat_inventory::Column::HeldByBookingId.eq(held.booking_id))
+            .all(f.store.db())
+            .await
+            .unwrap();
+        assert!(rows.iter().all(|r| r.held_until.is_none()), "{rows:?}");
+
+        // A repeated gateway notification is not an error and changes nothing.
+        let again = f
+            .svc
+            .confirm_as_system(held.booking_id, "vnpay")
+            .await
+            .unwrap();
+        assert_eq!(again.status, "confirmed");
+        assert_eq!(f.seats_now().await, (1, 0, 2, 1));
+    }
+
+    #[tokio::test]
+    async fn only_the_owner_may_confirm_and_only_while_pending() {
+        let f = fixture(2).await;
+        let (owner, stranger) = (f.owner().await, f.owner().await);
+        let held = f.hold(owner, 1).await;
+
+        let err = f
+            .svc
+            .confirm(stranger, held.booking_id, "cod")
+            .await
+            .unwrap_err();
+        assert!(matches!(err, AppError::Forbidden(_)), "{err:?}");
+        f.svc.confirm(owner, held.booking_id, "cod").await.unwrap();
+        let err = f
+            .svc
+            .confirm(owner, held.booking_id, "cod")
+            .await
+            .unwrap_err();
+        assert!(matches!(err, AppError::BadRequest(_)), "{err:?}");
+    }
+
+    #[tokio::test]
+    async fn cancelling_frees_the_seats_the_counter_and_pending_payments() {
+        let f = fixture(3).await;
+        let owner = f.owner().await;
+        let held = f.hold(owner, 2).await;
+        let pay = f.payment(&held, owner, "pending").await;
+        assert_eq!(f.seats_now().await, (1, 2, 0, 1));
+
+        f.svc
+            .cancel(owner, held.booking_id, Some("changed my mind"))
+            .await
+            .unwrap();
+
+        assert_eq!(f.booking(held.booking_id).await.status, "cancelled");
+        assert_eq!(f.seats_now().await, (3, 0, 0, 3));
+        assert_eq!(f.payment_status(pay).await, "cancelled");
+
+        let err = f
+            .svc
+            .cancel(owner, held.booking_id, None)
+            .await
+            .unwrap_err();
+        assert!(matches!(err, AppError::BadRequest(_)), "{err:?}");
+        assert_eq!(f.seats_now().await, (3, 0, 0, 3), "no double release");
+    }
+
+    #[tokio::test]
+    async fn cancelling_a_confirmed_booking_releases_booked_seats_too() {
+        let f = fixture(2).await;
+        let owner = f.owner().await;
+        let held = f.hold(owner, 2).await;
+        f.svc.confirm(owner, held.booking_id, "cod").await.unwrap();
+        assert_eq!(f.seats_now().await, (0, 0, 2, 0));
+
+        f.svc.cancel(owner, held.booking_id, None).await.unwrap();
+        assert_eq!(f.seats_now().await, (2, 0, 0, 2));
+    }
+
+    #[tokio::test]
+    async fn only_the_owner_may_cancel() {
+        let f = fixture(1).await;
+        let (owner, stranger) = (f.owner().await, f.owner().await);
+        let held = f.hold(owner, 1).await;
+        let err = f
+            .svc
+            .cancel(stranger, held.booking_id, None)
+            .await
+            .unwrap_err();
+        assert!(matches!(err, AppError::Forbidden(_)), "{err:?}");
+        assert_eq!(f.booking(held.booking_id).await.status, "pending");
+    }
+
+    #[tokio::test]
+    async fn refund_follows_the_real_departure_and_what_was_paid() {
+        for (hours, percent) in [(72, 90), (10, 50), (2, 0)] {
+            let f = fixture(1).await;
+            let owner = f.owner().await;
+            let held = f.hold(owner, 1).await;
+            f.payment(&held, owner, "completed").await;
+            f.svc
+                .confirm_as_system(held.booking_id, "vnpay")
+                .await
+                .unwrap();
+            f.depart_in(hours).await;
+
+            let r = f.svc.cancel(owner, held.booking_id, None).await.unwrap();
+            assert_eq!(r.refund_percent, percent, "{hours} h before departure");
+            assert_eq!(r.refund_amount, held.total * percent / 100, "{hours} h");
+        }
+    }
+
+    #[tokio::test]
+    async fn an_unpaid_booking_refunds_nothing() {
+        let f = fixture(1).await;
+        let owner = f.owner().await;
+        let held = f.hold(owner, 1).await;
+        f.depart_in(72).await;
+        let r = f.svc.cancel(owner, held.booking_id, None).await.unwrap();
+        assert_eq!((r.refund_percent, r.refund_amount), (0, 0));
+    }
+
+    #[tokio::test]
+    async fn the_sweep_releases_expired_holds_and_nothing_else() {
+        let f = fixture(4).await;
+        let owner = f.owner().await;
+        let stale = f.hold(owner, 2).await;
+        let pay = f.payment(&stale, owner, "pending").await;
+        let fresh = f
+            .svc
+            .hold_with_user(owner, &hold_req(f.trip, vec![f.seats[2]], f.point))
+            .await
+            .unwrap();
+        let paid = f
+            .svc
+            .hold_with_user(owner, &hold_req(f.trip, vec![f.seats[3]], f.point))
+            .await
+            .unwrap();
+        f.svc
+            .confirm_as_system(paid.booking_id, "vnpay")
+            .await
+            .unwrap();
+        f.age_hold(stale.booking_id, 30).await;
+        f.age_hold(paid.booking_id, 30).await; // confirmed bookings no longer expire
+        assert_eq!(f.seats_now().await, (0, 3, 1, 0));
+
+        let done = f.svc.expire_stale_holds(100).await.unwrap();
+
+        assert_eq!(
+            done,
+            ExpiredHolds {
+                bookings: 1,
+                seats: 2
+            }
+        );
+        assert_eq!(f.booking(stale.booking_id).await.status, "cancelled");
+        assert_eq!(f.booking(fresh.booking_id).await.status, "pending");
+        assert_eq!(f.booking(paid.booking_id).await.status, "confirmed");
+        assert_eq!(f.seats_now().await, (2, 1, 1, 2));
+        assert_eq!(f.payment_status(pay).await, "cancelled");
+
+        let again = f.svc.expire_stale_holds(100).await.unwrap();
+        assert_eq!(
+            again,
+            ExpiredHolds::default(),
+            "a second sweep finds nothing"
+        );
+    }
+
+    #[tokio::test]
+    async fn expired_seats_can_be_sold_again() {
+        let f = fixture(1).await;
+        let (first, second) = (f.owner().await, f.owner().await);
+        let abandoned = f.hold(first, 1).await;
+        let err = f
+            .svc
+            .hold_with_user(second, &hold_req(f.trip, f.seats.clone(), f.point))
+            .await
+            .unwrap_err();
+        assert!(matches!(err, AppError::Conflict(_)), "{err:?}");
+
+        f.age_hold(abandoned.booking_id, 5).await;
+        f.svc.expire_stale_holds(100).await.unwrap();
+        f.svc
+            .hold_with_user(second, &hold_req(f.trip, f.seats.clone(), f.point))
+            .await
+            .expect("the seat is on sale again");
+    }
+
+    #[tokio::test]
+    async fn a_customer_confirming_after_the_deadline_gets_gone_and_the_seats_back() {
+        let f = fixture(2).await;
+        let owner = f.owner().await;
+        let held = f.hold(owner, 2).await;
+        f.age_hold(held.booking_id, 5).await;
+
+        let err = f
+            .svc
+            .confirm(owner, held.booking_id, "cod")
+            .await
+            .unwrap_err();
+        assert!(matches!(err, AppError::Gone(_)), "{err:?}");
+        assert_eq!(f.booking(held.booking_id).await.status, "cancelled");
+        assert_eq!(f.seats_now().await, (2, 0, 0, 2));
+    }
+
+    #[tokio::test]
+    async fn a_payment_that_lands_late_still_confirms_until_the_sweep_runs() {
+        let f = fixture(1).await;
+        let owner = f.owner().await;
+        let held = f.hold(owner, 1).await;
+        f.age_hold(held.booking_id, 5).await;
+        f.svc
+            .confirm_as_system(held.booking_id, "vnpay")
+            .await
+            .unwrap();
+        assert_eq!(f.booking(held.booking_id).await.status, "confirmed");
+        assert_eq!(
+            f.svc.expire_stale_holds(100).await.unwrap(),
+            ExpiredHolds::default()
+        );
+
+        // Once the sweep has taken the seats back, the money cannot buy them.
+        let g = fixture(1).await;
+        let owner = g.owner().await;
+        let held = g.hold(owner, 1).await;
+        g.age_hold(held.booking_id, 5).await;
+        g.svc.expire_stale_holds(100).await.unwrap();
+        let err = g
+            .svc
+            .confirm_as_system(held.booking_id, "vnpay")
+            .await
+            .unwrap_err();
+        assert!(matches!(err, AppError::Conflict(_)), "{err:?}");
+    }
+
+    #[tokio::test]
+    async fn extending_a_hold_moves_the_deadline_out_and_never_in() {
+        let f = fixture(1).await;
+        let owner = f.owner().await;
+        let held = f.hold(owner, 1).await;
+        let before = f.booking(held.booking_id).await.expires_at.unwrap();
+
+        assert!(f
+            .svc
+            .extend_hold_for_payment(held.booking_id)
+            .await
+            .unwrap());
+        let after = f.booking(held.booking_id).await.expires_at.unwrap();
+        assert!(after > before, "{before} -> {after}");
+        let seat = seat_inventory::Entity::find()
+            .filter(seat_inventory::Column::HeldByBookingId.eq(held.booking_id))
+            .one(f.store.db())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(seat.held_until.as_deref(), Some(after.as_str()));
+
+        // Asking for less than the current deadline changes nothing.
+        let store = f.store.booking_store();
+        assert!(store.extend_hold(held.booking_id, &before).await.unwrap());
+        assert_eq!(f.booking(held.booking_id).await.expires_at.unwrap(), after);
+
+        f.svc.cancel(owner, held.booking_id, None).await.unwrap();
+        assert!(!f
+            .svc
+            .extend_hold_for_payment(held.booking_id)
+            .await
+            .unwrap());
+    }
+
+    #[tokio::test]
+    async fn a_trip_that_has_left_cannot_be_booked() {
+        let f = fixture(1).await;
+        let owner = f.owner().await;
+        f.depart_in(-2).await;
+        let err = f
+            .svc
+            .hold_with_user(owner, &hold_req(f.trip, f.seats.clone(), f.point))
+            .await
+            .unwrap_err();
+        assert!(matches!(err, AppError::BadRequest(_)), "{err:?}");
+        assert_eq!(f.seats_now().await, (1, 0, 0, 1));
+    }
+
+    #[tokio::test]
+    async fn a_promo_is_capped_scoped_and_returned_with_an_abandoned_hold() {
+        use crate::entity::campaign;
+        let f = fixture(2).await;
+        let owner = f.owner().await;
+        let brand = f.brand_of_trip().await;
+        let promo = |code: &str, brand_id: Uuid, max_uses: Option<i64>| campaign::ActiveModel {
+            id: Set(Uuid::new_v4()),
+            brand_id: Set(brand_id),
+            code: Set(code.into()),
+            discount_type: Set("fixed_amount".into()),
+            discount_value: Set(1_000_000), // more than one seat costs
+            max_uses: Set(max_uses),
+            used_count: Set(0),
+            starts_at: Set(None), // open-ended
+            ends_at: Set(None),
+            status: Set("active".into()),
+            created_at: Set(now_iso()),
+            updated_at: Set(now_iso()),
+        };
+        promo("ONCE", brand, Some(1))
+            .insert(f.store.db())
+            .await
+            .unwrap();
+        promo("OTHER", Uuid::new_v4(), None)
+            .insert(f.store.db())
+            .await
+            .ok();
+
+        let mut req = hold_req(f.trip, vec![f.seats[0]], f.point);
+        req.campaign_code = Some("once".into());
+        let first = f.svc.hold_with_user(owner, &req).await.unwrap();
+        assert_eq!(
+            (first.discount, first.total),
+            (first.subtotal, 0),
+            "capped at the order"
+        );
+        assert!(first.campaign_id.is_some());
+
+        // Single use: the second customer is refused while the first still holds it...
+        req.seat_ids = vec![f.seats[1]];
+        req.passengers.truncate(1);
+        let err = f.svc.hold_with_user(owner, &req).await.unwrap_err();
+        assert!(matches!(err, AppError::BadRequest(_)), "{err:?}");
+
+        // ...and gets it back when that hold is abandoned.
+        f.age_hold(first.booking_id, 5).await;
+        f.svc.expire_stale_holds(100).await.unwrap();
+        f.svc
+            .hold_with_user(owner, &req)
+            .await
+            .expect("promo returned");
     }
 }

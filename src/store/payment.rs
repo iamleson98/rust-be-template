@@ -29,10 +29,12 @@ use super::retry::RetryPolicy;
 pub trait PaymentStore: Send + Sync {
     async fn find_by_id(&self, id: Uuid) -> StoreResult<Option<payment::Model>>;
     async fn find_by_txn_ref(&self, txn_ref: &str) -> StoreResult<Option<payment::Model>>;
-    async fn list_by_booking(&self, booking_id: &str) -> StoreResult<Vec<payment::Model>>;
+    /// A booking's payments, newest first. `booking_id` is bound as a `Uuid`: the
+    /// engine stores uuid columns as BLOBs, so a text bind would match nothing.
+    async fn list_by_booking(&self, booking_id: Uuid) -> StoreResult<Vec<payment::Model>>;
     async fn find_active_for_booking(
         &self,
-        booking_id: &str,
+        booking_id: Uuid,
     ) -> StoreResult<Option<payment::Model>>;
 
     /// Insert a new payment row.
@@ -89,7 +91,7 @@ impl PaymentStore for DbPaymentStore {
             .await?)
     }
 
-    async fn list_by_booking(&self, booking_id: &str) -> StoreResult<Vec<payment::Model>> {
+    async fn list_by_booking(&self, booking_id: Uuid) -> StoreResult<Vec<payment::Model>> {
         Ok(payment::Entity::find()
             .filter(payment::Column::BookingId.eq(booking_id))
             .order_by(payment::Column::CreatedAt, Order::Desc)
@@ -99,7 +101,7 @@ impl PaymentStore for DbPaymentStore {
 
     async fn find_active_for_booking(
         &self,
-        booking_id: &str,
+        booking_id: Uuid,
     ) -> StoreResult<Option<payment::Model>> {
         // A booking has at most one "active" payment — the most recent one
         // whose status is `pending`. Older pending rows are cancelled

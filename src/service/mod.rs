@@ -52,6 +52,9 @@ pub mod seat_plan;
 pub mod seat_plan_db;
 pub mod seat_plan_normalize;
 pub mod seat_plan_presets;
+#[cfg(test)]
+pub(crate) mod test_support;
+pub mod trip_time;
 pub mod users_service;
 
 pub use admin_service::AdminService;

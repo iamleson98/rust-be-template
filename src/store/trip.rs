@@ -263,11 +263,31 @@ impl TripStore for DbTripStore {
         code: &str,
         now: &str,
     ) -> StoreResult<Option<campaign::Model>> {
+        use sea_orm::sea_query::Expr;
+        use sea_orm::Condition;
+        // Open-ended dates and an unlimited `max_uses` are NULL; a bare
+        // `starts_at <= now` would drop those campaigns (NULL compares false).
         Ok(campaign::Entity::find()
             .filter(campaign::Column::Code.eq(code.to_string()))
             .filter(campaign::Column::Status.eq("active"))
-            .filter(campaign::Column::StartsAt.lte(now.to_string()))
-            .filter(campaign::Column::EndsAt.gte(now.to_string()))
+            .filter(
+                Condition::any()
+                    .add(campaign::Column::StartsAt.is_null())
+                    .add(campaign::Column::StartsAt.lte(now.to_string())),
+            )
+            .filter(
+                Condition::any()
+                    .add(campaign::Column::EndsAt.is_null())
+                    .add(campaign::Column::EndsAt.gte(now.to_string())),
+            )
+            .filter(
+                Condition::any()
+                    .add(campaign::Column::MaxUses.is_null())
+                    .add(
+                        Expr::col(campaign::Column::UsedCount)
+                            .lt(Expr::col(campaign::Column::MaxUses)),
+                    ),
+            )
             .one(self.db.as_ref())
             .await?)
     }

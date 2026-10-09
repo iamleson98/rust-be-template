@@ -356,6 +356,7 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
     let admin_service = Arc::new(AdminService::new(store.clone()));
     let review_service = Arc::new(ReviewService::new(store.clone()));
     let booking_service = Arc::new(BookingService::new(store.clone()));
+    crate::service::booking_service::spawn_hold_sweeper(booking_service.clone());
     let loyalty_service = Arc::new(LoyaltyService::new(store.clone()));
     let public_service = Arc::new(PublicService::new(store.clone()));
     let routing_service = Arc::new(RoutingService::new(&config));
