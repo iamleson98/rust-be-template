@@ -38,6 +38,7 @@ pub mod push_device;
 pub mod review;
 pub mod route_media;
 pub mod routing;
+pub mod seat_plan;
 pub mod system;
 
 use serde::{Deserialize, Serialize};

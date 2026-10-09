@@ -11,6 +11,7 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 use validator::Validate;
 
+use crate::dto::seat_plan::SeatPlan;
 use crate::validation::validate_phone;
 
 fn empty_string_as_none<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
@@ -392,6 +393,8 @@ pub struct AdminBusLayoutOut {
     pub vehicle_type: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub total_seats: Option<i16>,
+    /// `true` once a real seat plan (not just a derived grid) is saved.
+    pub planned: bool,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -450,6 +453,10 @@ pub struct UpsertBusLayoutRequest {
     /// `seat` rows the trip materializer turns into per-trip
     /// `seat_inventory`.
     pub seat_grid: Option<SeatGridSpec>,
+    /// Full floor plan — only honoured on CREATE, and wins over
+    /// `seatGrid`. Edit an existing layout's plan with
+    /// `PUT /api/admin/bus-layouts/{id}/plan`.
+    pub plan: Option<SeatPlan>,
 }
 
 // ────────────────────────────────────────────────────────────────

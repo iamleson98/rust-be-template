@@ -10,6 +10,8 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use uuid::Uuid;
 
+use crate::dto::seat_plan::{CellKind, PlanCell};
+
 // ────────────────────────────────────────────────────────────────
 //  Brands
 // ────────────────────────────────────────────────────────────────
@@ -326,7 +328,24 @@ pub struct TripSeatMap {
 #[serde(rename_all = "camelCase")]
 pub struct TripSeatDeck {
     pub deck: i16,
+    /// Physical grid of the deck. Absent for layouts that predate seat
+    /// plans — clients then infer a grid from the seats' row/col.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plan: Option<TripDeckPlan>,
     pub rows: Vec<TripSeatRow>,
+}
+
+/// The drawable frame of one deck: grid size plus the non-sellable
+/// fixtures (driver, door, stairs, WC). Seats are placed by their own
+/// `row`/`col`; every other cell is an aisle or gap.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct TripDeckPlan {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    pub rows: i16,
+    pub cols: i16,
+    pub fixtures: Vec<PlanCell>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -347,6 +366,10 @@ pub struct TripSeat {
     pub deck: i16,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub seat_class: Option<String>,
+    /// What the seat physically is (`seat`, `bed`, `cabin`, …). Absent
+    /// for layouts that predate seat plans.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kind: Option<CellKind>,
     pub status: String,
     pub final_price: i64,
 }

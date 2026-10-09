@@ -48,6 +48,10 @@ pub mod public_service;
 pub mod review_service;
 pub mod route_media_service;
 pub mod routing_service;
+pub mod seat_plan;
+pub mod seat_plan_db;
+pub mod seat_plan_normalize;
+pub mod seat_plan_presets;
 pub mod users_service;
 
 pub use admin_service::AdminService;

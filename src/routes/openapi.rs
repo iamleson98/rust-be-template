@@ -125,6 +125,8 @@ use utoipa::OpenApi;
         crate::routes::admin::pickup_points::delete,
         // admin — bus layouts
         crate::routes::admin::bus_layouts::list,
+        crate::routes::admin::bus_layouts::presets,
+        crate::routes::admin::bus_layouts::detail,
         // admin — reviews moderation
         crate::routes::admin::reviews::list,
         crate::routes::admin::reviews::moderate,
@@ -185,6 +187,8 @@ use utoipa::OpenApi;
         // existing SDK function numbers stable.
         crate::routes::admin::bus_layouts::create,
         crate::routes::admin::bus_layouts::update,
+        crate::routes::admin::bus_layouts::replace_plan,
+        crate::routes::admin::bus_layouts::fit_plan,
         crate::routes::admin::bus_layouts::delete,
         // ads — server-side Google Ads conversion recording. Appended
         // LAST on purpose (see the addresses comment above): appending
@@ -295,6 +299,7 @@ use utoipa::OpenApi;
         crate::dto::public::TripSeatDeck,
         crate::dto::public::TripSeatRow,
         crate::dto::public::TripSeat,
+        crate::dto::public::TripDeckPlan,
         crate::dto::public::TripCampaign,
         crate::dto::public::CampaignOut,
         crate::dto::public::CampaignListResponse,
@@ -349,6 +354,15 @@ use utoipa::OpenApi;
         crate::dto::admin::UpsertPickupPointRequest,
         crate::dto::admin::AdminBusLayoutOut,
         crate::dto::admin::AdminBusLayoutListResponse,
+        crate::dto::seat_plan::AdminBusLayoutDetail,
+        crate::dto::seat_plan::BusLayoutPreset,
+        crate::dto::seat_plan::BusLayoutPresetListResponse,
+        crate::dto::seat_plan::CellKind,
+        crate::dto::seat_plan::DeckPlan,
+        crate::dto::seat_plan::FitSeatPlanRequest,
+        crate::dto::seat_plan::PlanCell,
+        crate::dto::seat_plan::SeatPlan,
+        crate::dto::seat_plan::UpsertSeatPlanRequest,
         crate::dto::admin::AdminReviewListResponse,
         crate::dto::admin::ModerateReviewRequest,
         crate::dto::admin::ModerateReviewResponse,

@@ -17,15 +17,17 @@ use uuid::Uuid;
 use crate::dto::public::{
     BrandDetailOut, BrandListResponse, BrandOut, CampaignListResponse, CampaignOut,
     CampaignValidateResponse, RouteBrandPreview, RouteEndpoint, RouteListResponse, RouteOut,
-    StatsResponse, TripAmenity, TripBrandDetail, TripBusLayout, TripCampaign, TripCore, TripDetail,
-    TripEndpoint, TripPickupPoint, TripPricing, TripResult, TripRouteDetail, TripSchedulePoint,
-    TripSearchResponse, TripSeat, TripSeatDeck, TripSeatMap, TripSeatRow,
+    StatsResponse, TripAmenity, TripBrandDetail, TripBusLayout, TripCampaign, TripCore,
+    TripDeckPlan, TripDetail, TripEndpoint, TripPickupPoint, TripPricing, TripResult,
+    TripRouteDetail, TripSchedulePoint, TripSearchResponse, TripSeat, TripSeatDeck, TripSeatMap,
+    TripSeatRow,
 };
 use crate::entity::{
     brand, bus_layout, route, schedule, seat_inventory, trip_session, vehicle_type,
 };
 use crate::error::{AppError, AppResult};
 use crate::service::place_service::haversine_km;
+use crate::service::seat_plan;
 use crate::store::CompositeStore;
 use crate::store::PickupPointWithRoute;
 
@@ -1326,6 +1328,16 @@ impl PublicService {
             .map(|si| (si.seat_id.to_string(), si))
             .collect();
 
+        // The saved floor plan (fixtures + what each seat physically is),
+        // trusted only while it still matches the seat rows.
+        let plan = bus_layout
+            .as_ref()
+            .and_then(|l| seat_plan::trusted_plan(l.layout_data.as_deref(), &seat_rows));
+        let kinds = plan
+            .as_ref()
+            .map(seat_plan::kinds_by_label)
+            .unwrap_or_default();
+
         // Group seats by deck → row
         let mut decks_map: BTreeMap<i16, BTreeMap<i16, Vec<TripSeat>>> = BTreeMap::new();
         for s in &seat_rows {
@@ -1340,6 +1352,9 @@ impl PublicService {
                 col: s.col_num.unwrap_or(0),
                 deck,
                 seat_class: s.seat_class.clone(),
+                kind: kinds
+                    .get(&(deck, s.seat_label.trim().to_lowercase()))
+                    .copied(),
                 status: inv
                     .map(|i| i.status.clone())
                     .unwrap_or_else(|| "available".into()),
@@ -1363,7 +1378,25 @@ impl PublicService {
                         seats,
                     })
                     .collect();
-                TripSeatDeck { deck, rows }
+                let frame = plan
+                    .as_ref()
+                    .and_then(|p| p.decks.get(usize::try_from(deck - 1).ok()?))
+                    .map(|d| TripDeckPlan {
+                        name: d.name.clone(),
+                        rows: d.rows,
+                        cols: d.cols,
+                        fixtures: d
+                            .cells
+                            .iter()
+                            .filter(|c| !c.kind.is_sellable())
+                            .cloned()
+                            .collect(),
+                    });
+                TripSeatDeck {
+                    deck,
+                    plan: frame,
+                    rows,
+                }
             })
             .collect();
 
