@@ -17,6 +17,8 @@
 import { useQuery } from '@tanstack/react-query'
 import { systemStatusOptions } from '@/api'
 import { Activity } from 'lucide-react'
+import { ConsolePage, PageHeader } from '@/components/console/page'
+import { useT } from '@/lib/i18n'
 
 import { DatabaseEngineSection } from '@/features/admin/system/database-engine-section'
 import { SystemMetricsSection } from '@/features/admin/system/system-metrics-section'
@@ -29,19 +31,28 @@ import {
 } from '@/features/admin/system/system-status-cards'
 
 export function AdminSystemPage() {
+  const t = useT()
   const { data, isLoading } = useQuery({ ...systemStatusOptions(), refetchInterval: 5000 })
 
   return (
-    <div className="p-4 md:p-6 space-y-6">
-      <h1 className="text-2xl font-bold">System Monitoring</h1>
+    <ConsolePage>
+      <PageHeader
+        title={t('admin.systemMonitoring')}
+        description={
+          <span className="inline-flex items-center gap-1.5">
+            <Activity className="size-3.5 animate-pulse" aria-hidden />
+            {t('adminSystem.autoRefresh')}
+          </span>
+        }
+      />
 
       {/* ── System Status (platform runtime) ───────────────────────── */}
       <section className="space-y-3" data-testid="system-status">
-        <h2 className="text-lg font-semibold">System Status</h2>
+        <h2 className="text-lg font-semibold">{t('adminSystem.statusTitle')}</h2>
         {isLoading ? (
           <SystemStatusSkeleton />
         ) : !data ? (
-          <p className="text-sm text-muted-foreground">Failed to load system status</p>
+          <p className="text-sm text-muted-foreground">{t('adminSystem.statusLoadFailed')}</p>
         ) : (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
             <UptimeCard data={data} />
@@ -57,12 +68,6 @@ export function AdminSystemPage() {
 
       {/* ── Server Metrics (host hardware, pdf-tts feature) ────────── */}
       <SystemMetricsSection />
-
-      {/* Auto-refresh indicator */}
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        <Activity className="h-3.5 w-3.5 animate-pulse" aria-hidden />
-        Auto-refreshing every 5 seconds
-      </div>
-    </div>
+    </ConsolePage>
   )
 }

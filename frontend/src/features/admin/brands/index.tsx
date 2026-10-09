@@ -42,7 +42,8 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ComboboxField } from '@/components/ui/combobox'
-import { Building2, Loader2, Plus, RotateCcw, Search, Trash2, X } from 'lucide-react'
+import { Loader2, Plus, RotateCcw, Search, Trash2, X } from 'lucide-react'
+import { ConsolePage, PageHeader } from '@/components/console/page'
 import { toast } from 'sonner'
 import { useT } from '@/lib/i18n'
 import { useDebouncedValue } from '@/hooks/use-debounced-value'
@@ -285,20 +286,16 @@ export function AdminBrandManagement() {
     : null
 
   return (
-    <div className="p-4 md:p-6 space-y-4">
-      {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="flex items-center gap-2 text-xl font-semibold">
-            <Building2 className="h-5 w-5 text-blue-600" />
-            {t('brands.title')}
-          </h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">{t('brands.subtitle')}</p>
-        </div>
-        <Button size="sm" onClick={() => setBrandDialog({ open: true, brand: null })}>
-          <Plus className="h-4 w-4" /> {t('brands.addBrand')}
-        </Button>
-      </div>
+    <ConsolePage>
+      <PageHeader
+        title={t('brands.title')}
+        description={t('brands.subtitle')}
+        actions={
+          <Button onClick={() => setBrandDialog({ open: true, brand: null })}>
+            <Plus /> {t('brands.addBrand')}
+          </Button>
+        }
+      />
 
       {/* Smart filter bar */}
       <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
@@ -481,6 +478,6 @@ export function AdminBrandManagement() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </ConsolePage>
   )
 }
