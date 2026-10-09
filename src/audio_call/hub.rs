@@ -276,9 +276,7 @@ impl CallHub {
     /// double release must neither wrap to usize::MAX for another thread
     /// to see nor, by "undoing" it, erase a concurrent acquire.
     pub fn release_global(&self) {
-        let _ = self
-            .global_conns
-            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| n.checked_sub(1));
+        crate::ws::saturating_decrement(&self.global_conns);
     }
 
     /// Live call-WS connection count (metrics / caps logging).
@@ -312,9 +310,7 @@ impl CallHub {
     pub fn release_ip(&self, ip: &str) {
         if let Some(entry) = self.ip_conns.get(ip) {
             // Saturating, like `release_global`: an extra release leaves 0.
-            let prev = entry
-                .fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| n.checked_sub(1))
-                .unwrap_or(0);
+            let prev = crate::ws::saturating_decrement(&entry);
             let hit_zero = prev <= 1;
             drop(entry);
             if hit_zero {

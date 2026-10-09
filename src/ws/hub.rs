@@ -242,9 +242,7 @@ impl ChatHub {
         // Saturating at 0 in one atomic step (acquire/release are balanced,
         // but a double release must neither wrap to usize::MAX for another
         // thread to see nor, by "undoing" it, erase a concurrent acquire).
-        let _ = self
-            .global_conns
-            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| n.checked_sub(1));
+        super::saturating_decrement(&self.global_conns);
     }
 
     /// Current live session count (O(1) atomic read).
@@ -290,9 +288,7 @@ impl ChatHub {
         use std::sync::atomic::Ordering;
         if let Some(entry) = self.ip_conns.get(ip) {
             // Saturating, like `release_global`: an extra release leaves 0.
-            let prev = entry
-                .fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| n.checked_sub(1))
-                .unwrap_or(0);
+            let prev = super::saturating_decrement(&entry);
             let hit_zero = prev <= 1;
             drop(entry);
             if hit_zero {

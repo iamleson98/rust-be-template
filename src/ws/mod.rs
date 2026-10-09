@@ -33,3 +33,37 @@ pub mod hub;
 
 pub use handler::{drain_all_connections, router, spawn_idem_gc, spawn_metrics_logger};
 pub use hub::{hub, init_with_config, ChatHub, ClientTx, HubStats, Session};
+
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+/// Takes one from a connection counter, stopping at zero: a double
+/// release leaves 0 rather than wrapping to `usize::MAX` for another
+/// thread to see, and never erases a concurrent acquire. Returns the
+/// value before.
+///
+/// A plain CAS loop: `fetch_update` is deprecated by newer compilers in
+/// favour of `try_update`, which older ones lack.
+pub(crate) fn saturating_decrement(n: &AtomicUsize) -> usize {
+    let mut cur = n.load(Ordering::Acquire);
+    while cur > 0 {
+        match n.compare_exchange_weak(cur, cur - 1, Ordering::AcqRel, Ordering::Acquire) {
+            Ok(prev) => return prev,
+            Err(actual) => cur = actual,
+        }
+    }
+    0
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_counter_never_drops_below_zero() {
+        let n = AtomicUsize::new(2);
+        assert_eq!(saturating_decrement(&n), 2);
+        assert_eq!(saturating_decrement(&n), 1);
+        assert_eq!(saturating_decrement(&n), 0);
+        assert_eq!(n.load(Ordering::Acquire), 0);
+    }
+}
