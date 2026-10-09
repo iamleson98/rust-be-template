@@ -43,7 +43,7 @@ export function ChatInput({
   return (
     <>
       {showQuickActions && (
-        <div className="border-t px-3 py-2 bg-linear-to-b from-rose-50/50 to-white">
+        <div className="border-t bg-background px-3 py-2">
           <div className="text-[10px] text-muted-foreground mb-1.5 font-medium">
             {t('chat.quickActions')}
           </div>
@@ -52,7 +52,7 @@ export function ChatInput({
               <button
                 key={action.label}
                 onClick={() => onQuickAction(action.message)}
-                className="inline-flex items-center whitespace-nowrap rounded-full border border-rose-300 bg-white px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-600 hover:text-white hover:border-rose-600 transition-colors shrink-0"
+                className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full border bg-background px-3 py-1.5 text-xs font-medium text-primary transition-colors hover:border-primary/40 hover:bg-primary/5"
               >
                 {t(action.label)}
               </button>
@@ -62,8 +62,8 @@ export function ChatInput({
       )}
 
       <div
-        className="border-t p-2.5 flex items-center gap-2 bg-white"
-        style={{ paddingBottom: 'max(0.625rem, env(safe-area-inset-bottom, 0px))' }}
+        className="flex shrink-0 items-center gap-2 border-t bg-background px-2.5 pt-2"
+        style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom, 0px))' }}
       >
         <div className="flex-1 relative">
           <Input
@@ -77,7 +77,7 @@ export function ChatInput({
             }}
             placeholder={t('chat.inputPlaceholder')}
             // 16px stops iOS Safari zooming on focus.
-            className="flex-1 h-11 text-base"
+            className="h-11 flex-1 rounded-full bg-muted/50 px-4 text-base md:text-sm"
             // Past the limit so a long paste is visible (counter turns red) rather than silently cut.
             maxLength={MAX_MESSAGE_CHARS + 200}
             autoComplete="off"
@@ -102,7 +102,7 @@ export function ChatInput({
           disabled={!value.trim() || sending || overLimit}
           size="icon"
           // 44px: Apple's minimum touch target.
-          className="bg-rose-600 hover:bg-rose-700 shrink-0 h-11 w-11"
+          className="size-11 shrink-0 rounded-full"
           aria-label={t('chatWidget.sendMessage')}
         >
           {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}

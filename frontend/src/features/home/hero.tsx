@@ -53,7 +53,7 @@ export function Hero() {
             picker popup) above later siblings like TrustBadges that
             also create their own stacking contexts via backdrop-blur. */}
         <div className="relative z-40 mt-8 md:mt-10">
-          <div className="rounded-3xl p-1.5 md:p-2 bg-white/15 ring-1 ring-white/25 backdrop-blur-md">
+          <div className="md:rounded-3xl md:bg-white/15 md:p-2 md:ring-1 md:ring-white/25 md:backdrop-blur-md">
             <SearchWidget />
           </div>
         </div>

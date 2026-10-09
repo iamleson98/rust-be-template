@@ -181,11 +181,8 @@ export function CancelDialog() {
                 <Button
                   type="submit"
                   disabled={!canProceed() || loading}
-                  className={`gap-1.5 ${
-                    step === 2
-                      ? 'bg-rose-600 hover:bg-rose-700 text-white'
-                      : 'bg-linear-to-r from-blue-600 to-blue-600 hover:from-blue-700 hover:to-blue-700 text-white'
-                  }`}
+                  variant={step === 2 ? 'destructive' : 'default'}
+                  className="gap-1.5"
                 >
                   {loading ? (
                     <>
@@ -209,11 +206,7 @@ export function CancelDialog() {
 
             {step === 3 && (
               <div className="flex justify-center pt-2">
-                <Button
-                  type="button"
-                  onClick={() => handleClose(false)}
-                  className="bg-linear-to-r from-blue-600 to-blue-600 hover:from-blue-700 hover:to-blue-700 text-white"
-                >
+                <Button type="button" onClick={() => handleClose(false)}>
                   {t('common.close')}
                 </Button>
               </div>

@@ -75,7 +75,7 @@ export function GatewayRedirect({
         <span className="font-medium text-sm">{meta.label}</span>
       </div>
       <a href={gatewayUrl} target="_blank" rel="noopener noreferrer">
-        <Button className="w-full gap-2 bg-linear-to-r from-primary to-primary hover:from-primary/90 hover:to-primary/90">
+        <Button className="w-full gap-2">
           <ExternalLink className="h-4 w-4" />
           {t('bookingFlow.openPaymentPage')}
         </Button>

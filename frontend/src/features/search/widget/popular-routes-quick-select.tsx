@@ -49,7 +49,7 @@ export function PopularRoutesQuickSelect({
           {t('search.popularRoutes')}
         </span>
       </div>
-      <div className="-mx-3 flex gap-2 overflow-x-auto px-3 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 [&::-webkit-scrollbar]:hidden">
+      <div className="flex flex-wrap gap-2">
         {[
           { from: 'Hà Nội', to: 'Đà Nẵng', label: 'HN → ĐN' },
           { from: 'Hà Nội', to: 'TP. Hồ Chí Minh', label: 'HN → SG' },

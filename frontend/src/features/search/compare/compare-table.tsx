@@ -97,7 +97,7 @@ export function CompareTable({ trips, onPick }: { trips: TripResult[]; onPick: (
               <td key={tr.tripId} className="px-3 py-3 text-center sm:px-4">
                 <Button
                   size="sm"
-                  className="gap-1.5 bg-linear-to-r from-blue-600 to-blue-600 hover:from-blue-700 hover:to-blue-700"
+                  className="gap-1.5"
                   onClick={() => {
                     navigate({ to: '/trips/$tripId', params: { tripId: tr.tripId } })
                     onPick()

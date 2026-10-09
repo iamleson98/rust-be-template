@@ -132,11 +132,7 @@ export function MobileSearchSummary({
                     compact
                   />
                 </div>
-                <Button
-                  type="submit"
-                  disabled={submitting}
-                  className="h-12 w-full rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground gap-2 font-semibold"
-                >
+                <Button type="submit" disabled={submitting} size="lg" className="h-11 w-full gap-2">
                   <Search className="h-4 w-4" />
                   <span>{submitting ? t('home.searching') : t('search.btn')}</span>
                 </Button>

@@ -1,4 +1,4 @@
-import { ArrowLeft, CircleCheck, Headset, Minus, Phone, WifiOff, X } from 'lucide-react'
+import { ArrowLeft, Headset, Phone, WifiOff, X } from 'lucide-react'
 import { useT } from '@/lib/i18n'
 
 type Props = {
@@ -31,7 +31,6 @@ function Status({
   const bot = !assigneeName && botActive
   return (
     <>
-      <CircleCheck className={`h-3 w-3 ${bot ? 'text-violet-300' : 'text-emerald-300'} shrink-0`} />
       {assigneeName ? (
         <span className="truncate">{t('chatWidget.assigneeHelping', { name: assigneeName })}</span>
       ) : (
@@ -41,7 +40,7 @@ function Status({
   )
 }
 
-/** Title bar of the support panel: who is helping, connection state, call / minimise / close. */
+/** Title bar of the support panel: back, who is helping and whether they are online, call, close. */
 export function ChatHeader({
   title,
   connected,
@@ -54,55 +53,49 @@ export function ChatHeader({
 }: Props) {
   const t = useT()
   return (
-    <div className="bg-linear-to-r from-rose-600 to-rose-700 text-white px-4 py-3 flex items-center justify-between">
-      <div className="flex items-center gap-2.5 min-w-0">
-        {inCall && (
-          <button
-            onClick={onBack}
-            className="hover:bg-white/10 rounded p-1 -ml-1"
-            aria-label={t('common.back')}
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </button>
-        )}
-        <div className="h-9 w-9 rounded-full bg-white/20 flex items-center justify-center shrink-0 relative">
-          <Headset className="h-5 w-5" />
-          <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-emerald-400 ring-2 ring-rose-600 animate-pulse" />
+    <div className="flex shrink-0 items-center gap-1 border-b bg-background px-2 pt-[env(safe-area-inset-top)] sm:px-3">
+      {/* Phones: back closes the chat (or leaves the call), like any chat app. */}
+      <button
+        type="button"
+        onClick={inCall ? onBack : onClose}
+        className={`grid size-10 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-muted ${inCall ? '' : 'sm:hidden'}`}
+        aria-label={inCall ? t('common.back') : t('common.close')}
+      >
+        <ArrowLeft className="size-5" />
+      </button>
+      <div className="flex min-w-0 flex-1 items-center gap-2.5 py-2.5">
+        <div className="relative grid size-9 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
+          <Headset className="size-5" />
+          {connected && (
+            <span className="absolute -right-0.5 -bottom-0.5 size-3 rounded-full bg-emerald-500 ring-2 ring-background" />
+          )}
         </div>
         <div className="min-w-0">
-          <div className="font-bold text-sm truncate">{title}</div>
-          <div className="text-[11px] text-rose-100 flex items-center gap-1 truncate">
+          <div className="truncate text-sm font-semibold">{title}</div>
+          <div className="flex items-center gap-1 truncate text-xs text-muted-foreground">
             <Status connected={connected} assigneeName={assigneeName} botActive={botActive} />
           </div>
         </div>
       </div>
-      <div className="flex items-center gap-1">
-        {onCall && (
-          <button
-            type="button"
-            onClick={onCall}
-            className="flex h-9 w-9 items-center justify-center rounded-full hover:bg-white/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
-            aria-label={t('chatWidget.callSupport')}
-            title={t('chatWidget.callSupport')}
-          >
-            <Phone className="h-4 w-4" />
-          </button>
-        )}
+      {onCall && (
         <button
-          onClick={onClose}
-          className="hover:bg-white/10 rounded p-1.5"
-          aria-label={t('chatWidget.minimize')}
+          type="button"
+          onClick={onCall}
+          className="grid size-10 shrink-0 place-items-center rounded-full text-primary hover:bg-primary/10"
+          aria-label={t('chatWidget.callSupport')}
+          title={t('chatWidget.callSupport')}
         >
-          <Minus className="h-4 w-4" />
+          <Phone className="size-5" />
         </button>
-        <button
-          onClick={onClose}
-          className="hover:bg-white/10 rounded p-1.5"
-          aria-label={t('common.close')}
-        >
-          <X className="h-4 w-4" />
-        </button>
-      </div>
+      )}
+      <button
+        type="button"
+        onClick={onClose}
+        className="hidden size-10 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-muted sm:grid"
+        aria-label={t('common.close')}
+      >
+        <X className="size-5" />
+      </button>
     </div>
   )
 }

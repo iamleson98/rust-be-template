@@ -34,8 +34,8 @@ export function SearchActionsRow({
 
   return (
     <div className="mt-3 flex flex-col items-stretch justify-between gap-3 sm:mt-4 sm:flex-row sm:items-center">
-      {/* Phones: one row that scrolls sideways instead of wrapping into three. */}
-      <div className="-mx-3 flex items-center gap-2 overflow-x-auto px-3 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 [&::-webkit-scrollbar]:hidden">
+      {/* Vehicle types: from sm up (on phones the results-page filter sheet has them). */}
+      <div className="hidden flex-wrap items-center gap-2 sm:flex">
         {VEHICLE_TYPES.map((v) => {
           const active = searchParams.vehicleTypes.includes(v.key)
           return (
@@ -70,12 +70,11 @@ export function SearchActionsRow({
       <Button
         type="submit"
         disabled={submitting}
-        className="h-11 w-full shrink-0 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground px-8 gap-2 relative overflow-hidden sm:w-auto sm:min-w-44 font-semibold"
+        size="lg"
+        className="h-11 w-full shrink-0 gap-2 sm:w-auto sm:min-w-44"
       >
-        <span className="relative z-10 flex items-center justify-center gap-2">
-          <Search className="h-5 w-5" />
-          <span>{submitting ? t('home.searching') : t('search.btn')}</span>
-        </span>
+        <Search className="size-4" />
+        {submitting ? t('home.searching') : t('search.btn')}
       </Button>
     </div>
   )

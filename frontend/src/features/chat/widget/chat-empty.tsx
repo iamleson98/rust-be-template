@@ -11,15 +11,16 @@ export function ChatEmpty({ onStart, starting }: { onStart: () => void; starting
         <Button
           onClick={onStart}
           disabled={starting}
-          className="w-full gap-2 bg-linear-to-r from-rose-600 to-rose-700 hover:from-rose-700 hover:to-rose-800"
+          variant="destructive"
+          className="w-full gap-2"
         >
           <MessageCircle className="h-4 w-4" />
           {t('chatWidget.startNewChat')}
         </Button>
       </div>
       <div className="text-center py-12 px-6">
-        <div className="inline-flex h-14 w-14 rounded-full bg-rose-50 items-center justify-center mb-3">
-          <MessageCircle className="h-7 w-7 text-rose-600" />
+        <div className="mb-3 inline-flex size-14 items-center justify-center rounded-full bg-primary/10">
+          <MessageCircle className="size-7 text-primary" />
         </div>
         <h4 className="font-semibold text-sm">{t('chat.noChannels')}</h4>
         <p className="text-xs text-muted-foreground mt-1">{t('chatWidget.noChannelsHint')}</p>

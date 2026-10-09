@@ -7,10 +7,10 @@ import { messageTime } from '../format'
 import { TypingDots } from '../typing-dots'
 
 const BUBBLE = {
-  user: 'bg-rose-600 text-white rounded-br-sm',
-  system: 'bg-amber-50 text-amber-800 text-center text-xs border border-amber-100',
-  assistant: 'bg-violet-50 border border-violet-200 text-slate-800 rounded-bl-sm',
-  other: 'bg-white border rounded-bl-sm',
+  user: 'bg-primary text-primary-foreground rounded-br-md',
+  system: 'bg-muted text-muted-foreground text-center text-xs',
+  assistant: 'bg-violet-50 text-slate-800 rounded-bl-md dark:bg-violet-500/15 dark:text-violet-100',
+  other: 'bg-background border rounded-bl-md',
 }
 
 function Bubble({ message, startsRun }: { message: ChatMessageOut; startsRun: boolean }) {
@@ -37,7 +37,7 @@ function Bubble({ message, startsRun }: { message: ChatMessageOut; startsRun: bo
         </div>
         {mine && (
           <div className="text-[10px] text-muted-foreground mt-0.5 px-1 text-right flex items-center justify-end gap-0.5">
-            <CheckCheck className="h-2.5 w-2.5 text-rose-500" />
+            <CheckCheck className="size-3 text-primary" />
             {messageTime(message.createdAt)}
           </div>
         )}
@@ -71,7 +71,7 @@ export function MessageList({
     <div className="flex-1 flex flex-col min-h-0">
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto p-3 space-y-2 bg-linear-to-b from-slate-50 to-white max-h-120"
+        className="flex-1 space-y-2 overflow-y-auto overscroll-contain bg-muted/40 p-3"
       >
         {loading ? (
           <div className="flex items-center justify-center py-10">

@@ -119,11 +119,7 @@ export function CustomerLogin() {
             </FormItem>
           )}
         />
-        <Button
-          type="submit"
-          disabled={loginMut.isPending}
-          className="w-full gap-2 bg-linear-to-r from-blue-600 to-blue-600 hover:from-blue-700 hover:to-blue-700 text-white h-11"
-        >
+        <Button type="submit" disabled={loginMut.isPending} className="h-11 w-full gap-2">
           {loginMut.isPending ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : (

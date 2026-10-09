@@ -79,7 +79,7 @@ function SupportPanel() {
       role="dialog"
       aria-modal="true"
       aria-label={t('chatWidget.supportTitle')}
-      className="fixed bottom-0 right-0 sm:bottom-5 sm:right-5 z-50 w-full sm:w-100 h-screen sm:h-150 sm:max-h-[85vh] bg-white sm:rounded-2xl ring-1 ring-black/10 flex flex-col overflow-hidden animate-in slide-in-from-bottom-5 duration-300"
+      className="fixed inset-0 z-50 flex h-dvh flex-col overflow-hidden bg-background animate-in slide-in-from-bottom-5 duration-300 sm:inset-auto sm:right-5 sm:bottom-5 sm:h-150 sm:max-h-[85dvh] sm:w-100 sm:rounded-2xl sm:border"
     >
       <ChatHeader
         title={channel?.topic || t('chatWidget.supportTitle')}

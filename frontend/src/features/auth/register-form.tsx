@@ -90,10 +90,7 @@ export function RegisterForm() {
         </div>
         <h3 className="font-bold text-lg mb-1">{t('auth.registerSuccess')}</h3>
         <p className="text-sm text-muted-foreground mb-5">{t('authPage.registerReady')}</p>
-        <Button
-          onClick={() => navigate({ to: '/' })}
-          className="w-full gap-2 bg-linear-to-r from-blue-600 to-blue-600 hover:from-blue-700 hover:to-blue-700 text-white"
-        >
+        <Button onClick={() => navigate({ to: '/' })} className="w-full gap-2">
           {t('authPage.startSearch')}
           <ChevronRight className="h-4 w-4" />
         </Button>
@@ -258,11 +255,7 @@ export function RegisterForm() {
           )}
         />
 
-        <Button
-          type="submit"
-          disabled={registerMut.isPending}
-          className="w-full gap-2 bg-linear-to-r from-blue-600 to-blue-600 hover:from-blue-700 hover:to-blue-700 text-white h-11"
-        >
+        <Button type="submit" disabled={registerMut.isPending} className="h-11 w-full gap-2">
           {registerMut.isPending ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : (

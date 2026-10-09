@@ -62,11 +62,7 @@ export const NoReviewsYet = memo(function NoReviewsYet({
       size="sm"
     >
       {onWrite && (
-        <Button
-          size="sm"
-          className="gap-1.5 bg-linear-to-r from-blue-600 to-blue-600 hover:from-blue-700 hover:to-blue-700 text-white"
-          onClick={onWrite}
-        >
+        <Button size="sm" className="gap-1.5" onClick={onWrite}>
           {t('reviews.writeFirstReview')}
         </Button>
       )}

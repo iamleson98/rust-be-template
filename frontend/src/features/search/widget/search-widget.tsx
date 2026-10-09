@@ -228,7 +228,7 @@ export function SearchWidget({ compact = false }: { compact?: boolean }) {
                 <Button
                   type="submit"
                   disabled={submitting}
-                  className="h-10 w-full lg:w-auto lg:min-w-36 shrink-0 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground px-5 gap-2 font-semibold"
+                  className="h-10 w-full shrink-0 gap-2 px-5 lg:w-auto lg:min-w-36"
                 >
                   <Search className="h-4 w-4" />
                   <span>{submitting ? t('home.searching') : t('search.btn')}</span>
