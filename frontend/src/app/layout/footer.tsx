@@ -27,6 +27,7 @@ import {
   Users,
   Route as RouteIcon,
   Building2,
+  Ticket,
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -82,8 +83,9 @@ export const Footer = memo(function Footer() {
         <div className="container mx-auto px-4 py-10 md:py-12">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="text-center md:text-left">
-              <h3 className="text-2xl md:text-3xl font-bold text-white mb-1">
-                🎫 {t('footer.newsletter')}
+              <h3 className="flex items-center justify-center md:justify-start gap-2.5 text-2xl md:text-3xl font-bold text-white mb-1">
+                <Ticket className="h-7 w-7 text-amber-300" aria-hidden />
+                {t('footer.newsletter')}
               </h3>
               <p className="text-blue-100/90 text-sm md:text-base">
                 {t('layout.footer.newsletterDesc')}

@@ -2,66 +2,30 @@
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import {
-  CheckCircle2,
-  ChevronLeft,
-  Loader2,
-  Lock,
-  ShieldCheck,
-  Smartphone,
-  QrCode,
-  Landmark,
-  Banknote,
-  Tag,
-  X,
-} from 'lucide-react'
+import { CheckCircle2, ChevronLeft, Loader2, Lock, ShieldCheck, Tag, X } from 'lucide-react'
 import { useMoney } from '@/lib/format'
 import { useT } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 import { PriceSummary } from './price-summary'
 import { PaymentTrustBadges } from '@/components/seo/trust-signals'
+import type { PaymentProvider } from '@/lib/payment'
+import { ProviderTile } from './provider-tile'
 import type { PromoCode } from './use-promo-code'
 
 export type PaymentMethodKey = 'momo' | 'vnpay' | 'bank' | 'cod'
 
 type PaymentOption = {
   key: PaymentMethodKey
+  provider: PaymentProvider
   label: string
   sub: string
-  icon: React.ReactNode
-  /** Tailwind classes for the icon tile — brand-adjacent hues. */
-  tile: string
 }
 
 const getPaymentOptions = (t: ReturnType<typeof useT>): PaymentOption[] => [
-  {
-    key: 'momo',
-    label: t('payment.momo'),
-    sub: t('payment.momoDesc'),
-    icon: <Smartphone className="h-5 w-5" />,
-    tile: 'bg-fuchsia-100 text-fuchsia-600 ring-fuchsia-200',
-  },
-  {
-    key: 'vnpay',
-    label: t('payment.vnpay'),
-    sub: t('payment.vnpayDesc'),
-    icon: <QrCode className="h-5 w-5" />,
-    tile: 'bg-blue-100 text-blue-600 ring-blue-200',
-  },
-  {
-    key: 'bank',
-    label: t('payment.vietqr'),
-    sub: t('payment.vietqrDesc'),
-    icon: <Landmark className="h-5 w-5" />,
-    tile: 'bg-indigo-100 text-indigo-600 ring-indigo-200',
-  },
-  {
-    key: 'cod',
-    label: t('bookingFlow.payCod'),
-    sub: t('bookingFlow.cash'),
-    icon: <Banknote className="h-5 w-5" />,
-    tile: 'bg-emerald-100 text-emerald-600 ring-emerald-200',
-  },
+  { key: 'momo', provider: 'momo', label: t('payment.momo'), sub: t('payment.momoDesc') },
+  { key: 'vnpay', provider: 'vnpay', label: t('payment.vnpay'), sub: t('payment.vnpayDesc') },
+  { key: 'bank', provider: 'vietqr', label: t('payment.vietqr'), sub: t('payment.vietqrDesc') },
+  { key: 'cod', provider: 'cod', label: t('bookingFlow.payCod'), sub: t('bookingFlow.cash') },
 ]
 
 /**
@@ -120,14 +84,7 @@ export function PaymentMethodStep({
                     : 'border-slate-200 hover:border-primary/40 hover:bg-slate-50',
                 )}
               >
-                <span
-                  className={cn(
-                    'h-10 w-10 shrink-0 rounded-lg ring-1 flex items-center justify-center',
-                    m.tile,
-                  )}
-                >
-                  {m.icon}
-                </span>
+                <ProviderTile provider={m.provider} />
                 <span className="min-w-0 flex-1">
                   <span className="font-semibold text-sm block truncate">{m.label}</span>
                   <span className="text-[11px] text-muted-foreground block truncate">{m.sub}</span>

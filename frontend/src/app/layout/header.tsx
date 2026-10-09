@@ -9,7 +9,17 @@ import { useT } from '@/lib/i18n'
 import { useLogout } from '@/features/auth/api'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { LayoutDashboard, Globe, Gift, Check, LogIn, LogOut, Phone, Briefcase } from 'lucide-react'
+import {
+  LayoutDashboard,
+  Globe,
+  Gift,
+  Check,
+  GitCompare,
+  LogIn,
+  LogOut,
+  Phone,
+  Briefcase,
+} from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -76,7 +86,7 @@ export const Header = memo(function Header() {
               className="relative inline-flex h-9 px-2.5 items-center gap-1.5 rounded-full bg-white/10 hover:bg-white/15 text-xs font-medium transition-colors"
               title={t('nav.compare')}
             >
-              <span aria-hidden>⚖️</span>
+              <GitCompare className="h-4 w-4" aria-hidden />
               <span className="hidden sm:inline">{t('nav.compare')}</span>
               <span className="min-w-4 h-4 px-1 inline-flex items-center justify-center rounded-full bg-violet-500 text-white text-[10px] font-bold">
                 {compareCount}

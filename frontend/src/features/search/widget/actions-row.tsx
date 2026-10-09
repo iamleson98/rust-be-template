@@ -1,7 +1,5 @@
 'use client'
 
-// Extracted from the original 'search-widget.tsx'.
-
 import type { SearchParams } from '@/lib/search-params'
 import type { UseFormReturn } from 'react-hook-form'
 import { useT } from '@/lib/i18n'
@@ -9,8 +7,18 @@ import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { VEHICLE_TYPES } from '@/lib/vehicle-types'
 import type { SearchFormValues } from './schema'
 
+const TIPS: Record<string, string> = {
+  limousine: 'home.vehicleLimousineTip',
+  sleeper: 'home.vehicleSleeperTip',
+  semi_sleeper: 'home.vehicleSemiSleeperTip',
+  minivan: 'home.vehicleMinivanTip',
+  standard: 'home.vehicleStandardTip',
+}
+
+/** Vehicle-type chips (the results sidebar's filter, one tap from home) and the search button. */
 export function SearchActionsRow({
   form,
   searchParams,
@@ -26,24 +34,8 @@ export function SearchActionsRow({
 
   return (
     <div className="mt-4 flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
-      {/* Vehicle-type quick filters — same filter set as the results-page
-          sidebar, one tap from the home page. */}
       <div className="flex flex-wrap items-center gap-2">
-        {[
-          {
-            key: 'limousine',
-            label: t('home.vehicleLimousine'),
-            tip: t('home.vehicleLimousineTip'),
-          },
-          { key: 'sleeper', label: t('home.vehicleSleeper'), tip: t('home.vehicleSleeperTip') },
-          {
-            key: 'semi_sleeper',
-            label: t('home.vehicleSemiSleeper'),
-            tip: t('home.vehicleSemiSleeperTip'),
-          },
-          { key: 'minivan', label: t('home.vehicleMinivan'), tip: t('home.vehicleMinivanTip') },
-          { key: 'standard', label: t('home.vehicleStandard'), tip: t('home.vehicleStandardTip') },
-        ].map((v) => {
+        {VEHICLE_TYPES.map((v) => {
           const active = searchParams.vehicleTypes.includes(v.key)
           return (
             <Tooltip key={v.key}>
@@ -65,10 +57,11 @@ export function SearchActionsRow({
                       : 'bg-white text-foreground border-border hover:border-primary/40 hover:text-primary hover:bg-primary/5',
                   )}
                 >
-                  {v.label}
+                  <v.Icon className="h-3.5 w-3.5" />
+                  {t(v.labelKey)}
                 </button>
               </TooltipTrigger>
-              <TooltipContent side="bottom">{v.tip}</TooltipContent>
+              <TooltipContent side="bottom">{t(TIPS[v.key])}</TooltipContent>
             </Tooltip>
           )
         })}
