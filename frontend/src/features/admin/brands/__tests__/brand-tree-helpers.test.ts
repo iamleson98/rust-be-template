@@ -7,6 +7,7 @@ import {
   matchesBrandSearch,
   routeDirection,
   schedulePointsSummary,
+  schedulePriceRange,
   scheduleStopTimes,
   sortSchedules,
   vehicleCodeLabel,
@@ -27,6 +28,7 @@ function schedule(overrides: Partial<AdminScheduleOut> = {}): AdminScheduleOut {
     vehicleType: null,
     basePriceAdult: 100000,
     basePriceChild: 50000,
+    classFares: [],
     amenities: null,
     points: [],
     createdAt: '2026-09-01T00:00:00Z',
@@ -278,5 +280,19 @@ describe('routeDirection / effectiveWindow', () => {
       'đến 2026-12-01',
     )
     expect(effectiveWindow(schedule({ effectiveFrom: null, effectiveTo: null }))).toBe('—')
+  })
+
+  it('spans every seat class in the price range', () => {
+    expect(schedulePriceRange(schedule())).toEqual([100000, 100000])
+    expect(
+      schedulePriceRange(
+        schedule({
+          classFares: [
+            { seatClass: 'vip', priceAdult: 150000 },
+            { seatClass: 'bed_upper', priceAdult: 90000 },
+          ],
+        }),
+      ),
+    ).toEqual([90000, 150000])
   })
 })

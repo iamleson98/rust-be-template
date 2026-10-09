@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { ComboboxField } from '@/components/ui/combobox'
 import { User, Armchair, Sparkles } from 'lucide-react'
+import type { ChildFarePolicy } from '@/api'
 import { useT } from '@/lib/i18n'
 import type { Passenger } from './chat-ticket-picker-types'
 
@@ -21,6 +22,7 @@ export function PassengerStep({
   setContactEmail,
   autoConfirm,
   setAutoConfirm,
+  childFare,
 }: {
   passengers: Passenger[]
   setPassengers: (updater: (prev: Passenger[]) => Passenger[]) => void
@@ -32,6 +34,8 @@ export function PassengerStep({
   setContactEmail: (v: string) => void
   autoConfirm: boolean
   setAutoConfirm: (v: boolean) => void
+  /** The brand's child tickets; without them every passenger pays the adult price. */
+  childFare: ChildFarePolicy | null | undefined
 }) {
   const t = useT()
   return (
@@ -105,27 +109,31 @@ export function PassengerStep({
                   placeholder={t('adminTickets.passengerNamePh')}
                   className="h-8 flex-1 text-xs"
                 />
-                <ComboboxField
-                  value={p.type}
-                  onValueChange={(v) =>
-                    setPassengers((prev) =>
-                      prev.map((x) =>
-                        x.seatId === p.seatId
-                          ? { ...x, type: v as 'adult' | 'child' | 'infant' }
-                          : x,
-                      ),
-                    )
-                  }
-                  items={[
-                    { value: 'adult', label: t('booking.passengerType.adult') },
-                    { value: 'child', label: t('booking.passengerType.child') },
-                    { value: 'infant', label: t('booking.passengerType.infant') },
-                  ]}
-                  className="h-8 w-25 text-xs"
-                  placeholder={t('adminTickets.typeLabel')}
-                  searchPlaceholder={t('combobox.search')}
-                  aria-label={t('adminTickets.passengerTypeAria')}
-                />
+                {childFare && (
+                  <ComboboxField
+                    value={p.type}
+                    onValueChange={(v) =>
+                      setPassengers((prev) =>
+                        prev.map((x) =>
+                          x.seatId === p.seatId
+                            ? { ...x, type: v === 'child' ? 'child' : 'adult' }
+                            : x,
+                        ),
+                      )
+                    }
+                    items={[
+                      { value: 'adult', label: t('booking.passengerType.adult') },
+                      {
+                        value: 'child',
+                        label: t('adminTickets.childUpTo', { age: childFare.maxAge }),
+                      },
+                    ]}
+                    className="h-8 w-32 text-xs"
+                    placeholder={t('adminTickets.typeLabel')}
+                    searchPlaceholder={t('combobox.search')}
+                    aria-label={t('adminTickets.passengerTypeAria')}
+                  />
+                )}
               </div>
             ))}
           </div>

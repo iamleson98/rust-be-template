@@ -3,10 +3,9 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useT } from '@/lib/i18n'
 import { useMutation } from '@tanstack/react-query'
-import { useNavigate } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import { authLoginMutation } from '@/api'
-import { isStaffUser, useSession } from '@/stores/session'
+import { useSession } from '@/stores/session'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -43,15 +42,14 @@ export function CustomerLogin() {
     defaultValues: { email: '', password: '' },
   })
 
-  const navigate = useNavigate()
   const setUser = useSession((s) => s.setUser)
 
   const loginMut = useMutation({
     ...authLoginMutation(),
+    // The login page takes the new session where it needs to go.
     onSuccess: ({ user }) => {
       setUser(user)
       toast.success(t('authPage.loginWelcome', { name: user.name }))
-      navigate({ to: isStaffUser(user) ? '/admin' : '/account' })
     },
     onError: () => toast.error(t('authPage.loginFailedCheck')),
   })

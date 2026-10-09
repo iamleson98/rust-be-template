@@ -36,6 +36,7 @@ pub mod admin_service;
 pub mod auth_service;
 pub mod booking_service;
 pub mod chat_service;
+pub mod fares;
 pub mod job_service;
 pub mod loyalty_service;
 pub mod metrics;
@@ -44,6 +45,8 @@ pub mod payment_service;
 pub mod place_service;
 pub mod posts_service;
 pub mod price_alert_service;
+#[cfg(test)]
+mod pricing_tests;
 pub mod public_service;
 pub mod review_service;
 pub mod route_media_service;

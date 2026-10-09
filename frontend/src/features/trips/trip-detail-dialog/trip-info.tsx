@@ -1,27 +1,19 @@
 'use client'
 
-/**
- * TripInfo — header card of the TripDetailDialog showing brand
- * identity, route summary, departure time/duration/distance, and
- * the "share" CTA.
- *
- * Extracted verbatim from the original `trip-detail-dialog.tsx`
- * (lines 257-352). Pure refactor.
- */
-
 import { DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useT } from '@/lib/i18n'
 import { Star, Navigation, Calendar, Clock, AlertTriangle, Share2 } from 'lucide-react'
 import { formatTimeVN, formatDateVN } from '@/lib/format'
-import type { TripDetailDialogData as TripDetail } from './types'
+import type { TripDetail } from '@/api'
 import { amenityIcon } from './amenity-icons'
 
+/** The dialog header: operator, route, departure and amenities, with a share button. */
 export function TripInfo({ detail, onShare }: { detail: TripDetail; onShare: () => void }) {
   const t = useT()
-  // pr-16 on the root reserves the top-right corner for the dialog's close
-  // (X) button — previously the X overlapped the Share button's hit area.
+  const brandName = detail.brand.name ?? ''
+  // pr-16 keeps the dialog's close button clear of the share button.
   return (
     <div className="px-5 py-4 pr-16 border-b bg-linear-to-r from-slate-50 to-white shrink-0">
       <div className="flex items-start justify-between gap-3">
@@ -29,16 +21,16 @@ export function TripInfo({ detail, onShare }: { detail: TripDetail; onShare: () 
           <div className="flex items-center gap-2 mb-1.5">
             <div
               className="h-9 w-9 rounded-lg flex items-center justify-center text-white font-extrabold text-xs shrink-0"
-              style={{ background: detail.brand.accentColor }}
+              style={{ background: detail.brand.accentColor ?? undefined }}
             >
-              {detail.brand.name
+              {brandName
                 .split(' ')
                 .map((w) => w[0])
                 .join('')
                 .slice(0, 2)}
             </div>
             <div className="min-w-0">
-              <div className="font-bold truncate">{detail.brand.name}</div>
+              <div className="font-bold truncate">{brandName}</div>
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <span className="flex items-center gap-0.5 text-amber-500">
                   <Star className="h-3 w-3 fill-current" />

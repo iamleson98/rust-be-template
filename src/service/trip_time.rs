@@ -48,6 +48,14 @@ pub fn departure_instant(
     local_to_utc(date.and_time(parse_hhmm(schedule_time)?))
 }
 
+/// Today's date in Vietnam (`YYYY-MM-DD`), the calendar trips are dated by.
+pub fn local_today() -> String {
+    Utc::now()
+        .with_timezone(&local_offset())
+        .format("%Y-%m-%d")
+        .to_string()
+}
+
 /// Share of the paid amount handed back when cancelling `hours_until`
 /// hours before departure: more than 24 h → 90 %, more than 4 h → 50 %,
 /// otherwise nothing.

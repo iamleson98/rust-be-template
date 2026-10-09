@@ -1,10 +1,3 @@
-/**
- * Zod schema + form types for ScheduleFormDialog
- * (create/edit a Schedule under a given Route).
- *
- * Extracted from the original 'src/features/admin/schedules/schedule-form.tsx'.
- */
-
 import type { UseFormReturn } from 'react-hook-form'
 import { z } from 'zod'
 import { requiredText } from '@/lib/forms'
@@ -26,6 +19,15 @@ const optionalTime = z
   .regex(HHMM, { error: () => tSync('scheduleSchema.timeInvalid') })
   .nullish()
 
+/** A price in VND; 0 (or empty) = "not set". */
+const price = z.coerce
+  .number({ error: () => tSync('scheduleSchema.priceNumber') })
+  .min(0, { error: () => tSync('scheduleSchema.priceMin') })
+  .max(1_000_000_000, { error: () => tSync('scheduleSchema.priceMax') })
+
+/** One seat class: 0 adult = the standard price, 0 child = the brand's discount. */
+const classFare = z.object({ priceAdult: price, priceChild: price })
+
 /** One midway stop: the address plus its optional arrival time. */
 const middlePoint = z.object({
   id: z.string(),
@@ -44,19 +46,12 @@ export const scheduleSchema = z
     vehicleTypeId: requiredText('scheduleSchema.labelVehicleType'),
     /** Optional brand seat layout refinement. */
     busLayoutId: z.string(),
-    basePriceAdult: z.coerce
-      .number({ error: () => tSync('scheduleSchema.priceNumber') })
-      .min(0, { error: () => tSync('scheduleSchema.priceMin') })
-      .max(1_000_000_000, { error: () => tSync('scheduleSchema.priceMax') }),
-    basePriceChild: z.coerce
-      .number({ error: () => tSync('scheduleSchema.priceNumber') })
-      .min(0, { error: () => tSync('scheduleSchema.priceMin') })
-      .max(1_000_000_000, { error: () => tSync('scheduleSchema.priceMax') }),
-    // Amenities are stored as a comma-separated string in the backend
-    // (`amenities: Option<String>` max 5000 chars). The form edits them
-    // as an array of strings for UX (checkboxes), but we MUST join them
-    // into a single string before sending. The previous version sent
-    // the array directly → serde would 422 because it expects a string.
+    /** Standard seats, and any class without its own fare. */
+    basePriceAdult: price,
+    basePriceChild: price,
+    /** Keyed by seat class (`vip`, `bed_upper`, …). */
+    classFares: z.record(z.string(), classFare),
+    // Sent as one comma-separated string.
     amenities: z.array(z.string()).max(20, { error: () => tSync('scheduleSchema.amenitiesMax') }),
     // ── Address point sequence (display = name, value = address id) ──
     startPointId: requiredText('scheduleSchema.labelStartPoint'),
@@ -68,6 +63,18 @@ export const scheduleSchema = z
   .refine((d) => !d.effectiveFrom || !d.effectiveTo || d.effectiveFrom <= d.effectiveTo, {
     error: () => tSync('scheduleSchema.dateOrder'),
     path: ['effectiveTo'],
+  })
+  .superRefine((d, ctx) => {
+    // A child never pays more than an adult in the same seat.
+    const check = (child: number, adult: number, path: string[]) => {
+      if (child > 0 && child > adult) {
+        ctx.addIssue({ code: 'custom', message: tSync('scheduleSchema.childAboveAdult'), path })
+      }
+    }
+    check(d.basePriceChild, d.basePriceAdult, ['basePriceChild'])
+    for (const [cls, fare] of Object.entries(d.classFares)) {
+      check(fare.priceChild, fare.priceAdult || d.basePriceAdult, ['classFares', cls, 'priceChild'])
+    }
   })
 export type ScheduleFormValues = z.infer<typeof scheduleSchema>
 

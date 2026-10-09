@@ -115,6 +115,7 @@ pub(crate) async fn seed_trip_with_seats(
         route_id: Set(route_id),
         departure_time: Set("08:30".into()),
         days_of_week: Set(Some("1111111".into())),
+        bus_layout_id: Set(Some(layout_id)),
         base_price_adult: Set(350_000),
         created_at: Set(now.clone()),
         ..Default::default()
@@ -174,12 +175,13 @@ pub(crate) fn hold_req(trip_id: Uuid, seat_ids: Vec<Uuid>, point_id: Uuid) -> Ho
             .iter()
             .map(|_| PassengerReq {
                 name: "Nguyễn Văn A".into(),
-                passenger_type: "adult".into(),
-                age: 30,
+                passenger_type: None,
+                age: Some(30),
+                seat_id: None,
             })
             .collect(),
-        boarding_point_id: point_id,
-        dropping_point_id: point_id,
+        boarding_point_id: Some(point_id),
+        dropping_point_id: Some(point_id),
         contact_name: "Nguyễn Văn A".into(),
         contact_phone: "0912345678".into(),
         contact_email: None,

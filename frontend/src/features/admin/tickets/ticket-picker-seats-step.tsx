@@ -75,45 +75,46 @@ export function SeatsStep({
               col: seat.col,
               deck: seat.deck,
               seatClass: seat.seatClass ?? '',
-              priceMultiplier: 1,
               status: seat.status,
               finalPrice: seat.finalPrice,
+              childPrice: seat.childPrice,
             })
           }
         />
       </div>
 
-      {/* Boarding / dropping points */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        <div>
-          <Label className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">
-            <MapPin className="h-3 w-3" /> {t('adminTickets.pickupPoint')}
-          </Label>
-          <ComboboxField
-            value={boardingPointId}
-            onValueChange={setBoardingPointId}
-            items={boardingPoints.map((p) => ({ value: p.id, label: p.name ?? '—' }))}
-            className="h-9"
-            placeholder={t('adminTickets.choosePickupPoint')}
-            searchPlaceholder={t('adminTickets.searchPickupPoint')}
-            aria-label={t('adminTickets.pickupPoint')}
-          />
+      {boardingPoints.length > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div>
+            <Label className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">
+              <MapPin className="h-3 w-3" /> {t('adminTickets.pickupPoint')}
+            </Label>
+            <ComboboxField
+              value={boardingPointId}
+              onValueChange={setBoardingPointId}
+              items={boardingPoints.map((p) => ({ value: p.id, label: p.name ?? '—' }))}
+              className="h-9"
+              placeholder={t('adminTickets.choosePickupPoint')}
+              searchPlaceholder={t('adminTickets.searchPickupPoint')}
+              aria-label={t('adminTickets.pickupPoint')}
+            />
+          </div>
+          <div>
+            <Label className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">
+              <MapPin className="h-3 w-3" /> {t('adminTickets.dropoffPoint')}
+            </Label>
+            <ComboboxField
+              value={droppingPointId}
+              onValueChange={setDroppingPointId}
+              items={droppingPoints.map((p) => ({ value: p.id, label: p.name ?? '—' }))}
+              className="h-9"
+              placeholder={t('adminTickets.chooseDropoffPoint')}
+              searchPlaceholder={t('adminTickets.searchDropoffPoint')}
+              aria-label={t('adminTickets.dropoffPoint')}
+            />
+          </div>
         </div>
-        <div>
-          <Label className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">
-            <MapPin className="h-3 w-3" /> {t('adminTickets.dropoffPoint')}
-          </Label>
-          <ComboboxField
-            value={droppingPointId}
-            onValueChange={setDroppingPointId}
-            items={droppingPoints.map((p) => ({ value: p.id, label: p.name ?? '—' }))}
-            className="h-9"
-            placeholder={t('adminTickets.chooseDropoffPoint')}
-            searchPlaceholder={t('adminTickets.searchDropoffPoint')}
-            aria-label={t('adminTickets.dropoffPoint')}
-          />
-        </div>
-      </div>
+      )}
 
       {selectedSeats.length > 0 && (
         <div className="rounded-lg bg-blue-50/50 border border-blue-200 p-2.5">

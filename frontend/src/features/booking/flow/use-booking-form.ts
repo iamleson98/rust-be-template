@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import type { TripDetail } from '@/api'
 import { useT } from '@/lib/i18n'
 import { useGuest } from '@/stores/guest'
+import { passengerType, ticketPrice, type PassengerType } from '../fares'
 import {
   bookingSchema,
   type BookingValues,
@@ -17,7 +18,7 @@ const EMPTY: BookingValues = { passengers: [], contactName: '', contactPhone: ''
 const ADULT_AGE = 30
 const CHILD_AGE = 5
 
-const passenger = (age: number, seatId = ''): PassengerFormValue => ({
+const passenger = (age: number, seatId: string): PassengerFormValue => ({
   name: '',
   age,
   gender: 'male',
@@ -28,8 +29,19 @@ type Options = {
   trip: TripDetail | undefined
   /** Seats picked in the trip dialog. */
   seatIds: string[]
+  /** The searched party, used to guess who sits where. */
   adults: number
   children: number
+}
+
+/** One seat of the booking: who sits in it and what they pay. */
+export type Ticket = {
+  seat: SelectedSeat
+  /** Index in the passenger list; -1 while nobody has the seat. */
+  passengerIndex: number
+  passenger: PassengerFormValue | undefined
+  type: PassengerType
+  price: number
 }
 
 /** The picked seats (in seat-map order) with their prices. */
@@ -41,14 +53,14 @@ function pickedSeats(trip: TripDetail | undefined, seatIds: string[]): SelectedS
       id: seat.id,
       code: seat.code,
       price: seat.finalPrice,
+      childPrice: seat.childPrice,
       class: seat.seatClass ?? 'standard',
     }))
 }
 
 /**
- * The checkout form: one passenger per picked seat to start with (adults, then
- * children, seats handed out in order), the contact details, and the helpers the
- * passenger step needs.
+ * The checkout form: one passenger per picked seat (the searched adults first, then
+ * the children), the contact details, and what each ticket costs.
  */
 export function useBookingForm({ trip, seatIds, adults, children }: Options) {
   const t = useT()
@@ -59,12 +71,10 @@ export function useBookingForm({ trip, seatIds, adults, children }: Options) {
     mode: 'onBlur',
     reValidateMode: 'onChange',
   })
-  const { fields, append, remove, update, replace } = useFieldArray({
-    control: form.control,
-    name: 'passengers',
-  })
+  const { fields, update, replace } = useFieldArray({ control: form.control, name: 'passengers' })
 
   const seats = useMemo(() => pickedSeats(trip, seatIds), [trip, seatIds])
+  const childFare = trip?.pricing.childFare ?? null
 
   // Start over when the picked seats or party size change, not when the trip is refetched
   // with the same seats: that would wipe what the customer has typed.
@@ -72,11 +82,8 @@ export function useBookingForm({ trip, seatIds, adults, children }: Options) {
   useEffect(() => {
     if (!seatKey) return
     const ids = seatKey.split(',')
-    const ages = [
-      ...Array<number>(adults).fill(ADULT_AGE),
-      ...Array<number>(children).fill(CHILD_AGE),
-    ]
-    form.reset({ ...EMPTY, passengers: ages.map((age, i) => passenger(age, ids[i])) })
+    const age = (i: number) => (i >= adults && i < adults + children ? CHILD_AGE : ADULT_AGE)
+    form.reset({ ...EMPTY, passengers: ids.map((id, i) => passenger(age(i), id)) })
   }, [form, seatKey, adults, children])
 
   // `useWatch` follows edits of nested fields; `form.watch('passengers')` does not.
@@ -84,28 +91,32 @@ export function useBookingForm({ trip, seatIds, adults, children }: Options) {
   const assigned = passengers.map((p) => p.seatId).filter(Boolean)
   const unassigned = passengers.length - assigned.length
   const duplicateSeats = new Set(assigned).size !== assigned.length
-  const canContinue =
-    passengers.length > 0 &&
-    unassigned === 0 &&
-    !duplicateSeats &&
-    passengers.every((p) => p.name.trim())
+
+  const tickets: Ticket[] = seats.map((seat) => {
+    const passengerIndex = passengers.findIndex((p) => p.seatId === seat.id)
+    const sitter = passengers[passengerIndex]
+    const type = sitter ? passengerType(sitter.age, childFare) : 'adult'
+    return { seat, passengerIndex, passenger: sitter, type, price: ticketPrice(seat, type) }
+  })
 
   return {
     form,
     fields,
     passengers,
     seats,
-    /** What the picked seats cost before discounts. */
-    subtotal: seats.reduce((sum, seat) => sum + seat.price, 0),
+    tickets,
+    childFare,
+    typeOf: (p: PassengerFormValue) => passengerType(p.age, childFare),
+    /** What the tickets cost before discounts. */
+    subtotal: tickets.reduce((sum, ticket) => sum + ticket.price, 0),
     unassigned,
     duplicateSeats,
-    canContinue,
-    addPassenger: () => {
-      if (fields.length < seats.length) append(passenger(ADULT_AGE))
-    },
-    removePassenger: (index: number) => {
-      if (fields.length > 1) remove(index)
-    },
+    canContinue:
+      passengers.length === seats.length &&
+      seats.length > 0 &&
+      unassigned === 0 &&
+      !duplicateSeats &&
+      passengers.every((p) => p.name.trim()),
     /** Hands the still-free seats to the passengers who have none. */
     autoAssignSeats: () => {
       const current = form.getValues('passengers')

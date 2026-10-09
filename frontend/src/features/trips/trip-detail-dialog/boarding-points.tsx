@@ -1,255 +1,128 @@
 'use client'
 
-/**
- * BoardingPoints — pickup/dropoff point selection for the
- * TripDetailDialog. Renders the same list of points twice: once
- * for boarding selection (radio-style) and once for dropping selection.
- *
- * Two presentation variants share one list implementation:
- *  - `BoardingPoints`       — the md+ right rail (own scroll area).
- *  - `BoardingPointsInline` — the mobile "points" tab body (the parent
- *    tab already scrolls, so no nested scroll area). Previously the
- *    right rail was `hidden md:flex`, which meant mobile users could
- *    NEVER choose pickup/drop-off points — they silently got the
- *    first/last defaults.
- *
- * The rail variant also shows the selected seats list with per-seat
- * price + class label.
- */
-
-import { Badge } from '@/components/ui/badge'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { MapPin, Flag } from 'lucide-react'
-import { formatDuration } from '@/lib/format'
-import { SEAT_CLASS_LABELS } from '@/lib/labels'
+import type { ReactNode } from 'react'
+import { Flag, MapPin } from 'lucide-react'
+import type { TripPickupPoint } from '@/api'
 import { useT } from '@/lib/i18n'
-import { formatCurrency, type Currency } from '@/lib/format'
-import type { TripSeat } from '@/api'
-import type { TripDetailDialogData as TripDetail } from './types'
-import { ScheduleTimeline } from './schedule-timeline'
+import { cn } from '@/lib/utils'
 
-function PointLists({
-  detail,
-  boardingPoint,
-  droppingPoint,
-  onSetBoardingPoint,
-  onSetDroppingPoint,
-}: {
-  detail: TripDetail
+type Props = {
+  points: TripPickupPoint[]
   boardingPoint: string
   droppingPoint: string
-  onSetBoardingPoint: (id: string) => void
-  onSetDroppingPoint: (id: string) => void
-}) {
-  const t = useT()
-  // The store returns points ordered by stop_order. Boarding at the
-  // FINAL stop (or alighting at the FIRST) makes no sense — filter
-  // them out so each list only offers valid choices.
-  const ordered = detail.pickupPoints
-  const pickupCandidates = ordered.slice(0, Math.max(ordered.length - 1, 1))
-  const dropoffCandidates = ordered.slice(Math.min(1, ordered.length - 1))
-  return (
-    <>
-      {/* Pickup points */}
-      <div>
-        <div className="flex items-center gap-1.5 mb-2.5">
-          <MapPin className="h-3.5 w-3.5 text-blue-700" />
-          <div className="text-xs font-bold uppercase tracking-wide text-blue-800">
-            {t('tripDetail.pickupLabel')}
-          </div>
-        </div>
-        <div className="space-y-2">
-          {pickupCandidates.map((p) => {
-            const selected = boardingPoint === p.id
-            return (
-              <button
-                key={p.id}
-                onClick={() => onSetBoardingPoint(p.id)}
-                className={`group w-full text-left rounded-xl border px-3.5 py-2.5 text-sm transition-all ${
-                  selected
-                    ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-500/20 '
-                    : 'border-slate-200 bg-white hover:border-blue-300 hover:bg-blue-50/40 '
-                }`}
-              >
-                <div className="flex items-center justify-between gap-2.5">
-                  <div className="min-w-0 flex items-center gap-2">
-                    <span
-                      className={`h-2 w-2 rounded-full shrink-0 transition-colors ${selected ? 'bg-blue-600' : 'bg-slate-300 group-hover:bg-blue-400'}`}
-                    />
-                    <div className="min-w-0">
-                      <div
-                        className={`font-medium truncate ${selected ? 'text-blue-900' : 'text-slate-800'}`}
-                      >
-                        {p.name ?? '—'}
-                      </div>
-                      {p.address && (
-                        <div className="text-xs text-muted-foreground truncate mt-0.5">
-                          {p.address}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  {/* ETA offset — only when the API provides one
-                      (today it doesn't) — never render a fake value. */}
-                  {p.etaOffsetMin != null && (
-                    <div
-                      className={`text-xs font-medium shrink-0 rounded-md px-1.5 py-0.5 ${selected ? 'bg-blue-100 text-blue-700' : 'text-muted-foreground'}`}
-                    >
-                      +{formatDuration(p.etaOffsetMin)}
-                    </div>
-                  )}
-                </div>
-              </button>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* Dropoff points */}
-      <div>
-        <div className="flex items-center gap-1.5 mb-2.5">
-          <Flag className="h-3.5 w-3.5 text-rose-600" />
-          <div className="text-xs font-bold uppercase tracking-wide text-rose-700">
-            {t('tripDetail.dropoffLabel')}
-          </div>
-        </div>
-        <div className="space-y-2">
-          {dropoffCandidates.map((p) => {
-            const selected = droppingPoint === p.id
-            return (
-              <button
-                key={p.id}
-                onClick={() => onSetDroppingPoint(p.id)}
-                className={`group w-full text-left rounded-xl border px-3.5 py-2.5 text-sm transition-all ${
-                  selected
-                    ? 'border-rose-400 bg-rose-50 ring-2 ring-rose-400/20 '
-                    : 'border-slate-200 bg-white hover:border-rose-300 hover:bg-rose-50/40 '
-                }`}
-              >
-                <div className="flex items-center justify-between gap-2.5">
-                  <div className="min-w-0 flex items-center gap-2">
-                    <span
-                      className={`h-2 w-2 rounded-full shrink-0 transition-colors ${selected ? 'bg-rose-500' : 'bg-slate-300 group-hover:bg-rose-400'}`}
-                    />
-                    <div className="min-w-0">
-                      <div
-                        className={`font-medium truncate ${selected ? 'text-rose-900' : 'text-slate-800'}`}
-                      >
-                        {p.name ?? '—'}
-                      </div>
-                    </div>
-                  </div>
-                  {/* ETA offset — only when the API provides one. */}
-                  {p.etaOffsetMin != null && (
-                    <div
-                      className={`text-xs font-medium shrink-0 rounded-md px-1.5 py-0.5 ${selected ? 'bg-rose-100 text-rose-700' : 'text-muted-foreground'}`}
-                    >
-                      +{formatDuration(p.etaOffsetMin)}
-                    </div>
-                  )}
-                </div>
-              </button>
-            )
-          })}
-        </div>
-      </div>
-    </>
-  )
+  onBoardingPoint: (id: string) => void
+  onDroppingPoint: (id: string) => void
 }
 
-/** Mobile variant — rendered inside the "points" tab (parent scrolls). */
-export function BoardingPointsInline({
-  detail,
+/**
+ * Where to get on and off, for routes with pickup points. Nobody boards at the last
+ * stop or gets off at the first, so each list leaves that one out.
+ */
+export function BoardingPoints({
+  points,
   boardingPoint,
   droppingPoint,
-  onSetBoardingPoint,
-  onSetDroppingPoint,
-}: {
-  detail: TripDetail
-  boardingPoint: string
-  droppingPoint: string
-  onSetBoardingPoint: (id: string) => void
-  onSetDroppingPoint: (id: string) => void
-}) {
+  onBoardingPoint,
+  onDroppingPoint,
+}: Props) {
+  const t = useT()
+  if (points.length === 0) return null
+  const ordered = [...points].sort((a, b) => (a.stopOrder ?? 0) - (b.stopOrder ?? 0))
   return (
     <div className="space-y-5">
-      <PointLists
-        detail={detail}
-        boardingPoint={boardingPoint}
-        droppingPoint={droppingPoint}
-        onSetBoardingPoint={onSetBoardingPoint}
-        onSetDroppingPoint={onSetDroppingPoint}
+      <PointList
+        title={t('tripDetail.pickupLabel')}
+        icon={<MapPin className="h-3.5 w-3.5 text-blue-700" />}
+        tone="blue"
+        points={ordered.length > 1 ? ordered.slice(0, -1) : ordered}
+        selected={boardingPoint}
+        onSelect={onBoardingPoint}
+      />
+      <PointList
+        title={t('tripDetail.dropoffLabel')}
+        icon={<Flag className="h-3.5 w-3.5 text-rose-600" />}
+        tone="rose"
+        points={ordered.length > 1 ? ordered.slice(1) : ordered}
+        selected={droppingPoint}
+        onSelect={onDroppingPoint}
       />
     </div>
   )
 }
 
-export function BoardingPoints({
-  detail,
-  boardingPoint,
-  droppingPoint,
-  onSetBoardingPoint,
-  onSetDroppingPoint,
-  selectedSeatDetails,
-  currency,
+const TONES = {
+  blue: {
+    title: 'text-blue-800',
+    on: 'border-blue-500 bg-blue-50 ring-2 ring-blue-500/20',
+    hover: 'hover:border-blue-300 hover:bg-blue-50/40',
+    dot: 'bg-blue-600',
+  },
+  rose: {
+    title: 'text-rose-700',
+    on: 'border-rose-400 bg-rose-50 ring-2 ring-rose-400/20',
+    hover: 'hover:border-rose-300 hover:bg-rose-50/40',
+    dot: 'bg-rose-500',
+  },
+}
+
+function PointList({
+  title,
+  icon,
+  tone,
+  points,
+  selected,
+  onSelect,
 }: {
-  detail: TripDetail
-  boardingPoint: string
-  droppingPoint: string
-  onSetBoardingPoint: (id: string) => void
-  onSetDroppingPoint: (id: string) => void
-  selectedSeatDetails: TripSeat[]
-  currency: Currency
+  title: string
+  icon: ReactNode
+  tone: keyof typeof TONES
+  points: TripPickupPoint[]
+  selected: string
+  onSelect: (id: string) => void
 }) {
-  const t = useT()
+  const style = TONES[tone]
   return (
-    <div className="bg-slate-50 flex flex-col min-h-0 hidden md:flex">
-      <ScrollArea className="flex-1 min-h-0">
-        <div className="p-4 md:p-5 space-y-5">
-          {/* Trip schedule timeline — the real per-stop timetable
-              (place + arrival time) from the schedule_point table. */}
-          <ScheduleTimeline detail={detail} />
-
-          <div className="border-t border-slate-200" />
-
-          <PointLists
-            detail={detail}
-            boardingPoint={boardingPoint}
-            droppingPoint={droppingPoint}
-            onSetBoardingPoint={onSetBoardingPoint}
-            onSetDroppingPoint={onSetDroppingPoint}
-          />
-
-          {/* Selected seats */}
-          {selectedSeatDetails.length > 0 && (
-            <div>
-              <div className="text-xs font-semibold uppercase text-muted-foreground mb-2">
-                {t('tripDetail.selectedSeats')}
-              </div>
-              <div className="space-y-1.5">
-                {selectedSeatDetails.map((s) => (
-                  <div
-                    key={s.id}
-                    className="flex items-center justify-between rounded-lg bg-white border px-3 py-2 text-sm"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline" className="font-mono">
-                        {s.code}
-                      </Badge>
-                      <span className="text-xs text-muted-foreground">
-                        {t(SEAT_CLASS_LABELS[s.seatClass ?? 'standard'] ?? 'types.seatStandard')}
-                      </span>
-                    </div>
-                    <div className="font-semibold text-blue-800">
-                      {formatCurrency(s.finalPrice, currency)}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      </ScrollArea>
-    </div>
+    <fieldset>
+      <legend
+        className={cn(
+          'mb-2.5 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide',
+          style.title,
+        )}
+      >
+        {icon}
+        {title}
+      </legend>
+      <div className="space-y-2">
+        {points.map((p) => {
+          const on = selected === p.id
+          return (
+            <button
+              key={p.id}
+              type="button"
+              aria-pressed={on}
+              onClick={() => onSelect(p.id)}
+              className={cn(
+                'w-full rounded-xl border px-3.5 py-2.5 text-left text-sm transition-all',
+                on ? style.on : cn('border-slate-200 bg-white', style.hover),
+              )}
+            >
+              <span className="flex items-center gap-2">
+                <span
+                  className={cn('h-2 w-2 shrink-0 rounded-full', on ? style.dot : 'bg-slate-300')}
+                />
+                <span className="min-w-0">
+                  <span className="block truncate font-medium text-slate-800">{p.name ?? '—'}</span>
+                  {p.address && (
+                    <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                      {p.address}
+                    </span>
+                  )}
+                </span>
+              </span>
+            </button>
+          )
+        })}
+      </div>
+    </fieldset>
   )
 }

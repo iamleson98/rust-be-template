@@ -107,6 +107,8 @@ impl BrandStore for DbBrandStore {
             total_trips: Set(0),
             created_at: Set(now.clone()),
             updated_at: Set(now),
+            child_max_age: Set(None),
+            child_discount_percent: Set(None),
         };
         brand::Entity::insert(model)
             .exec_without_returning(self.db.as_ref())
@@ -125,6 +127,8 @@ impl BrandStore for DbBrandStore {
             total_trips: 0,
             created_at: now_clone.clone(),
             updated_at: now_clone,
+            child_max_age: None,
+            child_discount_percent: None,
         })
     }
 

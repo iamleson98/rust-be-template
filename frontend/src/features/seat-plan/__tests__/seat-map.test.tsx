@@ -5,7 +5,7 @@
  * fixtures from the saved frame, seats placed by their own row/col.
  */
 import { describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import type { TripSeat, TripSeatDeck } from '@/api'
 import { SeatMap } from '../seat-map'
 
@@ -79,10 +79,28 @@ describe('SeatMap', () => {
     expect(tags(container)).toEqual(['+100k'])
   })
 
-  it('shows the base price in the legend (cheapest available seat)', () => {
+  it('lists each seat class on the trip with its price, cheapest first', () => {
     render(<SeatMap {...props} />)
-    expect(screen.getByText('Giá gốc:')).toBeInTheDocument()
-    expect(screen.getByText(/200\.000/)).toBeInTheDocument()
+    const tiers = within(screen.getByRole('list', { name: 'Giá theo hạng ghế' }))
+      .getAllByRole('listitem')
+      .map((item) => item.textContent?.replace(/\s+/g, ' '))
+    expect(tiers).toEqual([
+      expect.stringMatching(/^Thường\s?200\.000/),
+      expect.stringMatching(/^Cao cấp\s?250\.000/),
+      expect.stringMatching(/^VIP\s?300\.000/),
+    ])
+  })
+
+  it('shows the price on a selected seat and the brand child rule', () => {
+    render(
+      <SeatMap
+        {...props}
+        selectedSeatIds={['B2']}
+        childFare={{ maxAge: 10, discountPercent: 25 }}
+      />,
+    )
+    expect(screen.getByRole('button', { name: /B2/ })).toHaveTextContent('B2300k')
+    expect(screen.getByText('Trẻ em đến 10 tuổi giảm 25%')).toBeInTheDocument()
   })
 
   it('marks selected seats with aria-pressed and reports the clicked seat', () => {

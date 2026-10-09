@@ -165,6 +165,7 @@ export type AdminBrandListResponse = {
  */
 export type AdminBrandOut = {
     accentColor?: string | null;
+    childFare?: null | ChildFarePolicy;
     contactEmail?: string | null;
     contactPhone?: string | null;
     createdAt: string;
@@ -229,6 +230,10 @@ export type AdminBusLayoutOut = {
      * `true` once a real seat plan (not just a derived grid) is saved.
      */
     planned: boolean;
+    /**
+     * Seats per class, so a schedule can price every class it sells.
+     */
+    seatClasses: Array<SeatClassCount>;
     totalSeats?: number | null;
     updatedAt: string;
     vehicleType?: string | null;
@@ -429,13 +434,23 @@ export type AdminScheduleListResponse = {
 
 export type AdminScheduleOut = {
     amenities?: string | null;
+    /**
+     * Price of a standard seat, and of any class without its own fare.
+     */
     basePriceAdult: number;
+    /**
+     * Child price of a standard seat; absent = the brand's discount.
+     */
     basePriceChild?: number | null;
     /**
      * Bus layout id (string on the wire, `Uuid` in Rust — see the
      * entity field comment about the old String/TEXT drift).
      */
     busLayoutId?: string | null;
+    /**
+     * Fares of the other seat classes, cheapest first.
+     */
+    classFares: Array<SeatClassFare>;
     createdAt: string;
     daysOfWeek?: string | null;
     departureTime: string;
@@ -958,6 +973,20 @@ export type ChatStatsResponse = {
     closedCount: number;
     openCount: number;
     totalChannels: number;
+};
+
+/**
+ * A brand's child tickets: passengers up to `maxAge` pay a child price.
+ */
+export type ChildFarePolicy = {
+    /**
+     * Percent off the adult price, where the schedule sets no child price.
+     */
+    discountPercent: number;
+    /**
+     * Oldest age (inclusive) that travels on a child ticket.
+     */
+    maxAge: number;
 };
 
 /**
@@ -1661,12 +1690,18 @@ export type HealthResponse = {
  * Request body for `POST /api/bookings` and `POST /api/bookings/hold`.
  */
 export type HoldReq = {
-    boardingPointId: string;
+    /**
+     * Required when the route has pickup points; must be one of them.
+     */
+    boardingPointId?: string | null;
     campaignCode?: string | null;
     contactEmail?: string | null;
     contactName: string;
     contactPhone: string;
-    droppingPointId: string;
+    /**
+     * Required when the route has pickup points; must be one of them.
+     */
+    droppingPointId?: string | null;
     passengers: Array<PassengerReq>;
     seatIds: Array<string>;
     tripId: string;
@@ -2029,13 +2064,20 @@ export type NullclawStatusResponse = {
  * One passenger on a booking.
  */
 export type PassengerReq = {
-    age?: number;
+    /**
+     * Without an age the passenger pays the adult price.
+     */
+    age?: number | null;
     name: string;
     /**
-     * `adult` | `child` | `infant`. Serialized as `type` on the wire
-     * (matches the legacy field name the frontend sends).
+     * The passenger's seat (one of `seatIds`). When every passenger names
+     * one, seats are matched by it; otherwise by position.
      */
-    type: string;
+    seatId?: string | null;
+    /**
+     * Ignored: the server decides from `age` and the brand's child policy.
+     */
+    type?: string | null;
 };
 
 /**
@@ -2656,6 +2698,33 @@ export type RoutePicturesBulkDeleteResponse = {
 };
 
 /**
+ * How many seats of one class a layout has.
+ */
+export type SeatClassCount = {
+    /**
+     * `standard` for seats without a class.
+     */
+    seatClass: string;
+    seats: number;
+};
+
+/**
+ * What one seat class costs on a schedule. Standard seats use the
+ * schedule's base prices instead.
+ */
+export type SeatClassFare = {
+    priceAdult: number;
+    /**
+     * Overrides the brand's child discount for this class.
+     */
+    priceChild?: number | null;
+    /**
+     * `vip`, `premium`, `bed_lower`, `bed_upper`, …
+     */
+    seatClass: string;
+};
+
+/**
  * Rectangular seat-grid spec for bus-layout create — the backend
  * generates the concrete `seat` rows (label / row / col / window /
  * floor) from it. `rows` × `cols` × `floors` seats in total.
@@ -2935,6 +3004,10 @@ export type TripCampaign = {
 export type TripCore = {
     arrivalAt?: string | null;
     availableSeats: number;
+    /**
+     * Seats can still be sold: the trip is scheduled and has not left.
+     */
+    bookable: boolean;
     departureAt?: string | null;
     departureDate: string;
     departureTime?: string | null;
@@ -2991,6 +3064,29 @@ export type TripEndpoint = {
     name?: string | null;
 };
 
+/**
+ * What a class of seats costs on this trip.
+ */
+export type TripFare = {
+    /**
+     * Seats of the class still for sale.
+     */
+    available: number;
+    /**
+     * Lowest adult price among the class's seats.
+     */
+    priceAdult: number;
+    /**
+     * Child price at `price_adult`; absent without child tickets.
+     */
+    priceChild?: number | null;
+    /**
+     * `standard` for seats without a class.
+     */
+    seatClass: string;
+    seats: number;
+};
+
 export type TripPickupPoint = {
     address?: string | null;
     id: string;
@@ -3002,8 +3098,19 @@ export type TripPickupPoint = {
 };
 
 export type TripPricing = {
+    /**
+     * Standard-seat price for an adult.
+     */
     basePriceAdult: number;
+    /**
+     * Standard-seat price for a child; `0` when the brand has no child tickets.
+     */
     basePriceChild: number;
+    childFare?: null | ChildFarePolicy;
+    /**
+     * One entry per seat class on this trip, cheapest first.
+     */
+    fares: Array<TripFare>;
 };
 
 /**
@@ -3029,14 +3136,20 @@ export type TripResult = {
     fromLon: number;
     fromName: string;
     /**
-     * Same as `min_price` for now (backend doesn't have a max price per trip).
+     * Dearest seat still for sale (VND).
      */
     maxPrice: number;
     /**
-     * Adult ticket price (VND).
+     * Cheapest seat still for sale (VND).
      */
     minPrice: number;
+    /**
+     * Standard-seat price for an adult.
+     */
     priceAdult: number;
+    /**
+     * Standard-seat price for a child; `0` when the brand has no child tickets.
+     */
     priceChild: number;
     routeId: string;
     routeName: string;
@@ -3107,9 +3220,16 @@ export type TripSearchResponse = {
 };
 
 export type TripSeat = {
+    /**
+     * Price for a child; absent when the brand has no child tickets.
+     */
+    childPrice?: number | null;
     code: string;
     col: number;
     deck: number;
+    /**
+     * Adult price (VND).
+     */
     finalPrice: number;
     id: string;
     kind?: null | CellKind;
@@ -3265,6 +3385,7 @@ export type UpsertAddressRequest = {
  */
 export type UpsertBrandRequest = {
     accentColor?: string | null;
+    childFare?: null | ChildFarePolicy;
     contactEmail?: string | null;
     contactPhone?: string | null;
     description?: string | null;
@@ -3354,11 +3475,18 @@ export type UpsertSchedulePointItem = {
 export type UpsertScheduleRequest = {
     amenities?: string | null;
     basePriceAdult?: number | null;
+    /**
+     * Child price of a standard seat; `0` = the brand's discount applies.
+     */
     basePriceChild?: number | null;
     /**
      * Bus layout id (string on the wire, `Uuid` in Rust).
      */
     busLayoutId?: string | null;
+    /**
+     * When present, replaces the fares of every non-standard seat class.
+     */
+    classFares?: Array<SeatClassFare> | null;
     daysOfWeek?: string | null;
     departureTime?: string | null;
     effectiveFrom?: string | null;

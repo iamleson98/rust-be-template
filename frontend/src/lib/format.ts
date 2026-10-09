@@ -31,6 +31,12 @@ export const formatCurrency = (amountVND: number, currency: Currency) =>
       }).format(amountVND / EXCHANGE_RATE)
     : formatVND(amountVND)
 
+/** "350k", "1.3tr": a VND amount short enough for a seat tile. */
+export function formatVndShort(amount: number): string {
+  if (amount < 1_000_000) return `${Math.round(amount / 1000)}k`
+  return `${Number((amount / 1_000_000).toFixed(1))}${lang() === 'vi' ? 'tr' : 'M'}`
+}
+
 /** `formatCurrency` in the visitor's chosen currency, for components. */
 export function useMoney() {
   const currency = usePrefs((s) => s.currency)

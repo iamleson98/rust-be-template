@@ -19,9 +19,11 @@ use crate::dto::admin::{
     AdminBusLayoutListResponse, AdminBusLayoutOut, AdminMutationResponse, SeatGridSpec,
     UpsertBusLayoutRequest,
 };
+use crate::dto::fares::SeatClassCount;
 use crate::dto::seat_plan::{AdminBusLayoutDetail, BusLayoutPresetListResponse, SeatPlan};
 use crate::entity::{bus_layout, seat};
 use crate::error::{AppError, AppResult};
+use crate::service::fares::{self, normalize_class, STANDARD};
 use crate::service::seat_plan::{self, SyncError};
 use crate::service::{seat_plan_db, seat_plan_presets};
 
@@ -46,6 +48,12 @@ impl AdminService {
             .list_bus_layouts_page(brand_id, limit, offset)
             .await
             .map_err(internal)?;
+        let class_counts = self
+            .store
+            .schedule_store()
+            .count_seat_classes(page.items.iter().map(|l| l.id).collect())
+            .await
+            .map_err(internal)?;
         let items = page
             .items
             .iter()
@@ -56,6 +64,7 @@ impl AdminService {
                 vehicle_type: l.vehicle_type.clone(),
                 total_seats: l.total_seats,
                 planned: seat_plan::parse_stored(l.layout_data.as_deref()).is_some(),
+                seat_classes: seat_classes_of(l.id, &class_counts),
                 created_at: l.created_at.clone(),
                 updated_at: l.updated_at.clone(),
             })
@@ -218,6 +227,17 @@ impl AdminService {
         seat_plan_db::apply_plan(self.store.db(), id, plan, &existing, &sync, &now_iso())
             .await
             .map_err(|e| AppError::Internal(format!("apply seat plan: {e}")))?;
+        // A re-classed seat costs what its new class costs on every
+        // upcoming trip it is still for sale on.
+        let schedules = self
+            .store
+            .schedule_store()
+            .list_schedules_by_bus_layout(id)
+            .await
+            .map_err(internal)?;
+        for schedule in &schedules {
+            fares::reprice_upcoming(&self.store, schedule).await?;
+        }
         Ok(AdminMutationResponse { id })
     }
 
@@ -310,6 +330,21 @@ impl AdminService {
             .await
             .map_err(internal)
     }
+}
+
+/// One layout's seats per class, standard first.
+fn seat_classes_of(layout: Uuid, counts: &[(Uuid, Option<String>, i64)]) -> Vec<SeatClassCount> {
+    let mut by_class: std::collections::BTreeMap<String, i64> = Default::default();
+    for (_, class, seats) in counts.iter().filter(|(id, ..)| *id == layout) {
+        let class = normalize_class(class.as_deref()).unwrap_or_else(|| STANDARD.into());
+        *by_class.entry(class).or_default() += seats;
+    }
+    let mut out: Vec<SeatClassCount> = by_class
+        .into_iter()
+        .map(|(seat_class, seats)| SeatClassCount { seat_class, seats })
+        .collect();
+    out.sort_by_key(|c| c.seat_class != STANDARD);
+    out
 }
 
 fn in_use_message(e: &SyncError) -> String {

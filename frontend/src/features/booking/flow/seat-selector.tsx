@@ -2,23 +2,13 @@
 
 import { Armchair } from 'lucide-react'
 import { useT } from '@/lib/i18n'
-import {
-  PASSENGER_TYPE_META,
-  getPassengerType,
-  type PassengerFormValue,
-  type SelectedSeat,
-} from './booking-form'
+import { PASSENGER_TYPE_META } from './booking-form'
+import type { Ticket } from './use-booking-form'
 
 /** The picked seats as chips, coloured by the passenger type sitting in each. */
-export function SeatSelector({
-  selectedSeats,
-  passengers,
-}: {
-  selectedSeats: SelectedSeat[]
-  passengers: PassengerFormValue[]
-}) {
+export function SeatSelector({ tickets }: { tickets: Ticket[] }) {
   const t = useT()
-  if (selectedSeats.length === 0) return null
+  if (tickets.length === 0) return null
 
   return (
     <div className="rounded-lg border bg-slate-50 p-3">
@@ -27,11 +17,9 @@ export function SeatSelector({
         {t('bookingFlow.seatMapTitle')}
       </div>
       <div className="flex flex-wrap gap-2">
-        {selectedSeats.map((s) => {
-          const passengerIdx = passengers.findIndex((p) => p.seatId === s.id)
-          const isAssigned = passengerIdx >= 0
-          const passenger = isAssigned ? passengers[passengerIdx] : null
-          const typeMeta = passenger ? PASSENGER_TYPE_META[getPassengerType(passenger.age)] : null
+        {tickets.map(({ seat: s, passenger, passengerIndex: passengerIdx, type }) => {
+          const isAssigned = !!passenger
+          const typeMeta = passenger ? PASSENGER_TYPE_META[type] : null
           return (
             <div
               key={s.id}

@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use uuid::Uuid;
 
+use crate::dto::fares::ChildFarePolicy;
 use crate::dto::seat_plan::{CellKind, PlanCell};
 
 // ────────────────────────────────────────────────────────────────
@@ -155,11 +156,13 @@ pub struct TripResult {
     pub arrival_at: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bus_layout_id: Option<String>,
-    /// Adult ticket price (VND).
+    /// Cheapest seat still for sale (VND).
     pub min_price: i64,
-    /// Same as `min_price` for now (backend doesn't have a max price per trip).
+    /// Dearest seat still for sale (VND).
     pub max_price: i64,
+    /// Standard-seat price for an adult.
     pub price_adult: i64,
+    /// Standard-seat price for a child; `0` when the brand has no child tickets.
     pub price_child: i64,
     pub vehicle_type: String,
     pub vehicle_type_label: String,
@@ -253,6 +256,8 @@ pub struct TripDetail {
 #[serde(rename_all = "camelCase")]
 pub struct TripCore {
     pub id: Uuid,
+    /// Seats can still be sold: the trip is scheduled and has not left.
+    pub bookable: bool,
     pub departure_date: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub departure_at: Option<String>,
@@ -314,8 +319,31 @@ pub struct TripBusLayout {
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct TripPricing {
+    /// Standard-seat price for an adult.
     pub base_price_adult: i64,
+    /// Standard-seat price for a child; `0` when the brand has no child tickets.
     pub base_price_child: i64,
+    /// One entry per seat class on this trip, cheapest first.
+    pub fares: Vec<TripFare>,
+    /// The brand's child tickets; absent = children pay the adult price.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub child_fare: Option<ChildFarePolicy>,
+}
+
+/// What a class of seats costs on this trip.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct TripFare {
+    /// `standard` for seats without a class.
+    pub seat_class: String,
+    /// Lowest adult price among the class's seats.
+    pub price_adult: i64,
+    /// Child price at `price_adult`; absent without child tickets.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub price_child: Option<i64>,
+    pub seats: i64,
+    /// Seats of the class still for sale.
+    pub available: i64,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -418,7 +446,11 @@ pub struct TripSeat {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub kind: Option<CellKind>,
     pub status: String,
+    /// Adult price (VND).
     pub final_price: i64,
+    /// Price for a child; absent when the brand has no child tickets.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub child_price: Option<i64>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]

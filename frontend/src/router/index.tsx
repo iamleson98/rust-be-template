@@ -21,6 +21,7 @@ import { NotFoundPage } from '@/app/not-found'
 import { RootLayout } from '@/app/root-layout'
 import { parseSearch, SEARCH_DEFAULTS, toQuery, type SearchInput } from '@/lib/search-params'
 import { requireAdmin, requireAuth, requireStaff } from './guards'
+import { loginSearch } from './login-redirect'
 
 const rootRoute = createRootRoute({ component: RootLayout, notFoundComponent: NotFoundPage })
 
@@ -76,6 +77,7 @@ const compare = createRoute({
 const login = createRoute({
   getParentRoute: () => rootRoute,
   path: '/login',
+  validateSearch: loginSearch,
   component: lazy(() => import('@/features/auth/login-page'), 'LoginPage'),
   staticData: { seo: 'login', private: true },
 })

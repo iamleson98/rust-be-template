@@ -50,6 +50,7 @@ import {
   effectiveWindow,
   routeDirection,
   schedulePointsSummary,
+  schedulePriceRange,
   scheduleStopTimes,
   sortSchedules,
   vehicleLabelFor,
@@ -592,7 +593,12 @@ function ScheduleRow({
       </TableCell>
       <TableCell className="px-3 py-2 text-xs text-muted-foreground">—</TableCell>
       <TableCell className="px-3 py-2 text-right">
-        <div className="font-semibold tabular-nums">{formatVND(schedule.basePriceAdult)}</div>
+        <div className="font-semibold tabular-nums">
+          {(() => {
+            const [min, max] = schedulePriceRange(schedule)
+            return min === max ? formatVND(min) : `${formatVND(min)} – ${formatVND(max)}`
+          })()}
+        </div>
         {schedule.basePriceChild != null && schedule.basePriceChild > 0 && (
           <div className="text-[11px] text-muted-foreground">
             {t('adminBrands.childPrice', { price: formatVND(schedule.basePriceChild) })}

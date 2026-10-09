@@ -1,7 +1,7 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
-import { Users, Copy, Sparkles, Plus, ChevronRight } from 'lucide-react'
+import { Users, Copy, Sparkles, ChevronRight } from 'lucide-react'
 import { useGuest } from '@/stores/guest'
 import { useT } from '@/lib/i18n'
 import { SeatSelector } from './seat-selector'
@@ -21,7 +21,7 @@ export function BookingPassengerStep({
 }) {
   const t = useT()
   const guestName = useGuest((s) => s.guestName)
-  const { form, fields, passengers, seats } = booking
+  const { form, fields, passengers, seats, tickets } = booking
   return (
     <div className="p-5 space-y-4">
       {/* Header + actions */}
@@ -62,37 +62,26 @@ export function BookingPassengerStep({
         </div>
       </div>
 
-      <SeatSelector selectedSeats={seats} passengers={passengers} />
+      <SeatSelector tickets={tickets} />
 
       <div className="space-y-3">
         {fields.map((field, i) => (
           <PassengerFormCard
             key={field.id}
             index={i}
-            // `useWatch` lags a freshly appended field by one render.
-            passenger={passengers[i] ?? field}
             passengers={passengers}
             seats={seats}
             control={form.control}
-            onRemove={fields.length > 1 ? () => booking.removePassenger(i) : undefined}
+            // `useWatch` lags a freshly reset field by one render.
+            type={booking.typeOf(passengers[i] ?? field)}
+            price={tickets.find((ticket) => ticket.passengerIndex === i)?.price}
           />
         ))}
       </div>
 
-      {fields.length < seats.length && (
-        <Button
-          variant="outline"
-          onClick={booking.addPassenger}
-          className="w-full gap-1.5 border-dashed"
-        >
-          <Plus className="h-4 w-4" />
-          {t('bookingFlow.addPassengerRemaining', { count: seats.length - fields.length })}
-        </Button>
-      )}
-
       <PassengerSummary
-        passengers={passengers}
-        seatCount={seats.length}
+        tickets={tickets}
+        childFare={booking.childFare}
         subtotal={booking.subtotal}
         unassigned={booking.unassigned}
         duplicateSeats={booking.duplicateSeats}

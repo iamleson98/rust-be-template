@@ -18,7 +18,8 @@ A **seat plan** is one uniform grid per deck (1 or 2 decks).
   one `seat` row) or *fixtures* (`driver`, `door`, `stairs`, `wc` — drawn only).
 - Sellable cells carry a customer-facing `label` (≤ 10 chars, unique per
   layout) and an optional `seatClass` (`standard`, `premium`, `vip`,
-  `bed_lower`, `bed_upper`; berths default to lower/upper by deck).
+  `bed_lower`, `bed_upper`; berths default to lower/upper by deck). Each
+  schedule prices the classes it sells: see [PRICING.md](PRICING.md).
 
 Limits (mirrored in `frontend/src/features/seat-plan/model.ts`): 2 decks,
 30 rows × 9 columns, 120 seats.

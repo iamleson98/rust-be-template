@@ -22,14 +22,18 @@ use crate::validation::validate_phone;
 pub struct PassengerReq {
     #[validate(length(min = 1, max = 255))]
     pub name: String,
-    /// `adult` | `child` | `infant`. Serialized as `type` on the wire
-    /// (matches the legacy field name the frontend sends).
-    #[serde(rename = "type")]
-    #[validate(length(min = 1, max = 10))]
-    pub passenger_type: String,
+    /// Ignored: the server decides from `age` and the brand's child policy.
+    #[serde(rename = "type", default, skip_serializing_if = "Option::is_none")]
+    #[validate(length(max = 10))]
+    pub passenger_type: Option<String>,
+    /// Without an age the passenger pays the adult price.
     #[serde(default)]
     #[validate(range(min = 0, max = 150))]
-    pub age: i64,
+    pub age: Option<i64>,
+    /// The passenger's seat (one of `seatIds`). When every passenger names
+    /// one, seats are matched by it; otherwise by position.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub seat_id: Option<Uuid>,
 }
 
 /// Request body for `POST /api/bookings` and `POST /api/bookings/hold`.
@@ -41,8 +45,12 @@ pub struct HoldReq {
     pub seat_ids: Vec<Uuid>,
     #[validate(length(min = 1, max = 50))]
     pub passengers: Vec<PassengerReq>,
-    pub boarding_point_id: Uuid,
-    pub dropping_point_id: Uuid,
+    /// Required when the route has pickup points; must be one of them.
+    #[serde(default)]
+    pub boarding_point_id: Option<Uuid>,
+    /// Required when the route has pickup points; must be one of them.
+    #[serde(default)]
+    pub dropping_point_id: Option<Uuid>,
     #[validate(length(min = 1, max = 255))]
     pub contact_name: String,
     #[validate(length(min = 1, max = 20), custom(function = "validate_phone"))]

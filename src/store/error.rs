@@ -56,6 +56,15 @@ impl From<sea_orm::DbErr> for StoreError {
     }
 }
 
+impl From<sea_orm::TransactionError<StoreError>> for StoreError {
+    fn from(e: sea_orm::TransactionError<StoreError>) -> Self {
+        match e {
+            sea_orm::TransactionError::Connection(e) => e.into(),
+            sea_orm::TransactionError::Transaction(e) => e,
+        }
+    }
+}
+
 impl From<anyhow::Error> for StoreError {
     fn from(e: anyhow::Error) -> Self {
         // Try to downcast to a StoreError first (preserves structured variants).

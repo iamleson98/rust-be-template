@@ -114,6 +114,8 @@ async fn seed_trip_chain(store: &CompositeStore) -> anyhow::Result<Uuid> {
             total_trips: Set(0),
             created_at: Set(now.into()),
             updated_at: Set(now.into()),
+            child_max_age: Set(None),
+            child_discount_percent: Set(None),
         })
         .await?;
 

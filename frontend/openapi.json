@@ -6795,6 +6795,17 @@
               "null"
             ]
           },
+          "childFare": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ChildFarePolicy",
+                "description": "Child tickets; absent = children pay the adult fare."
+              }
+            ]
+          },
           "contactEmail": {
             "type": [
               "string",
@@ -6950,6 +6961,7 @@
         "required": [
           "id",
           "planned",
+          "seatClasses",
           "createdAt",
           "updatedAt"
         ],
@@ -6977,6 +6989,13 @@
           "planned": {
             "type": "boolean",
             "description": "`true` once a real seat plan (not just a derived grid) is saved."
+          },
+          "seatClasses": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SeatClassCount"
+            },
+            "description": "Seats per class, so a schedule can price every class it sells."
           },
           "totalSeats": {
             "type": [
@@ -7518,6 +7537,7 @@
           "routeId",
           "departureTime",
           "basePriceAdult",
+          "classFares",
           "points",
           "createdAt"
         ],
@@ -7530,14 +7550,16 @@
           },
           "basePriceAdult": {
             "type": "integer",
-            "format": "int64"
+            "format": "int64",
+            "description": "Price of a standard seat, and of any class without its own fare."
           },
           "basePriceChild": {
             "type": [
               "integer",
               "null"
             ],
-            "format": "int64"
+            "format": "int64",
+            "description": "Child price of a standard seat; absent = the brand's discount."
           },
           "busLayoutId": {
             "type": [
@@ -7546,6 +7568,13 @@
             ],
             "format": "uuid",
             "description": "Bus layout id (string on the wire, `Uuid` in Rust — see the\nentity field comment about the old String/TEXT drift)."
+          },
+          "classFares": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SeatClassFare"
+            },
+            "description": "Fares of the other seat classes, cheapest first."
           },
           "createdAt": {
             "type": "string"
@@ -8904,6 +8933,26 @@
           }
         }
       },
+      "ChildFarePolicy": {
+        "type": "object",
+        "description": "A brand's child tickets: passengers up to `maxAge` pay a child price.",
+        "required": [
+          "maxAge",
+          "discountPercent"
+        ],
+        "properties": {
+          "discountPercent": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Percent off the adult price, where the schedule sets no child price."
+          },
+          "maxAge": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Oldest age (inclusive) that travels on a child ticket."
+          }
+        }
+      },
       "ClickIds": {
         "type": "object",
         "description": "Google Ads click ids captured on landing (see\n`frontend/src/lib/analytics.ts` — `captureClickIds`). At most one\nis ever set per landing, but the beacon forwards whatever it has.",
@@ -10107,15 +10156,17 @@
           "tripId",
           "seatIds",
           "passengers",
-          "boardingPointId",
-          "droppingPointId",
           "contactName",
           "contactPhone"
         ],
         "properties": {
           "boardingPointId": {
-            "type": "string",
-            "format": "uuid"
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Required when the route has pickup points; must be one of them."
           },
           "campaignCode": {
             "type": [
@@ -10136,8 +10187,12 @@
             "type": "string"
           },
           "droppingPointId": {
-            "type": "string",
-            "format": "uuid"
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Required when the route has pickup points; must be one of them."
           },
           "passengers": {
             "type": "array",
@@ -10837,20 +10892,34 @@
         "type": "object",
         "description": "One passenger on a booking.",
         "required": [
-          "name",
-          "type"
+          "name"
         ],
         "properties": {
           "age": {
-            "type": "integer",
-            "format": "int64"
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Without an age the passenger pays the adult price."
           },
           "name": {
             "type": "string"
           },
+          "seatId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "The passenger's seat (one of `seatIds`). When every passenger names\none, seats are matched by it; otherwise by position."
+          },
           "type": {
-            "type": "string",
-            "description": "`adult` | `child` | `infant`. Serialized as `type` on the wire\n(matches the legacy field name the frontend sends)."
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Ignored: the server decides from `age` and the brand's child policy."
           }
         }
       },
@@ -12139,6 +12208,50 @@
           }
         }
       },
+      "SeatClassCount": {
+        "type": "object",
+        "description": "How many seats of one class a layout has.",
+        "required": [
+          "seatClass",
+          "seats"
+        ],
+        "properties": {
+          "seatClass": {
+            "type": "string",
+            "description": "`standard` for seats without a class."
+          },
+          "seats": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "SeatClassFare": {
+        "type": "object",
+        "description": "What one seat class costs on a schedule. Standard seats use the\nschedule's base prices instead.",
+        "required": [
+          "seatClass",
+          "priceAdult"
+        ],
+        "properties": {
+          "priceAdult": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "priceChild": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Overrides the brand's child discount for this class."
+          },
+          "seatClass": {
+            "type": "string",
+            "description": "`vip`, `premium`, `bed_lower`, `bed_upper`, …"
+          }
+        }
+      },
       "SeatGridSpec": {
         "type": "object",
         "description": "Rectangular seat-grid spec for bus-layout create — the backend\ngenerates the concrete `seat` rows (label / row / col / window /\nfloor) from it. `rows` × `cols` × `floors` seats in total.",
@@ -12736,6 +12849,7 @@
         "type": "object",
         "required": [
           "id",
+          "bookable",
           "departureDate",
           "status",
           "totalSeats",
@@ -12751,6 +12865,10 @@
           "availableSeats": {
             "type": "integer",
             "format": "int64"
+          },
+          "bookable": {
+            "type": "boolean",
+            "description": "Seats can still be sold: the trip is scheduled and has not left."
           },
           "departureAt": {
             "type": [
@@ -12910,6 +13028,44 @@
           }
         }
       },
+      "TripFare": {
+        "type": "object",
+        "description": "What a class of seats costs on this trip.",
+        "required": [
+          "seatClass",
+          "priceAdult",
+          "seats",
+          "available"
+        ],
+        "properties": {
+          "available": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Seats of the class still for sale."
+          },
+          "priceAdult": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Lowest adult price among the class's seats."
+          },
+          "priceChild": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Child price at `price_adult`; absent without child tickets."
+          },
+          "seatClass": {
+            "type": "string",
+            "description": "`standard` for seats without a class."
+          },
+          "seats": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
       "TripPickupPoint": {
         "type": "object",
         "required": [
@@ -12965,16 +13121,37 @@
         "type": "object",
         "required": [
           "basePriceAdult",
-          "basePriceChild"
+          "basePriceChild",
+          "fares"
         ],
         "properties": {
           "basePriceAdult": {
             "type": "integer",
-            "format": "int64"
+            "format": "int64",
+            "description": "Standard-seat price for an adult."
           },
           "basePriceChild": {
             "type": "integer",
-            "format": "int64"
+            "format": "int64",
+            "description": "Standard-seat price for a child; `0` when the brand has no child tickets."
+          },
+          "childFare": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ChildFarePolicy",
+                "description": "The brand's child tickets; absent = children pay the adult price."
+              }
+            ]
+          },
+          "fares": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TripFare"
+            },
+            "description": "One entry per seat class on this trip, cheapest first."
           }
         }
       },
@@ -13093,20 +13270,22 @@
           "maxPrice": {
             "type": "integer",
             "format": "int64",
-            "description": "Same as `min_price` for now (backend doesn't have a max price per trip)."
+            "description": "Dearest seat still for sale (VND)."
           },
           "minPrice": {
             "type": "integer",
             "format": "int64",
-            "description": "Adult ticket price (VND)."
+            "description": "Cheapest seat still for sale (VND)."
           },
           "priceAdult": {
             "type": "integer",
-            "format": "int64"
+            "format": "int64",
+            "description": "Standard-seat price for an adult."
           },
           "priceChild": {
             "type": "integer",
-            "format": "int64"
+            "format": "int64",
+            "description": "Standard-seat price for a child; `0` when the brand has no child tickets."
           },
           "routeId": {
             "type": "string",
@@ -13278,6 +13457,14 @@
           "finalPrice"
         ],
         "properties": {
+          "childPrice": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Price for a child; absent when the brand has no child tickets."
+          },
           "code": {
             "type": "string"
           },
@@ -13291,7 +13478,8 @@
           },
           "finalPrice": {
             "type": "integer",
-            "format": "int64"
+            "format": "int64",
+            "description": "Adult price (VND)."
           },
           "id": {
             "type": "string",
@@ -13684,6 +13872,17 @@
               "null"
             ]
           },
+          "childFare": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ChildFarePolicy",
+                "description": "Child tickets: a policy turns them on, `null` turns them off, and\nleaving the field out keeps the current setting."
+              }
+            ]
+          },
           "contactEmail": {
             "type": [
               "string",
@@ -13930,7 +14129,8 @@
               "integer",
               "null"
             ],
-            "format": "int64"
+            "format": "int64",
+            "description": "Child price of a standard seat; `0` = the brand's discount applies."
           },
           "busLayoutId": {
             "type": [
@@ -13939,6 +14139,16 @@
             ],
             "format": "uuid",
             "description": "Bus layout id (string on the wire, `Uuid` in Rust)."
+          },
+          "classFares": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/SeatClassFare"
+            },
+            "description": "When present, replaces the fares of every non-standard seat class."
           },
           "daysOfWeek": {
             "type": [

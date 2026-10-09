@@ -44,13 +44,6 @@ pub struct Released {
     pub seats: u64,
 }
 
-fn txn_error(e: TransactionError<StoreError>) -> StoreError {
-    match e {
-        TransactionError::Connection(e) => e.into(),
-        TransactionError::Transaction(e) => e,
-    }
-}
-
 fn now_iso() -> String {
     chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
 }
@@ -526,7 +519,7 @@ impl BookingStore for DbBookingStore {
             Err(TransactionError::Transaction(StoreError::Conflict(_))) => {
                 Ok(ConfirmOutcome::SeatsLost)
             }
-            other => other.map_err(txn_error),
+            other => other.map_err(StoreError::from),
         }
     }
 
@@ -593,7 +586,7 @@ impl BookingStore for DbBookingStore {
                 })
             })
             .await
-            .map_err(txn_error)
+            .map_err(StoreError::from)
     }
 }
 
@@ -700,6 +693,6 @@ impl DbBookingStore {
                 })
             })
             .await
-            .map_err(txn_error)
+            .map_err(StoreError::from)
     }
 }

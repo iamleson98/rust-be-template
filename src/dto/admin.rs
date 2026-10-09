@@ -11,6 +11,7 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 use validator::Validate;
 
+use crate::dto::fares::{ChildFarePolicy, SeatClassCount, SeatClassFare};
 use crate::dto::seat_plan::SeatPlan;
 use crate::validation::validate_phone;
 
@@ -20,6 +21,16 @@ where
 {
     Option::<String>::deserialize(deserializer)
         .map(|value| value.filter(|value| !value.trim().is_empty()))
+}
+
+/// With `#[serde(default)]`: an absent field is `None` (leave as is) and an
+/// explicit `null` is `Some(None)` (clear it).
+fn nullable<'de, D, T>(deserializer: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Option::<T>::deserialize(deserializer).map(Some)
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -46,6 +57,9 @@ pub struct AdminBrandOut {
     pub status: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub accent_color: Option<String>,
+    /// Child tickets; absent = children pay the adult fare.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub child_fare: Option<ChildFarePolicy>,
     pub total_trips: i64,
     pub created_at: String,
     pub updated_at: String,
@@ -85,6 +99,11 @@ pub struct UpsertBrandRequest {
     pub status: Option<String>,
     #[validate(length(max = 9))]
     pub accent_color: Option<String>,
+    /// Child tickets: a policy turns them on, `null` turns them off, and
+    /// leaving the field out keeps the current setting.
+    #[serde(default, deserialize_with = "nullable")]
+    #[schema(value_type = Option<ChildFarePolicy>)]
+    pub child_fare: Option<Option<ChildFarePolicy>>,
 }
 
 /// Response of `POST /api/admin/brands` + `PUT /api/admin/brands/{id}` + `DELETE`.
@@ -282,9 +301,13 @@ pub struct AdminScheduleOut {
     /// the catalog type it configured).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub vehicle_type: Option<AdminVehicleTypeOut>,
+    /// Price of a standard seat, and of any class without its own fare.
     pub base_price_adult: i64,
+    /// Child price of a standard seat; absent = the brand's discount.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub base_price_child: Option<i64>,
+    /// Fares of the other seat classes, cheapest first.
+    pub class_fares: Vec<SeatClassFare>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub amenities: Option<String>,
     /// Ordered address points (departure → midway stops → destination).
@@ -318,8 +341,12 @@ pub struct UpsertScheduleRequest {
     pub vehicle_type_id: Option<Uuid>,
     #[validate(range(min = 0, max = 1_000_000_000))]
     pub base_price_adult: Option<i64>,
+    /// Child price of a standard seat; `0` = the brand's discount applies.
     #[validate(range(min = 0, max = 1_000_000_000))]
     pub base_price_child: Option<i64>,
+    /// When present, replaces the fares of every non-standard seat class.
+    #[validate(length(max = 20), nested)]
+    pub class_fares: Option<Vec<SeatClassFare>>,
     #[validate(length(max = 5000))]
     pub amenities: Option<String>,
     /// When present, replaces the schedule's whole point sequence.
@@ -395,6 +422,8 @@ pub struct AdminBusLayoutOut {
     pub total_seats: Option<i16>,
     /// `true` once a real seat plan (not just a derived grid) is saved.
     pub planned: bool,
+    /// Seats per class, so a schedule can price every class it sells.
+    pub seat_classes: Vec<SeatClassCount>,
     pub created_at: String,
     pub updated_at: String,
 }

@@ -73,6 +73,8 @@ type TileProps = {
   accent?: string
   /** Corner price tag ("+50k"). */
   tag?: string
+  /** Shown under the label once selected (the seat's price). */
+  caption?: string
   /** Editor highlight. */
   ring?: boolean
   /** Render a plain `<span>` (thumbnails) instead of a button. */
@@ -87,6 +89,7 @@ export function SeatTile({
   size = 'md',
   accent,
   tag,
+  caption,
   ring,
   as = 'button',
   className,
@@ -111,7 +114,14 @@ export function SeatTile({
     <>
       {berth && !bare && <Pillows double={kind === 'cabin_double'} />}
       {state === 'selected' && !bare ? (
-        <Check className={size === 'md' ? 'h-4 w-4' : 'h-3 w-3'} />
+        caption ? (
+          <span className="relative flex flex-col items-center leading-tight">
+            <span>{label}</span>
+            <span className="text-[9px] font-semibold opacity-90">{caption}</span>
+          </span>
+        ) : (
+          <Check className={size === 'md' ? 'h-4 w-4' : 'h-3 w-3'} />
+        )
       ) : (
         <span className="relative">{label}</span>
       )}

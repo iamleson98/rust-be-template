@@ -1,39 +1,18 @@
 'use client'
 
-/**
- * RouteScheduleMap — the "route schedule" view inside the trip detail
- * dialog: a REAL Leaflet map (basemap tiles) rendering
- *   • the route geometry polyline (when available),
- *   • EVERY pickup/drop point as a NUMBERED marker (stop order),
- *   • blue first stop / red last stop / accent-colored middle stops,
- *   • popups with the stop name + ETA offset + pickup type,
- * and auto-fitting the view to all points.
- *
- * Replaces the old RouteMapPreview — a stylized SVG sketch with a fake
- * grid background that could not show real geography. Real map, real
- * coordinates, all stops marked.
- */
-
 import { useEffect, useMemo } from 'react'
 import { MapContainer, Marker, Polyline, Popup, useMap, ZoomControl } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { Navigation } from 'lucide-react'
-import { formatDuration } from '@/lib/format'
+import type { TripPickupPoint } from '@/api'
 import { useT } from '@/lib/i18n'
 import { BasemapLayer } from '@/features/map/basemap-layer'
 
-export type RouteScheduleStop = {
-  id: string
-  name: string | null
-  stopOrder: number
-  etaOffsetMin?: number
-  lat: number | null
-  lon: number | null
-  /** Position-derived stop kind ("pickup" | "middle" | "drop") —
-   * nullable per the API; never call .replace() on it unguarded. */
-  kind?: string | null
-}
+export type RouteScheduleStop = Pick<
+  TripPickupPoint,
+  'id' | 'name' | 'stopOrder' | 'lat' | 'lon' | 'kind'
+>
 
 type Props = {
   /** Route polyline [lat, lon][] — straight-line fallback is supplied
@@ -42,7 +21,7 @@ type Props = {
   pickupPoints: RouteScheduleStop[]
   fromName: string
   toName: string
-  accentColor: string
+  accentColor?: string
 }
 
 /** Numbered circular marker: order badge on a colored disc. */
@@ -121,7 +100,13 @@ function FixSize() {
   return null
 }
 
-export function RouteScheduleMap({ geometry, pickupPoints, fromName, toName, accentColor }: Props) {
+export function RouteScheduleMap({
+  geometry,
+  pickupPoints,
+  fromName,
+  toName,
+  accentColor = '#2563eb',
+}: Props) {
   const t = useT()
 
   const geo = useMemo(() => geometry ?? [], [geometry])
@@ -130,7 +115,7 @@ export function RouteScheduleMap({ geometry, pickupPoints, fromName, toName, acc
       pickupPoints
         .filter((p) => p.lat != null && p.lon != null)
         .slice()
-        .sort((a, b) => a.stopOrder - b.stopOrder)
+        .sort((a, b) => (a.stopOrder ?? 0) - (b.stopOrder ?? 0))
         .map((p) => ({ ...p, lat: p.lat as number, lon: p.lon as number })),
     [pickupPoints],
   )
@@ -190,11 +175,6 @@ export function RouteScheduleMap({ geometry, pickupPoints, fromName, toName, acc
                   <div className="text-xs text-slate-500 capitalize">
                     {(s.kind ?? '').replace(/_/g, ' ')}
                   </div>
-                  {s.etaOffsetMin != null && (
-                    <div className="text-xs text-slate-500 tabular-nums mt-0.5">
-                      {t('mapNav.etaOffset')}: {formatDuration(s.etaOffsetMin)}
-                    </div>
-                  )}
                 </div>
               </Popup>
             </Marker>

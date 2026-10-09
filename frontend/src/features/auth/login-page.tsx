@@ -1,7 +1,7 @@
 import { isStaffUser, useSession } from '@/stores/session'
 import { useEffect, useState } from 'react'
 import { useT } from '@/lib/i18n'
-import { useNavigate } from '@tanstack/react-router'
+import { useNavigate, useSearch } from '@tanstack/react-router'
 import { ShieldCheck, User, ArrowLeft, UserPlus } from 'lucide-react'
 import { TabButton, type Tab } from './_shared'
 import { CustomerLogin } from './customer-login'
@@ -11,15 +11,15 @@ export function LoginPage() {
   const user = useSession((s) => s.user)
   const t = useT()
   const navigate = useNavigate()
+  const { redirect } = useSearch({ from: '/login' })
   const [tab, setTab] = useState<Tab>('customer')
 
-  // If already logged in, redirect to the right place.
+  // Signed in (here, by registering, or already): back to where they came from.
   useEffect(() => {
-    if (user) {
-      if (isStaffUser(user)) navigate({ to: '/admin' })
-      else navigate({ to: '/account' })
-    }
-  }, [user, navigate])
+    if (!user) return
+    if (redirect) navigate({ href: redirect, replace: true })
+    else navigate({ to: isStaffUser(user) ? '/admin' : '/account', replace: true })
+  }, [user, redirect, navigate])
 
   return (
     <div className="relative min-h-[calc(100vh-4rem)] flex items-center justify-center px-4 py-10 overflow-hidden">

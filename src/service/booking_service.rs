@@ -9,7 +9,7 @@
 //! - Returns typed DTOs from [`crate::dto::booking`] (no `serde_json::Value`).
 //! - Pure helpers (normalize_phone, gen_booking_code, etc.) are ported as-is.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use chrono::Utc;
@@ -20,11 +20,12 @@ use uuid::Uuid;
 use crate::dto::booking::{
     BookingBrandPreview, BookingBusLayoutPreview, BookingCancelResponse, BookingConfirmResponse,
     BookingHoldResponse, BookingListItem, BookingListResponse, BookingRoutePreview, BookingSeatOut,
-    BookingTripPreview, HoldReq, PickupPointOut,
+    BookingTripPreview, HoldReq, PassengerReq, PickupPointOut,
 };
 use crate::entity::{booking, booking_seat, seat, seat_inventory, trip_session};
 use crate::error::{AppError, AppResult};
 use crate::payment::statuses as payment_status;
+use crate::service::fares::{self, ChildPolicy, FareTable, Passenger};
 use crate::service::trip_time;
 use crate::store::{CompositeStore, ConfirmOutcome};
 
@@ -506,6 +507,8 @@ impl BookingService {
             None
         };
 
+        self.check_stops(route_model.id, req).await?;
+
         // Fetch seat inventories
         let seat_uuids: Vec<String> = req.seat_ids.iter().map(|s| s.to_string()).collect();
         let seat_invs = self
@@ -532,19 +535,43 @@ impl BookingService {
             ));
         }
 
-        // Pricing
-        let adult_count = req
-            .passengers
+        // Pricing: each passenger pays for their seat's class, at the child
+        // price when the brand sells child tickets and the age qualifies.
+        let seated = seat_passengers(req, &seat_invs)?;
+        let seat_rows = self
+            .store
+            .trip_store()
+            .list_seats_by_ids(seat_uuids.clone())
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        let class_of: HashMap<Uuid, String> = seat_rows
             .iter()
-            .filter(|p| p.passenger_type == "adult")
-            .count() as i64;
-        let child_count = req
-            .passengers
+            .map(|s| (s.id, fares::class_of(s)))
+            .collect();
+        let fare_table = FareTable::load(&self.store, &schedule).await?;
+        let policy = brand_model.as_ref().and_then(ChildPolicy::of);
+        let tickets: Vec<Ticket> = seated
+            .into_iter()
+            .map(|(passenger, inv)| {
+                let fare = fare_table.fare(class_of.get(&inv.seat_id).map(String::as_str));
+                let (kind, price) = match passenger.age {
+                    Some(age) => fares::ticket(age, inv.final_price, fare, policy),
+                    None => (Passenger::Adult, inv.final_price),
+                };
+                Ticket {
+                    passenger,
+                    seat_id: inv.seat_id,
+                    kind,
+                    price,
+                }
+            })
+            .collect();
+        let child_count = tickets
             .iter()
-            .filter(|p| p.passenger_type == "child")
+            .filter(|t| t.kind == Passenger::Child)
             .count() as i64;
-        let seat_prices: Vec<i64> = seat_invs.iter().map(|s| s.final_price).collect();
-        let subtotal: i64 = seat_prices.iter().sum();
+        let adult_count = tickets.len() as i64 - child_count;
+        let subtotal: i64 = tickets.iter().map(|t| t.price).sum();
 
         // Campaign discount
         let mut discount: i64 = 0;
@@ -576,9 +603,14 @@ impl BookingService {
                     "fixed_amount" => {
                         discount = c.discount_value;
                     }
-                    "free_child" if child_count > 0 => {
-                        let cheapest = *seat_prices.iter().min().unwrap_or(&0);
-                        discount = cheapest;
+                    "free_child" => {
+                        // The cheapest child ticket rides free.
+                        discount = tickets
+                            .iter()
+                            .filter(|t| t.kind == Passenger::Child)
+                            .map(|t| t.price)
+                            .min()
+                            .unwrap_or(0);
                     }
                     _ => {}
                 }
@@ -614,8 +646,8 @@ impl BookingService {
             // calls can verify `booking.user_id == caller_user_id`.
             user_id: Set(caller_user_id),
             trip_session_id: Set(req.trip_id),
-            boarding_point_id: Set(Some(req.boarding_point_id)),
-            dropping_point_id: Set(Some(req.dropping_point_id)),
+            boarding_point_id: Set(req.boarding_point_id),
+            dropping_point_id: Set(req.dropping_point_id),
             adult_count: Set(adult_count),
             child_count: Set(child_count),
             subtotal: Set(subtotal),
@@ -708,23 +740,19 @@ impl BookingService {
         // Batch-insert all booking_seat rows in a single INSERT.
         // Replaces the per-seat loop (N round-trips). A single
         // multi-row INSERT is atomic — no partial line items on failure.
-        let bs_models: Vec<booking_seat::ActiveModel> = seat_invs
+        let bs_models: Vec<booking_seat::ActiveModel> = tickets
             .iter()
-            .enumerate()
-            .map(|(i, inv)| {
-                let passenger = &req.passengers[i];
-                booking_seat::ActiveModel {
-                    id: Set(Uuid::new_v4()),
-                    booking_id: Set(booking_id),
-                    seat_id: Set(inv.seat_id),
-                    passenger_name: Set(Some(passenger.name.clone())),
-                    passenger_type: Set(Some(passenger.passenger_type.clone())),
-                    passenger_age: Set(Some(passenger.age as i16)),
-                    price: Set(inv.final_price),
-                    // `created_at` has a NOT NULL column without a DB
-                    // default — set it explicitly or the INSERT fails.
-                    created_at: Set(now_iso()),
-                }
+            .map(|t| booking_seat::ActiveModel {
+                id: Set(Uuid::new_v4()),
+                booking_id: Set(booking_id),
+                seat_id: Set(t.seat_id),
+                passenger_name: Set(Some(t.passenger.name.clone())),
+                passenger_type: Set(Some(t.kind.as_str().into())),
+                passenger_age: Set(t.passenger.age.and_then(|a| i16::try_from(a).ok())),
+                price: Set(t.price),
+                // `created_at` has a NOT NULL column without a DB
+                // default — set it explicitly or the INSERT fails.
+                created_at: Set(now_iso()),
             })
             .collect();
         if let Err(e) = self
@@ -774,20 +802,19 @@ impl BookingService {
         }
 
         // Build response
-        let seats_json: Vec<BookingSeatOut> = seat_invs
+        let seats_json: Vec<BookingSeatOut> = tickets
             .iter()
-            .enumerate()
-            .map(|(i, inv)| {
-                let passenger = &req.passengers[i];
-                BookingSeatOut {
-                    seat_id: Some(inv.seat_id),
-                    seat_code: None,
-                    seat_class: None,
-                    passenger_name: Some(passenger.name.clone()),
-                    passenger_type: Some(passenger.passenger_type.clone()),
-                    passenger_age: Some(passenger.age),
-                    price: Some(inv.final_price),
-                }
+            .map(|t| BookingSeatOut {
+                seat_id: Some(t.seat_id),
+                seat_code: seat_rows
+                    .iter()
+                    .find(|s| s.id == t.seat_id)
+                    .map(|s| s.seat_label.clone()),
+                seat_class: class_of.get(&t.seat_id).cloned(),
+                passenger_name: Some(t.passenger.name.clone()),
+                passenger_type: Some(t.kind.as_str().into()),
+                passenger_age: t.passenger.age,
+                price: Some(t.price),
             })
             .collect();
 
@@ -1338,6 +1365,78 @@ fn now_iso() -> String {
 fn now_plus_iso(secs: i64) -> String {
     (Utc::now() + chrono::Duration::seconds(secs))
         .to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
+}
+
+/// One passenger's seat on a hold, and what it costs them.
+struct Ticket<'a> {
+    passenger: &'a PassengerReq,
+    seat_id: Uuid,
+    kind: Passenger,
+    price: i64,
+}
+
+/// Pairs each passenger with their seat: the seat they name when every
+/// passenger names one, otherwise the seat at their position in `seatIds`.
+fn seat_passengers<'a>(
+    req: &'a HoldReq,
+    seats: &'a [seat_inventory::Model],
+) -> AppResult<Vec<(&'a PassengerReq, &'a seat_inventory::Model)>> {
+    let requested: HashSet<Uuid> = req.seat_ids.iter().copied().collect();
+    if requested.len() != req.seat_ids.len() {
+        return Err(AppError::BadRequest("a seat is listed twice".into()));
+    }
+    let by_seat: HashMap<Uuid, &seat_inventory::Model> =
+        seats.iter().map(|s| (s.seat_id, s)).collect();
+    let named = req.passengers.iter().all(|p| p.seat_id.is_some());
+    let mut taken = HashSet::new();
+    req.passengers
+        .iter()
+        .zip(&req.seat_ids)
+        .map(|(passenger, &by_position)| {
+            let seat = if named {
+                passenger.seat_id.unwrap_or(by_position)
+            } else {
+                by_position
+            };
+            if !requested.contains(&seat) || !taken.insert(seat) {
+                return Err(AppError::BadRequest(
+                    "each passenger needs a different seat from seatIds".into(),
+                ));
+            }
+            by_seat
+                .get(&seat)
+                .map(|inv| (passenger, *inv))
+                .ok_or_else(|| AppError::BadRequest("some seats not found or changed".into()))
+        })
+        .collect()
+}
+
+impl BookingService {
+    /// Boarding and drop-off must be stops of the trip's route. A route
+    /// without pickup points takes neither (passengers board at the
+    /// schedule's stops).
+    async fn check_stops(&self, route_id: Uuid, req: &HoldReq) -> AppResult<()> {
+        let points = self
+            .store
+            .route_store()
+            .list_pickup_points_by_route(&route_id.to_string())
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        let on_route = |id: Option<Uuid>| id.is_some_and(|id| points.iter().any(|p| p.id == id));
+        let given = [req.boarding_point_id, req.dropping_point_id];
+        let ok = if points.is_empty() {
+            given.iter().all(Option::is_none)
+        } else {
+            given.into_iter().all(on_route)
+        };
+        if ok {
+            Ok(())
+        } else {
+            Err(AppError::BadRequest(
+                "choose a boarding and a drop-off point of this route".into(),
+            ))
+        }
+    }
 }
 
 // ────────────────────────────────────────────────────────────────

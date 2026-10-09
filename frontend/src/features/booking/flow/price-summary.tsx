@@ -1,19 +1,20 @@
 'use client'
 
+import { SEAT_CLASS_LABELS } from '@/lib/labels'
 import { useMoney } from '@/lib/format'
 import { useT } from '@/lib/i18n'
+import { PASSENGER_TYPE_META } from './booking-form'
+import type { Ticket } from './use-booking-form'
 
-/** Seats subtotal, promo discount (when there is one) and the total to pay. */
+/** One line per ticket, the promo discount (when there is one) and the total to pay. */
 export function PriceSummary({
-  seatCount,
-  subtotal,
+  tickets,
   promoCode,
   discount,
   total,
   className,
 }: {
-  seatCount: number
-  subtotal: number
+  tickets: Ticket[]
   promoCode?: string
   discount: number
   total: number
@@ -24,23 +25,29 @@ export function PriceSummary({
   return (
     <div className={`rounded-lg border bg-slate-50 p-4 space-y-2 ${className ?? ''}`}>
       <h4 className="font-semibold text-sm mb-2">{t('bookingFlow.priceDetails')}</h4>
-      <div className="flex justify-between text-sm">
-        <span className="text-muted-foreground">
-          {t('bookingFlow.subtotalSeats', { count: seatCount })}
-        </span>
-        <span>{money(subtotal)}</span>
-      </div>
+      {tickets.map(({ seat, type, price }) => (
+        <div key={seat.id} className="flex justify-between gap-3 text-sm">
+          <span className="text-muted-foreground min-w-0 truncate">
+            <span className="font-mono font-semibold text-foreground">{seat.code}</span>
+            {' · '}
+            {t(SEAT_CLASS_LABELS[seat.class] ?? seat.class)}
+            {' · '}
+            {t(PASSENGER_TYPE_META[type].label)}
+          </span>
+          <span className="tabular-nums">{money(price)}</span>
+        </div>
+      ))}
       {discount > 0 && (
         <div className="flex justify-between text-sm text-blue-700">
           <span className="text-muted-foreground">
             {t('bookingFlow.discountLabel', { code: promoCode ?? '' })}
           </span>
-          <span>-{money(discount)}</span>
+          <span className="tabular-nums">-{money(discount)}</span>
         </div>
       )}
       <div className="border-t pt-2 flex justify-between font-bold text-base">
         <span>{t('bookingFlow.grandTotal')}</span>
-        <span className="text-blue-700">{money(total)}</span>
+        <span className="text-blue-700 tabular-nums">{money(total)}</span>
       </div>
     </div>
   )

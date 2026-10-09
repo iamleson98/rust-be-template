@@ -149,6 +149,27 @@ pub trait TripStore: Send + Sync {
         min_seats: i64,
         limit: u64,
     ) -> StoreResult<Vec<trip_session::Model>>;
+    /// A schedule's trips departing on or after `date_gte` (`YYYY-MM-DD`).
+    async fn list_trips_of_schedule_from(
+        &self,
+        schedule_id: Uuid,
+        date_gte: &str,
+    ) -> StoreResult<Vec<trip_session::Model>>;
+
+    /// Set the price of these seats on these trips while they are still
+    /// for sale; held and sold seats keep the price they were sold at.
+    async fn reprice_available_seats(
+        &self,
+        trip_ids: Vec<Uuid>,
+        seat_ids: Vec<Uuid>,
+        price: i64,
+    ) -> StoreResult<u64>;
+
+    /// Cheapest and dearest seat still for sale on each trip.
+    async fn available_price_ranges(
+        &self,
+        trip_ids: Vec<Uuid>,
+    ) -> StoreResult<std::collections::HashMap<Uuid, (i64, i64)>>;
     async fn list_active_campaigns(&self, limit: u64) -> StoreResult<Vec<campaign::Model>>;
     async fn list_seats_by_bus_layout_id(
         &self,
@@ -494,6 +515,69 @@ impl TripStore for DbTripStore {
             .limit(limit)
             .all(self.db.as_ref())
             .await?)
+    }
+
+    async fn list_trips_of_schedule_from(
+        &self,
+        schedule_id: Uuid,
+        date_gte: &str,
+    ) -> StoreResult<Vec<trip_session::Model>> {
+        Ok(trip_session::Entity::find()
+            .filter(trip_session::Column::ScheduleId.eq(schedule_id))
+            .filter(trip_session::Column::DepartureDate.gte(date_gte.to_string()))
+            .all(self.db.as_ref())
+            .await?)
+    }
+
+    async fn reprice_available_seats(
+        &self,
+        trip_ids: Vec<Uuid>,
+        seat_ids: Vec<Uuid>,
+        price: i64,
+    ) -> StoreResult<u64> {
+        use sea_orm::sea_query::Expr;
+        if trip_ids.is_empty() || seat_ids.is_empty() {
+            return Ok(0);
+        }
+        let res = seat_inventory::Entity::update_many()
+            .col_expr(seat_inventory::Column::BasePrice, Expr::value(price))
+            .col_expr(seat_inventory::Column::FinalPrice, Expr::value(price))
+            .col_expr(
+                seat_inventory::Column::UpdatedAt,
+                Expr::value(super::now_iso()),
+            )
+            .filter(seat_inventory::Column::TripSessionId.is_in(trip_ids))
+            .filter(seat_inventory::Column::SeatId.is_in(seat_ids))
+            .filter(seat_inventory::Column::Status.eq("available"))
+            .filter(seat_inventory::Column::FinalPrice.ne(price))
+            .exec(self.db.as_ref())
+            .await?;
+        Ok(res.rows_affected)
+    }
+
+    async fn available_price_ranges(
+        &self,
+        trip_ids: Vec<Uuid>,
+    ) -> StoreResult<std::collections::HashMap<Uuid, (i64, i64)>> {
+        use sea_orm::sea_query::Expr;
+        if trip_ids.is_empty() {
+            return Ok(Default::default());
+        }
+        let rows: Vec<(Uuid, i64, i64)> = seat_inventory::Entity::find()
+            .filter(seat_inventory::Column::TripSessionId.is_in(trip_ids))
+            .filter(seat_inventory::Column::Status.eq("available"))
+            .select_only()
+            .column(seat_inventory::Column::TripSessionId)
+            .column_as(Expr::col(seat_inventory::Column::FinalPrice).min(), "min")
+            .column_as(Expr::col(seat_inventory::Column::FinalPrice).max(), "max")
+            .group_by(seat_inventory::Column::TripSessionId)
+            .into_tuple()
+            .all(self.db.as_ref())
+            .await?;
+        Ok(rows
+            .into_iter()
+            .map(|(trip, min, max)| (trip, (min, max)))
+            .collect())
     }
 
     async fn list_active_campaigns(&self, limit: u64) -> StoreResult<Vec<campaign::Model>> {

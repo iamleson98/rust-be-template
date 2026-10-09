@@ -163,6 +163,7 @@ async fn bus_layout_create_generates_seats_and_drives_trip_capacity() -> anyhow:
             vehicle_type_id: Some(vt_id),
             base_price_adult: Some(180_000),
             base_price_child: None,
+            class_fares: None,
             amenities: None,
             points: None,
         })
@@ -409,6 +410,7 @@ async fn trip_on_layout(
             vehicle_type_id: None,
             base_price_adult: Some(180_000),
             base_price_child: None,
+            class_fares: None,
             amenities: None,
             points: None,
         })

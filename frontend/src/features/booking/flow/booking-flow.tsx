@@ -95,8 +95,7 @@ export function BookingFlow() {
               method={method}
               onMethodChange={setMethod}
               promo={promo}
-              seatCount={booking.seats.length}
-              subtotal={booking.subtotal}
+              tickets={booking.tickets}
               total={total}
               error={checkout.error}
               submitting={checkout.submitting}

@@ -5,8 +5,9 @@ export type BookingStep = 'idle' | 'passengers' | 'contact' | 'payment' | 'pay' 
 export type BookingContext = {
   tripId: string
   seatIds: string[]
-  boardingPointId: string
-  droppingPointId: string
+  /** Absent when the route has no pickup points to choose from. */
+  boardingPointId: string | null
+  droppingPointId: string | null
 }
 
 type BookingFlowState = {

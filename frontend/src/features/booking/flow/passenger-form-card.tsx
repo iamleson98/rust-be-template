@@ -1,7 +1,6 @@
 'use client'
 
 import type { Control } from 'react-hook-form'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { ComboboxField } from '@/components/ui/combobox'
@@ -9,36 +8,38 @@ import { FormField, FormControl, FormItem, FormMessage } from '@/components/ui/f
 import { SEAT_CLASS_LABELS } from '@/lib/labels'
 import { useMoney } from '@/lib/format'
 import { useT } from '@/lib/i18n'
-import { User, Trash2, Armchair } from 'lucide-react'
+import { User, Armchair } from 'lucide-react'
+import type { PassengerType } from '../fares'
 import {
   type BookingValues,
   type PassengerFormValue,
   type SelectedSeat,
-  getPassengerType,
   PASSENGER_TYPE_META,
 } from './booking-form'
 
-/** One passenger: name, age, gender and the seat they take (seats taken by others are disabled). */
+/**
+ * One passenger: name, age, gender and the seat they take (seats taken by others
+ * are disabled), with what their ticket costs.
+ */
 export function PassengerFormCard({
   index: i,
-  passenger,
   passengers,
   seats,
   control,
-  onRemove,
+  type,
+  price,
 }: {
   index: number
-  passenger: PassengerFormValue
   passengers: PassengerFormValue[]
   seats: SelectedSeat[]
   control: Control<BookingValues>
-  /** Absent for the last remaining passenger. */
-  onRemove?: () => void
+  type: PassengerType
+  /** Absent until the passenger has a seat. */
+  price: number | undefined
 }) {
   const t = useT()
   const money = useMoney()
-  const typeMeta = PASSENGER_TYPE_META[getPassengerType(passenger.age)]
-  const assignedSeat = seats.find((s) => s.id === passenger.seatId)
+  const typeMeta = PASSENGER_TYPE_META[type]
   return (
     <div
       className={`rounded-xl border-2 bg-linear-to-br ${typeMeta.gradient} ${typeMeta.border} p-3 space-y-2.5`}
@@ -57,21 +58,10 @@ export function PassengerFormCard({
           <Badge className={`${typeMeta.pill} border-0 text-[10px] gap-1 shrink-0`}>
             {typeMeta.icon}
             {t(typeMeta.label)}
-            {getPassengerType(passenger.age) === 'infant' && (
-              <span className="opacity-70">{t('bookingFlow.infantFree')}</span>
-            )}
           </Badge>
         </div>
-        {onRemove && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 w-7 p-0 text-muted-foreground hover:text-rose-600 hover:bg-rose-50 shrink-0"
-            onClick={onRemove}
-            aria-label={t('bookingFlow.removePassenger')}
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
+        {price !== undefined && (
+          <span className={`text-sm font-bold tabular-nums ${typeMeta.text}`}>{money(price)}</span>
         )}
       </div>
 
@@ -171,7 +161,7 @@ export function PassengerFormCard({
                     const assignedToIdx = assignedTo ? passengers.indexOf(assignedTo) + 1 : null
                     return {
                       value: s.id,
-                      label: `${s.code} • ${t(SEAT_CLASS_LABELS[s.class] ?? s.class)} • ${money(s.price)}${
+                      label: `${s.code} • ${t(SEAT_CLASS_LABELS[s.class] ?? s.class)}${
                         assignedTo
                           ? ` • ${t('bookingFlow.seatTakenBy', { index: assignedToIdx ?? 0 })}`
                           : ''
@@ -189,11 +179,6 @@ export function PassengerFormCard({
             </FormItem>
           )}
         />
-        {assignedSeat && (
-          <Badge variant="outline" className="font-mono text-[10px] shrink-0 gap-1">
-            {money(assignedSeat.price)}
-          </Badge>
-        )}
       </div>
     </div>
   )

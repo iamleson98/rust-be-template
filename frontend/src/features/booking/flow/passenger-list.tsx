@@ -2,30 +2,30 @@
 
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { AlertTriangle, Baby, CheckCircle2, User, UserCheck } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Info, User, UserCheck } from 'lucide-react'
+import type { ChildFarePolicy } from '@/api'
 import { useMoney } from '@/lib/format'
 import { useT } from '@/lib/i18n'
-import type { PassengerFormValue } from './booking-form'
+import type { Ticket } from './use-booking-form'
 
-/** Head count by passenger type, the seat subtotal, and what still blocks continuing. */
+/** Head count by passenger type, the ticket subtotal, and what still blocks continuing. */
 export function PassengerSummary({
-  passengers,
-  seatCount,
+  tickets,
+  childFare,
   subtotal,
   unassigned,
   duplicateSeats,
 }: {
-  passengers: PassengerFormValue[]
-  seatCount: number
+  tickets: Ticket[]
+  childFare: ChildFarePolicy | null
   subtotal: number
   unassigned: number
   duplicateSeats: boolean
 }) {
   const t = useT()
   const money = useMoney()
-  const adult = passengers.filter((p) => p.age >= 12).length
-  const child = passengers.filter((p) => p.age >= 2 && p.age < 12).length
-  const infant = passengers.filter((p) => p.age < 2).length
+  const seated = tickets.filter((ticket) => ticket.passenger)
+  const children = seated.filter((ticket) => ticket.type === 'child').length
 
   return (
     <div className="rounded-lg border bg-white p-3 space-y-2">
@@ -36,21 +36,25 @@ export function PassengerSummary({
       <div className="flex flex-wrap items-center gap-2 text-xs">
         <Badge className="bg-blue-100 text-blue-700 border-0 gap-1">
           <User className="h-3 w-3" />
-          {t('bookingFlow.countAdult', { count: adult })}
+          {t('bookingFlow.countAdult', { count: seated.length - children })}
         </Badge>
-        <Badge className="bg-amber-100 text-amber-700 border-0 gap-1">
-          <UserCheck className="h-3 w-3" />
-          {t('bookingFlow.countChild', { count: child })}
-        </Badge>
-        {infant > 0 && (
-          <Badge className="bg-pink-100 text-pink-700 border-0 gap-1">
-            <Baby className="h-3 w-3" />
-            {t('bookingFlow.countInfant', { count: infant })}
+        {childFare && (
+          <Badge className="bg-amber-100 text-amber-700 border-0 gap-1">
+            <UserCheck className="h-3 w-3" />
+            {t('bookingFlow.countChild', { count: children })}
           </Badge>
         )}
         <Separator orientation="vertical" className="h-4" />
         <span className="text-muted-foreground">{t('bookingFlow.seatSubtotal')}</span>
-        <span className="font-bold text-blue-700">{money(subtotal)}</span>
+        <span className="font-bold text-blue-700 tabular-nums">{money(subtotal)}</span>
+      </div>
+      <div className="flex items-start gap-1.5 text-[11px] text-muted-foreground">
+        <Info className="h-3.5 w-3.5 shrink-0 mt-px" />
+        <span>
+          {childFare
+            ? t('bookingFlow.childFareRule', { age: childFare.maxAge })
+            : t('bookingFlow.noChildFare')}
+        </span>
       </div>
       {unassigned > 0 && (
         <div className="flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2 py-1.5">
@@ -64,13 +68,12 @@ export function PassengerSummary({
           <span>{t('bookingFlow.duplicateSeatsWarning')}</span>
         </div>
       )}
-      {unassigned === 0 && !duplicateSeats && passengers.length > 0 && (
+      {unassigned === 0 && !duplicateSeats && seated.length > 0 && (
         <div className="flex items-center gap-1.5 text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded-md px-2 py-1.5">
           <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
           <span>{t('bookingFlow.allSeatsAssigned')}</span>
         </div>
       )}
-      <span className="sr-only">{t('bookingFlow.seatsSelectedCount', { count: seatCount })}</span>
     </div>
   )
 }

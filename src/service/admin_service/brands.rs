@@ -8,8 +8,10 @@ use super::{now_iso, AdminService};
 use crate::dto::admin::{
     AdminBrandListResponse, AdminBrandOut, AdminMutationResponse, UpsertBrandRequest,
 };
+use crate::dto::fares::ChildFarePolicy;
 use crate::entity::brand;
 use crate::error::{AppError, AppResult};
+use crate::service::fares::{ChildPolicy, MAX_CHILD_AGE};
 
 impl AdminService {
     /// List all brands with route/layout counts.
@@ -54,6 +56,7 @@ impl AdminService {
                 rating: b.rating,
                 status: b.status.clone(),
                 accent_color: b.accent_color.clone(),
+                child_fare: ChildPolicy::of(b).map(Into::into),
                 total_trips: b.total_trips,
                 created_at: b.created_at.clone(),
                 updated_at: b.updated_at.clone(),
@@ -98,6 +101,11 @@ impl AdminService {
             }
         }
 
+        let child_fare = body
+            .child_fare
+            .flatten()
+            .map(valid_child_fare)
+            .transpose()?;
         let id = Uuid::new_v4();
         let now = now_iso();
         let model = brand::ActiveModel {
@@ -114,6 +122,8 @@ impl AdminService {
             total_trips: Set(0),
             created_at: Set(now.clone()),
             updated_at: Set(now),
+            child_max_age: Set(child_fare.map(|p| p.max_age)),
+            child_discount_percent: Set(child_fare.map(|p| p.discount_percent)),
         };
 
         self.store
@@ -176,6 +186,11 @@ impl AdminService {
         if let Some(v) = body.rating {
             active.rating = Set(Some(v));
         }
+        if let Some(policy) = body.child_fare {
+            let policy = policy.map(valid_child_fare).transpose()?;
+            active.child_max_age = Set(policy.map(|p| p.max_age));
+            active.child_discount_percent = Set(policy.map(|p| p.discount_percent));
+        }
 
         active.updated_at = Set(now_iso());
 
@@ -197,4 +212,18 @@ impl AdminService {
             .map_err(|e| AppError::Internal(e.to_string()))?;
         Ok(AdminMutationResponse { id })
     }
+}
+
+fn valid_child_fare(policy: ChildFarePolicy) -> AppResult<ChildFarePolicy> {
+    if !(1..=MAX_CHILD_AGE).contains(&policy.max_age) {
+        return Err(AppError::Validation(format!(
+            "childFare.maxAge must be 1–{MAX_CHILD_AGE}"
+        )));
+    }
+    if !(0..=100).contains(&policy.discount_percent) {
+        return Err(AppError::Validation(
+            "childFare.discountPercent must be 0–100".into(),
+        ));
+    }
+    Ok(policy)
 }

@@ -19,7 +19,7 @@ import { normalizePhone } from '@/lib/text'
 import { useBookingFlow, type BookingContext } from '@/stores/booking-flow'
 import { useGuest } from '@/stores/guest'
 import { usePayment } from '../api'
-import { getPassengerType, type BookingValues } from './booking-form'
+import type { BookingValues } from './booking-form'
 import type { PaymentMethodKey } from './payment-method'
 
 /** Online methods and the provider the payment API expects for each. */
@@ -29,12 +29,24 @@ const PROVIDER: Partial<Record<PaymentMethodKey, PaymentProvider>> = {
   bank: 'vietqr',
 }
 
-/** Runs `work`; a failure becomes an Error whose message is what the customer should read. */
-async function orFail<T>(work: Promise<T>, fallback: string, verbatim = false): Promise<T> {
+/** API error kinds the customer can act on, and what to tell them. */
+const KNOWN_FAILURES: Record<string, string> = {
+  conflict: 'bookingFlow.seatsTaken',
+  gone: 'bookingFlow.holdExpired',
+  unauthorized: 'bookingFlow.signInAgain',
+}
+
+/**
+ * Runs `work`; a failure becomes an Error whose message is what the customer should
+ * read, in their language: a known cause when the API names one, else `fallback`.
+ */
+async function orFail<T>(work: Promise<T>, fallback: string, t: (key: string) => string) {
   try {
     return await work
   } catch (error) {
-    throw new Error(verbatim ? fallback : getErrorMessage(error, fallback))
+    const kind = (error as { error?: unknown } | null)?.error
+    const known = typeof kind === 'string' ? KNOWN_FAILURES[kind] : undefined
+    throw new Error(known ? t(known) : fallback)
   }
 }
 
@@ -100,6 +112,7 @@ export function useCheckout({ form, context, method, promoCode }: Options) {
         body: { bookingId: held.bookingId, provider: PROVIDER[method] ?? 'vnpay' },
       }),
       t('payment.createFailed'),
+      t,
     )
     if (!created?.id) throw new Error(t('payment.createFailed'))
     setPaymentId(created.id)
@@ -116,10 +129,11 @@ export function useCheckout({ form, context, method, promoCode }: Options) {
           body: {
             tripId: context.tripId,
             seatIds: context.seatIds,
+            // The server prices each seat by its class and the passenger's age.
             passengers: values.passengers.map((p) => ({
               name: p.name,
-              type: getPassengerType(p.age),
               age: p.age,
+              seatId: p.seatId,
             })),
             boardingPointId: context.boardingPointId,
             droppingPointId: context.droppingPointId,
@@ -130,6 +144,7 @@ export function useCheckout({ form, context, method, promoCode }: Options) {
           },
         }),
         t('bookingFlow.holdFailed'),
+        t,
       )
       if (!held.bookingId) throw new Error(t('bookingFlow.holdFailed'))
       setHold(held)
@@ -137,7 +152,7 @@ export function useCheckout({ form, context, method, promoCode }: Options) {
         await orFail(
           confirm.mutateAsync({ path: { id: held.bookingId }, body: { paymentMethod: 'cod' } }),
           t('payment.failed'),
-          true,
+          t,
         )
         complete(held)
       } else {

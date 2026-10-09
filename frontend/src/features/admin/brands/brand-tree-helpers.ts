@@ -156,3 +156,9 @@ export function vehicleCodeLabel(code: string | null | undefined): string {
   const key = VEHICLE_LABELS[code]
   return key ? L(key) : code
 }
+
+/** Cheapest and dearest adult fare a schedule sells, across its seat classes. */
+export function schedulePriceRange(schedule: AdminScheduleOut): [number, number] {
+  const prices = [schedule.basePriceAdult, ...schedule.classFares.map((f) => f.priceAdult)]
+  return [Math.min(...prices), Math.max(...prices)]
+}

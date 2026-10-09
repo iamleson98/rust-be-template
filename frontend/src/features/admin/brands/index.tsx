@@ -430,6 +430,7 @@ export function AdminBrandManagement() {
         busLayouts={busLayouts}
         brandId={scheduleDialog.brand?.id}
         brandName={scheduleDialog.brand?.name}
+        childFare={scheduleDialog.brand?.childFare}
         onOpenChange={(open) =>
           setScheduleDialog((prev) =>
             open ? prev : { open: false, schedule: null, route: null, brand: null },

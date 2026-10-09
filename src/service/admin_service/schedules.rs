@@ -11,8 +11,10 @@ use crate::dto::admin::{
     AdminMutationResponse, AdminScheduleListResponse, AdminScheduleOut, AdminSchedulePointOut,
     UpsertSchedulePointItem, UpsertScheduleRequest,
 };
-use crate::entity::{address, schedule, schedule_point, vehicle_type};
+use crate::dto::fares::SeatClassFare;
+use crate::entity::{address, schedule, schedule_fare, schedule_point, vehicle_type};
 use crate::error::{AppError, AppResult};
+use crate::service::fares::{self, normalize_class, MAX_CLASS_CHARS};
 
 impl AdminService {
     /// List schedules for a route, including each schedule's ordered
@@ -30,6 +32,12 @@ impl AdminService {
         }
 
         let schedule_ids: Vec<Uuid> = schedules.iter().map(|s| s.id).collect();
+        let class_fares = self
+            .store
+            .schedule_store()
+            .list_fares(schedule_ids.clone())
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let points = self
             .store
             .address_store()
@@ -102,6 +110,13 @@ impl AdminService {
                         .map(vehicle_type_out),
                     base_price_adult: s.base_price_adult,
                     base_price_child: s.base_price_child,
+                    class_fares: fares::class_fares_out(
+                        &class_fares
+                            .iter()
+                            .filter(|f| f.schedule_id == s.id)
+                            .cloned()
+                            .collect::<Vec<_>>(),
+                    ),
                     amenities: s.amenities.clone(),
                     points: schedule_points,
                     created_at: s.created_at.clone(),
@@ -149,8 +164,16 @@ impl AdminService {
         }
 
         let id = Uuid::new_v4();
-        // Validate the point sequence BEFORE inserting the schedule so a
-        // rejected payload can't leave a half-configured schedule behind.
+        let base_price_adult = body.base_price_adult.unwrap_or(0);
+        let base_price_child = child_override(body.base_price_child);
+        check_child_price("basePriceChild", base_price_child, base_price_adult)?;
+        // Validate the point sequence and fares BEFORE inserting the schedule
+        // so a rejected payload can't leave a half-configured schedule behind.
+        let fare_models = body
+            .class_fares
+            .as_deref()
+            .map(|items| fare_rows(id, items))
+            .transpose()?;
         let point_models = match &body.points {
             Some(items) => Some(self.build_schedule_points(route_id, id, items).await?),
             None => None,
@@ -166,8 +189,8 @@ impl AdminService {
             days_of_week: Set(days_of_week),
             bus_layout_id: Set(body.bus_layout_id),
             vehicle_type_id: Set(body.vehicle_type_id),
-            base_price_adult: Set(body.base_price_adult.unwrap_or(0)),
-            base_price_child: Set(body.base_price_child),
+            base_price_adult: Set(base_price_adult),
+            base_price_child: Set(base_price_child),
             amenities: Set(body.amenities.clone()),
             created_at: Set(now),
         };
@@ -180,6 +203,9 @@ impl AdminService {
 
         if let Some(models) = point_models {
             self.insert_points(models).await?;
+        }
+        if let Some(models) = fare_models {
+            self.save_fares(id, models).await?;
         }
 
         Ok(AdminMutationResponse { id })
@@ -200,6 +226,17 @@ impl AdminService {
             .ok_or_else(|| AppError::NotFound("schedule not found".into()))?;
 
         let original_route_id = existing.route_id;
+        let base_price_adult = body.base_price_adult.unwrap_or(existing.base_price_adult);
+        let base_price_child = match body.base_price_child {
+            Some(v) => child_override(Some(v)),
+            None => existing.base_price_child,
+        };
+        check_child_price("basePriceChild", base_price_child, base_price_adult)?;
+        let fare_models = body
+            .class_fares
+            .as_deref()
+            .map(|items| fare_rows(id, items))
+            .transpose()?;
         let mut active: schedule::ActiveModel = existing.into();
 
         // The (possibly updated) route scopes point validation — resolve it
@@ -239,17 +276,14 @@ impl AdminService {
             self.ensure_vehicle_type_exists(v).await?;
             active.vehicle_type_id = Set(Some(v));
         }
-        if let Some(v) = body.base_price_adult {
-            active.base_price_adult = Set(v);
-        }
-        if let Some(v) = body.base_price_child {
-            active.base_price_child = Set(Some(v));
-        }
+        active.base_price_adult = Set(base_price_adult);
+        active.base_price_child = Set(base_price_child);
         if let Some(ref v) = body.amenities {
             active.amenities = Set(Some(v.clone()));
         }
 
-        self.store
+        let updated = self
+            .store
             .schedule_store()
             .update_schedule(active)
             .await
@@ -258,8 +292,25 @@ impl AdminService {
         if let Some(models) = point_models {
             self.replace_points(id, models).await?;
         }
+        if let Some(models) = fare_models {
+            self.save_fares(id, models).await?;
+        }
+        // Seats still for sale on upcoming trips follow the new prices.
+        fares::reprice_upcoming(&self.store, &updated).await?;
 
         Ok(AdminMutationResponse { id })
+    }
+
+    async fn save_fares(
+        &self,
+        schedule_id: Uuid,
+        models: Vec<schedule_fare::ActiveModel>,
+    ) -> AppResult<()> {
+        self.store
+            .schedule_store()
+            .replace_fares(schedule_id, models)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))
     }
 
     /// Delete a schedule by id.
@@ -450,5 +501,112 @@ fn point_kind(index: usize, total: usize) -> &'static str {
         "drop"
     } else {
         "middle"
+    }
+}
+
+/// A child price of 0 (or none) means "use the brand's child discount".
+fn child_override(price: Option<i64>) -> Option<i64> {
+    price.filter(|&p| p > 0)
+}
+
+fn check_child_price(field: &str, child: Option<i64>, adult: i64) -> AppResult<()> {
+    match child {
+        Some(child) if child > adult => Err(AppError::Validation(format!(
+            "{field} cannot be higher than the adult price"
+        ))),
+        _ => Ok(()),
+    }
+}
+
+/// Rows for a schedule's class fares: one per class, never `standard`
+/// (that is the base price), a child price no higher than the adult one.
+fn fare_rows(
+    schedule_id: Uuid,
+    items: &[SeatClassFare],
+) -> AppResult<Vec<schedule_fare::ActiveModel>> {
+    let now = now_iso();
+    let mut seen = std::collections::HashSet::new();
+    items
+        .iter()
+        .map(|item| {
+            let class = normalize_class(Some(&item.seat_class)).ok_or_else(|| {
+                AppError::Validation(
+                    "classFares: standard seats are priced by basePriceAdult".into(),
+                )
+            })?;
+            if class.chars().count() > MAX_CLASS_CHARS {
+                return Err(AppError::Validation(format!(
+                    "classFares: seat class `{class}` is too long"
+                )));
+            }
+            if !seen.insert(class.clone()) {
+                return Err(AppError::Validation(format!(
+                    "classFares: `{class}` is priced twice"
+                )));
+            }
+            let child = child_override(item.price_child);
+            check_child_price(
+                &format!("classFares.{class}.priceChild"),
+                child,
+                item.price_adult,
+            )?;
+            Ok(schedule_fare::ActiveModel {
+                id: Set(Uuid::new_v4()),
+                schedule_id: Set(schedule_id),
+                seat_class: Set(class),
+                price_adult: Set(item.price_adult),
+                price_child: Set(child),
+                created_at: Set(now.clone()),
+                updated_at: Set(now.clone()),
+            })
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn fare(class: &str, adult: i64, child: Option<i64>) -> SeatClassFare {
+        SeatClassFare {
+            seat_class: class.into(),
+            price_adult: adult,
+            price_child: child,
+        }
+    }
+
+    fn rejected(items: &[SeatClassFare]) -> bool {
+        matches!(
+            fare_rows(Uuid::new_v4(), items),
+            Err(AppError::Validation(_))
+        )
+    }
+
+    #[test]
+    fn class_fares_are_normalized_and_zero_child_prices_dropped() {
+        let rows = fare_rows(
+            Uuid::new_v4(),
+            &[
+                fare(" VIP ", 500_000, Some(0)),
+                fare("bed_upper", 300_000, Some(250_000)),
+            ],
+        )
+        .unwrap();
+        let read = |r: &schedule_fare::ActiveModel| {
+            (
+                r.seat_class.clone().unwrap(),
+                r.price_child.clone().unwrap(),
+            )
+        };
+        assert_eq!(read(&rows[0]), ("vip".into(), None));
+        assert_eq!(read(&rows[1]), ("bed_upper".into(), Some(250_000)));
+    }
+
+    #[test]
+    fn standard_duplicates_and_dear_child_prices_are_rejected() {
+        assert!(rejected(&[fare("standard", 300_000, None)]));
+        assert!(rejected(&[fare("vip", 1, None), fare("VIP", 2, None)]));
+        assert!(rejected(&[fare("vip", 400_000, Some(400_001))]));
+        assert!(rejected(&[fare(&"x".repeat(31), 1, None)]));
     }
 }

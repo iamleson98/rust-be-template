@@ -1,33 +1,34 @@
-/**
- * Tests for the PriceSummary component — the price-breakdown box.
- */
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { PriceSummary } from '@/features/booking/flow/price-summary'
+import type { Ticket } from '@/features/booking/flow/use-booking-form'
+
+const ticket = (code: string, type: Ticket['type'], price: number): Ticket => ({
+  seat: { id: code, code, class: 'vip', price: 400_000, childPrice: 300_000 },
+  passengerIndex: 0,
+  passenger: undefined,
+  type,
+  price,
+})
 
 describe('PriceSummary', () => {
-  const baseProps = {
-    seatCount: 2,
-    subtotal: 300000,
-    discount: 0,
-    total: 300000,
-  }
+  const tickets = [ticket('A01', 'adult', 400_000), ticket('A02', 'child', 300_000)]
 
-  it('renders subtotal and total', () => {
-    render(<PriceSummary {...baseProps} />)
-    // The amount 300.000 appears in both subtotal and total
-    const matches = screen.getAllByText(/300\.000/)
-    expect(matches.length).toBeGreaterThanOrEqual(1)
+  it('lists every ticket at its own price and the total', () => {
+    render(<PriceSummary tickets={tickets} discount={0} total={700_000} />)
+    expect(screen.getByText('A01')).toBeInTheDocument()
+    expect(screen.getByText(/400\.000/)).toBeInTheDocument()
+    expect(screen.getByText(/300\.000/)).toBeInTheDocument()
+    expect(screen.getByText(/700\.000/)).toBeInTheDocument()
   })
 
-  it('hides discount when 0', () => {
-    render(<PriceSummary {...baseProps} />)
-    expect(screen.queryByText(/khuyến mãi/i)).toBeNull()
+  it('hides the discount line when there is none', () => {
+    render(<PriceSummary tickets={tickets} discount={0} total={700_000} />)
+    expect(screen.queryByText(/^-/)).toBeNull()
   })
 
-  it('shows discount when > 0', () => {
-    render(<PriceSummary {...baseProps} promoCode="TET2025" discount={30000} total={270000} />)
-    // The discount amount should appear somewhere
+  it('shows the promo discount', () => {
+    render(<PriceSummary tickets={tickets} promoCode="TET" discount={30_000} total={670_000} />)
     expect(screen.getByText(/30\.000/)).toBeInTheDocument()
   })
 })

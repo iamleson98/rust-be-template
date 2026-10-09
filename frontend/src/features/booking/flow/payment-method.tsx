@@ -11,6 +11,7 @@ import { PaymentTrustBadges } from '@/components/seo/trust-signals'
 import type { PaymentProvider } from '@/lib/payment'
 import { ProviderTile } from './provider-tile'
 import type { PromoCode } from './use-promo-code'
+import type { Ticket } from './use-booking-form'
 
 export type PaymentMethodKey = 'momo' | 'vnpay' | 'bank' | 'cod'
 
@@ -37,8 +38,7 @@ export function PaymentMethodStep({
   method,
   onMethodChange,
   promo,
-  seatCount,
-  subtotal,
+  tickets,
   total,
   error,
   submitting,
@@ -48,8 +48,7 @@ export function PaymentMethodStep({
   method: PaymentMethodKey
   onMethodChange: (method: PaymentMethodKey) => void
   promo: PromoCode
-  seatCount: number
-  subtotal: number
+  tickets: Ticket[]
   total: number
   error: string
   submitting: boolean
@@ -147,8 +146,7 @@ export function PaymentMethodStep({
       </div>
 
       <PriceSummary
-        seatCount={seatCount}
-        subtotal={subtotal}
+        tickets={tickets}
         promoCode={promo.appliedCode}
         discount={promo.discount}
         total={total}
