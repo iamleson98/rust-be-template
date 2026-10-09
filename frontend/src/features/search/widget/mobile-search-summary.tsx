@@ -69,15 +69,27 @@ export function MobileSearchSummary({
         aria-label={t('searchPage.editSearch')}
         className="flex w-full items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 h-12 text-left shadow-none"
       >
-        <CircleDot className="h-4 w-4 text-primary shrink-0" />
-        <span className="text-sm font-semibold truncate min-w-0 max-w-28">
-          {searchParams.from || t('search.placeholder')}
-        </span>
-        <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-        <MapPin className="h-4 w-4 text-rose-600 shrink-0" />
-        <span className="text-sm font-semibold truncate min-w-0 max-w-28 flex-1">
-          {searchParams.to || t('search.placeholder')}
-        </span>
+        {searchParams.from || searchParams.to ? (
+          <>
+            <CircleDot className="h-4 w-4 text-primary shrink-0" />
+            <span className="text-sm font-semibold truncate min-w-0 max-w-28">
+              {searchParams.from || t('search.placeholder')}
+            </span>
+            <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <MapPin className="h-4 w-4 text-rose-600 shrink-0" />
+            <span className="text-sm font-semibold truncate min-w-0 max-w-28 flex-1">
+              {searchParams.to || t('search.placeholder')}
+            </span>
+          </>
+        ) : (
+          // Nothing chosen yet: one prompt, not two clipped placeholders.
+          <>
+            <Search className="h-4 w-4 text-primary shrink-0" />
+            <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
+              {t('searchPage.wherePrompt')}
+            </span>
+          </>
+        )}
         <span className="text-xs text-muted-foreground shrink-0 flex items-center gap-1.5">
           {dateShort && <span className="tabular-nums">{dateShort}</span>}
           <span aria-hidden>·</span>

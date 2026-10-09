@@ -5,6 +5,8 @@ import { toast } from 'sonner'
 import type { TripDetail } from '@/api'
 import { useT } from '@/lib/i18n'
 import { useGuest } from '@/stores/guest'
+import { isStaffUser, useSession } from '@/stores/session'
+import { localPhone } from '@/lib/text'
 import { passengerType, ticketPrice, type PassengerType } from '../fares'
 import {
   bookingSchema,
@@ -14,6 +16,23 @@ import {
 } from './booking-form'
 
 const EMPTY: BookingValues = { passengers: [], contactName: '', contactPhone: '', contactEmail: '' }
+
+/**
+ * Who to put as the contact before anything is typed: the signed-in
+ * customer's own details, else the last contact used on this device. Staff
+ * book for callers, so nothing is filled in for them.
+ */
+function contactDefaults(): Partial<BookingValues> {
+  const user = useSession.getState().user
+  if (isStaffUser(user)) return {}
+  const { guestName, guestPhone } = useGuest.getState()
+  const phone = user?.phone || guestPhone
+  return {
+    contactName: user?.name || guestName || '',
+    contactPhone: phone ? localPhone(phone) : '',
+    contactEmail: user?.email ?? '',
+  }
+}
 
 const ADULT_AGE = 30
 const CHILD_AGE = 5
@@ -83,7 +102,12 @@ export function useBookingForm({ trip, seatIds, adults, children }: Options) {
     if (!seatKey) return
     const ids = seatKey.split(',')
     const age = (i: number) => (i >= adults && i < adults + children ? CHILD_AGE : ADULT_AGE)
-    form.reset({ ...EMPTY, passengers: ids.map((id, i) => passenger(age(i), id)) })
+    form.reset({
+      ...EMPTY,
+      // Read once per reset: a session refresh must not wipe what was typed.
+      ...contactDefaults(),
+      passengers: ids.map((id, i) => passenger(age(i), id)),
+    })
   }, [form, seatKey, adults, children])
 
   // `useWatch` follows edits of nested fields; `form.watch('passengers')` does not.

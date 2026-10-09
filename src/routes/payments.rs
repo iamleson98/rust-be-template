@@ -26,8 +26,8 @@ use validator::Validate;
 use crate::dto::payment::{
     AdminPaymentListResponse, AdminPaymentSummary, AdminPaymentsQuery, CancelPaymentReq,
     CancelPaymentResponse, CreatePaymentReq, CreatePaymentResponse, ListPaymentsResponse,
-    MarkCodCollectedReq, MarkCodCollectedResponse, PaymentOut, UpdatePaymentStatusReq,
-    UpdatePaymentStatusResponse,
+    MarkCodCollectedReq, MarkCodCollectedResponse, PaymentOut, PaymentProvidersResponse,
+    UpdatePaymentStatusReq, UpdatePaymentStatusResponse,
 };
 use crate::error::AppError;
 use crate::middleware::{AdminUser, MaybeAuthUser};
@@ -69,6 +69,19 @@ pub async fn create_payment(
             .create_payment(&body, user_id.as_deref())
             .await?,
     ))
+}
+
+/// `GET /api/payments/providers` — the providers checkout can offer.
+#[utoipa::path(
+    get,
+    path = "/api/payments/providers",
+    tag = "payments",
+    responses(
+        (status = 200, description = "Enabled payment providers", body = PaymentProvidersResponse),
+    )
+)]
+pub async fn list_providers(State(st): State<AppState>) -> Json<PaymentProvidersResponse> {
+    Json(st.payments.enabled_providers())
 }
 
 /// `GET /api/payments/{id}` — get payment status (for polling).
@@ -446,6 +459,7 @@ pub fn router() -> axum::Router<crate::state::AppState> {
     use axum::routing::{get, post};
     axum::Router::new()
         .route("/", post(create_payment))
+        .route("/providers", get(list_providers))
         .route("/booking/{bookingId}", get(list_booking_payments))
         .route("/{id}", get(get_payment))
         .route("/{id}/cancel", post(cancel_payment))

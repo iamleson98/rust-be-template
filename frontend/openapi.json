@@ -4407,6 +4407,27 @@
         }
       }
     },
+    "/api/payments/providers": {
+      "get": {
+        "tags": [
+          "payments"
+        ],
+        "summary": "`GET /api/payments/providers` — the providers checkout can offer.",
+        "operationId": "list_providers",
+        "responses": {
+          "200": {
+            "description": "Enabled payment providers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentProvidersResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/payments/{id}": {
       "get": {
         "tags": [
@@ -10934,6 +10955,22 @@
               "null"
             ],
             "format": "uuid"
+          }
+        }
+      },
+      "PaymentProvidersResponse": {
+        "type": "object",
+        "description": "Response of `GET /api/payments/providers`.",
+        "required": [
+          "providers"
+        ],
+        "properties": {
+          "providers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The providers this deployment takes payments with\n(`momo` | `vnpay` | `zalopay` | `cod` | `vietqr`)."
           }
         }
       },

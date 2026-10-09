@@ -277,6 +277,15 @@ pub struct AdminPaymentListResponse {
     pub total: Option<u64>,
 }
 
+/// Response of `GET /api/payments/providers`.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PaymentProvidersResponse {
+    /// The providers this deployment takes payments with
+    /// (`momo` | `vnpay` | `zalopay` | `cod` | `vietqr`).
+    pub providers: Vec<String>,
+}
+
 /// Response of `GET /api/admin/payments/summary`: totals over every payment.
 #[derive(Debug, Default, PartialEq, Eq, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]

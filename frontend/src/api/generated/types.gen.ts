@@ -2098,6 +2098,17 @@ export type PaymentOut = {
 };
 
 /**
+ * Response of `GET /api/payments/providers`.
+ */
+export type PaymentProvidersResponse = {
+    /**
+     * The providers this deployment takes payments with
+     * (`momo` | `vnpay` | `zalopay` | `cod` | `vietqr`).
+     */
+    providers: Array<string>;
+};
+
+/**
  * Response of `GET /api/places`.
  */
 export type PlaceListResponse = {
@@ -6791,6 +6802,22 @@ export type ZalopayCallbackResponses = {
 };
 
 export type ZalopayCallbackResponse = ZalopayCallbackResponses[keyof ZalopayCallbackResponses];
+
+export type ListProvidersData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/payments/providers';
+};
+
+export type ListProvidersResponses = {
+    /**
+     * Enabled payment providers
+     */
+    200: PaymentProvidersResponse;
+};
+
+export type ListProvidersResponse = ListProvidersResponses[keyof ListProvidersResponses];
 
 export type GetPaymentData = {
     body?: never;

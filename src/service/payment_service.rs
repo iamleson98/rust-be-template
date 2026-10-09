@@ -42,7 +42,7 @@ use crate::config::PaymentConfig;
 use crate::dto::payment::{
     AdminPaymentListResponse, AdminPaymentOut, AdminPaymentSummary, BankTransferInstructions,
     CancelPaymentResponse, CreatePaymentReq, CreatePaymentResponse, ListPaymentsResponse,
-    MarkCodCollectedResponse, PaymentOut, UpdatePaymentStatusResponse,
+    MarkCodCollectedResponse, PaymentOut, PaymentProvidersResponse, UpdatePaymentStatusResponse,
 };
 use crate::entity::payment::{self};
 use crate::error::{AppError, AppResult};
@@ -121,6 +121,17 @@ impl PaymentService {
             other => Err(AppError::BadRequest(format!(
                 "provider '{other}' is not enabled"
             ))),
+        }
+    }
+
+    /// The providers checkout can offer: exactly those `select_provider` accepts.
+    pub fn enabled_providers(&self) -> PaymentProvidersResponse {
+        PaymentProvidersResponse {
+            providers: providers::ALL
+                .iter()
+                .filter(|p| self.select_provider(p).is_ok())
+                .map(|p| p.to_string())
+                .collect(),
         }
     }
 
@@ -1180,6 +1191,13 @@ mod tests {
             .unwrap();
         assert_eq!(f.payment_status(made.payment.id).await, "completed");
         assert_eq!(f.booking(held.booking_id).await.status, "confirmed");
+    }
+
+    #[tokio::test]
+    async fn checkout_offers_only_the_providers_that_are_set_up() {
+        let f = fixture(1).await;
+        // The fixture enables cash only; no gateway has credentials.
+        assert_eq!(f.payments.enabled_providers().providers, ["cod"]);
     }
 
     #[tokio::test]

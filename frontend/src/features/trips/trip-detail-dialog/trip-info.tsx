@@ -4,7 +4,7 @@ import { DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useT } from '@/lib/i18n'
-import { Star, Navigation, Calendar, Clock, AlertTriangle, Share2 } from 'lucide-react'
+import { AlertTriangle, ArrowRight, Calendar, Clock, Share2, Star } from 'lucide-react'
 import { formatTimeVN, formatDateVN } from '@/lib/format'
 import type { TripDetail } from '@/api'
 import { amenityIcon } from './amenity-icons'
@@ -13,9 +13,13 @@ import { amenityIcon } from './amenity-icons'
 export function TripInfo({ detail, onShare }: { detail: TripDetail; onShare: () => void }) {
   const t = useT()
   const brandName = detail.brand.name ?? ''
+  const vehicle = detail.busLayout.vehicleTypeLabel
+  const layout = detail.busLayout.name
+  // "Giường nằm · Giường nằm 40" says it twice: the layout name only when it adds something.
+  const bus = layout && !layout.includes(vehicle) ? `${vehicle} · ${layout}` : (layout ?? vehicle)
   // pr-16 keeps the dialog's close button clear of the share button.
   return (
-    <div className="px-5 py-4 pr-16 border-b bg-linear-to-r from-slate-50 to-white shrink-0">
+    <div className="shrink-0 border-b bg-background px-5 py-4 pr-16">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 mb-1.5">
@@ -31,26 +35,24 @@ export function TripInfo({ detail, onShare }: { detail: TripDetail; onShare: () 
             </div>
             <div className="min-w-0">
               <div className="font-bold truncate">{brandName}</div>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span className="flex items-center gap-0.5 text-amber-500">
+              <div className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+                <span className="flex shrink-0 items-center gap-0.5 text-amber-500">
                   <Star className="h-3 w-3 fill-current" />
                   {detail.brand.rating.toFixed(1)}
                 </span>
-                <span>•</span>
-                <span>{detail.busLayout.vehicleTypeLabel}</span>
-                <span>•</span>
-                <span>{detail.busLayout.name ?? detail.busLayout.vehicleTypeLabel}</span>
+                <span aria-hidden>•</span>
+                <span className="truncate">{bus}</span>
               </div>
             </div>
           </div>
-          <DialogTitle className="text-base font-bold flex items-center gap-2 flex-wrap">
+          <DialogTitle className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-base leading-snug font-bold">
             {detail.from.name}
-            <Navigation className="h-3.5 w-3.5 text-blue-700" />
+            <ArrowRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
             {detail.to.name}
           </DialogTitle>
           <DialogDescription className="text-xs mt-1.5 flex items-center gap-2 flex-wrap">
             {/* Prominent departure date with calendar icon */}
-            <span className="inline-flex items-center gap-1.5 rounded-md bg-blue-50 text-blue-800 px-2 py-0.5 font-semibold">
+            <span className="inline-flex items-center gap-1.5 rounded-md bg-primary/10 px-2 py-0.5 font-semibold text-primary">
               <Calendar className="h-3.5 w-3.5" />
               {formatDateVN(detail.trip.departureAt, {
                 weekday: 'long',
@@ -74,10 +76,11 @@ export function TripInfo({ detail, onShare }: { detail: TripDetail; onShare: () 
         <Button
           variant="outline"
           size="sm"
-          className="shrink-0 gap-1.5 border-blue-300 text-blue-700 hover:bg-blue-50"
+          className="shrink-0"
           onClick={onShare}
+          aria-label={t('trips.share')}
         >
-          <Share2 className="h-3.5 w-3.5" />
+          <Share2 />
           <span className="hidden sm:inline">{t('trips.share')}</span>
         </Button>
       </div>
@@ -88,7 +91,7 @@ export function TripInfo({ detail, onShare }: { detail: TripDetail; onShare: () 
           {detail.amenities.map((a) => (
             <span
               key={a.key}
-              className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-700"
+              className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground"
             >
               {amenityIcon[a.key]}
               {a.label}

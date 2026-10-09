@@ -16,19 +16,28 @@ import { StepActions } from './step-actions'
 
 export type PaymentMethodKey = 'momo' | 'vnpay' | 'bank' | 'cod'
 
-type PaymentOption = {
-  key: PaymentMethodKey
-  provider: PaymentProvider
-  label: string
-  sub: string
+/** The checkout methods, in display order, and the provider behind each. */
+const METHOD_PROVIDER: Record<PaymentMethodKey, PaymentProvider> = {
+  momo: 'momo',
+  vnpay: 'vnpay',
+  bank: 'vietqr',
+  cod: 'cod',
 }
 
-const getPaymentOptions = (t: ReturnType<typeof useT>): PaymentOption[] => [
-  { key: 'momo', provider: 'momo', label: t('payment.momo'), sub: t('payment.momoDesc') },
-  { key: 'vnpay', provider: 'vnpay', label: t('payment.vnpay'), sub: t('payment.vnpayDesc') },
-  { key: 'bank', provider: 'vietqr', label: t('payment.vietqr'), sub: t('payment.vietqrDesc') },
-  { key: 'cod', provider: 'cod', label: t('bookingFlow.payCod'), sub: t('bookingFlow.cash') },
-]
+/** The methods the server can take payments with (every one until it has said). */
+export function offeredMethods(enabled: PaymentProvider[] | undefined): PaymentMethodKey[] {
+  return (Object.keys(METHOD_PROVIDER) as PaymentMethodKey[]).filter(
+    (m) => !enabled || enabled.includes(METHOD_PROVIDER[m]),
+  )
+}
+
+const methodText = (t: ReturnType<typeof useT>, m: PaymentMethodKey) =>
+  ({
+    momo: { label: t('payment.momo'), sub: t('payment.momoDesc') },
+    vnpay: { label: t('payment.vnpay'), sub: t('payment.vnpayDesc') },
+    bank: { label: t('payment.vietqr'), sub: t('payment.vietqrDesc') },
+    cod: { label: t('bookingFlow.payCod'), sub: t('bookingFlow.cash') },
+  })[m]
 
 /**
  * Step 3, checkout: how to pay, the promo code (next to the price it discounts),
@@ -36,6 +45,7 @@ const getPaymentOptions = (t: ReturnType<typeof useT>): PaymentOption[] => [
  * than emoji, which render differently on every platform.
  */
 export function PaymentMethodStep({
+  methods,
   method,
   onMethodChange,
   promo,
@@ -46,6 +56,8 @@ export function PaymentMethodStep({
   onBack,
   onSubmit,
 }: {
+  /** What the server can take, see `offeredMethods`. */
+  methods: PaymentMethodKey[]
   method: PaymentMethodKey
   onMethodChange: (method: PaymentMethodKey) => void
   promo: PromoCode
@@ -58,7 +70,6 @@ export function PaymentMethodStep({
 }) {
   const t = useT()
   const money = useMoney()
-  const paymentOptions = getPaymentOptions(t)
   return (
     <div className="p-5 space-y-4">
       <div>
@@ -68,15 +79,19 @@ export function PaymentMethodStep({
           aria-label={t('payment.method')}
           className="grid grid-cols-1 sm:grid-cols-2 gap-2.5"
         >
-          {paymentOptions.map((m) => {
-            const selected = method === m.key
+          {methods.length === 0 && (
+            <p className="text-sm text-muted-foreground">{t('bookingFlow.noPaymentMethods')}</p>
+          )}
+          {methods.map((key) => {
+            const m = { key, provider: METHOD_PROVIDER[key], ...methodText(t, key) }
+            const selected = method === key
             return (
               <button
-                key={m.key}
+                key={key}
                 type="button"
                 role="radio"
                 aria-checked={selected}
-                onClick={() => onMethodChange(m.key)}
+                onClick={() => onMethodChange(key)}
                 className={cn(
                   'flex items-center gap-3 rounded-xl border p-3.5 text-left transition-all',
                   selected

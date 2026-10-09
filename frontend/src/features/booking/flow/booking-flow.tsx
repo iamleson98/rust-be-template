@@ -4,13 +4,14 @@ import { useState } from 'react'
 import { Form } from '@/components/ui/form'
 import { useTripDetail } from '@/features/trips/api'
 import { useT } from '@/lib/i18n'
+import { useEnabledProviders } from '@/lib/payment'
 import { useBookingFlow } from '@/stores/booking-flow'
 import { useSearchForm } from '@/stores/search-form'
 import { BookingContactStep } from './booking-contact-step'
 import { BookingPassengerStep } from './booking-passenger-step'
 import { BookingStepHeader } from './booking-step-header'
 import { BookingSuccess } from './booking-success'
-import { PaymentMethodStep, type PaymentMethodKey } from './payment-method'
+import { offeredMethods, PaymentMethodStep, type PaymentMethodKey } from './payment-method'
 import { PaymentProcessingStep } from './payment-processing-step'
 import { useBookingForm } from './use-booking-form'
 import { useCheckout } from './use-checkout'
@@ -32,7 +33,10 @@ export function BookingFlow() {
   const lastBooking = useBookingFlow((s) => s.lastBooking)
   const adults = useSearchForm((s) => s.searchParams.adults)
   const children = useSearchForm((s) => s.searchParams.children)
-  const [method, setMethod] = useState<PaymentMethodKey>('momo')
+  const [chosen, setMethod] = useState<PaymentMethodKey>('momo')
+  const methods = offeredMethods(useEnabledProviders())
+  // Only what the server takes: the first offered method until one is picked.
+  const method = methods.includes(chosen) ? chosen : (methods[0] ?? chosen)
 
   const { data: trip } = useTripDetail(context?.tripId)
   const booking = useBookingForm({
@@ -95,6 +99,7 @@ export function BookingFlow() {
 
           {step === 'payment' && (
             <PaymentMethodStep
+              methods={methods}
               method={method}
               onMethodChange={setMethod}
               promo={promo}

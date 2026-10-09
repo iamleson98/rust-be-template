@@ -3,7 +3,7 @@
  */
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-import { PaymentMethodStep } from '@/features/booking/flow/payment-method'
+import { offeredMethods, PaymentMethodStep } from '@/features/booking/flow/payment-method'
 import type { PromoCode } from '@/features/booking/flow/use-promo-code'
 
 describe('PaymentMethodStep', () => {
@@ -19,6 +19,7 @@ describe('PaymentMethodStep', () => {
   })
 
   const baseProps = {
+    methods: offeredMethods(undefined),
     method: 'momo' as const,
     onMethodChange: vi.fn(),
     promo: promo(),
@@ -36,6 +37,17 @@ describe('PaymentMethodStep', () => {
     expect(screen.getByText('VNPay QR')).toBeInTheDocument()
     expect(screen.getByText('Chuyển khoản')).toBeInTheDocument()
     expect(screen.getByText('Thanh toán tại xe')).toBeInTheDocument()
+  })
+
+  it('offers only the methods the server takes', () => {
+    expect(offeredMethods(['cod', 'vnpay'])).toEqual(['vnpay', 'cod'])
+    render(<PaymentMethodStep {...baseProps} methods={['cod']} method="cod" />)
+    expect(screen.getAllByRole('radio')).toHaveLength(1)
+    expect(screen.getByRole('radio', { name: /Thanh toán tại xe/ })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    )
+    expect(screen.queryByText('Ví MoMo')).not.toBeInTheDocument()
   })
 
   it('shows the coupon box on the checkout step', () => {

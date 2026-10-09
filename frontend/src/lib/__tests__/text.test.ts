@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { slugify } from '../text'
+import { localPhone, normalizePhone, slugify } from '../text'
 
 describe('slugify', () => {
   it('strips Vietnamese diacritics', () => {
@@ -19,5 +19,14 @@ describe('slugify', () => {
   it('drops leading/trailing dashes and non-alphanumerics', () => {
     expect(slugify('---')).toBe('')
     expect(slugify('a.b')).toBe('a-b')
+  })
+})
+
+describe('phone numbers', () => {
+  it('round-trips between the local and international forms', () => {
+    expect(normalizePhone('0912 345 678')).toBe('+84912345678')
+    expect(localPhone('+84912345678')).toBe('0912345678')
+    expect(localPhone('84912345678')).toBe('0912345678')
+    expect(localPhone('0912345678')).toBe('0912345678')
   })
 })

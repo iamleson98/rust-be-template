@@ -19,3 +19,11 @@ export function normalizePhone(phone: string) {
   if (p.startsWith('84')) return `+${p}`
   return p
 }
+
+/** The number as Vietnamese forms take it (`+84901…` / `84901…` → `0901…`). */
+export function localPhone(phone: string) {
+  const p = phone.replace(/\s/g, '')
+  if (p.startsWith('+84')) return `0${p.slice(3)}`
+  if (p.startsWith('84') && p.length > 10) return `0${p.slice(2)}`
+  return p
+}

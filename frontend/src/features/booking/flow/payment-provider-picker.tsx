@@ -3,7 +3,7 @@
 import { Loader2, ShieldCheck } from 'lucide-react'
 import { formatVND } from '@/lib/format'
 import { useT } from '@/lib/i18n'
-import type { PaymentProvider } from '@/lib/payment'
+import { useEnabledProviders, type PaymentProvider } from '@/lib/payment'
 import { ProviderTile } from './provider-tile'
 
 const getProviderOptions = (
@@ -29,7 +29,8 @@ export function ProviderPicker({
   priorFailureReason?: string
 }) {
   const t = useT()
-  const providerOptions = getProviderOptions(t)
+  const enabled = useEnabledProviders()
+  const providerOptions = getProviderOptions(t).filter((o) => !enabled || enabled.includes(o.key))
   return (
     <div className="space-y-4">
       <div className="rounded-lg bg-slate-50 border border-slate-200 p-4 text-center">

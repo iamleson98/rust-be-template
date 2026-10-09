@@ -48,6 +48,7 @@ use utoipa::OpenApi;
         crate::routes::bookings::place,
         // payments
         crate::routes::payments::create_payment,
+        crate::routes::payments::list_providers,
         crate::routes::payments::get_payment,
         crate::routes::payments::list_booking_payments,
         crate::routes::payments::cancel_payment,
@@ -257,6 +258,7 @@ use utoipa::OpenApi;
         crate::dto::payment::AdminPaymentOut,
         crate::dto::payment::AdminPaymentListResponse,
         crate::dto::payment::AdminPaymentSummary,
+        crate::dto::payment::PaymentProvidersResponse,
         crate::dto::payment::AdminPaymentsQuery,
         crate::dto::payment::UpdatePaymentStatusReq,
         crate::dto::payment::UpdatePaymentStatusResponse,

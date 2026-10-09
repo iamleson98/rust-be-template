@@ -87,16 +87,17 @@ export function BookingStepHeader({
       )}
 
       {trip && step !== 'success' && (
-        <div className="-mx-5 -mb-4 px-5 py-2.5 bg-slate-50 border-t flex items-center gap-3 text-xs mt-3">
+        <div className="-mx-5 -mb-4 mt-3 flex items-center gap-3 border-t bg-muted/50 px-5 py-2.5 text-xs">
           <Bus className="h-4 w-4 text-primary shrink-0" />
-          <span className="font-medium truncate">
+          <span className="min-w-0 flex-1 truncate font-medium">
             {trip.from.name} → {trip.to.name}
           </span>
           <span className="text-muted-foreground flex items-center gap-1 shrink-0">
             <Calendar className="h-3 w-3" />
             {formatDateTimeVN(trip.trip.departureAt)}
           </span>
-          <div className="ml-auto flex items-center gap-1 overflow-hidden">
+          {/* Phones: no room; every step lists the seats anyway. */}
+          <div className="hidden items-center gap-1 overflow-hidden sm:flex">
             {seats.slice(0, 6).map((s) => (
               <Badge key={s.id} variant="outline" className="font-mono text-[10px]">
                 {s.code}

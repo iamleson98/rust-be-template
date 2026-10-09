@@ -25,7 +25,7 @@ export function MobileNav() {
 
   const consoleTab = !!user
   const bookingsIcon = consoleTab ? LayoutDashboard : LogIn
-  const bookingsLabel = t(consoleTab ? 'nav.myConsole' : 'nav.login')
+  const bookingsLabel = t(consoleTab ? 'nav.myConsoleShort' : 'nav.login')
   const getActiveTab = (): TabKey => {
     if (pathname === '/') return 'home'
     if (pathname === '/search') return 'search'
@@ -65,7 +65,7 @@ export function MobileNav() {
     <>
       {/* Bottom nav bar — touch targets are ≥48px (Apple HIG + Material). */}
       <nav
-        className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-xl border-t border-slate-200/60"
+        className="md:hidden fixed bottom-0 left-0 right-0 z-50 border-t bg-background/95 backdrop-blur-xl"
         aria-label={t('layout.mobileNav.aria')}
       >
         <div
@@ -82,21 +82,21 @@ export function MobileNav() {
                 onClick={() => handleTab(tab.key)}
                 aria-label={label}
                 aria-current={isActive ? 'page' : undefined}
-                className="flex flex-col items-center justify-center gap-0.5 min-w-16 min-h-12 relative active:bg-slate-100/50 rounded-lg transition-colors"
+                className="relative flex min-h-12 min-w-16 flex-col items-center justify-center gap-0.5 rounded-lg transition-colors active:bg-muted"
               >
                 <div className="relative">
                   <Icon
                     className={`h-5 w-5 transition-colors duration-200 ${
-                      isActive ? 'text-blue-600' : 'text-slate-400'
+                      isActive ? 'text-primary' : 'text-muted-foreground'
                     }`}
                   />
                   {isActive && (
-                    <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 h-1 w-5 rounded-full bg-blue-500" />
+                    <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 h-1 w-5 rounded-full bg-primary" />
                   )}
                 </div>
                 <span
                   className={`text-[10px] font-medium transition-colors duration-200 ${
-                    isActive ? 'text-blue-600' : 'text-slate-400'
+                    isActive ? 'text-primary' : 'text-muted-foreground'
                   }`}
                 >
                   {label}
