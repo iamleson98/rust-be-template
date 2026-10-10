@@ -203,11 +203,11 @@ impl OAuthProvider for TwitterProvider {
 
         // Twitter doesn't return an email even with the email scope
         // (the scope exists but is gated behind elevated access).
-        // We synthesise a placeholder email from the username so the
-        // local user record can still be created. The user can update
-        // their email later via the profile page.
+        // We synthesise a placeholder email so the local user record can
+        // still be created, from the account id: unlike the username it
+        // never changes, so it can't collide with another account later.
         let display_name = p.data.name.unwrap_or_else(|| p.data.username.clone());
-        let email = format!("{}@twitter.local", p.data.username);
+        let email = format!("{}@twitter.local", p.data.id);
 
         Ok(OAuthProfile {
             provider: "twitter".into(),
