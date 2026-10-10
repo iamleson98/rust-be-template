@@ -86,9 +86,11 @@ export function MobileSearchSummary({
             {t('searchPage.wherePrompt')}
           </span>
         )}
-        <span className="shrink-0 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700">
-          {t('searchPage.change')}
-        </span>
+        {(searchParams.from || searchParams.to) && (
+          <span className="shrink-0 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700">
+            {t('searchPage.change')}
+          </span>
+        )}
       </button>
 
       {/* Full form in a bottom sheet */}

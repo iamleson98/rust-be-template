@@ -16,7 +16,7 @@ export function SavedSearchesList({
 }) {
   const t = useT()
   return (
-    <div className="mt-3 flex items-center gap-2 overflow-x-auto [scrollbar-width:none]">
+    <div className="mt-3 flex items-center gap-2 overflow-x-auto scrollbar-none">
       <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-slate-500">
         <Bookmark className="size-3.5" />
         {t('searchPage.savedSearches', { count: items.length })}

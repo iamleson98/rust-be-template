@@ -90,7 +90,10 @@ export const Footer = memo(function Footer() {
               <Column title={t('search.popularRoutes')}>
                 {routes.map((r) => (
                   <li key={r.id}>
-                    <button onClick={() => search(r.from.name, r.to.name)} className={LINK}>
+                    <button
+                      onClick={() => search(r.from.name, r.to.name)}
+                      className={`${LINK} text-left`}
+                    >
                       {r.from.name} → {r.to.name}
                     </button>
                   </li>

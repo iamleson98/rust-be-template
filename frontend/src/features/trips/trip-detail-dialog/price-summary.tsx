@@ -47,7 +47,7 @@ export function PriceSummary({
           </div>
         ) : (
           <ul
-            className="flex gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none]"
+            className="flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-none"
             aria-label={t('tripDetail.selectedSeats')}
           >
             {seats.map((seat) => (

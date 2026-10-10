@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { Link, useRouterState } from '@tanstack/react-router'
 import { Gift, History, KeyRound, LayoutGrid, LogOut, MessageSquareHeart } from 'lucide-react'
 import { PageInset } from '@/components/console/page'
@@ -30,6 +30,15 @@ export function AccountShell({ children }: { children: ReactNode }) {
   const active = (item: (typeof items)[number]) =>
     item.exact ? pathname === item.url : pathname.startsWith(item.url)
 
+  // Narrow screens: keep the current section's tab in view.
+  const rail = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = rail.current?.querySelector<HTMLElement>('[aria-current=page]')
+    if (rail.current && el) {
+      rail.current.scrollLeft = el.offsetLeft - (rail.current.clientWidth - el.offsetWidth) / 2
+    }
+  }, [pathname])
+
   return (
     <div className="page-x pb-8 lg:grid lg:grid-cols-[16rem_minmax(0,1fr)] lg:gap-8 lg:pt-8">
       {/* Phones and tablets: the sections as tabs, kept under the header. */}
@@ -37,17 +46,19 @@ export function AccountShell({ children }: { children: ReactNode }) {
         aria-label={t('auth.account')}
         className="sticky top-(--header-h) z-20 -mx-4 border-b border-slate-200/80 bg-canvas/95 px-4 backdrop-blur-xl sm:-mx-6 sm:px-6 lg:hidden"
       >
-        <div className="flex gap-1 overflow-x-auto py-2 [scrollbar-width:none]">
+        <div ref={rail} className="relative flex overflow-x-auto scroll-smooth scrollbar-none">
           {items.map((item) => (
             <Link
               key={item.url}
               to={item.url as never}
+              activeOptions={{ exact: !!item.exact }}
               aria-current={active(item) ? 'page' : undefined}
               className={cn(
-                'inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-sm font-medium transition-colors',
+                'relative inline-flex h-12 shrink-0 items-center gap-1.5 px-3.5 text-sm font-medium transition-colors',
+                'after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:rounded-full',
                 active(item)
-                  ? 'bg-slate-900 text-white'
-                  : 'text-slate-600 hover:bg-white hover:text-slate-900',
+                  ? 'text-primary after:bg-primary'
+                  : 'text-slate-500 hover:text-slate-900',
               )}
             >
               <item.icon className="size-4" />
@@ -65,6 +76,7 @@ export function AccountShell({ children }: { children: ReactNode }) {
               <Link
                 key={item.url}
                 to={item.url as never}
+                activeOptions={{ exact: !!item.exact }}
                 aria-current={active(item) ? 'page' : undefined}
                 className={cn(
                   'flex h-10 items-center gap-3 rounded-xl px-3 text-sm transition-colors',

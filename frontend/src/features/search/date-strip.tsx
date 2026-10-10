@@ -36,7 +36,7 @@ export function DateStrip({ date, onPick }: { date: string; onPick: (day: string
       >
         <ChevronLeft className="size-4" />
       </button>
-      <div className="-mx-4 flex min-w-0 flex-1 gap-1.5 overflow-x-auto px-4 [scrollbar-width:none] sm:mx-0 sm:px-0">
+      <div className="-mx-4 flex min-w-0 flex-1 gap-1.5 overflow-x-auto px-4 scrollbar-none sm:mx-0 sm:px-0">
         {days.map((day) => {
           const active = day === date
           return (

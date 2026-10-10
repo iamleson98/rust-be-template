@@ -38,7 +38,7 @@ export function HomeSection({
  * and sit in a grid from `sm` up; add the `lg:` column count at the call site.
  */
 export const RAIL =
-  '-mx-4 grid auto-cols-[80%] grid-flow-col gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none] snap-x snap-mandatory sm:mx-0 sm:auto-cols-auto sm:grid-flow-row sm:grid-cols-2 sm:gap-4 sm:overflow-visible sm:px-0 sm:pb-0 [&>*]:snap-start'
+  '-mx-4 grid auto-cols-[80%] grid-flow-col gap-3 overflow-x-auto px-4 pb-2 scrollbar-none snap-x snap-mandatory sm:mx-0 sm:auto-cols-auto sm:grid-flow-row sm:grid-cols-2 sm:gap-4 sm:overflow-visible sm:px-0 sm:pb-0 [&>*]:snap-start'
 
 /** Placeholder for a band of cards while its data loads. */
 export function RailSkeleton({

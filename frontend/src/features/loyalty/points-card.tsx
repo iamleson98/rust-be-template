@@ -1,105 +1,89 @@
-'use client'
-
-// Extracted from the original 'loyalty-widget.tsx'.
-//
-// REAL-DATA REWORK: every value comes from the backend loyalty summary
-// (points / tier / next tier / lifetime stats) — nothing is invented
-// client-side.
-
-import { usePrefs } from '@/stores/prefs'
+import { Trophy } from 'lucide-react'
+import type { LoyaltyResponse } from '@/api'
+import { formatNum, formatVndShort, useMoney } from '@/lib/format'
 import { useT } from '@/lib/i18n'
-import type { LoyaltyResponse, LoyaltyTierOut } from '@/api'
-import { DEFAULT_TIER_STYLE, TIER_STYLES } from './tier-styles'
+import { cn } from '@/lib/utils'
+import { usePrefs } from '@/stores/prefs'
+import { tierView } from './api'
 
+/**
+ * Points, tier, the way to the next tier and the lifetime numbers — all
+ * from the backend summary. "Last trip" only shows once there is one.
+ */
 export function LoyaltyPointsCard({ summary }: { summary: LoyaltyResponse }) {
   const t = useT()
-  const lang = usePrefs((s) => s.lang)
-  const locale = lang === 'en' ? 'en-US' : 'vi-VN'
-
-  const currentTier: LoyaltyTierOut = summary.tier
-  const nextTier = summary.nextTier
-  const style = TIER_STYLES[currentTier.key] ?? DEFAULT_TIER_STYLE
-
-  // Progress toward the next tier — both bounds are backend data.
-  const progress =
-    nextTier != null
-      ? Math.min(
-          100,
-          Math.max(
-            0,
-            ((summary.points - currentTier.minPoints) /
-              Math.max(1, nextTier.minPoints - currentTier.minPoints)) *
-              100,
-          ),
-        )
-      : 100
+  const money = useMoney()
+  const currency = usePrefs((s) => s.currency)
+  const { tier, nextTier, style, progress } = tierView(summary)
+  const last = summary.history[0]
+  const spent =
+    currency === 'VND' && summary.totalSpent >= 1_000_000
+      ? `${formatVndShort(summary.totalSpent)} ₫`
+      : money(summary.totalSpent)
+  const stats = [
+    { label: t('home.completedTripsCount'), value: formatNum(summary.completedTrips) },
+    { label: t('home.totalSpentCount'), value: spent },
+    ...(last ? [{ label: t('home.lastTripEarned'), value: `+${formatNum(last.points)}` }] : []),
+  ]
 
   return (
-    <div className="rounded-xl border bg-linear-to-br from-blue-50 to-blue-50 p-4 text-center">
-      <div className="text-xs text-muted-foreground uppercase tracking-wider font-medium">
-        {t('home.currentPoints')}
-      </div>
-      <div className="text-4xl font-extrabold text-blue-700 mt-1">
-        {summary.points.toLocaleString(locale)}
-      </div>
-
-      {/* Tier badge */}
-      <div
-        className="mt-3 inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold"
-        style={{ borderColor: style.ring, color: style.ring }}
-      >
-        {style.icon}
-        {currentTier.name}
-      </div>
-
-      {/* Progress to next tier */}
-      {nextTier ? (
-        <div className="mt-3">
-          <div className="flex items-center justify-between text-[10px] text-muted-foreground mb-1">
-            <span>{currentTier.name}</span>
-            <span>
-              {nextTier.name} ({nextTier.minPoints.toLocaleString(locale)} {t('home.pointsUnit')})
-            </span>
+    <section className="rounded-2xl bg-white p-5 shadow-soft ring-1 ring-slate-200/80">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-xs font-medium text-slate-500">{t('home.currentPoints')}</div>
+          <div className="mt-0.5 text-4xl font-bold tracking-tight text-slate-900 tabular-nums">
+            {formatNum(summary.points)}
           </div>
-          <div className="h-2 rounded-full bg-slate-200 overflow-hidden">
+        </div>
+        {tier && (
+          <span
+            className={cn(
+              'inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold [&_svg]:size-4',
+              style.bg,
+              style.color,
+            )}
+          >
+            {style.icon}
+            {tier.name}
+          </span>
+        )}
+      </div>
+
+      {nextTier ? (
+        <div className="mt-5">
+          <div className="h-2 overflow-hidden rounded-full bg-slate-100">
             <div
-              className="h-full rounded-full bg-linear-to-r from-blue-500 to-blue-500 transition-all duration-500"
+              className="h-full rounded-full bg-primary transition-[width] duration-500"
               style={{ width: `${progress}%` }}
             />
           </div>
-          <div className="mt-1 text-[10px] text-muted-foreground">
+          <p className="mt-2 text-xs text-slate-500">
             {t('home.pointsToNext', {
-              count: Math.max(0, nextTier.minPoints - summary.points).toLocaleString(locale),
+              count: formatNum(Math.max(0, nextTier.minPoints - summary.points)),
               name: nextTier.name,
             })}
-          </div>
+          </p>
         </div>
       ) : (
-        <div className="mt-3 text-[10px] font-semibold uppercase tracking-wide text-violet-600">
+        <p className="mt-4 flex items-center gap-1.5 text-sm font-medium text-violet-700">
+          <Trophy className="size-4" aria-hidden />
           {t('home.topTierReached')}
-        </div>
+        </p>
       )}
 
-      {/* Real lifetime stats (completed trips + total spent) */}
-      <div className="mt-3 grid grid-cols-2 gap-2 border-t border-blue-100 pt-3 text-center">
-        <div>
-          <div className="text-lg font-bold tabular-nums">
-            {summary.completedTrips.toLocaleString(locale)}
+      <dl
+        className={cn(
+          'mt-5 grid divide-x divide-slate-100 border-t border-slate-100 pt-4 text-center',
+          stats.length === 3 ? 'grid-cols-3' : 'grid-cols-2',
+        )}
+      >
+        {stats.map((s) => (
+          <div key={s.label} className="flex flex-col-reverse px-1">
+            <dt className="text-[11px] text-slate-500">{s.label}</dt>
+            <dd className="text-lg font-semibold text-slate-900 tabular-nums">{s.value}</dd>
           </div>
-          <div className="text-[10px] text-muted-foreground">{t('home.completedTripsCount')}</div>
-        </div>
-        <div>
-          <div className="text-lg font-bold tabular-nums">{formatShortVND(summary.totalSpent)}</div>
-          <div className="text-[10px] text-muted-foreground">{t('home.totalSpentCount')}</div>
-        </div>
-      </div>
-    </div>
+        ))}
+      </dl>
+    </section>
   )
-}
-
-/** Compact VND formatter for the lifetime-spend stat. */
-function formatShortVND(n: number): string {
-  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(2)} tỷ`
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)} triệu`
-  return n.toLocaleString('vi-VN')
 }

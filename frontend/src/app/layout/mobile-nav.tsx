@@ -27,17 +27,20 @@ export function MobileNav() {
   const consoleTab = !!user
   const bookingsIcon = consoleTab ? UserRound : LogIn
   const bookingsLabel = t(consoleTab ? 'nav.myConsoleShort' : 'nav.login')
-  const getActiveTab = (): TabKey => {
-    if (pathname === '/') return 'home'
-    if (pathname === '/search') return 'search'
+  // The section a page belongs to; pages outside them (terms, privacy)
+  // light no tab.
+  const getActiveTab = (): TabKey | null => {
+    if (pathname === '/' || pathname.startsWith('/brands')) return 'home'
+    if (pathname === '/search' || pathname.startsWith('/trips/') || pathname === '/compare')
+      return 'search'
     if (
       pathname === '/login' ||
-      pathname === '/bookings' ||
       pathname.startsWith('/bookings/') ||
-      pathname.startsWith('/account')
+      pathname === '/account' ||
+      pathname.startsWith('/account/')
     )
       return 'bookings'
-    return 'home'
+    return null
   }
 
   const handleTab = (key: TabKey) => {

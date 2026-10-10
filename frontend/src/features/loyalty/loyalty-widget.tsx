@@ -1,140 +1,116 @@
-'use client'
-
 /**
- * LoyaltyWidget — the customer-facing loyalty side panel (opened from
- * the header's gift button).
- *
- * REAL-DATA REWORK (2026-09): the panel renders the backend loyalty
- * summary (`GET /api/loyalty`, computed from the user's completed
- * bookings — 1 point per 10,000 VND). The old client-side point wallet
- * (Zustand `loyaltyPoints` + MOCK_HISTORY + VOUCHERS) is gone: no
- * client-side point math, no fake vouchers, no invented history.
- *
- * Signed-out visitors get a sign-in prompt (the summary is
- * auth-guarded on the backend).
+ * The loyalty panel the header's gift button opens: the backend summary
+ * (`GET /api/loyalty`, 1 point per 10,000 VND of completed bookings) —
+ * points, tier, benefits and the earning history. Signed-out visitors
+ * get a way to sign in (the summary is auth-guarded).
  */
 
-import { useQuery } from '@tanstack/react-query'
-import { loyaltySummaryOptions } from '@/api'
-import { useSession } from '@/stores/session'
-import { useUi } from '@/stores/ui'
 import { memo } from 'react'
-import { ScrollArea } from '@/components/ui/scroll-area'
+import { useNavigate } from '@tanstack/react-router'
+import { Bus, Gift, LogIn } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useT } from '@/lib/i18n'
-import { Gift, X, LogIn, Bus } from 'lucide-react'
-import { useNavigate } from '@tanstack/react-router'
-import { Button } from '@/components/ui/button'
+import { useSession } from '@/stores/session'
+import { useUi } from '@/stores/ui'
+import { useLoyalty } from './api'
 import { LoyaltyPointsCard } from './points-card'
-import { LoyaltyTierBenefits } from './tier-benefits'
 import { LoyaltyPointsHistory } from './points-history'
+import { LoyaltyTierBenefits } from './tier-benefits'
+
+/** History rows shown here; the account page lists them all. */
+const HISTORY_PREVIEW = 5
 
 export const LoyaltyWidget = memo(function LoyaltyWidget() {
-  const loyaltyOpen = useUi((s) => s.loyaltyOpen)
-  const setLoyaltyOpen = useUi((s) => s.setLoyaltyOpen)
+  const open = useUi((s) => s.loyaltyOpen)
+  const setOpen = useUi((s) => s.setLoyaltyOpen)
   const user = useSession((s) => s.user)
   const t = useT()
   const navigate = useNavigate()
+  const { data: summary, isLoading } = useLoyalty()
 
-  // Real backend summary — only fetched for signed-in users.
-  const { data: summary, isLoading } = useQuery({ ...loyaltySummaryOptions(), enabled: !!user })
+  const go = (to: '/login' | '/account/loyalty') => {
+    setOpen(false)
+    void navigate({ to })
+  }
 
   return (
-    <>
-      {loyaltyOpen && (
-        <>
-          {/* Backdrop */}
-          <div
-            className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm"
-            onClick={() => setLoyaltyOpen(false)}
-          />
-
-          {/* Panel */}
-          <div className="fixed top-0 bottom-0 right-0 z-50 flex w-full flex-col bg-white sm:w-96">
-            {/* Header */}
-            <div className="border-b bg-linear-to-r from-blue-50 to-blue-50 px-4 py-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white">
-                    <Gift className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <h2 className="text-sm font-extrabold">{t('nav.loyalty')}</h2>
-                    <p className="text-[11px] text-muted-foreground">DatXeVui Loyalty</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setLoyaltyOpen(false)}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg transition-colors hover:bg-slate-100"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
-
-            <ScrollArea className="flex-1">
-              <div className="space-y-5 p-4">
-                {!user ? (
-                  /* Signed-out prompt */
-                  <div className="flex flex-col items-center gap-3 rounded-xl border bg-slate-50 p-8 text-center">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 text-blue-600">
-                      <LogIn className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold">{t('home.loyaltyLoginTitle')}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {t('home.loyaltyLoginDesc')}
-                      </p>
-                    </div>
-                    <Button
-                      size="sm"
-                      className="gap-1.5"
-                      onClick={() => {
-                        setLoyaltyOpen(false)
-                        navigate({ to: '/login' })
-                      }}
-                    >
-                      <LogIn className="h-3.5 w-3.5" /> {t('auth.login')}
-                    </Button>
-                  </div>
-                ) : isLoading || !summary ? (
-                  /* Loading skeleton — structure-matched */
-                  <div className="space-y-5">
-                    <Skeleton className="h-44 w-full rounded-xl" />
-                    <div className="space-y-2">
-                      <Skeleton className="h-4 w-32" />
-                      <Skeleton className="h-4 w-full" />
-                      <Skeleton className="h-4 w-3/4" />
-                    </div>
-                    <div className="space-y-2">
-                      <Skeleton className="h-4 w-28" />
-                      <Skeleton className="h-10 w-full" />
-                      <Skeleton className="h-10 w-full" />
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    {/* Points balance + tier + progress (real) */}
-                    <LoyaltyPointsCard summary={summary} />
-
-                    {/* Tier benefits (backend benefitCodes) */}
-                    <LoyaltyTierBenefits tier={summary.tier} />
-
-                    {/* Earning history (real completed bookings) */}
-                    <LoyaltyPointsHistory history={summary.history} />
-
-                    {/* Earn-rate explainer — the one business rule */}
-                    <div className="flex items-start gap-2 rounded-lg bg-blue-50 p-3 text-[11px] leading-relaxed text-blue-700">
-                      <Bus className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-                      <span>{t('home.earnRateExplainer')}</span>
-                    </div>
-                  </>
-                )}
-              </div>
-            </ScrollArea>
+    <Sheet open={open} onOpenChange={setOpen}>
+      <SheetContent side="right" className="flex w-full flex-col gap-0 bg-canvas p-0 sm:max-w-sm">
+        <SheetHeader className="flex-row items-center gap-3 border-b bg-white px-5 py-4">
+          <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
+            <Gift className="size-4.5" />
+          </span>
+          <div className="min-w-0">
+            <SheetTitle>{t('nav.loyalty')}</SheetTitle>
+            <SheetDescription className="text-xs">
+              {t('home.earnRateExplainerShort')}
+            </SheetDescription>
           </div>
-        </>
-      )}
-    </>
+        </SheetHeader>
+
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+          {!user ? (
+            <div className="flex flex-col items-center gap-3 rounded-2xl bg-white p-8 text-center shadow-soft ring-1 ring-slate-200/80">
+              <span className="grid size-12 place-items-center rounded-full bg-primary/10 text-primary">
+                <LogIn className="size-5" />
+              </span>
+              <div>
+                <p className="text-sm font-semibold">{t('home.loyaltyLoginTitle')}</p>
+                <p className="mt-1 text-xs text-slate-500">{t('home.loyaltyLoginDesc')}</p>
+              </div>
+              <Button className="h-10 rounded-xl px-5" onClick={() => go('/login')}>
+                {t('auth.login')}
+              </Button>
+            </div>
+          ) : isLoading || !summary ? (
+            <>
+              <Skeleton className="h-52 w-full rounded-2xl" />
+              <Skeleton className="h-28 w-full rounded-2xl" />
+            </>
+          ) : (
+            <>
+              <LoyaltyPointsCard summary={summary} />
+
+              <section className="rounded-2xl bg-white p-5 shadow-soft ring-1 ring-slate-200/80">
+                <h3 className="mb-3 text-sm font-semibold">
+                  {t('home.tierBenefits', { name: summary.tier.name })}
+                </h3>
+                <LoyaltyTierBenefits tier={summary.tier} />
+              </section>
+
+              <section className="rounded-2xl bg-white p-5 pb-3 shadow-soft ring-1 ring-slate-200/80">
+                <h3 className="text-sm font-semibold">{t('home.pointsHistory')}</h3>
+                {summary.history.length === 0 ? (
+                  <p className="mt-2 flex items-start gap-2 text-sm text-slate-500">
+                    <Bus className="mt-0.5 size-4 shrink-0" aria-hidden />
+                    {t('home.historyEmpty')}
+                  </p>
+                ) : (
+                  <LoyaltyPointsHistory history={summary.history.slice(0, HISTORY_PREVIEW)} />
+                )}
+              </section>
+
+              {summary.history.length > HISTORY_PREVIEW && (
+                <Button
+                  variant="outline"
+                  className="h-11 w-full rounded-xl bg-white"
+                  onClick={() => go('/account/loyalty')}
+                >
+                  {t('home.seeAllHistory')}
+                </Button>
+              )}
+            </>
+          )}
+        </div>
+      </SheetContent>
+    </Sheet>
   )
 })

@@ -57,7 +57,7 @@ export function PopularRoutesQuickSelect({
   }
 
   return (
-    <div className="mt-4 flex items-center gap-2 overflow-x-auto border-t border-slate-100 pt-4 [scrollbar-width:none]">
+    <div className="mt-4 flex items-center gap-2 overflow-x-auto border-t border-slate-100 pt-4 scrollbar-none">
       <span className="shrink-0 text-xs font-medium text-slate-500">
         {t('search.popularRoutes')}:
       </span>

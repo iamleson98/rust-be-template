@@ -4,7 +4,7 @@ import { TabsList, TabsTrigger } from '@/components/ui/tabs'
 /** A row of pill tabs that scrolls sideways instead of wrapping on narrow screens. */
 export function PillTabs({ children }: { children: ReactNode }) {
   return (
-    <TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto rounded-none bg-transparent p-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto rounded-none bg-transparent p-0 scrollbar-none [&::-webkit-scrollbar]:hidden">
       {children}
     </TabsList>
   )
