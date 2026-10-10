@@ -7,7 +7,6 @@ import { useMoney } from '@/lib/format'
 import { useT } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 import { PriceSummary } from './price-summary'
-import { PaymentTrustBadges } from '@/components/seo/trust-signals'
 import type { PaymentProvider } from '@/lib/payment'
 import { ProviderTile } from './provider-tile'
 import type { PromoCode } from './use-promo-code'
@@ -181,8 +180,6 @@ export function PaymentMethodStep({
           {error}
         </div>
       )}
-
-      <PaymentTrustBadges className="mb-1" />
 
       <StepActions>
         <Button variant="outline" onClick={onBack} className="gap-1 max-sm:h-11">

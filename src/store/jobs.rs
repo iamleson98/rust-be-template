@@ -15,6 +15,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use chrono::{DateTime, SecondsFormat, Utc};
+use sea_orm::sea_query::Expr;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
     QueryOrder, QuerySelect,
@@ -59,6 +60,18 @@ pub trait JobStore: Send + Sync {
         &self,
         model: scheduled_job::ActiveModel,
     ) -> StoreResult<scheduled_job::Model>;
+    /// Move a schedule's `next_run_at` from `expected` to `next`, only if
+    /// it still reads `expected` — claims the slot, so with several app
+    /// instances exactly one fires it. `true` = this caller won.
+    async fn advance_schedule(
+        &self,
+        job_type: &str,
+        expected: Option<&str>,
+        next: &str,
+        now: &str,
+    ) -> StoreResult<bool>;
+    /// Remove a schedule (its job left the catalog). `true` = removed.
+    async fn delete_schedule(&self, job_type: &str) -> StoreResult<bool>;
 
     // ── job_run ────────────────────────────────────────────────────
 
@@ -69,13 +82,25 @@ pub trait JobStore: Send + Sync {
     /// progress writers. Unlike [`Self::update_run`] this cannot
     /// resurrect a stale status (no read-modify-write of the full row).
     async fn set_run_detail(&self, id: Uuid, detail: &str) -> StoreResult<()>;
+    /// Record a lifecycle step without touching `detail`: `status` and
+    /// `error` are always written (`None` clears the error), `started_at`
+    /// only when given, `finished_at` always (`None` clears it). No-op
+    /// for ids without a run row.
+    async fn set_run_state(
+        &self,
+        id: Uuid,
+        status: &str,
+        error: Option<&str>,
+        started_at: Option<&str>,
+        finished_at: Option<&str>,
+    ) -> StoreResult<()>;
+    async fn delete_run(&self, id: Uuid) -> StoreResult<()>;
+    /// Every queued or running run, any job type.
+    async fn list_active_runs(&self) -> StoreResult<Vec<job_run::Model>>;
     async fn find_run(&self, id: Uuid) -> StoreResult<Option<job_run::Model>>;
     /// Latest run of a job type, any status (for the admin "last run"
     /// column — also doubles as the live status of an in-flight run).
     async fn latest_run(&self, job_type: &str) -> StoreResult<Option<job_run::Model>>;
-    /// The queued-or-running run of a job type, if any. Used to refuse
-    /// stacking a second execution on top of one already in flight.
-    async fn find_active_run(&self, job_type: &str) -> StoreResult<Option<job_run::Model>>;
     async fn list_runs(
         &self,
         job_type: Option<&str>,
@@ -85,12 +110,6 @@ pub trait JobStore: Send + Sync {
     async fn count_runs(&self, job_type: &str) -> StoreResult<u64>;
 
     // ── Maintenance (scheduler tick) ────────────────────────────────
-
-    /// `UPDATE job_run SET status='failed' WHERE status IN (..) AND …`
-    /// — sweeps runs that can no longer make progress (interrupted by a
-    /// restart, or enqueued but never picked up). Returns the number of
-    /// rows swept.
-    async fn sweep_stale_runs(&self, statuses: &[&str], older_than: &str) -> StoreResult<u64>;
 
     /// Delete TERMINAL `job_run` rows (succeeded/failed/cancelled)
     /// finished before `older_than` — run-history retention. Returns
@@ -253,6 +272,35 @@ impl JobStore for DbJobStore {
             })
     }
 
+    async fn advance_schedule(
+        &self,
+        job_type: &str,
+        expected: Option<&str>,
+        next: &str,
+        now: &str,
+    ) -> StoreResult<bool> {
+        let slot = match expected {
+            Some(expected) => scheduled_job::Column::NextRunAt.eq(expected),
+            None => scheduled_job::Column::NextRunAt.is_null(),
+        };
+        let advanced = scheduled_job::Entity::update_many()
+            .col_expr(scheduled_job::Column::NextRunAt, Expr::value(next))
+            .col_expr(scheduled_job::Column::UpdatedAt, Expr::value(now))
+            .filter(scheduled_job::Column::JobType.eq(job_type))
+            .filter(slot)
+            .exec(self.db.as_ref())
+            .await?;
+        Ok(advanced.rows_affected == 1)
+    }
+
+    async fn delete_schedule(&self, job_type: &str) -> StoreResult<bool> {
+        let deleted = scheduled_job::Entity::delete_many()
+            .filter(scheduled_job::Column::JobType.eq(job_type))
+            .exec(self.db.as_ref())
+            .await?;
+        Ok(deleted.rows_affected == 1)
+    }
+
     // ── job_run ────────────────────────────────────────────────────
 
     async fn insert_run(&self, model: job_run::ActiveModel) -> StoreResult<job_run::Model> {
@@ -354,6 +402,41 @@ impl JobStore for DbJobStore {
         Ok(())
     }
 
+    async fn set_run_state(
+        &self,
+        id: Uuid,
+        status: &str,
+        error: Option<&str>,
+        started_at: Option<&str>,
+        finished_at: Option<&str>,
+    ) -> StoreResult<()> {
+        let mut update = job_run::Entity::update_many()
+            .col_expr(job_run::Column::Status, Expr::value(status))
+            .col_expr(
+                job_run::Column::Error,
+                Expr::value(error.map(str::to_string)),
+            )
+            .col_expr(
+                job_run::Column::FinishedAt,
+                Expr::value(finished_at.map(str::to_string)),
+            );
+        if let Some(started_at) = started_at {
+            update = update.col_expr(job_run::Column::StartedAt, Expr::value(started_at));
+        }
+        update
+            .filter(job_run::Column::Id.eq(id))
+            .exec(self.db.as_ref())
+            .await?;
+        Ok(())
+    }
+
+    async fn delete_run(&self, id: Uuid) -> StoreResult<()> {
+        job_run::Entity::delete_by_id(id)
+            .exec(self.db.as_ref())
+            .await?;
+        Ok(())
+    }
+
     async fn find_run(&self, id: Uuid) -> StoreResult<Option<job_run::Model>> {
         Ok(job_run::Entity::find_by_id(id)
             .one(self.db.as_ref())
@@ -369,12 +452,11 @@ impl JobStore for DbJobStore {
             .await?)
     }
 
-    async fn find_active_run(&self, job_type: &str) -> StoreResult<Option<job_run::Model>> {
+    async fn list_active_runs(&self) -> StoreResult<Vec<job_run::Model>> {
         Ok(job_run::Entity::find()
-            .filter(job_run::Column::JobType.eq(job_type))
             .filter(job_run::Column::Status.is_in([status::QUEUED, status::RUNNING]))
             .order_by_desc(job_run::Column::CreatedAt)
-            .one(self.db.as_ref())
+            .all(self.db.as_ref())
             .await?)
     }
 
@@ -399,41 +481,10 @@ impl JobStore for DbJobStore {
 
     // ── Maintenance ────────────────────────────────────────────────
 
-    async fn sweep_stale_runs(&self, statuses: &[&str], older_than: &str) -> StoreResult<u64> {
-        let older_than = parse_iso(older_than)?;
-        Ok(job_run::Entity::update_many()
-            .col_expr(
-                job_run::Column::Status,
-                sea_orm::sea_query::Expr::value("failed"),
-            )
-            .col_expr(
-                job_run::Column::Error,
-                sea_orm::sea_query::Expr::value(
-                    "interrupted — no longer progressing (server restart or stale run)",
-                ),
-            )
-            .col_expr(
-                job_run::Column::FinishedAt,
-                sea_orm::sea_query::Expr::value(now_iso()),
-            )
-            .filter(job_run::Column::Status.is_in(statuses.to_vec()))
-            // Queued runs die on created_at; running runs die on started_at.
-            // Coalescing is awkward cross-backend, so the OR covers both.
-            .filter(
-                job_run::Column::CreatedAt
-                    .lt(older_than)
-                    .or(job_run::Column::StartedAt.lt(older_than)),
-            )
-            .exec(self.db.as_ref())
-            .await?
-            .rows_affected)
-    }
-
     async fn prune_finished_runs(&self, older_than: &str) -> StoreResult<u64> {
         let older_than = parse_iso(older_than)?;
         Ok(job_run::Entity::delete_many()
-            // Terminal states only — queued/running rows belong to the
-            // sweep above, never to retention pruning.
+            // Terminal states only — queued/running runs are still live.
             .filter(job_run::Column::Status.is_in([
                 status::SUCCEEDED.to_string(),
                 status::FAILED.to_string(),
@@ -449,43 +500,10 @@ impl JobStore for DbJobStore {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sea_orm::ConnectionTrait;
     use sea_orm::Set;
 
     async fn mem_store() -> Arc<DbJobStore> {
-        use sea_orm::Database;
-        let db = Database::connect("sqlite::memory:").await.unwrap();
-        // Create the tables (mirrors the migration DDL).
-        db.execute_unprepared(
-            r#"CREATE TABLE scheduled_job (
-                id TEXT PRIMARY KEY,
-                job_type TEXT NOT NULL,
-                enabled INTEGER NOT NULL DEFAULT 1,
-                interval_days INTEGER NOT NULL DEFAULT 14,
-                at_hour INTEGER NOT NULL DEFAULT 2,
-                at_minute INTEGER NOT NULL DEFAULT 0,
-                next_run_at TEXT,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
-            )"#,
-        )
-        .await
-        .unwrap();
-        db.execute_unprepared(
-            r#"CREATE TABLE job_run (
-                id TEXT PRIMARY KEY,
-                job_type TEXT NOT NULL,
-                status TEXT NOT NULL,
-                detail TEXT,
-                error TEXT,
-                started_at TEXT,
-                finished_at TEXT,
-                created_at TEXT NOT NULL
-            )"#,
-        )
-        .await
-        .unwrap();
-        Arc::new(DbJobStore::new(Arc::new(db)))
+        Arc::new(DbJobStore::new(super::super::migrated_test_db().await))
     }
 
     fn schedule(
@@ -562,7 +580,7 @@ mod tests {
             created_at: Set("2026-08-01T17:59:00Z".into()),
         };
         store.insert_run(old).await.unwrap();
-        assert!(store.find_active_run("osm.import").await.unwrap().is_none());
+        assert!(store.list_active_runs().await.unwrap().is_empty());
         let latest = store.latest_run("osm.import").await.unwrap().unwrap();
         assert_eq!(latest.status, "succeeded");
 
@@ -578,15 +596,9 @@ mod tests {
             created_at: Set("2026-09-01T18:00:00Z".into()),
         };
         let queued = store.insert_run(queued).await.unwrap();
-        assert_eq!(
-            store
-                .find_active_run("osm.import")
-                .await
-                .unwrap()
-                .unwrap()
-                .id,
-            queued.id
-        );
+        let active = store.list_active_runs().await.unwrap();
+        assert_eq!(active.len(), 1);
+        assert_eq!(active[0].id, queued.id);
         assert_eq!(
             store.latest_run("osm.import").await.unwrap().unwrap().id,
             queued.id
@@ -595,29 +607,71 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn sweep_marks_stale_runs_failed() {
+    async fn advance_schedule_lets_one_caller_claim_a_slot() {
         let store = mem_store().await;
-        let stale = job_run::ActiveModel {
-            id: Set(Uuid::new_v4()),
-            job_type: Set("osm.import".into()),
-            status: Set(status::RUNNING.into()),
-            detail: Set(None),
-            error: Set(None),
-            started_at: Set(Some("2026-08-01T18:00:00Z".into())),
-            finished_at: Set(None),
-            created_at: Set("2026-08-01T17:59:00Z".into()),
-        };
-        let stale = store.insert_run(stale).await.unwrap();
-
-        let swept = store
-            .sweep_stale_runs(&[status::RUNNING, status::QUEUED], "2026-09-01T00:00:00Z")
+        let slot = "2026-09-01T19:00:00Z";
+        store
+            .insert_schedule(schedule("osm.import", true, Some(slot.into())))
             .await
             .unwrap();
-        assert_eq!(swept, 1);
-        let swept = store.find_run(stale.id).await.unwrap().unwrap();
-        assert_eq!(swept.status, "failed");
-        assert!(swept.finished_at.is_some());
-        assert!(swept.error.is_some());
+        let next = "2026-09-15T19:00:00Z";
+        assert!(store
+            .advance_schedule("osm.import", Some(slot), next, &now_iso())
+            .await
+            .unwrap());
+        // A second instance that read the same slot loses.
+        assert!(!store
+            .advance_schedule("osm.import", Some(slot), next, &now_iso())
+            .await
+            .unwrap());
+        let row = store.find_schedule("osm.import").await.unwrap().unwrap();
+        assert_eq!(row.next_run_at.as_deref(), Some(next));
+        assert!(store.delete_schedule("osm.import").await.unwrap());
+        assert!(store.find_schedule("osm.import").await.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn set_run_state_keeps_detail_and_started_at() {
+        let store = mem_store().await;
+        let run = store
+            .insert_run(job_run::ActiveModel {
+                id: Set(Uuid::new_v4()),
+                job_type: Set("osm.import".into()),
+                status: Set(status::QUEUED.into()),
+                detail: Set(None),
+                error: Set(None),
+                started_at: Set(None),
+                finished_at: Set(None),
+                created_at: Set(now_iso()),
+            })
+            .await
+            .unwrap();
+        let started = "2026-09-01T19:00:00Z";
+        store
+            .set_run_state(run.id, status::RUNNING, None, Some(started), None)
+            .await
+            .unwrap();
+        store
+            .set_run_detail(run.id, r#"{"phase":"indexing"}"#)
+            .await
+            .unwrap();
+        store
+            .set_run_state(
+                run.id,
+                status::FAILED,
+                Some("boom"),
+                None,
+                Some("2026-09-01T20:00:00Z"),
+            )
+            .await
+            .unwrap();
+        let row = store.find_run(run.id).await.unwrap().unwrap();
+        assert_eq!(row.status, status::FAILED);
+        assert_eq!(row.error.as_deref(), Some("boom"));
+        assert_eq!(row.started_at.as_deref(), Some(started));
+        assert_eq!(row.detail.as_deref(), Some(r#"{"phase":"indexing"}"#));
+        store.delete_run(run.id).await.unwrap();
+        assert!(store.find_run(run.id).await.unwrap().is_none());
     }
 
     #[tokio::test]

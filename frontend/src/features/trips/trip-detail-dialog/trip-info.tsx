@@ -1,15 +1,11 @@
-'use client'
-
-import { DialogTitle, DialogDescription } from '@/components/ui/dialog'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { useT } from '@/lib/i18n'
-import { AlertTriangle, ArrowRight, Calendar, Clock, Share2, Star } from 'lucide-react'
-import { formatTimeVN, formatDateVN } from '@/lib/format'
+import { ArrowRight, CalendarDays, Clock, Share2, Star } from 'lucide-react'
 import type { TripDetail } from '@/api'
+import { DialogDescription, DialogTitle } from '@/components/ui/dialog'
+import { formatDateVN, formatTimeVN } from '@/lib/format'
+import { useT } from '@/lib/i18n'
 import { amenityIcon } from './amenity-icons'
 
-/** The dialog header: operator, route, departure and amenities, with a share button. */
+/** The dialog header: the journey first, then the operator, bus and amenities; share on the side. */
 export function TripInfo({ detail, onShare }: { detail: TripDetail; onShare: () => void }) {
   const t = useT()
   const brandName = detail.brand.name ?? ''
@@ -17,92 +13,81 @@ export function TripInfo({ detail, onShare }: { detail: TripDetail; onShare: () 
   const layout = detail.busLayout.name
   // "Giường nằm · Giường nằm 40" says it twice: the layout name only when it adds something.
   const bus = layout && !layout.includes(vehicle) ? `${vehicle} · ${layout}` : (layout ?? vehicle)
-  // pr-16 keeps the dialog's close button clear of the share button.
+  const fewSeats = detail.trip.availableSeats > 0 && detail.trip.availableSeats <= 5
+
+  // pr-14 keeps the dialog's close button clear of the share button.
   return (
-    <div className="shrink-0 border-b bg-background px-5 py-4 pr-16">
-      <div className="flex items-start justify-between gap-3">
+    <div className="shrink-0 border-b border-slate-200/80 bg-white px-4 pt-4 pb-3 pr-14 sm:px-6 sm:pr-16">
+      <div className="flex items-start gap-3">
+        <span
+          className="grid size-11 shrink-0 place-items-center rounded-2xl text-sm font-bold text-white"
+          style={{ background: detail.brand.accentColor ?? undefined }}
+        >
+          {brandName
+            .split(' ')
+            .map((w) => w[0])
+            .join('')
+            .slice(0, 2)
+            .toUpperCase()}
+        </span>
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 mb-1.5">
-            <div
-              className="h-9 w-9 rounded-lg flex items-center justify-center text-white font-extrabold text-xs shrink-0"
-              style={{ background: detail.brand.accentColor ?? undefined }}
-            >
-              {brandName
-                .split(' ')
-                .map((w) => w[0])
-                .join('')
-                .slice(0, 2)}
-            </div>
-            <div className="min-w-0">
-              <div className="font-bold truncate">{brandName}</div>
-              <div className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-                {detail.brand.rating != null && (
-                  <>
-                    <span className="flex shrink-0 items-center gap-0.5 text-amber-500">
-                      <Star className="h-3 w-3 fill-current" />
-                      {detail.brand.rating.toFixed(1)}
-                    </span>
-                    <span aria-hidden>•</span>
-                  </>
-                )}
-                <span className="truncate">{bus}</span>
-              </div>
-            </div>
-          </div>
-          <DialogTitle className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-base leading-snug font-bold">
+          <DialogTitle className="flex flex-wrap items-center gap-x-2 text-lg leading-snug font-bold tracking-tight text-slate-900 sm:text-xl">
             {detail.from.name}
-            <ArrowRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+            <ArrowRight className="size-4 shrink-0 text-slate-400" aria-hidden />
             {detail.to.name}
           </DialogTitle>
-          <DialogDescription className="text-xs mt-1.5 flex items-center gap-2 flex-wrap">
-            {/* Prominent departure date with calendar icon */}
-            <span className="inline-flex items-center gap-1.5 rounded-md bg-primary/10 px-2 py-0.5 font-semibold text-primary">
-              <Calendar className="h-3.5 w-3.5" />
-              {formatDateVN(detail.trip.departureAt, {
-                weekday: 'long',
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric',
-              })}
-            </span>
-            <span className="flex items-center gap-1">
-              <Clock className="h-3 w-3" />
-              {t('booking.departure')} {formatTimeVN(detail.trip.departureAt)}
-            </span>
-          </DialogDescription>
+          <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-sm text-slate-500">
+            <span className="truncate font-medium text-slate-700">{brandName}</span>
+            {detail.brand.rating != null && (
+              <span className="inline-flex shrink-0 items-center gap-0.5 text-slate-700">
+                <Star className="size-3.5 fill-amber-400 text-amber-400" />
+                {detail.brand.rating.toFixed(1)}
+              </span>
+            )}
+            <span aria-hidden>·</span>
+            <span className="truncate">{bus}</span>
+          </div>
         </div>
-        {detail.trip.availableSeats <= 5 && (
-          <Badge className="bg-rose-100 text-rose-700 border-0 shrink-0">
-            <AlertTriangle className="h-3 w-3 mr-0.5" />
-            {t('tripDetail.fewSeatsLeft', { count: detail.trip.availableSeats })}
-          </Badge>
-        )}
-        <Button
-          variant="outline"
-          size="sm"
-          className="shrink-0"
+        <button
+          type="button"
           onClick={onShare}
           aria-label={t('trips.share')}
+          title={t('trips.share')}
+          className="grid size-9 shrink-0 place-items-center rounded-full text-slate-500 ring-1 ring-slate-200 transition-colors hover:bg-slate-50 hover:text-primary"
         >
-          <Share2 />
-          <span className="hidden sm:inline">{t('trips.share')}</span>
-        </Button>
+          <Share2 className="size-4" />
+        </button>
       </div>
 
-      {/* Amenities */}
-      {detail.amenities.length > 0 && (
-        <div className="flex items-center gap-2 mt-3 flex-wrap">
-          {detail.amenities.map((a) => (
-            <span
-              key={a.key}
-              className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground"
-            >
-              {amenityIcon[a.key]}
-              {a.label}
-            </span>
-          ))}
-        </div>
-      )}
+      <DialogDescription className="mt-3 flex flex-wrap items-center gap-1.5 text-xs">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 font-semibold text-primary">
+          <CalendarDays className="size-3.5" />
+          {formatDateVN(detail.trip.departureAt, {
+            weekday: 'long',
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+          })}
+        </span>
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 font-semibold text-slate-700">
+          <Clock className="size-3.5" />
+          {t('booking.departure')} {formatTimeVN(detail.trip.departureAt)}
+        </span>
+        {fewSeats && (
+          <span className="rounded-full bg-rose-50 px-2.5 py-1 font-semibold text-rose-600">
+            {t('tripDetail.fewSeatsLeft', { count: detail.trip.availableSeats })}
+          </span>
+        )}
+        {detail.amenities.map((a) => (
+          <span
+            key={a.key}
+            className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-slate-600"
+          >
+            {amenityIcon[a.key]}
+            {a.label}
+          </span>
+        ))}
+      </DialogDescription>
     </div>
   )
 }

@@ -1,4 +1,4 @@
-import { ShieldCheck, Lock, FileCheck, Eye } from 'lucide-react'
+import { ShieldCheck, Lock, FileCheck } from 'lucide-react'
 import { useT } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 
@@ -71,34 +71,6 @@ export function PrivacyNotice({ className }: { className?: string }) {
         </p>
         <p className="text-muted-foreground/80">{t('trust.privacyRights')}</p>
       </div>
-    </div>
-  )
-}
-
-/**
- * Payment trust badges — small row of trust indicators near the
- * "Pay now" button in the payment dialog.
- */
-export function PaymentTrustBadges({ className }: { className?: string }) {
-  const t = useT()
-  return (
-    <div
-      className={cn(
-        'flex items-center justify-center gap-3 text-[10px] text-muted-foreground',
-        className,
-      )}
-    >
-      <span className="flex items-center gap-1">
-        <Lock className="h-3 w-3" /> {t('trust.sslEncryption')}
-      </span>
-      <span className="text-border">•</span>
-      <span className="flex items-center gap-1">
-        <ShieldCheck className="h-3 w-3" /> PCI DSS
-      </span>
-      <span className="text-border">•</span>
-      <span className="flex items-center gap-1">
-        <Eye className="h-3 w-3" /> {t('trust.refund24h')}
-      </span>
     </div>
   )
 }

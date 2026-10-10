@@ -4,13 +4,12 @@ import { usePrefs } from '@/stores/prefs'
 import { useState } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
 import { useIsMobile } from '@/hooks/use-mobile'
-import { Card, CardContent } from '@/components/ui/card'
+import { FilterBar, FilterSearch } from '@/components/console/filter-bar'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { ComboboxField } from '@/components/ui/combobox'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Calendar } from '@/components/ui/calendar'
-import { CalendarRange, Download, Search, TrendingUp, X } from 'lucide-react'
+import { CalendarRange, Download, TrendingUp, X } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { enUS, vi } from 'date-fns/locale'
 import type { AdminBrandsListResponse } from '@/api'
@@ -74,146 +73,137 @@ export function TicketsFilterBar({
   setDateRange: (from: string, to: string) => void
 }) {
   const t = useT()
+  const field = 'h-10 min-w-0 rounded-xl bg-white md:w-auto'
   return (
-    <Card>
-      <CardContent className="space-y-3 p-3 sm:p-4">
-        <div className="relative">
-          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
+    <div className="space-y-2.5">
+      <FilterBar
+        search={
+          <FilterSearch
             value={searchInput}
-            onChange={(e) => onSearchChange(e.target.value)}
+            onChange={onSearchChange}
             placeholder={t('adminTickets.searchPlaceholder')}
-            className="pl-9"
           />
-        </div>
-
-        {/* Phones: two filters to a row, the actions sharing the last one. */}
-        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
-          <ComboboxField
-            value={filter.range}
-            onValueChange={setRangeFilter}
-            items={RANGE_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))}
-            className="min-w-0 sm:w-36"
-            placeholder={t('adminTickets.timeRange')}
-            searchPlaceholder={t('combobox.search')}
-            aria-label={t('adminTickets.timeRange')}
-            data-testid="tickets-range-filter"
-          />
-          <ComboboxField
-            value={filter.status ?? 'all'}
-            onValueChange={setStatusFilter}
-            items={STATUS_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))}
-            className="min-w-0 sm:w-40"
-            placeholder={t('common.status')}
-            searchPlaceholder={t('combobox.search')}
-            aria-label={t('adminTickets.filterStatus')}
-            data-testid="tickets-status-filter"
-          />
-          <ComboboxField
-            value={filter.brandId ?? 'all'}
-            onValueChange={setBrandFilter}
-            items={[
-              { value: 'all', label: t('adminTickets.allBrands') },
-              ...(brandsQuery.data?.items ?? []).map((b) => ({
-                value: b.id,
-                label: b.name ?? t('admin.brands'),
-              })),
-            ]}
-            className="col-span-2 min-w-0 sm:w-48"
-            placeholder={t('adminTickets.allBrands')}
-            searchPlaceholder={t('adminTickets.searchBrand')}
-            aria-label={t('adminTickets.filterBrand')}
-            data-testid="tickets-brand-filter"
-          />
-
-          {filter.range === 'custom' && (
-            <div className="col-span-2">
+        }
+        filters={
+          <>
+            <ComboboxField
+              value={filter.range}
+              onValueChange={setRangeFilter}
+              items={RANGE_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))}
+              className={`${field} md:min-w-32`}
+              placeholder={t('adminTickets.timeRange')}
+              searchPlaceholder={t('combobox.search')}
+              aria-label={t('adminTickets.timeRange')}
+              data-testid="tickets-range-filter"
+            />
+            {filter.range === 'custom' && (
               <CustomDateRange
                 dateFrom={filter.dateFrom}
                 dateTo={filter.dateTo}
                 onChange={setDateRange}
               />
-            </div>
+            )}
+            <ComboboxField
+              value={filter.status ?? 'all'}
+              onValueChange={setStatusFilter}
+              items={STATUS_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))}
+              className={`${field} md:min-w-36`}
+              placeholder={t('common.status')}
+              searchPlaceholder={t('combobox.search')}
+              aria-label={t('adminTickets.filterStatus')}
+              data-testid="tickets-status-filter"
+            />
+            <ComboboxField
+              value={filter.brandId ?? 'all'}
+              onValueChange={setBrandFilter}
+              items={[
+                { value: 'all', label: t('adminTickets.allBrands') },
+                ...(brandsQuery.data?.items ?? []).map((b) => ({
+                  value: b.id,
+                  label: b.name ?? t('admin.brands'),
+                })),
+              ]}
+              className={`${field} md:min-w-40`}
+              placeholder={t('adminTickets.allBrands')}
+              searchPlaceholder={t('adminTickets.searchBrand')}
+              aria-label={t('adminTickets.filterBrand')}
+              data-testid="tickets-brand-filter"
+            />
+          </>
+        }
+        actions={[
+          {
+            label: t('adminTickets.chart'),
+            icon: <TrendingUp />,
+            onClick: () => setShowStats((v) => !v),
+            pressed: showStats,
+          },
+          {
+            label: exporting ? t('adminTickets.exporting') : t('adminTickets.exportCsv'),
+            icon: <Download />,
+            onClick: handleExport,
+            disabled: exporting,
+          },
+        ]}
+        activeCount={activeFilterCount}
+        onReset={resetFilters}
+      />
+
+      {activeFilterCount > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {filter.brandId && (
+            <FilterChip
+              label={t('adminTickets.chipBrand', {
+                value:
+                  brandsQuery.data?.items?.find((b) => b.id === filter.brandId)?.name ??
+                  filter.brandId,
+              })}
+              onClear={() => setBrandFilter('all')}
+            />
           )}
-
-          <div className="col-span-2 flex gap-2 sm:ml-auto">
-            <Button
-              variant={showStats ? 'secondary' : 'outline'}
-              className="flex-1 sm:flex-none"
-              aria-pressed={showStats}
-              onClick={() => setShowStats((v) => !v)}
-            >
-              <TrendingUp />
-              {t('adminTickets.chart')}
-            </Button>
-            <Button
-              variant="outline"
-              className="flex-1 sm:flex-none"
-              onClick={handleExport}
-              disabled={exporting}
-            >
-              <Download />
-              {exporting ? t('adminTickets.exporting') : t('adminTickets.exportCsv')}
-            </Button>
-          </div>
+          {filter.status && filter.status !== 'all' && (
+            <FilterChip
+              label={t('adminTickets.chipStatus', {
+                value:
+                  STATUS_OPTIONS.find((o) => o.value === filter.status) !== undefined
+                    ? t(STATUS_OPTIONS.find((o) => o.value === filter.status)!.labelKey)
+                    : filter.status,
+              })}
+              onClear={() => setStatusFilter('all')}
+            />
+          )}
+          {filter.search && (
+            <FilterChip
+              label={t('adminTickets.chipSearch', { value: filter.search })}
+              onClear={() => {
+                setSearchInput('')
+                setFilter((f) => ({ ...f, search: undefined, offset: 0 }))
+              }}
+            />
+          )}
+          {filter.range && filter.range !== '30d' && (
+            <FilterChip
+              label={t('adminTickets.chipRange', {
+                value:
+                  RANGE_OPTIONS.find((o) => o.value === filter.range) !== undefined
+                    ? t(RANGE_OPTIONS.find((o) => o.value === filter.range)!.labelKey)
+                    : filter.range,
+              })}
+              onClear={() => setRangeFilter('30d')}
+            />
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="ml-auto text-muted-foreground"
+            onClick={resetFilters}
+          >
+            <X />
+            {t('adminTickets.clearFiltersCount', { count: activeFilterCount })}
+          </Button>
         </div>
-
-        {activeFilterCount > 0 && (
-          <div className="flex flex-wrap items-center gap-1.5 border-t pt-3">
-            {filter.brandId && (
-              <FilterChip
-                label={t('adminTickets.chipBrand', {
-                  value:
-                    brandsQuery.data?.items?.find((b) => b.id === filter.brandId)?.name ??
-                    filter.brandId,
-                })}
-                onClear={() => setBrandFilter('all')}
-              />
-            )}
-            {filter.status && filter.status !== 'all' && (
-              <FilterChip
-                label={t('adminTickets.chipStatus', {
-                  value:
-                    STATUS_OPTIONS.find((o) => o.value === filter.status) !== undefined
-                      ? t(STATUS_OPTIONS.find((o) => o.value === filter.status)!.labelKey)
-                      : filter.status,
-                })}
-                onClear={() => setStatusFilter('all')}
-              />
-            )}
-            {filter.search && (
-              <FilterChip
-                label={t('adminTickets.chipSearch', { value: filter.search })}
-                onClear={() => {
-                  setSearchInput('')
-                  setFilter((f) => ({ ...f, search: undefined, offset: 0 }))
-                }}
-              />
-            )}
-            {filter.range && filter.range !== '30d' && (
-              <FilterChip
-                label={t('adminTickets.chipRange', {
-                  value:
-                    RANGE_OPTIONS.find((o) => o.value === filter.range) !== undefined
-                      ? t(RANGE_OPTIONS.find((o) => o.value === filter.range)!.labelKey)
-                      : filter.range,
-                })}
-                onClear={() => setRangeFilter('30d')}
-              />
-            )}
-            <Button
-              variant="ghost"
-              size="sm"
-              className="ml-auto text-muted-foreground"
-              onClick={resetFilters}
-            >
-              <X />
-              {t('adminTickets.clearFiltersCount', { count: activeFilterCount })}
-            </Button>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+      )}
+    </div>
   )
 }
 
@@ -258,7 +248,7 @@ function CustomDateRange({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className="h-9 gap-1.5">
+        <Button variant="outline" className="h-10 gap-1.5 rounded-xl bg-white">
           <CalendarRange className="h-3.5 w-3.5" />
           <span className="text-xs">
             {dateFrom || dateTo

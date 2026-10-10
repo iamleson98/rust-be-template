@@ -1,5 +1,5 @@
 import { Filter, MessageSquare } from 'lucide-react'
-import { useRef } from 'react'
+import { Fragment, useRef, type ReactNode } from 'react'
 import type { ChatChannelOut } from '@/api'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -23,6 +23,13 @@ const LoadingMore = ({ label }: { label: string }) => (
       <span className="h-3 w-3 rounded-full border-2 border-slate-300 border-t-slate-600 animate-spin" />
       {label}
     </div>
+  </div>
+)
+
+const SectionLabel = ({ online, children }: { online?: boolean; children: ReactNode }) => (
+  <div className="sticky top-0 z-10 flex items-center gap-1.5 bg-muted/80 px-4 py-1.5 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase backdrop-blur">
+    {online && <span className="size-1.5 rounded-full bg-emerald-500" />}
+    {children}
   </div>
 )
 
@@ -62,6 +69,15 @@ export function ChannelQueue({ queue, activeId, onOpen }: Props) {
           </Button>
         </div>
         <StaffPresenceStrip presence={queue.staffPresence} />
+        <div
+          className="flex items-center gap-1.5 text-xs text-muted-foreground"
+          title={t('adminChat.customersOnlineTitle')}
+        >
+          <span
+            className={`size-2 rounded-full ${queue.online.size ? 'bg-emerald-500' : 'bg-slate-300'}`}
+          />
+          {t('adminChat.customersOnline', { count: queue.online.size })}
+        </div>
       </CardHeader>
       <CardContent className="p-0 flex-1 min-h-0">
         <ScrollArea viewportRef={viewport} className="h-full">
@@ -73,14 +89,22 @@ export function ChannelQueue({ queue, activeId, onOpen }: Props) {
                 {t('chat.noChannels')}
               </div>
             ) : (
-              queue.channels.map((channel) => (
-                <ChannelRow
-                  key={channel.id}
-                  channel={channel}
-                  selected={channel.id === activeId}
-                  unseen={queue.unseen.has(channel.id)}
-                  onOpen={() => onOpen(channel)}
-                />
+              queue.channels.map((channel, i) => (
+                <Fragment key={channel.id}>
+                  {queue.onlineCount > 0 && i === 0 && (
+                    <SectionLabel online>{t('adminChat.onlineNow')}</SectionLabel>
+                  )}
+                  {queue.onlineCount > 0 && i === queue.onlineCount && (
+                    <SectionLabel>{t('adminChat.offlineSection')}</SectionLabel>
+                  )}
+                  <ChannelRow
+                    channel={channel}
+                    selected={channel.id === activeId}
+                    unseen={queue.unseen.has(channel.id)}
+                    online={i < queue.onlineCount}
+                    onOpen={() => onOpen(channel)}
+                  />
+                </Fragment>
               ))
             )}
             {queue.loadingMore && <LoadingMore label={t('adminChat.loadingMoreChannels')} />}

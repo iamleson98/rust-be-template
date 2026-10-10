@@ -93,7 +93,7 @@ pub async fn update(
     Ok(Json(st.jobs.update_schedule(&job_type, &body).await?))
 }
 
-/// `POST /api/admin/cron-jobs/{jobType}/trigger` — enqueue a run now.
+/// `POST /api/admin/cron-jobs/{jobType}/trigger` — queue a run now.
 #[utoipa::path(
     post,
     path = "/api/admin/cron-jobs/{jobType}/trigger",
@@ -103,7 +103,7 @@ pub async fn update(
         (status = 200, description = "Run enqueued", body = CronJobRunOut),
         (status = 401, description = "Unauthorized"),
         (status = 403, description = "Forbidden"),
-        (status = 404, description = "No schedule for that job type"),
+        (status = 404, description = "No such job"),
         (status = 409, description = "Conflict — a run is already queued/running"),
         (status = 503, description = "Worker not running in this process"),
     )
@@ -119,10 +119,11 @@ pub async fn trigger(
     Ok(Json(st.jobs.trigger(&job_type).await?))
 }
 
-/// `POST /api/admin/cron-jobs/{jobType}/cancel` — kill the queued or
-/// running run of a job (the admin "Dừng" button). Cancellation is
-/// cooperative: the handler observes the token at its phase boundaries
-/// and finalizes its own history row; the runner ACKs (no retry).
+/// `POST /api/admin/cron-jobs/{jobType}/cancel` — stop the queued or
+/// running run of a job (the admin "Dừng" button). A queued run (or a
+/// pending retry) is removed; a running one is told to stop — at once in
+/// this process, at its next lease renewal in another — and is never
+/// retried.
 #[utoipa::path(
     post,
     path = "/api/admin/cron-jobs/{jobType}/cancel",
@@ -133,6 +134,7 @@ pub async fn trigger(
         (status = 401, description = "Unauthorized"),
         (status = 403, description = "Forbidden"),
         (status = 404, description = "No queued/running run for that job type"),
+        (status = 503, description = "Worker not running in this process"),
     )
 )]
 pub async fn cancel(

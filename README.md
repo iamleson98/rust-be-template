@@ -20,7 +20,7 @@ src/
 ├── cache/                  CacheBackend trait + MokaBackend / RedisBackend
 ├── store/                  Store trait + DbStore + RetryStore + CacheStore
 ├── storage/                FileStorage trait + Local + S3 + MinIO
-├── worker/                 WorkerBroker trait + Redis + Db + Kafka (feature)
+├── worker/                 Job trait, DB-backed queue (leases, retries, dead set), runner
 ├── ws/                     in-process WebSocket hub (extensible)
 ├── rbac/                   cached role + permission checker
 ├── auth/                   password (argon2), JWT, refresh tokens, cookies, CSRF
@@ -39,7 +39,7 @@ src/
 | Auth | jsonwebtoken + argon2 + HttpOnly cookies + double-submit CSRF |
 | Cache | `moka` (in-process) or `redis` (shared) — pluggable |
 | File storage | local filesystem, AWS S3, or MinIO — pluggable |
-| Job broker | Redis, DB (rust-sql), or Kafka — pluggable |
+| Background jobs | Durable queue in the app database (`background_job`) |
 | OpenAPI | utoipa + utoipa-swagger-ui |
 | Compression | tower-http (gzip + brotli) |
 | Rate limit | tower-governor (token bucket per IP, `/api/*` only) |
@@ -145,7 +145,6 @@ All config is loaded from `.env` (or actual env vars) via `figment`. See
 | `DATABASE_URL` | `sqlite://./app.db?mode=rwc` | rust-sql (rustqlite) DB URL — sqlite:// scheme |
 | `CACHE_BACKEND` | `moka` | `moka` or `redis` |
 | `STORAGE_BACKEND` | `local` | `local`, `s3`, or `minio` |
-| `WORKER_BACKEND` | `redis` | `redis`, `db`, or `kafka` |
 | `JWT_SECRET` | (must override) | ≥32 bytes for HS256 |
 | `RATE_LIMIT_RPM` | `60` | per-IP token bucket |
 | `CORS_ORIGINS` | `http://localhost:3000,5173` | comma-separated |
@@ -186,9 +185,9 @@ cargo build                                # engine compiles in — no flags
   the UUID PK. So `Entity::insert(model).exec_without_returning()` is
   used in `create_user` / `create_post` instead of `insert().exec()`
   which tries to refetch by rowid.
-- Writes serialize (SQLite-dialect semantics): one writer at a time.
-  The worker's `DbBroker` is single-writer; scale out via the Redis or
-  Kafka broker for high write throughput.
+- Writes serialize (SQLite-dialect semantics): one writer at a time,
+  which is also what makes a job claim (one `UPDATE … RETURNING`)
+  safe between workers.
 - File-based — the DB lives on a volume; WAL mode + `busy_timeout`
   pragmas are applied at boot.
 
@@ -247,33 +246,48 @@ backend is configured.
 
 Switch via `STORAGE_BACKEND=local|s3|minio`.
 
-## Architecture: pluggable worker
+## Architecture: background jobs
 
-`WorkerBroker` trait — three backends:
+Jobs live in the app database, like Oban, River or Solid Queue do it:
+the `background_job` table is created by a normal migration, and
+`JobQueueStore` is its store.
 
-- `RedisBroker` — `BRPOP`/`LPUSH` list semantics, ~ms latency
-- `DbBroker` — job queue in the rust-sql DB, zero new infra
-- `KafkaBroker` — rdkafka producer + consumer, high throughput at scale
-  (requires `--features kafka` to compile in librdkafka)
-
-Switch via `WORKER_BACKEND=redis|db|kafka`. The runner consumes jobs from
-whichever broker is selected and dispatches to handlers registered in
-`JobRegistry`. Per-job policies (`JobPolicy`: timeout, max attempts) are
-registered with each handler, so a multi-hour job like the OSM import
-gets its own budget instead of the 5-minute default.
+- **Typed jobs.** A job is a struct implementing `worker::Job`: a stable
+  `KIND`, serde `Args`, a `JobPolicy` (timeout, attempts, backoff) and
+  `perform(ctx, args)`. Queue one from anywhere with
+  `JobQueue::enqueue::<MyJob>(&args, options)`.
+- **At-least-once delivery.** A claim leases the row (`locked_by`,
+  `locked_until`) instead of deleting it; the runner renews the lease
+  while the job runs and deletes the row on success. If the process
+  dies, the lease expires and the job runs again — so jobs must be safe
+  to repeat.
+- **Retries, then a dead set.** Failures retry after exponential backoff
+  with jitter; a job out of attempts stays as `dead` with its last error
+  (pruned after `JOB_RUN_RETENTION_DAYS`). Jobs of an unknown kind (one
+  removed from the code) go there too instead of vanishing.
+- **Timeouts and cancel actually stop jobs.** Both fire the job's
+  cancellation token; after a grace period the task is aborted, so a
+  timed-out run never keeps going next to its retry. Cancelling a run on
+  another instance reaches it at its next lease renewal.
+- **De-duplication.** At most one live job per `(kind, unique_key)`.
+- **Graceful shutdown** hands running jobs back without spending an
+  attempt.
 
 ## Architecture: scheduled (cron) background jobs
 
 Recurring jobs — e.g. the **biweekly Vietnam OSM → Tantivy place-index
 refresh** — run on the worker through a small scheduler:
 
-- `scheduled_job` / `job_run` tables (migration `m20260903_000001`) —
-  one row per schedule ("every N days at HH:MM" local wall-clock) and
-  one row per execution (queued → running → succeeded/failed, with
-  progress JSON, error, timing). `JobService` ticks (default 60 s),
-  sweeps interrupted runs, enqueues due schedules onto the worker
-  queue and advances the next slot (missed slots are skipped, not
-  replayed — a server down for three weeks fires once on boot).
+- `scheduled_job` / `job_run` tables — one row per schedule ("every N
+  days at HH:MM" local wall-clock) and one row per run (queued →
+  running → succeeded/failed/cancelled, with progress JSON, error,
+  timing). A run's queue job shares its id; the runner writes the run's
+  lifecycle, the job only reports progress. `JobService` ticks (default
+  60 s): it claims each due slot with a compare-and-set on
+  `next_run_at` (with several instances exactly one fires it) and
+  queues the run with a unique key, so a job never runs twice at once.
+  Missed slots are skipped, not replayed — a server down for three
+  weeks fires once on boot.
 - The OSM import job (`src/jobs/osm_import.rs`) downloads the Geofabrik
   Vietnam extract, indexes into a **staging** directory with the
   low-resource profile (256 MB heap, 1 thread — slow but gentle on
@@ -284,27 +298,26 @@ refresh** — run on the worker through a small scheduler:
   progress, run history, "run now", enable/disable and cadence editing
   (`GET/PATCH /api/admin/cron-jobs`, RBAC `admin:cron-jobs:read|write`).
 
-### Adding a new background job (the whole checklist)
+### Adding a new background job
 
-The `jobs::catalog()` in `src/jobs/mod.rs` is the single registration
-point — everything else picks a job up from it:
+`jobs::catalog()` in `src/jobs/mod.rs` is the single registration point:
 
-1. Write `src/jobs/<name>.rs`: a `JOB_TYPE` const, an async handler
-   (decode `RunPayload` for the `job_run` row it reports into), and a
-   `register(registry, deps)` fn installing it with a `JobPolicy`.
-2. Add one `JobDefinition` entry to `catalog()` — job type, human
-   description (shown on the admin page), default schedule (or `None`
-   for trigger-only jobs).
+1. Write `src/jobs/<name>.rs` with a struct implementing `worker::Job`
+   (`KIND`, `Args`, `policy()` if the defaults don't fit, `perform`).
+2. Add `pub mod <name>;` and one `JobDefinition` to `catalog()`: kind,
+   description (shown on the admin page), default schedule (`None` for
+   on-demand jobs) and how to build it from `JobDeps`.
 
-The worker runner, boot-time schedule seeding, scheduler tick, admin
-page and trigger API all consume the catalog; no other wiring. A
-contract test (`every_catalog_entry_registers_a_handler_and_policy`)
-keeps entries honest.
+The runner, schedule seeding, scheduler tick, admin page and "run now"
+API all read the catalog. Removing a job is the reverse: delete the
+module and the entry; its schedule is removed on the next boot.
 
 Config: `SCHEDULER_ENABLED` (default true; `false` = pure-API instance,
-triggering returns 503), `SCHEDULER_TZ_OFFSET_MINUTES` (default 420 =
+"run now" returns 503), `SCHEDULER_TZ_OFFSET_MINUTES` (default 420 =
 UTC+7, fixed offset — no DST in Vietnam), `SCHEDULER_TICK_INTERVAL_SECS`,
-`SEARCH_OSM_DOWNLOAD_URL` (mirror override for the import's source).
+`WORKER_CONCURRENCY`, `WORKER_POLL_INTERVAL_MS`, `WORKER_IDLE_POLL_MAX_MS`,
+`JOB_RUN_RETENTION_DAYS`, `SEARCH_OSM_DOWNLOAD_URL` (mirror override for
+the import's source).
 
 ## Architecture: WebSocket hub
 
@@ -346,14 +359,6 @@ migration creates:
 
 CSRF: double-submit pattern. Browser sends `csrf_token` cookie automatically;
 mutating requests must also send `X-CSRF-Token` header with the same value.
-
-## Build features
-
-| Feature | Effect |
-|---------|--------|
-| `kafka` | Enables the Kafka worker backend (requires librdkafka) |
-
-Default build is `cargo build`. For Kafka support: `cargo build --features kafka`.
 
 ## Service layer
 

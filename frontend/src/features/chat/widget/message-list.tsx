@@ -79,13 +79,6 @@ export function MessageList({
           </div>
         ) : (
           <>
-            <div className="text-center py-2">
-              <span className="inline-block rounded-full bg-emerald-50 px-3 py-1 text-[10px] text-emerald-700 ring-1 ring-emerald-200">
-                <Sparkles className="inline h-2.5 w-2.5 mr-1" />
-                {t('chatWidget.agentAlwaysReady')}
-              </span>
-            </div>
-
             {loadingMore && (
               <div className="flex items-center justify-center py-3">
                 <div className="flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-[11px] text-muted-foreground">

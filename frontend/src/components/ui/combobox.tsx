@@ -71,7 +71,7 @@ function ComboboxTrigger({
         'border-input data-placeholder:text-muted-foreground',
         "[&_svg:not([class*='text-'])]:text-muted-foreground",
         'focus-visible:border-ring focus-visible:ring-ring/50',
-        'flex w-full items-center justify-between gap-2 rounded-md border bg-transparent px-3 py-2 text-sm whitespace-nowrap  transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50',
+        'flex w-full items-center justify-between gap-2 rounded-md border bg-background px-3 py-2 text-sm whitespace-nowrap transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-input/30',
         'h-9',
         className,
       )}

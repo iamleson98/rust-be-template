@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Adaptive launcher icon (API 26+): brand off-white background + the
+<!-- Adaptive launcher icon (API 26+): white background + the
      "dx + heart" circle logo foreground (scaled to the adaptive safe zone).
      Devices < API 26 fall back to the legacy mipmap-*/ic_launcher.png. -->
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">

@@ -67,6 +67,7 @@ use utoipa::OpenApi;
         crate::routes::seo::robots,
         // chat
         crate::routes::chat::list_channels,
+        crate::routes::chat::online_channels,
         crate::routes::chat::create_channel,
         crate::routes::chat::list_messages,
         crate::routes::chat::post_message,
@@ -316,6 +317,7 @@ use utoipa::OpenApi;
         // chat
         crate::dto::chat::ChatChannelOut,
         crate::dto::chat::ChatChannelListResponse,
+        crate::dto::chat::OnlineChannelsResponse,
         crate::dto::chat::ChatMessageOut,
         crate::dto::chat::ChatMessageListResponse,
         crate::dto::chat::CreateChannelRequest,

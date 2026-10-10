@@ -2,8 +2,9 @@ import { isStaffUser, useSession } from '@/stores/session'
 import { useEffect, useState } from 'react'
 import { useT } from '@/lib/i18n'
 import { useNavigate, useSearch } from '@tanstack/react-router'
-import { ShieldCheck, User, ArrowLeft, UserPlus } from 'lucide-react'
-import { TabButton, type Tab } from './_shared'
+import { ShieldCheck, User, UserPlus } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import type { Tab } from './_shared'
 import { CustomerLogin } from './customer-login'
 import { RegisterForm } from './register-form'
 
@@ -22,72 +23,48 @@ export function LoginPage() {
   }, [user, redirect, navigate])
 
   return (
-    <div className="relative min-h-[calc(100vh-4rem)] flex items-center justify-center px-4 py-10 overflow-hidden">
-      {/* Background */}
-      <div className="absolute inset-0 -z-10 bg-slate-900">
-        <div className="absolute inset-0 bg-linear-to-br from-slate-900 via-slate-800 to-slate-900" />
-        <div className="absolute inset-0 bg-linear-to-t from-slate-900/80 via-transparent to-slate-900/40" />
-        <div
-          className="absolute inset-0 opacity-[0.03]"
-          style={{
-            backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 0)',
-            backgroundSize: '28px 28px',
-          }}
-        />
-        <div className="absolute top-1/4 right-[10%] h-48 w-48 rounded-full bg-amber-400/10 blur-3xl" />
-        <div className="absolute bottom-1/4 left-[10%] h-40 w-40 rounded-full bg-blue-400/10 blur-3xl" />
-      </div>
-
+    <div className="flex min-h-[calc(100dvh-var(--header-h))] items-start justify-center px-4 py-8 sm:items-center sm:py-12">
       <div className="w-full max-w-md">
-        <button
-          onClick={() => navigate({ to: '/' })}
-          className="inline-flex items-center gap-1.5 text-sm text-blue-600 mb-5"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          {t('notFound.backHome')}
-        </button>
-
-        <div className="overflow-hidden rounded-2xl border bg-card">
-          {/* Header */}
-          <div className="relative bg-linear-to-br from-blue-600 via-blue-700 to-blue-800 px-6 pt-6 pb-7 text-white">
-            <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_top_right,white,transparent_60%)]" />
-            <div className="relative flex items-center gap-3">
-              <img src="/logo.svg" alt="" aria-hidden className="h-11 w-11 shrink-0" />
-              <div>
-                <h1 className="font-bold text-xl leading-tight">DatXeVui</h1>
-                <p className="text-[12px] text-blue-100 mt-0.5">{t('authPage.headerSubtitle')}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Tabs */}
-          <div className="flex border-b border-slate-200">
-            <TabButton
-              active={tab === 'customer'}
-              onClick={() => setTab('customer')}
-              icon={<User className="h-4 w-4" />}
-              label={t('auth.login')}
-            />
-            <TabButton
-              active={tab === 'register'}
-              onClick={() => setTab('register')}
-              icon={<UserPlus className="h-4 w-4" />}
-              label={t('auth.register')}
-            />
-          </div>
-
-          {/* Content */}
-          <div className="p-6">
-            {tab === 'customer' && <CustomerLogin />}
-            {tab === 'register' && <RegisterForm />}
-          </div>
+        <div className="mb-6 text-center">
+          <img src="/logo.svg" alt="" aria-hidden className="mx-auto size-14" />
+          <h1 className="mt-3 text-2xl font-bold tracking-tight text-slate-900">
+            {tab === 'customer' ? t('auth.login') : t('auth.register')}
+          </h1>
+          <p className="mt-1 text-sm text-slate-500">{t('authPage.headerSubtitle')}</p>
         </div>
 
-        {/* Trust note */}
-        <div className="mt-5 flex items-center justify-center gap-2 text-xs text-blue-600">
-          <ShieldCheck className="h-3.5 w-3.5" />
+        <div className="rounded-3xl bg-white p-5 shadow-float ring-1 ring-slate-200/80 sm:p-7">
+          <div role="tablist" className="mb-6 grid grid-cols-2 gap-1 rounded-2xl bg-slate-100 p-1">
+            {(
+              [
+                ['customer', User, t('auth.login')],
+                ['register', UserPlus, t('auth.register')],
+              ] as const
+            ).map(([key, Icon, label]) => (
+              <button
+                key={key}
+                role="tab"
+                aria-selected={tab === key}
+                onClick={() => setTab(key)}
+                className={cn(
+                  'inline-flex h-10 items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-colors',
+                  tab === key
+                    ? 'bg-white text-slate-900 shadow-soft'
+                    : 'text-slate-500 hover:text-slate-900',
+                )}
+              >
+                <Icon className="size-4" />
+                {label}
+              </button>
+            ))}
+          </div>
+          {tab === 'customer' ? <CustomerLogin /> : <RegisterForm />}
+        </div>
+
+        <p className="mt-5 flex items-center justify-center gap-1.5 text-xs text-slate-500">
+          <ShieldCheck className="size-3.5 text-emerald-600" />
           {t('authPage.trustNote')}
-        </div>
+        </p>
       </div>
     </div>
   )

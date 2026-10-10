@@ -47,7 +47,7 @@ export function PriceSummary({
           </div>
         ) : (
           <ul
-            className="flex gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none]"
+            className="flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-none"
             aria-label={t('tripDetail.selectedSeats')}
           >
             {seats.map((seat) => (
@@ -75,10 +75,10 @@ export function PriceSummary({
       </div>
       {seats.length > 0 && (
         <div className="shrink-0 text-right">
-          <div className="text-[10px] uppercase leading-tight tracking-wide text-muted-foreground">
+          <div className="text-[11px] leading-tight text-slate-500">
             {t('tripDetail.seatsTotal', { count: seats.length })}
           </div>
-          <div className="text-lg font-extrabold leading-tight text-blue-800 tabular-nums md:text-xl">
+          <div className="text-lg leading-tight font-extrabold tracking-tight text-slate-900 tabular-nums md:text-xl">
             {money(total)}
           </div>
         </div>
@@ -87,7 +87,7 @@ export function PriceSummary({
         onClick={onProceed}
         disabled={!canProceed}
         size="lg"
-        className="h-11 shrink-0 gap-1.5 px-5 text-sm font-semibold md:h-12 md:px-7 md:text-base"
+        className="h-11 shrink-0 gap-1.5 rounded-xl px-5 text-sm font-semibold md:h-12 md:px-7 md:text-base"
       >
         {signedIn ? (
           <>

@@ -200,6 +200,23 @@ impl ChatService {
         }
     }
 
+    /// The staff queue's channels whose customer is in `user_ids` (the
+    /// customers connected right now), most recent activity first.
+    pub async fn list_open_channels_of_users(
+        &self,
+        brand_id: Option<Uuid>,
+        user_ids: &[Uuid],
+    ) -> AppResult<Vec<chat_channel::Model>> {
+        if user_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        self.store
+            .chat_store()
+            .list_open_channels_of_users(brand_id, user_ids)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))
+    }
+
     /// Create a new chat channel, OR return the user's existing OPEN
     /// channel if one already exists. This enforces the business rule:
     /// **a user has at most one open channel with support at a time.**

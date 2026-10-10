@@ -12,7 +12,7 @@ export const BlueCheckbox = ({ className, ...props }: ComponentProps<typeof Chec
   />
 )
 
-const SECTION_TITLE = 'mb-2 text-xs font-semibold uppercase text-muted-foreground'
+const SECTION_TITLE = 'mb-2.5 text-sm font-semibold text-slate-900'
 
 export function FilterSection({
   title,
@@ -24,7 +24,7 @@ export function FilterSection({
   children: ReactNode
 }) {
   return (
-    <div className={cn(!first && 'border-t pt-3')}>
+    <div className={cn(!first && 'border-t border-slate-100 pt-4')}>
       <div className={SECTION_TITLE}>{title}</div>
       {children}
     </div>

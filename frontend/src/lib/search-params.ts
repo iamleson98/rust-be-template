@@ -136,3 +136,8 @@ export function buildSearchInput(input: SearchInput): SearchInput {
   }
   return out
 }
+
+const VN_DAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' })
+
+/** `YYYY-MM-DD` in Vietnam, `days` after today (searches default to tomorrow). */
+export const vnDate = (days = 0) => VN_DAY.format(new Date(Date.now() + days * 86_400_000))

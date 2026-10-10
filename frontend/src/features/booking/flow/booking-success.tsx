@@ -17,8 +17,8 @@ export type LastBooking = {
 }
 
 /**
- * The end of the checkout: the booking code (copyable), a ticket stub and a
- * summary. The scannable QR lives on the booking page the main button opens.
+ * The end of the checkout: one ticket card with the booking code (copyable)
+ * and the trip. The scannable QR lives on the booking page the main button opens.
  */
 export function BookingSuccess({
   trip,
@@ -75,133 +75,74 @@ export function BookingSuccess({
             />
           </svg>
         </div>
-        <h3 className="text-xl font-extrabold text-primary">
+        <h3 className="text-xl font-bold text-slate-900">
           {lastBooking.awaitingCall ? t('bookingFlow.placedTitle') : t('booking.success')}
         </h3>
         <p className="text-sm text-muted-foreground mt-1">
           {lastBooking.awaitingCall ? t('bookingFlow.placedDesc') : t('bookingFlow.successDesc')}
         </p>
+      </div>
 
-        <div className="mt-5 inline-flex items-center gap-2 rounded-lg bg-slate-100 px-4 py-2">
-          <span className="text-xs text-muted-foreground">{t('booking.code')}</span>
-          <code className="font-mono font-bold text-lg text-primary">{lastBooking.code}</code>
+      {/* One ticket: the code to quote (copyable), then the trip. The scannable
+          QR is on the booking page the main button opens, so none is faked here. */}
+      <div className="mx-auto max-w-md overflow-hidden rounded-2xl bg-white shadow-soft ring-1 ring-slate-200/80">
+        <div className="flex items-center justify-between gap-3 bg-primary px-5 py-4 text-primary-foreground">
+          <div className="min-w-0">
+            <div className="text-xs opacity-80">{t('booking.code')}</div>
+            <code className="font-mono text-xl font-bold tracking-wider">{lastBooking.code}</code>
+          </div>
           <button
             onClick={() => {
-              // Clipboard API is undefined on non-secure contexts
-              // (http:// LAN deploys) — guard instead of crashing.
+              // Clipboard API is undefined on non-secure contexts (http:// LAN deploys).
               try {
-                navigator.clipboard?.writeText(lastBooking.code)
+                void navigator.clipboard?.writeText(lastBooking.code)
               } catch {
-                /* non-fatal — the code is visible right above */
+                /* non-fatal — the code is on screen */
               }
               setCopied(true)
               setTimeout(() => setCopied(false), 1500)
             }}
-            className="ml-1 grid size-8 place-items-center rounded hover:bg-white"
-            aria-label={t('bookingFlow.copyTicketCode')}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-xs font-semibold transition-colors hover:bg-white/25"
           >
-            {copied ? (
-              <CheckCircle2 className="h-4 w-4 text-primary" />
-            ) : (
-              <Copy className="h-4 w-4" />
-            )}
+            {copied ? <CheckCircle2 className="size-3.5" /> : <Copy className="size-3.5" />}
+            {t('bookingFlow.copyTicketCode')}
           </button>
         </div>
+        <div className="relative border-t border-dashed border-slate-200" aria-hidden>
+          <span className="absolute -top-2 -left-2 size-4 rounded-full bg-white ring-1 ring-slate-200" />
+          <span className="absolute -top-2 -right-2 size-4 rounded-full bg-white ring-1 ring-slate-200" />
+        </div>
+        <dl className="space-y-2.5 px-5 py-4 text-sm">
+          {trip && (
+            <>
+              <Row label={t('bookingFlow.routeLabel')}>
+                {trip.from.name} → {trip.to.name}
+              </Row>
+              <Row label={t('booking.departure')}>{formatDateTimeVN(trip.trip.departureAt)}</Row>
+              <Row label={t('bookingFlow.brandLabel')}>{trip.brand.name}</Row>
+            </>
+          )}
+          <Row label={t('bookingFlow.seatsLabel')}>
+            <span className="font-mono">{selectedSeats.map((s) => s.code).join(', ')}</span>
+          </Row>
+          <div className="flex items-baseline justify-between gap-4 border-t border-slate-100 pt-3">
+            <dt className="font-semibold text-slate-900">{t('bookingFlow.totalDue')}</dt>
+            <dd className="text-lg font-extrabold text-slate-900 tabular-nums">
+              {money(lastBooking.total)}
+            </dd>
+          </div>
+        </dl>
+        <p className="border-t border-slate-100 bg-slate-50 px-5 py-2.5 text-center text-xs text-slate-500">
+          {t('bookingFlow.ticketStubQrNote')}
+        </p>
       </div>
 
-      {/* Boarding-pass stub — a tactile "you're booked" artifact. The
-          real scannable QR is one tap away (booking-detail page, via the
-          CTA below), so we deliberately do NOT fake one here. */}
-      <div className="flex justify-center my-4">
-        <div className="w-full max-w-sm rounded-xl border border-slate-200 bg-linear-to-br from-slate-50 to-white relative overflow-hidden">
-          {/* Ticket perforation — dashed cut line with side notches */}
-          <div
-            className="absolute left-[68%] top-0 bottom-0 border-l-2 border-dashed border-slate-200"
-            aria-hidden
-          />
-          <div
-            className="absolute -left-2 top-1/2 -translate-y-1/2 h-4 w-4 rounded-full bg-white ring-1 ring-slate-200"
-            aria-hidden
-          />
-          <div
-            className="absolute -right-2 top-1/2 -translate-y-1/2 h-4 w-4 rounded-full bg-white ring-1 ring-slate-200 hidden sm:block"
-            aria-hidden
-          />
-          <div className="flex items-stretch">
-            {/* Left: e-ticket identity */}
-            <div className="flex-1 p-4 flex flex-col items-center justify-center text-center">
-              <div className="h-10 w-10 rounded-full bg-primary/10 text-primary flex items-center justify-center mb-2">
-                <Ticket className="h-5 w-5" />
-              </div>
-              <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                {t('bookingFlow.ticketStubTitle')}
-              </div>
-              <div className="font-mono font-extrabold text-lg text-primary mt-0.5">
-                {lastBooking.code}
-              </div>
-              <div className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1">
-                <Copy className="h-3 w-3" />
-                {t('bookingFlow.copyTicketCode')}
-              </div>
-            </div>
-            {/* Right: seats + total at a glance */}
-            <div className="w-[32%] p-3.5 flex flex-col items-center justify-center text-center border-l-0">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                {t('bookingFlow.seatsLabel')}
-              </div>
-              <div className="font-mono font-bold text-sm mt-0.5">
-                {selectedSeats.map((s) => s.code).join(', ')}
-              </div>
-              <div className="mt-2 pt-2 border-t border-dashed border-slate-200 w-full">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                  {t('bookingFlow.totalDue')}
-                </div>
-                <div className="font-bold text-sm text-primary">{money(lastBooking.total)}</div>
-              </div>
-            </div>
-          </div>
-          <div className="border-t border-slate-100 bg-white/60 text-center text-[10px] text-muted-foreground py-1.5 px-3">
-            {t('bookingFlow.ticketStubQrNote')}
-          </div>
-        </div>
-      </div>
-
-      {/* Booking summary */}
-      {trip && (
-        <div className="rounded-lg border bg-white p-4 space-y-2 text-sm">
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">{t('bookingFlow.routeLabel')}</span>
-            <span className="font-medium">
-              {trip.from.name} → {trip.to.name}
-            </span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">{t('booking.departure')}</span>
-            <span className="font-medium">{formatDateTimeVN(trip.trip.departureAt)}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">{t('bookingFlow.seatsLabel')}</span>
-            <span className="font-medium font-mono">
-              {selectedSeats.map((s) => s.code).join(', ')}
-            </span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">{t('bookingFlow.brandLabel')}</span>
-            <span className="font-medium">{trip.brand.name}</span>
-          </div>
-          <div className="flex justify-between border-t pt-2 font-bold text-base">
-            <span>{t('bookingFlow.totalDue')}</span>
-            <span className="text-primary">{money(lastBooking.total)}</span>
-          </div>
-        </div>
-      )}
-
-      <div className="flex gap-2 mt-5">
-        <Button variant="outline" className="flex-1 gap-1" onClick={onClose}>
+      <div className="mx-auto mt-5 flex max-w-md gap-2">
+        <Button variant="outline" className="h-11 flex-1 gap-1 rounded-xl" onClick={onClose}>
           {t('bookingFlow.bookAnother')}
         </Button>
         <Button
-          className="flex-1 gap-1 bg-primary hover:bg-primary/90"
+          className="h-11 flex-1 gap-1 rounded-xl"
           onClick={() => {
             const code = lastBooking?.code
             onClose()
@@ -217,6 +158,15 @@ export function BookingSuccess({
           {t('bookingFlow.viewMyTickets')}
         </Button>
       </div>
+    </div>
+  )
+}
+
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-baseline justify-between gap-4">
+      <dt className="shrink-0 text-slate-500">{label}</dt>
+      <dd className="text-right font-medium text-slate-900">{children}</dd>
     </div>
   )
 }

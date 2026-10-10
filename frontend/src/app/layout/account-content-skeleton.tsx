@@ -3,14 +3,14 @@ import { Shimmer } from '@/components/ui/shimmer'
 
 export const AccountContentSkeleton = memo(function AccountContentSkeleton() {
   return (
-    <div className="p-3 md:p-6 space-y-4" aria-hidden>
+    <div className="space-y-4" aria-hidden>
       <div className="space-y-1.5">
         <Shimmer className="h-6 w-48" />
         <Shimmer className="h-3.5 w-72 max-w-full" />
       </div>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="rounded-lg border bg-card p-4 space-y-3">
+          <div key={i} className="space-y-3 rounded-2xl bg-white p-4 ring-1 ring-slate-200/80">
             <div className="flex items-center gap-3">
               <Shimmer className="h-9 w-9 rounded-full" />
               <div className="flex-1 space-y-1.5">

@@ -1,7 +1,5 @@
 import 'package:material_ui/material_ui.dart';
 
-import 'dart:ui';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:forui/forui.dart';
 import 'package:go_router/go_router.dart';
@@ -9,13 +7,9 @@ import 'package:go_router/go_router.dart';
 import '../core/design.dart';
 import '../features/chat/conversations_controller.dart';
 
-/// Outer scaffold for the three-branch shell.
-///
-/// Signature element: a floating glassy pill bottom bar (Messenger-style)
-/// — backdrop blur, soft shadow, and a sliding purple selection pill
-/// that glides between tabs instead of an abrupt color swap. Branch
-/// content fades through when switching (see the router's fade-through
-/// page transitions).
+/// Outer scaffold for the three-branch shell: a plain tab bar like the
+/// website's phone tab bar — white, a hairline on top, icon over label,
+/// the active tab in the brand blue, unread messages as a count badge.
 class HomeShell extends ConsumerWidget {
   const HomeShell({required this.shell, super.key});
 
@@ -32,166 +26,36 @@ class HomeShell extends ConsumerWidget {
     final theme = context.theme;
     final unread = ref.watch(totalUnreadProvider);
     final index = shell.currentIndex;
-    final count = _items.length;
 
     return Scaffold(
       backgroundColor: theme.colors.background,
-      extendBody: true,
       body: shell,
-      bottomNavigationBar: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(999),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-              child: Container(
-                height: 60,
-                decoration: BoxDecoration(
-                  color: theme.colors.card.withValues(alpha: 0.84),
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(
-                    color: theme.colors.border.withValues(alpha: 0.7),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: theme.colors.background.withValues(alpha: 0.55),
-                      blurRadius: 18,
-                      offset: const Offset(0, 6),
-                    ),
-                    BoxShadow(
-                      color: AppBrand.violet.withValues(alpha: 0.10),
-                      blurRadius: 30,
-                      offset: const Offset(0, 10),
-                    ),
-                  ],
-                ),
-                // Stack paints first → last; the pill is first so it sits
-                // BEHIND the items.
-                child: Stack(
-                  children: [
-                    _SelectionPill(index: index, count: count),
-                    Row(
-                      children: [
-                        for (final (i, (icon, label)) in _items.indexed)
-                          Expanded(
-                            child: _NavItem(
-                              icon: icon,
-                              label: i == 0 && unread > 0
-                                  ? 'Hỗ trợ · $unread'
-                                  : label,
-                              selected: index == i,
-                              onTap: () => shell.goBranch(
-                                i,
-                                // Tapping the current tab resets the branch
-                                // (pops room → queue).
-                                initialLocation: i == index,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
+      bottomNavigationBar: DecoratedBox(
+        decoration: BoxDecoration(
+          color: theme.colors.card,
+          border: Border(top: BorderSide(color: theme.colors.border)),
         ),
-      ),
-    );
-  }
-}
-
-/// One nav item: icon + label, colored for the active pill underneath.
-///
-/// All color/weight/scale changes are animated so the active state reads
-/// clearly (bold, white) without an abrupt hard cut when switching tabs.
-class _NavItem extends StatefulWidget {
-  const _NavItem({
-    required this.icon,
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  State<_NavItem> createState() => _NavItemState();
-}
-
-class _NavItemState extends State<_NavItem> {
-  bool _pressed = false;
-
-  void _setPressed(bool value) {
-    if (_pressed == value) return;
-    setState(() => _pressed = value);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = context.theme;
-    final selected = widget.selected;
-    final fg = selected
-        ? theme.colors.primaryForeground
-        : theme.colors.mutedForeground;
-
-    return Semantics(
-      button: true,
-      selected: selected,
-      label: widget.label,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: widget.onTap,
-        onTapDown: (_) => _setPressed(true),
-        onTapCancel: () => _setPressed(false),
-        onTapUp: (_) => _setPressed(false),
-        child: AnimatedScale(
-          scale: _pressed ? 0.92 : 1,
-          duration: AppMotion.quick,
-          curve: Curves.easeOut,
+        child: SafeArea(
+          top: false,
           child: SizedBox(
-            height: 60,
+            height: 56,
             child: Row(
-              mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                AnimatedScale(
-                  scale: selected ? 1.08 : 1,
-                  duration: AppMotion.page,
-                  curve: AppMotion.overshoot,
-                  child: AnimatedSwitcher(
-                    duration: AppMotion.quick,
-                    child: Icon(
-                      widget.icon,
-                      key: ValueKey(selected),
-                      size: 19,
-                      color: fg,
+                for (final (i, (icon, label)) in _items.indexed)
+                  Expanded(
+                    child: _NavItem(
+                      icon: icon,
+                      label: label,
+                      badge: i == 0 ? unread : 0,
+                      selected: index == i,
+                      onTap: () => shell.goBranch(
+                        i,
+                        // Tapping the current tab resets the branch
+                        // (pops room → queue).
+                        initialLocation: i == index,
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 5),
-                Flexible(
-                  child: AnimatedDefaultTextStyle(
-                    duration: AppMotion.page,
-                    curve: Curves.easeOut,
-                    style: theme.typography.body.xs.copyWith(
-                      color: fg,
-                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                      fontSize: 11,
-                      letterSpacing: -0.1,
-                    ),
-                    child: Text(
-                      widget.label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ),
               ],
             ),
           ),
@@ -201,52 +65,94 @@ class _NavItemState extends State<_NavItem> {
   }
 }
 
-/// Purple gradient pill that glides behind the active tab with a light
-/// overshoot — the bar's signature motion.
-class _SelectionPill extends StatelessWidget {
-  const _SelectionPill({required this.index, required this.count});
+/// One tab: icon over label, with an optional count badge on the icon.
+class _NavItem extends StatelessWidget {
+  const _NavItem({
+    required this.icon,
+    required this.label,
+    required this.badge,
+    required this.selected,
+    required this.onTap,
+  });
 
-  final int index;
-  final int count;
+  final IconData icon;
+  final String label;
+  final int badge;
+  final bool selected;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return IgnorePointer(
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final w = constraints.maxWidth / count;
-          final pillWidth = w * 0.86;
-          return Stack(
-            children: [
-              AnimatedPositioned(
-                duration: AppMotion.page,
-                curve: AppMotion.overshoot,
-                // Slot left edge + half the leftover slot space centers
-                // the (narrower) pill exactly under the active tab.
-                left: index * w + (w - pillWidth) / 2,
-                top: 8,
-                width: pillWidth,
-                height: 44,
-                child: DecoratedBox(
+    final theme = context.theme;
+    final fg = selected ? theme.colors.primary : theme.colors.mutedForeground;
+
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: badge > 0 ? '$label, $badge tin chưa đọc' : label,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                AnimatedContainer(
+                  duration: AppMotion.quick,
+                  curve: Curves.easeOut,
+                  width: 52,
+                  height: 28,
                   decoration: BoxDecoration(
-                    gradient: AppBrand.bubbleGradient,
+                    color: selected
+                        ? theme.colors.primary.withValues(alpha: 0.10)
+                        : Colors.transparent,
                     borderRadius: BorderRadius.circular(999),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.18),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppBrand.violet.withValues(alpha: 0.42),
-                        blurRadius: 14,
-                        offset: const Offset(0, 5),
-                      ),
-                    ],
                   ),
+                  alignment: Alignment.center,
+                  child: Icon(icon, size: 20, color: fg),
                 ),
+                if (badge > 0)
+                  Positioned(
+                    top: -3,
+                    right: 4,
+                    child: Container(
+                      constraints: const BoxConstraints(minWidth: 18),
+                      height: 18,
+                      padding: const EdgeInsets.symmetric(horizontal: 5),
+                      decoration: BoxDecoration(
+                        color: theme.colors.destructive,
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(color: theme.colors.card, width: 2),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        badge > 99 ? '99+' : '$badge',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          height: 1,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 3),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.typography.body.xs.copyWith(
+                color: fg,
+                fontSize: 11,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
               ),
-            ],
-          );
-        },
+            ),
+          ],
+        ),
       ),
     );
   }

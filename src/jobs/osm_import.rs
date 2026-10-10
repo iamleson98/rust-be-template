@@ -8,7 +8,7 @@
 //!    the low-resource profile ([`IndexOptions::default`]: 256 MB heap,
 //!    1 thread, FirstNode centroids) — slow but gentle on RAM/CPU, per
 //!    the "runs at night on a shared box" requirement. Progress lands
-//!    in the `job_run.detail` JSON.
+//!    in the run history.
 //! 3. **Swap**: live → `.old`, staging → live, then remove `.old`. The
 //!    live index is never touched until the new one is fully built, so
 //!    search keeps serving the old data throughout (and keeps serving
@@ -18,54 +18,44 @@
 //! 5. **Cleanup**: the ~500 MB PBF and any `.part` / staging leftovers
 //!    are deleted, success or failure.
 //!
-//! Failure semantics: the handler marks the `job_run` row failed and
-//! returns `Err`, so the runner retries once (`max_attempts = 2`).
-//! The retry re-downloads from scratch — acceptable for a biweekly
-//! night job.
+//! Failure semantics: an error ends the attempt and the runner retries
+//! once (`max_attempts = 2`, after a 10–20 minute pause). The retry
+//! re-downloads from scratch — acceptable for a biweekly night job. The
+//! runner records start, retry and outcome in run history; this job
+//! only reports its progress.
 //!
-//! Cancellation (the admin kill button / Ctrl+C shutdown) is
-//! cooperative: every phase observes the run's `CancellationToken` —
-//! the download via `select!`, the blocking indexer via `IndexOptions::
-//! stop` — and a cancelled run terminates with status `cancelled` and
-//! is ACKed (never retried). Cleanup runs on the cancelled path too.
+//! Cancellation (the admin cancel button, the timeout, shutdown) is
+//! cooperative: every phase watches the run's token — the download via
+//! `select!`, the blocking indexer via `IndexOptions::stop`. Cleanup
+//! runs on the cancelled path too.
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
-use sea_orm::Set;
+use async_trait::async_trait;
 use serde_json::json;
 use tokio_util::sync::CancellationToken;
-use uuid::Uuid;
 
 use crate::config::Config;
-use crate::dto::job::status;
-use crate::entity::job_run;
 use crate::osm::download;
 use crate::osm::indexer::{self, IndexOptions, IndexStats};
 use crate::service::PlaceService;
-use crate::store::{now_iso, JobStore};
-use crate::worker::{JobEnvelope, JobPolicy, JobRegistry};
+use crate::worker::{Backoff, Job, JobContext, JobPolicy};
 
-use super::{JobDeps, RunPayload};
-
-/// Worker job type handled here — the identity shared with the
-/// `jobs::catalog` entry and the `scheduled_job` row seeded by
-/// `JobService::ensure_default_jobs`.
-pub const JOB_TYPE: &str = "osm.import";
+use super::JobDeps;
 
 /// Wall-clock budget. The download + single-threaded 3-pass index can
-/// legitimately take a few hours on a small VM; 6 h is the kill line
-/// (the runner then nacks → one retry).
+/// legitimately take a few hours on a small VM; 6 h is the kill line.
 const TIMEOUT: Duration = Duration::from_secs(6 * 3600);
 
 // ── Single-flight guard ─────────────────────────────────────────
 //
-// The runner's timeout drops the handler future but a `spawn_blocking`
-// body keeps running. This flag lives in the blocking closure, so a
-// retry arriving while an orphaned indexer still writes to staging is
-// refused instead of corrupting the same directory.
+// Cancelling stops the async side at once, but the blocking indexer only
+// notices at its next stop check. This flag lives in the blocking
+// closure, so a retry arriving while that indexer still writes to
+// staging is refused instead of corrupting the same directory.
 
 static IMPORT_IN_FLIGHT: AtomicBool = AtomicBool::new(false);
 
@@ -73,7 +63,7 @@ struct ImportGuard;
 
 impl ImportGuard {
     /// Acquire the single-flight slot. `None` when an import (possibly
-    /// an orphaned indexer thread) is still running.
+    /// a winding-down indexer thread) is still running.
     fn acquire() -> Option<Self> {
         (!IMPORT_IN_FLIGHT.swap(true, Ordering::AcqRel)).then(|| ImportGuard)
     }
@@ -85,10 +75,7 @@ impl Drop for ImportGuard {
     }
 }
 
-/// Marker error: the run was cancelled (operator kill or process
-/// shutdown). Distinguished from real failures so the terminal-state
-/// writer marks the row `cancelled` (not `failed`) and returns `Ok(())`
-/// — the runner must not retry an intentional stop.
+/// The run was cancelled (operator, timeout or shutdown).
 #[derive(Debug)]
 struct Cancelled;
 
@@ -100,28 +87,76 @@ impl std::fmt::Display for Cancelled {
 
 impl std::error::Error for Cancelled {}
 
-/// Register the handler + policy on the worker registry. Referenced by
-/// the `jobs::catalog` entry (a plain `fn` pointer — all state arrives
-/// via `deps`).
-pub fn register(registry: &JobRegistry, deps: JobDeps) {
-    let JobDeps {
-        job_store,
-        places,
-        config,
-    } = deps;
-    registry.register_with_policy(
-        JOB_TYPE,
-        move |env: JobEnvelope| {
-            let job_store = job_store.clone();
-            let places = places.clone();
-            let config = config.clone();
-            async move { run(env, &job_store, &places, &config).await }
-        },
+/// The `osm.import` job.
+pub struct OsmImport {
+    places: Arc<PlaceService>,
+    config: Arc<Config>,
+}
+
+impl OsmImport {
+    pub fn new(deps: &JobDeps) -> Self {
+        Self {
+            places: deps.places.clone(),
+            config: deps.config.clone(),
+        }
+    }
+}
+
+#[async_trait]
+impl Job for OsmImport {
+    const KIND: &'static str = "osm.import";
+    type Args = ();
+
+    fn policy(&self) -> JobPolicy {
         JobPolicy {
             timeout: TIMEOUT,
             max_attempts: 2,
-        },
-    );
+            backoff: Backoff {
+                base: Duration::from_secs(20 * 60),
+                cap: Duration::from_secs(20 * 60),
+            },
+        }
+    }
+
+    async fn perform(&self, ctx: &JobContext, _: ()) -> anyhow::Result<()> {
+        let paths = ImportPaths::resolve(&self.config)?;
+        tracing::info!(job_id = %ctx.id, attempt = ctx.attempt, "osm.import started");
+        ctx.progress(json!({ "phase": "downloading", "message": "starting download" }))
+            .await;
+
+        // Progress arrives from sync callbacks (some on the blocking
+        // indexer thread): forward it through a channel, in order.
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<serde_json::Value>();
+        let forward_ctx = ctx.clone();
+        let forward = tokio::spawn(async move {
+            while let Some(detail) = rx.recv().await {
+                forward_ctx.progress(detail).await;
+            }
+        });
+
+        let result = execute(&paths, &self.places, &tx, &ctx.cancel).await;
+        // Drain the progress queue before the final report.
+        drop(tx);
+        let _ = forward.await;
+
+        let stats = result?;
+        ctx.progress(json!({
+            "phase": "done",
+            "message": format!(
+                "indexed {} places ({} nodes, {} ways, {} admin relations)",
+                stats.indexed, stats.nodes, stats.ways, stats.admins
+            ),
+            "stats": {
+                "indexed": stats.indexed,
+                "nodes": stats.nodes,
+                "ways": stats.ways,
+                "admins": stats.admins,
+            },
+        }))
+        .await;
+        tracing::info!(job_id = %ctx.id, indexed = stats.indexed, "osm.import succeeded");
+        Ok(())
+    }
 }
 
 /// Everything the handler needs, resolved from config once.
@@ -165,137 +200,7 @@ fn sibling_dir(dir: &Path, suffix: &str) -> PathBuf {
     dir.with_file_name(format!("{name}.{suffix}"))
 }
 
-/// Handler entry point.
-async fn run(
-    env: JobEnvelope,
-    job_store: &Arc<dyn JobStore>,
-    places: &Arc<PlaceService>,
-    config: &Arc<Config>,
-) -> anyhow::Result<()> {
-    let payload: RunPayload = env.decode_payload().unwrap_or(RunPayload { run_id: None });
-    let paths = ImportPaths::resolve(config)?;
-
-    // Resolve (or create) the history row this execution reports into.
-    let mut run_row = match payload.run_id {
-        Some(id) => job_store
-            .find_run(id)
-            .await
-            .map_err(|e| anyhow::anyhow!(e.to_string()))?
-            .ok_or_else(|| anyhow::anyhow!("job run row {id} not found"))?,
-        None => insert_run(job_store, JOB_TYPE).await?,
-    };
-
-    // A row that is already terminal (e.g. cancelled while queued, or
-    // swept as stale between enqueue and dispatch) must not be
-    // resurrected — exit without work.
-    if matches!(
-        run_row.status.as_str(),
-        status::SUCCEEDED | status::FAILED | status::CANCELLED
-    ) {
-        tracing::info!(
-            run_id = %run_row.id,
-            status = %run_row.status,
-            "run row already terminal — skipping dispatch"
-        );
-        return Ok(());
-    }
-
-    let cancel = env.cancel.clone();
-
-    // queued → running
-    {
-        let mut am: job_run::ActiveModel = run_row.clone().into();
-        am.status = Set(status::RUNNING.into());
-        am.started_at = Set(Some(now_iso()));
-        am.error = Set(None);
-        am.detail = Set(Some(
-            json!({ "phase": "downloading", "message": "starting download" }).to_string(),
-        ));
-        run_row = job_store
-            .update_run(am)
-            .await
-            .map_err(|e| anyhow::anyhow!(e.to_string()))?;
-    }
-    let run_id = run_row.id;
-    tracing::info!(run_id = %run_id, attempt = env.attempts + 1, "osm.import started");
-
-    // Progress writer: forwards detail-JSON updates to the DB without
-    // read-modify-write (a full-row UPDATE here could race the lifecycle
-    // transitions below and resurrect a stale status).
-    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<serde_json::Value>();
-    let progress_store = job_store.clone();
-    let progress_task = tokio::spawn(async move {
-        while let Some(detail) = rx.recv().await {
-            if let Err(e) = progress_store
-                .set_run_detail(run_id, &detail.to_string())
-                .await
-            {
-                tracing::warn!(error = %e, "failed to persist job progress detail");
-            }
-        }
-    });
-
-    let result = execute(&paths, places, &tx, &cancel).await;
-
-    // Stop the progress writer BEFORE the final lifecycle write so a
-    // late progress update can't clobber the terminal status/detail.
-    drop(tx);
-    let _ = progress_task.await;
-
-    match result {
-        Ok(stats) => {
-            let detail = json!({
-                "phase": "done",
-                "message": format!(
-                    "indexed {} places ({} nodes, {} ways, {} admin relations)",
-                    stats.indexed, stats.nodes, stats.ways, stats.admins
-                ),
-                "stats": {
-                    "indexed": stats.indexed,
-                    "nodes": stats.nodes,
-                    "ways": stats.ways,
-                    "admins": stats.admins,
-                },
-            });
-            let mut am: job_run::ActiveModel = run_row.into();
-            am.status = Set(status::SUCCEEDED.into());
-            am.detail = Set(Some(detail.to_string()));
-            am.finished_at = Set(Some(now_iso()));
-            am.error = Set(None);
-            let _ = job_store.update_run(am).await;
-            tracing::info!(run_id = %run_id, "osm.import succeeded");
-            Ok(())
-        }
-        Err(e) if e.downcast_ref::<Cancelled>().is_some() => {
-            // An intentional stop (admin kill / Ctrl+C): terminal
-            // `cancelled` status + `Ok` so the runner acks without retry.
-            // The service already wrote `cancelled` in the common path;
-            // this write is idempotent reconciliation for the race where
-            // the token fired between two DB writes.
-            let mut am: job_run::ActiveModel = run_row.into();
-            am.status = Set(status::CANCELLED.into());
-            am.error = Set(None);
-            am.finished_at = Set(Some(now_iso()));
-            let _ = job_store.update_run(am).await;
-            tracing::info!(run_id = %run_id, "osm.import cancelled");
-            Ok(())
-        }
-        Err(e) => {
-            let message = e.to_string();
-            let mut am: job_run::ActiveModel = run_row.into();
-            am.status = Set(status::FAILED.into());
-            am.error = Set(Some(message.clone()));
-            am.finished_at = Set(Some(now_iso()));
-            let _ = job_store.update_run(am).await;
-            // Propagate so the runner performs the retry (max 2).
-            tracing::warn!(run_id = %run_id, error = %message, "osm.import failed");
-            Err(e)
-        }
-    }
-}
-
-/// The actual pipeline. Errors propagate to the caller which marks the
-/// run row failed — cleanup still runs on every exit path.
+/// The actual pipeline. Cleanup runs on every exit path.
 async fn execute(
     paths: &ImportPaths,
     places: &Arc<PlaceService>,
@@ -463,28 +368,6 @@ fn cleanup(paths: &ImportPaths) {
     let _ = std::fs::remove_dir_all(sibling_dir(&paths.index_dir, "old"));
 }
 
-/// Insert a fresh `queued` row and return it as `running`-ready model.
-async fn insert_run(
-    job_store: &Arc<dyn JobStore>,
-    job_type: &str,
-) -> anyhow::Result<job_run::Model> {
-    let now = now_iso();
-    let am = job_run::ActiveModel {
-        id: Set(Uuid::new_v4()),
-        job_type: Set(job_type.to_string()),
-        status: Set(status::QUEUED.into()),
-        detail: Set(None),
-        error: Set(None),
-        started_at: Set(None),
-        finished_at: Set(None),
-        created_at: Set(now),
-    };
-    job_store
-        .insert_run(am)
-        .await
-        .map_err(|e| anyhow::anyhow!(e.to_string()))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -561,37 +444,27 @@ mod tests {
 #[cfg(test)]
 mod integration {
     use super::*;
-    use crate::service::place_service::PlaceService;
     use crate::store::CompositeStore;
-    use crate::store::DbJobStore;
-    use sea_orm::{ConnectionTrait, Database, Set};
+    use crate::worker::RunObserver;
+    use parking_lot::Mutex;
+    use uuid::Uuid;
 
-    /// Full handler failure path: unreachable download URL → run row
-    //  marked failed with an error, no PBF / .part / staging leftovers.
-    #[tokio::test]
-    async fn failed_download_marks_run_failed_and_cleans_up() {
-        let db = Database::connect("sqlite::memory:").await.unwrap();
-        for stmt in [r#"CREATE TABLE job_run (
-                id TEXT PRIMARY KEY,
-                job_type TEXT NOT NULL,
-                status TEXT NOT NULL,
-                detail TEXT,
-                error TEXT,
-                started_at TEXT,
-                finished_at TEXT,
-                created_at TEXT NOT NULL
-            )"#]
-        {
-            db.execute_unprepared(stmt).await.unwrap();
+    #[derive(Default)]
+    struct Progress(Mutex<Vec<serde_json::Value>>);
+
+    #[async_trait]
+    impl RunObserver for Progress {
+        async fn started(&self, _: Uuid, _: &str, _: u32) {}
+        async fn progressed(&self, _: Uuid, detail: &serde_json::Value) {
+            self.0.lock().push(detail.clone());
         }
-        let db = Arc::new(db);
-        let job_store: Arc<dyn JobStore> = Arc::new(DbJobStore::new(db.clone()));
+        async fn finished(&self, _: Uuid, _: &str, _: &crate::worker::RunOutcome) {}
+    }
 
-        // Minimal PlaceService — activate is never reached (download fails).
-        // Shared in-memory fixture over a fresh SQLite DB.
-        let store = CompositeStore::in_memory().await;
-        let places = Arc::new(PlaceService::new(store));
-
+    /// Unreachable download URL → the attempt fails with a download
+    /// error after reporting progress, and nothing is left on disk.
+    #[tokio::test]
+    async fn failed_download_errors_and_cleans_up() {
         let tmp = tempfile::tempdir().unwrap();
         let config = Arc::new(Config {
             search: crate::config::SearchConfig {
@@ -602,41 +475,22 @@ mod integration {
             },
             ..Default::default()
         });
+        let deps = JobDeps {
+            places: Arc::new(PlaceService::new(CompositeStore::in_memory().await)),
+            config,
+        };
+        let progress = Arc::new(Progress::default());
+        let ctx = JobContext::for_test(progress.clone());
 
-        // Pre-insert the queued run row the way `JobService::trigger` does.
-        let queued_run = job_store
-            .insert_run(job_run::ActiveModel {
-                id: Set(Uuid::new_v4()),
-                job_type: Set(JOB_TYPE.into()),
-                status: Set(status::QUEUED.into()),
-                detail: Set(None),
-                error: Set(None),
-                started_at: Set(None),
-                finished_at: Set(None),
-                created_at: Set(now_iso()),
-            })
-            .await
-            .unwrap();
-
-        let env = JobEnvelope::new(JOB_TYPE, &RunPayload::for_run(queued_run.id)).unwrap();
-        let err = run(env, &job_store, &places, &config).await.unwrap_err();
+        let err = OsmImport::new(&deps).perform(&ctx, ()).await.unwrap_err();
+        let text = err.to_string().to_lowercase();
         assert!(
-            err.to_string().to_lowercase().contains("download")
-                || err.to_string().contains("os error")
-                || err.to_string().contains("requesting"),
+            text.contains("download") || text.contains("os error") || text.contains("request"),
             "unexpected error: {err}"
         );
+        let reported = progress.0.lock().clone();
+        assert_eq!(reported[0]["phase"], "downloading");
 
-        let row = job_store.find_run(queued_run.id).await.unwrap().unwrap();
-        assert_eq!(row.status, status::FAILED);
-        assert!(row.error.is_some());
-        assert!(row.started_at.is_some());
-        assert!(row.finished_at.is_some());
-        // Progress detail was written (the "downloading" phase).
-        let detail = row.detail.unwrap();
-        assert!(detail.contains("phase"), "detail: {detail}");
-
-        // Cleanup: no PBF, no .part, no staging dir.
         assert!(!tmp.path().join("vn.osm.pbf").exists());
         assert!(!tmp.path().join("vn.osm.pbf.part").exists());
         assert!(!tmp.path().join("osm-index.staging").exists());

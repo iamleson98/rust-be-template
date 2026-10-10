@@ -1,66 +1,34 @@
-//! Pluggable async worker broker. Trait + three backends:
-//! - `RedisBroker`: BLPOP/BRPOP, sub-ms latency, simplest to scale out
-//! - `DbBroker`: job queue in the rust-sql DB — zero new infra
-//!   (works on the database the app already runs on)
-//! - `KafkaBroker`: rdkafka producer/consumer — high-throughput at scale
+//! Background jobs.
 //!
-//! The `runner` consumes jobs from whichever broker is selected and
-//! dispatches them to registered handlers. [`build_shared`] is the
-//! variant the server bootstrap uses (DB broker shares the app's pool).
+//! * [`Job`] — one kind of work: a stable `KIND`, typed `Args`, a
+//!   [`JobPolicy`] (timeout, attempts, retry backoff) and `perform`.
+//! * [`JobQueue`] — the durable queue in the app database
+//!   (`background_job`, through [`crate::store::JobQueueStore`]): leased
+//!   claims, retries with backoff, a dead set, de-duplication keys.
+//! * [`WorkerRunner`] — consumer tasks that claim, run and settle jobs,
+//!   reporting each run to a [`RunObserver`] (run history).
+//!
+//! The built-in jobs and their default schedules are listed in
+//! [`crate::jobs::catalog`]; adding a job is a `Job` impl plus one
+//! catalog entry.
 
-pub use self::backend::{JobEnvelope, WorkerBroker};
 pub use self::cancel::RunCancels;
-pub use self::db::DbBroker;
-pub use self::kafka::KafkaBroker;
-pub use self::redis::RedisBroker;
-pub use self::registry::{JobHandler, JobPolicy, JobRegistry, JobType};
+pub use self::job::{
+    Backoff, Job, JobContext, JobPolicy, JobRegistry, NoObserver, RunObserver, RunOutcome,
+};
+pub use self::queue::{EnqueueOptions, Enqueued, JobQueue, QueueCounts, QueuedJob};
 pub use self::runner::WorkerRunner;
 
-mod backend;
 mod cancel;
-mod db;
-mod kafka;
-mod redis;
-mod registry;
+mod job;
+mod queue;
 mod runner;
 
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
 
-use sea_orm::DatabaseConnection;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
-
-use crate::config::{WorkerBackend as WorkerBackendCfg, WorkerConfig};
-
-/// Construct the configured broker (opens its own DB pool for the `db`
-/// backend — prefer [`build_shared`] when a pool already exists).
-pub async fn build(cfg: &WorkerConfig) -> anyhow::Result<Box<dyn WorkerBroker>> {
-    match cfg.backend {
-        WorkerBackendCfg::Redis => Ok(Box::new(RedisBroker::connect(cfg).await?)),
-        WorkerBackendCfg::Db => Ok(Box::new(DbBroker::new().await?)),
-        WorkerBackendCfg::Kafka => Ok(Box::new(KafkaBroker::new(cfg).await?)),
-    }
-}
-
-/// Like [`build`], but the `db` backend reuses the application's shared
-/// connection pool instead of opening a second one. Redis/Kafka
-/// backends fall through to [`build`] (they have no pool to share).
-pub async fn build_shared(
-    cfg: &WorkerConfig,
-    db: Arc<DatabaseConnection>,
-) -> anyhow::Result<Arc<dyn WorkerBroker>> {
-    match cfg.backend {
-        // Pass the poll tuning through (the hardcoded 1s previously
-        // ignored WORKER_POLL_INTERVAL_MS entirely): base poll from the
-        // config + the adaptive idle-backoff cap. Enqueue still wakes
-        // sleeping workers instantly via the broker's Notify.
-        WorkerBackendCfg::Db => Ok(Arc::new(
-            DbBroker::with_db_opts(db, cfg.poll_interval(), cfg.idle_poll_max()).await?,
-        )),
-        _ => Ok(Arc::from(build(cfg).await?)),
-    }
-}
 
 // ── Process-global shutdown signal ──────────────────────────────
 //
@@ -120,202 +88,5 @@ pub async fn await_worker_shutdown(timeout: Duration) -> bool {
         // No runner started in this process — nothing to wait for.
         None => true,
         Some(handle) => tokio::time::timeout(timeout, handle).await.is_ok(),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::worker::registry::JobRegistry;
-    use std::sync::atomic::{AtomicBool, Ordering};
-    use std::sync::Arc;
-    use std::time::Duration;
-
-    /// End-to-end: enqueue → runner consumes → handler runs → ack.
-    /// Proves the whole wiring that `server::bootstrap` now uses
-    /// (shared-pool DbBroker + registry + runner) actually executes jobs.
-    #[tokio::test]
-    async fn runner_executes_an_enqueued_job_end_to_end() {
-        let db = sea_orm::Database::connect("sqlite::memory:").await.unwrap();
-        let db = Arc::new(db);
-        let broker: Arc<dyn WorkerBroker> = Arc::new(DbBroker::with_db(db).await.unwrap());
-
-        let done = Arc::new(AtomicBool::new(false));
-        let registry = Arc::new(JobRegistry::new());
-        {
-            let done = done.clone();
-            registry.register("test.noop", move |env: JobEnvelope| {
-                let done = done.clone();
-                async move {
-                    assert_eq!(env.job_type, "test.noop");
-                    done.store(true, Ordering::SeqCst);
-                    Ok(())
-                }
-            });
-        }
-
-        let runner = WorkerRunner::new(broker.clone(), registry, 1, Arc::new(RunCancels::new()));
-        let shutdown = runner.shutdown_handle();
-        runner.spawn();
-
-        broker
-            .enqueue(JobEnvelope::new("test.noop", &serde_json::json!({})).unwrap())
-            .await
-            .unwrap();
-
-        // Wait for the worker to pick it up (dequeue polls at ~1s).
-        for _ in 0..100 {
-            if done.load(Ordering::SeqCst) {
-                break;
-            }
-            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-        }
-        assert!(done.load(Ordering::SeqCst), "job did not run");
-
-        shutdown.cancel();
-    }
-
-    /// Nack path: a failing handler is re-enqueued with attempts+1,
-    /// and the poison-drop threshold comes from the registered policy.
-    #[tokio::test]
-    async fn failing_job_is_retried_then_dropped_per_policy() {
-        let db = sea_orm::Database::connect("sqlite::memory:").await.unwrap();
-        let db = Arc::new(db);
-        let broker: Arc<dyn WorkerBroker> = Arc::new(DbBroker::with_db(db).await.unwrap());
-
-        let attempts_seen = Arc::new(std::sync::atomic::AtomicU32::new(0));
-        let registry = Arc::new(JobRegistry::new());
-        {
-            let attempts_seen = attempts_seen.clone();
-            registry.register_with_policy(
-                "test.flaky",
-                move |_env: JobEnvelope| {
-                    let attempts_seen = attempts_seen.clone();
-                    async move {
-                        attempts_seen.fetch_add(1, Ordering::SeqCst);
-                        Err(anyhow::anyhow!("always fails"))
-                    }
-                },
-                JobPolicy {
-                    timeout: std::time::Duration::from_secs(5),
-                    max_attempts: 2,
-                },
-            );
-        }
-
-        let runner = WorkerRunner::new(broker.clone(), registry, 1, Arc::new(RunCancels::new()));
-        let shutdown = runner.shutdown_handle();
-        runner.spawn();
-
-        broker
-            .enqueue(JobEnvelope::new("test.flaky", &serde_json::json!({})).unwrap())
-            .await
-            .unwrap();
-
-        // Initial run + 1 retry, then the poison check drops it.
-        for _ in 0..150 {
-            if attempts_seen.load(Ordering::SeqCst) >= 2 {
-                break;
-            }
-            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-        }
-        assert_eq!(
-            attempts_seen.load(Ordering::SeqCst),
-            2,
-            "expected exactly max_attempts executions"
-        );
-        shutdown.cancel();
-    }
-
-    /// Cancellation path: `RunCancels::cancel` stops an in-flight handler
-    /// that awaits its envelope token, and the runner ACKs the job (no
-    /// retry) because the cancellation was intentional.
-    #[tokio::test]
-    async fn cancelled_job_is_stopped_and_acked_not_retried() {
-        let db = sea_orm::Database::connect("sqlite::memory:").await.unwrap();
-        let db = Arc::new(db);
-        let broker: Arc<dyn WorkerBroker> = Arc::new(DbBroker::with_db(db).await.unwrap());
-
-        let started = Arc::new(AtomicBool::new(false));
-        let cancelled_seen = Arc::new(AtomicBool::new(false));
-        let attempts = Arc::new(std::sync::atomic::AtomicU32::new(0));
-        let registry = Arc::new(JobRegistry::new());
-        {
-            let started = started.clone();
-            let cancelled_seen = cancelled_seen.clone();
-            let attempts = attempts.clone();
-            registry.register_with_policy(
-                "test.long",
-                move |env: JobEnvelope| {
-                    let started = started.clone();
-                    let cancelled_seen = cancelled_seen.clone();
-                    let attempts = attempts.clone();
-                    async move {
-                        attempts.fetch_add(1, Ordering::SeqCst);
-                        started.store(true, Ordering::SeqCst);
-                        // Cooperative handler: wait for either completion
-                        // or cancellation — the pattern real jobs follow.
-                        tokio::select! {
-                            _ = tokio::time::sleep(Duration::from_millis(10_000)) => Ok(()),
-                            _ = env.cancel.cancelled() => {
-                                cancelled_seen.store(true, Ordering::SeqCst);
-                                Err(anyhow::anyhow!("cancelled"))
-                            }
-                        }
-                    }
-                },
-                JobPolicy {
-                    timeout: Duration::from_secs(30),
-                    max_attempts: 5,
-                },
-            );
-        }
-
-        let cancels = Arc::new(RunCancels::new());
-        let runner = WorkerRunner::new(broker.clone(), registry, 1, cancels.clone());
-        let shutdown = runner.shutdown_handle();
-        runner.spawn();
-
-        // RunPayload shape so the runner links the envelope to a run id.
-        let run_id = uuid::Uuid::new_v4();
-        broker
-            .enqueue(
-                JobEnvelope::new("test.long", &serde_json::json!({ "run_id": run_id })).unwrap(),
-            )
-            .await
-            .unwrap();
-
-        // Wait until dispatched, then kill it from the "admin" side.
-        for _ in 0..100 {
-            if started.load(Ordering::SeqCst) {
-                break;
-            }
-            tokio::time::sleep(Duration::from_millis(50)).await;
-        }
-        assert!(started.load(Ordering::SeqCst), "job did not start");
-        cancels.cancel(run_id);
-
-        for _ in 0..100 {
-            if cancelled_seen.load(Ordering::SeqCst) {
-                break;
-            }
-            tokio::time::sleep(Duration::from_millis(50)).await;
-        }
-        assert!(
-            cancelled_seen.load(Ordering::SeqCst),
-            "handler never observed the cancellation"
-        );
-
-        // The runner acked (no retry): give the ack a moment, then assert
-        // exactly ONE execution happened.
-        tokio::time::sleep(Duration::from_millis(500)).await;
-        assert_eq!(
-            attempts.load(Ordering::SeqCst),
-            1,
-            "a cancelled run must not be retried"
-        );
-        assert!(!cancels.is_live(run_id), "run must be released");
-
-        shutdown.cancel();
     }
 }

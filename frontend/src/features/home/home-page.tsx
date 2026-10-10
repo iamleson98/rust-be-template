@@ -34,7 +34,7 @@ const Recommendations = lazy(() =>
 
 export function HomePage() {
   return (
-    <div>
+    <div className="pb-6">
       <Hero />
       <Suspense fallback={<IslandFallback minHeight={120} />}>
         <RecentlyViewed />

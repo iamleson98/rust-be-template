@@ -239,6 +239,15 @@ class ApiClient {
     return res.data['channel'] as Map<String, dynamic>;
   }
 
+  /// `GET /api/chat/channels/online` — customers signed in with the site
+  /// open right now, and the queue's channels that belong to them
+  /// (`{seq, userIds, items}`).
+  Future<Map<String, dynamic>> onlineChannels() async {
+    final res = await dio.get('/api/chat/channels/online');
+    _throwIfNotOk(res, 200, 'Không tải được khách đang online');
+    return res.data as Map<String, dynamic>;
+  }
+
   /// `GET /api/presence/staff` — team availability snapshot.
   Future<Map<String, dynamic>> staffPresence() async {
     final res = await dio.get('/api/presence/staff');

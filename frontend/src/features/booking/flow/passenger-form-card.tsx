@@ -65,12 +65,12 @@ export function PassengerFormCard({
         )}
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-[1fr_90px_120px] gap-2 items-start">
+      <div className="grid grid-cols-2 items-start gap-2 sm:grid-cols-[1fr_90px_120px]">
         <FormField
           control={control}
           name={`passengers.${i}.name`}
           render={({ field }) => (
-            <FormItem className="space-y-1">
+            <FormItem className="col-span-2 space-y-1 sm:col-span-1">
               <span className="text-[10px] font-medium uppercase tracking-wide text-slate-500">
                 {t('booking.passengerName')}
               </span>

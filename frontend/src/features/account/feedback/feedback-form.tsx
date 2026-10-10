@@ -137,7 +137,7 @@ export const FeedbackForm = memo(function FeedbackForm({
   // ─── "Submitted" success state ─────────────────────────────
   if (submitted) {
     return (
-      <Card className="border-border overflow-hidden">
+      <Card className="overflow-hidden py-0">
         <CardContent className="p-6 text-center">
           <div className="inline-flex h-14 w-14 rounded-full bg-amber-50 items-center justify-center mb-3">
             <Check className="h-7 w-7 text-amber-600" strokeWidth={3} />
@@ -171,7 +171,7 @@ export const FeedbackForm = memo(function FeedbackForm({
 
   // ─── Editable form (POST new OR PATCH existing) ────────────
   return (
-    <Card className="border-border overflow-hidden">
+    <Card className="overflow-hidden py-0">
       <CardContent className="p-4 md:p-5 space-y-4">
         {/* Header */}
         <div className="flex items-start justify-between gap-2 flex-wrap">

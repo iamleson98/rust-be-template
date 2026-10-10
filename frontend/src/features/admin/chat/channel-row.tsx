@@ -12,11 +12,26 @@ type Props = {
   selected: boolean
   /** A customer message arrived here while it was not open. */
   unseen: boolean
+  /** The customer is signed in with the site open. */
+  online: boolean
   onOpen: () => void
 }
 
+/** Green dot on an avatar's lower edge: the customer is online. */
+export function OnlineDot({ className = 'size-3' }: { className?: string }) {
+  const t = useT()
+  return (
+    <span
+      role="img"
+      aria-label={t('chat.online')}
+      title={t('chat.online')}
+      className={`absolute -right-0.5 -bottom-0.5 rounded-full bg-emerald-500 ring-2 ring-background ${className}`}
+    />
+  )
+}
+
 /** One queue entry: customer, last message, assignee, unread count and status. */
-export function ChannelRow({ channel: c, selected, unseen, onOpen }: Props) {
+export function ChannelRow({ channel: c, selected, unseen, online, onOpen }: Props) {
   const t = useT()
   const contact = customerContact(c)
   return (
@@ -36,6 +51,7 @@ export function ChannelRow({ channel: c, selected, unseen, onOpen }: Props) {
             title={t('chat.newMessage')}
           />
         )}
+        {online && <OnlineDot />}
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">

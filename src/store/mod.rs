@@ -4,6 +4,7 @@
 //!   `RefreshTokenStore`, `BrandStore`, `ChatStore`, `BookingStore`,
 //!   `ReviewStore`, `RouteStore`, `ScheduleStore`, `TripStore`,
 //!   `PlaceStore`, `PriceAlertStore`, `AuditStore`, `NotificationStore`,
+//!   `JobStore` (schedules + run history), `JobQueueStore` (worker queue),
 //!
 //! - Per-entity DB implementations: each one owns its SeaORM logic and
 //!   uses `#[retry]` on that entity's operations.
@@ -22,6 +23,7 @@ pub use self::brands::{BrandStore, CacheBrandStore, DbBrandStore};
 pub use self::chat::{CacheChatStore, ChatStore, DbChatStore, NewChatMessage, NewNullClawExchange};
 pub use self::composite::CompositeStore;
 pub use self::error::{StoreError, StoreResult};
+pub use self::job_queue::{DbJobQueueStore, JobQueueStore};
 pub use self::jobs::{DbJobStore, JobStore};
 
 // Timestamp helpers shared by the job scheduler pieces (store rows,
@@ -59,6 +61,15 @@ pub(crate) fn parse_uuid(s: &str) -> StoreResult<uuid::Uuid> {
     uuid::Uuid::parse_str(s).map_err(|_| StoreError::Validation(format!("invalid UUID: {s:?}")))
 }
 
+/// A fresh in-memory database built by the real migrations, for tests.
+#[cfg(test)]
+pub(crate) async fn migrated_test_db() -> std::sync::Arc<sea_orm::DatabaseConnection> {
+    use sea_orm_migration::MigratorTrait;
+    let db = sea_orm::Database::connect("sqlite::memory:").await.unwrap();
+    crate::Migrator::up(&db, None).await.unwrap();
+    std::sync::Arc::new(db)
+}
+
 #[macro_use]
 mod macros;
 mod address;
@@ -69,6 +80,7 @@ mod brands;
 pub mod chat;
 mod composite;
 mod error;
+pub mod job_queue;
 mod jobs;
 pub(crate) mod keys;
 mod notification;

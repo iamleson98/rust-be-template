@@ -104,10 +104,10 @@ services:
       - OAUTH_FACEBOOK_CLIENT_ID=${OAUTH_FACEBOOK_CLIENT_ID:-}
       - OAUTH_FACEBOOK_CLIENT_SECRET=${OAUTH_FACEBOOK_CLIENT_SECRET:-}
 
-      # ── Cache / worker: single-node production uses in-process cache
-      #    and the DB-backed queue. Redis is intentionally not required.
+      # ── Cache: single-node production uses the in-process cache
+      #    (background jobs always queue in the database). Redis is
+      #    intentionally not required.
       - CACHE_BACKEND=${CACHE_BACKEND:-moka}
-      - WORKER_BACKEND=${WORKER_BACKEND:-db}
 
       # ── Allocator RSS hygiene (2026-09-21 login-RSS incident) ──
       # Engine knob (rust-sql tune_mimalloc): freed mimalloc pages

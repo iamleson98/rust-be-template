@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import {
@@ -14,6 +14,7 @@ import { useChatChannelsInfinite, useChatMessagesInfinite } from '@/features/cha
 import { useTypingBroadcast } from '@/features/chat/use-typing-broadcast'
 import { getErrorMessage } from '@/lib/error-message'
 import { tSync } from '@/lib/i18n'
+import { onlineFirst } from './customer-presence'
 import { useAdminChatSocket } from './use-admin-chat-socket'
 
 const PAGE_SIZE = 30
@@ -27,7 +28,8 @@ export function useAdminChat() {
   const queue = useChatChannelsInfinite(PAGE_SIZE)
   const stats = useQuery({ ...chatStatsOptions(), refetchInterval: 15_000 })
   const thread = useChatMessagesInfinite(active?.id)
-  const live = useAdminChatSocket(active?.id)
+  const loadedIds = useMemo(() => new Set(queue.channels.map((c) => c.id)), [queue.channels])
+  const live = useAdminChatSocket(active?.id, loadedIds)
   const typing = useTypingBroadcast(active?.id, live.sendTyping)
 
   const { mutate: markRead } = useMutation(chatMarkReadMutation())
@@ -57,16 +59,28 @@ export function useAdminChat() {
   // A ticket card follows a booking that already exists, so a failed post is not worth a toast.
   const { mutate: postTicketCard } = useMutation(postMessageMutation())
 
-  // Staff see the channels assigned to them plus the unassigned queue; closed ones stay for context.
-  const channels = mineOnly
-    ? queue.channels.filter((c) => c.assignedToMe || (!c.assignedTo && c.status !== 'closed'))
-    : queue.channels
+  // Online customers first. "Mine" keeps the channels assigned to this staff
+  // member plus the unassigned queue; closed ones stay for context.
+  const listed = useMemo(() => {
+    const mine = (c: ChatChannelOut) => c.assignedToMe || (!c.assignedTo && c.status !== 'closed')
+    const all = onlineFirst(queue.channels, live.onlineChannels, live.onlineUserIds)
+    if (!mineOnly) return { ...all, total: all.channels.length }
+    const channels = all.channels.filter(mine)
+    return {
+      channels,
+      onlineCount: channels.filter((c) => live.onlineUserIds.has(c.userId)).length,
+      total: all.channels.length,
+    }
+  }, [queue.channels, live.onlineChannels, live.onlineUserIds, mineOnly])
   const id = active?.id
 
   return {
     queue: {
-      channels,
-      total: queue.channels.length,
+      channels: listed.channels,
+      /** The first `onlineCount` channels belong to customers online right now. */
+      onlineCount: listed.onlineCount,
+      online: live.onlineUserIds,
+      total: listed.total,
       loading: queue.isLoading,
       hasMore: queue.hasNextPage,
       loadingMore: queue.isFetchingNextPage,
@@ -100,7 +114,7 @@ export function useAdminChat() {
       loadingMore: thread.isFetchingNextPage,
       loadMore: () => void thread.fetchNextPage(),
       typingUser: live.typingUser,
-      userOnline: live.userOnline,
+      userOnline: !!active && live.onlineUserIds.has(active.userId),
       replyText,
       sending: reply.isPending,
       setReplyText: (text: string) => {

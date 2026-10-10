@@ -68,12 +68,6 @@ export function PassengerSummary({
           <span>{t('bookingFlow.duplicateSeatsWarning')}</span>
         </div>
       )}
-      {unassigned === 0 && !duplicateSeats && seated.length > 0 && (
-        <div className="flex items-center gap-1.5 text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded-md px-2 py-1.5">
-          <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-          <span>{t('bookingFlow.allSeatsAssigned')}</span>
-        </div>
-      )}
     </div>
   )
 }

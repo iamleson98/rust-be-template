@@ -1,27 +1,32 @@
-//! Job service — business logic for recurring (cron-style) background
-//! jobs: schedule listing / editing, manual triggering, run history,
-//! default-job seeding, and the scheduler tick loop itself.
+//! Job service — recurring jobs and their run history: schedule listing
+//! and editing, "run now", cancelling, default-schedule seeding, the
+//! scheduler tick, and recording each run's lifecycle (it is the
+//! worker runner's [`RunObserver`]).
 //!
-//! ## The tick loop
+//! ## Runs
 //!
-//! [`JobService::spawn_scheduler`] runs a lightweight loop (default:
-//! every 60 s) that:
+//! A run of a catalog job is one queue job and one `job_run` row sharing
+//! an id. "Run now" and the scheduler both enqueue with the
+//! [`SINGLE_RUN`] unique key, so a job never runs twice at once — not
+//! even with several app instances. The runner reports start, progress,
+//! retries and the outcome here; job code only reports progress.
 //!
-//! 1. sweeps dead `job_run` rows (interrupted by a restart / never
-//!    picked up / stale),
-//! 2. finds enabled schedules whose `next_run_at` is due,
-//! 3. **enqueues** them onto the worker queue (the same
-//!    [`JobService::trigger`] path the admin "run now" button uses),
-//! 4. advances `next_run_at` one interval — even when an active run
-//!    blocks the enqueue, so missed slots are skipped rather than
-//!    replayed on the next tick.
+//! ## The tick
 //!
-//! The heavy lifting (download + indexing) is the job handler's
-//! business (`crate::jobs::osm_import`), executed by the worker runner.
+//! [`JobService::spawn_scheduler`] runs every `tick_interval_secs`:
+//!
+//! 1. marks runs whose queue job is gone as failed (e.g. a run that was
+//!    queued when the queue table was replaced), and prunes history and
+//!    dead jobs past the retention window (hourly);
+//! 2. for each due schedule, claims the slot by moving `next_run_at`
+//!    forward with a compare-and-set — with several instances exactly
+//!    one wins — and the winner enqueues the run. Missed slots are
+//!    skipped, not replayed.
 
 use std::sync::Arc;
 use std::time::Duration;
 
+use async_trait::async_trait;
 use chrono::Utc;
 use sea_orm::Set;
 use tokio::task::JoinHandle;
@@ -35,39 +40,26 @@ use crate::dto::admin::{
 use crate::dto::job::status;
 use crate::entity::{job_run, scheduled_job};
 use crate::error::{AppError, AppResult};
-use crate::jobs::{self, RunPayload};
+use crate::jobs;
 use crate::scheduler::{self, next_occurrence};
 use crate::store::{now_iso, parse_iso, JobStore};
-use crate::worker::{RunCancels, WorkerBroker};
+use crate::worker::{EnqueueOptions, Enqueued, JobQueue, RunCancels, RunObserver, RunOutcome};
 
-/// A run that has been `queued` for this long without a worker picking
-/// it up is considered lost (the worker is down or the queue row was
-/// lost to a crash) and is swept to `failed`.
-const LOST_QUEUED_AFTER: Duration = Duration::from_secs(3600);
+/// The unique key every catalog-job run is queued with: one live run per
+/// job at a time.
+pub const SINGLE_RUN: &str = "single-run";
 
-/// A run that has been `running` for this long is considered abandoned
-/// (e.g. its handler future was dropped after a timeout kill and the
-/// row never got its terminal write). Generous on purpose: the OSM
-/// import legitimately runs for hours.
-const STALE_RUNNING_AFTER: Duration = Duration::from_secs(12 * 3600);
-
-/// Cadence of the run-history retention prune (driven from the 60s
-/// scheduler tick, but only paid hourly — see `prune_run_history`).
-const HISTORY_PRUNE_INTERVAL: Duration = Duration::from_secs(3600);
+/// How often history and dead jobs are pruned (from the tick).
+const PRUNE_INTERVAL: Duration = Duration::from_secs(3600);
 
 pub struct JobService {
     store: Arc<dyn JobStore>,
-    /// Present only when the background-jobs subsystem is up in this
-    /// process — `None` (SCHEDULER_ENABLED=false / broker unavailable)
-    /// makes [`Self::trigger`] return 503 instead of enqueueing into
-    /// a queue nobody consumes.
-    broker: Option<Arc<dyn WorkerBroker>>,
-    /// Run-level cancellation registry shared with the worker runner —
-    /// [`Self::cancel`] cancels a queued/running run through it.
+    /// Present when the background-jobs subsystem runs in this process
+    /// (`SCHEDULER_ENABLED`); without it "run now" answers 503.
+    queue: Option<Arc<JobQueue>>,
+    /// Running jobs in this process, for an immediate cancel.
     cancels: Arc<RunCancels>,
     config: Arc<Config>,
-    /// Last run-history prune (hourly throttle — the DELETE is cheap,
-    /// but the 60s tick has no reason to pay it every pass).
     last_prune: std::sync::Mutex<Option<std::time::Instant>>,
 }
 
@@ -75,43 +67,47 @@ impl JobService {
     pub fn new(store: Arc<dyn JobStore>, config: Arc<Config>) -> Self {
         Self {
             store,
-            broker: None,
+            queue: None,
             cancels: Arc::new(RunCancels::new()),
             config,
             last_prune: std::sync::Mutex::new(None),
         }
     }
 
-    /// The run-cancellation registry the bootstrap hands to the worker
-    /// runner so both sides talk to the same tokens.
+    /// The cancel registry the worker runner shares with this service.
     pub fn run_cancels(&self) -> Arc<RunCancels> {
         self.cancels.clone()
     }
 
-    /// Attach the worker broker (called by bootstrap once the runner is
-    /// about to start — its presence marks "triggering works").
-    pub fn attach_broker(&mut self, broker: Arc<dyn WorkerBroker>) {
-        self.broker = Some(broker);
+    /// Attach the queue (bootstrap, when the worker starts).
+    pub fn attach_queue(&mut self, queue: Arc<JobQueue>) {
+        self.queue = Some(queue);
     }
 
     fn tz_offset(&self) -> i32 {
         self.config.scheduler.tz_offset_minutes
     }
 
+    fn queue(&self) -> AppResult<&Arc<JobQueue>> {
+        self.queue.as_ref().ok_or_else(|| {
+            AppError::ServiceUnavailable(
+                "background jobs are not running in this process (SCHEDULER_ENABLED=false)"
+                    .to_string(),
+            )
+        })
+    }
+
     // ── Seeding ────────────────────────────────────────────────────
 
-    /// Idempotently seed the default schedules from the
-    /// [`jobs::catalog`] (e.g. the biweekly OSM import). Existing rows —
-    /// including operator edits — are left untouched; only missing
-    /// `job_type`s are inserted, armed for the next occurrence of their
-    /// time-of-day. Catalog entries without a schedule (trigger-only
-    /// jobs) are skipped.
+    /// Seed the default schedule of every catalog job that has none yet
+    /// (operator edits are never overwritten), and remove schedules of
+    /// jobs that left the catalog.
     pub async fn ensure_default_jobs(&self) -> AppResult<()> {
         for def in jobs::catalog() {
             let Some(schedule) = def.schedule else {
-                continue; // trigger-only job: no schedule row
+                continue; // on-demand job: no schedule row
             };
-            if self.store.find_schedule(def.job_type).await?.is_some() {
+            if self.store.find_schedule(def.kind).await?.is_some() {
                 continue;
             }
             let next = next_occurrence(
@@ -121,59 +117,48 @@ impl JobService {
                 self.tz_offset(),
             );
             let now = now_iso();
-            let am = scheduled_job::ActiveModel {
-                id: Set(Uuid::new_v4()),
-                job_type: Set(def.job_type.to_string()),
-                enabled: Set(true),
-                interval_days: Set(schedule.interval_days),
-                at_hour: Set(schedule.at_hour),
-                at_minute: Set(schedule.at_minute),
-                next_run_at: Set(Some(
-                    next.to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
-                )),
-                created_at: Set(now.clone()),
-                updated_at: Set(now),
-            };
-            self.store.insert_schedule(am).await?;
-            tracing::info!(
-                job_type = def.job_type,
-                next_run_at = %next.to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
-                "seeded default schedule"
-            );
+            self.store
+                .insert_schedule(scheduled_job::ActiveModel {
+                    id: Set(Uuid::new_v4()),
+                    job_type: Set(def.kind.to_string()),
+                    enabled: Set(true),
+                    interval_days: Set(schedule.interval_days),
+                    at_hour: Set(schedule.at_hour),
+                    at_minute: Set(schedule.at_minute),
+                    next_run_at: Set(Some(iso(next))),
+                    created_at: Set(now.clone()),
+                    updated_at: Set(now),
+                })
+                .await?;
+            tracing::info!(kind = def.kind, next_run_at = %iso(next), "seeded default schedule");
+        }
+        for schedule in self.store.list_schedules().await? {
+            if jobs::find_definition(&schedule.job_type).is_none()
+                && self.store.delete_schedule(&schedule.job_type).await?
+            {
+                tracing::info!(kind = %schedule.job_type, "removed the schedule of a job no longer in the catalog");
+            }
         }
         Ok(())
     }
 
     // ── Admin reads ────────────────────────────────────────────────
 
-    /// All schedules with their latest run attached. The description
-    /// comes from the [`jobs::catalog`] definitions, so operator-inserted
-    /// custom rows simply omit it.
+    /// All schedules, each with its latest run.
     pub async fn list_schedules(&self) -> AppResult<CronJobListResponse> {
         let schedules = self.store.list_schedules().await?;
         let mut items = Vec::with_capacity(schedules.len());
         for s in schedules {
             let last_run = self.store.latest_run(&s.job_type).await?;
-            let description = jobs::find_definition(&s.job_type).map(|d| d.description.to_string());
-            items.push(CronJobOut {
-                job_type: s.job_type,
-                description,
-                enabled: s.enabled,
-                interval_days: s.interval_days,
-                at_hour: s.at_hour,
-                at_minute: s.at_minute,
-                next_run_at: s.next_run_at,
-                last_run: last_run.map(run_out),
-                updated_at: s.updated_at,
-            });
+            items.push(schedule_out(s, last_run));
         }
         Ok(CronJobListResponse {
             items,
-            scheduler_enabled: self.broker.is_some(),
+            scheduler_enabled: self.queue.is_some(),
         })
     }
 
-    /// Run history (most recent first), optionally filtered by job type.
+    /// Run history (most recent first), optionally for one job.
     pub async fn list_runs(
         &self,
         job_type: Option<&str>,
@@ -188,10 +173,9 @@ impl JobService {
 
     // ── Admin writes ───────────────────────────────────────────────
 
-    /// PATCH a schedule: enable/disable, change cadence / time-of-day,
-    /// or re-arm the next run. Cadence changes take effect by re-arming
-    /// from now (otherwise a shortened interval wouldn't apply until
-    /// the previously-armed slot fires).
+    /// Enable/disable a schedule, change its cadence or time of day, or
+    /// re-arm it. Cadence changes re-arm from now (otherwise a shortened
+    /// interval would only apply after the previously armed slot).
     pub async fn update_schedule(
         &self,
         job_type: &str,
@@ -225,174 +209,141 @@ impl JobService {
                 req.at_minute.unwrap_or(model.at_minute).max(0),
                 self.tz_offset(),
             );
-            am.next_run_at = Set(Some(
-                next.to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
-            ));
+            am.next_run_at = Set(Some(iso(next)));
         }
         am.updated_at = Set(now_iso());
 
         let updated = self.store.update_schedule(am).await?;
         let last_run = self.store.latest_run(&updated.job_type).await?;
-        let description =
-            jobs::find_definition(&updated.job_type).map(|d| d.description.to_string());
-        Ok(CronJobOut {
-            job_type: updated.job_type,
-            description,
-            enabled: updated.enabled,
-            interval_days: updated.interval_days,
-            at_hour: updated.at_hour,
-            at_minute: updated.at_minute,
-            next_run_at: updated.next_run_at,
-            last_run: last_run.map(run_out),
-            updated_at: updated.updated_at,
-        })
+        Ok(schedule_out(updated, last_run))
     }
 
-    /// Enqueue a run NOW (the admin "run now" button — and the same
-    /// path the scheduler tick uses for due schedules). Refuses to
-    /// stack on an in-flight run.
+    /// Queue a run now (the admin "run now" button, and the scheduler).
+    /// Refuses while a run of the same job is queued or running.
     pub async fn trigger(&self, job_type: &str) -> AppResult<CronJobRunOut> {
-        // 404 for unknown job types — prevents triggering handlers that
-        // have no schedule row (and gives the admin page a meaningful
-        // error for typo'd job types).
-        self.store
-            .find_schedule(job_type)
-            .await?
-            .ok_or_else(|| AppError::NotFound(format!("no schedule for job {job_type:?}")))?;
+        jobs::find_definition(job_type)
+            .ok_or_else(|| AppError::NotFound(format!("no job {job_type:?}")))?;
+        let queue = self.queue()?;
 
-        if let Some(active) = self.store.find_active_run(job_type).await? {
-            return Err(AppError::Conflict(format!(
-                "job {job_type} already has a {} run (started {}) — wait for it to finish",
-                active.status,
-                active.started_at.as_deref().unwrap_or("pending")
-            )));
-        }
-
-        let broker = self.broker.as_ref().ok_or_else(|| {
-            AppError::ServiceUnavailable(
-                "the background worker is not running in this process \
-                 (SCHEDULER_ENABLED=false or broker unavailable)"
-                    .to_string(),
-            )
-        })?;
-
-        // Create the history row first: even if the enqueue fails after
-        // this, the sweep will mark it failed instead of the run being
-        // invisible.
-        let now = now_iso();
+        // The history row exists before the job can be claimed, so the
+        // runner always finds it.
+        let id = Uuid::new_v4();
         let run = self
             .store
             .insert_run(job_run::ActiveModel {
-                id: Set(Uuid::new_v4()),
+                id: Set(id),
                 job_type: Set(job_type.to_string()),
                 status: Set(status::QUEUED.into()),
                 detail: Set(None),
                 error: Set(None),
                 started_at: Set(None),
                 finished_at: Set(None),
-                created_at: Set(now),
+                created_at: Set(now_iso()),
             })
             .await?;
 
-        // The standard tracked-run payload — job handlers decode it
-        // (plus any job-specific fields) from the envelope.
-        let envelope = crate::worker::JobEnvelope::new(job_type, &RunPayload::for_run(run.id))
-            .map_err(|e| AppError::Internal(format!("job envelope: {e}")))?;
-        broker
-            .enqueue(envelope)
-            .await
-            .map_err(|e| AppError::Worker(format!("enqueue: {e}")))?;
-
-        tracing::info!(job_type, run_id = %run.id, "job triggered");
-        Ok(run_out(run))
+        let enqueued = queue
+            .enqueue_raw(
+                job_type,
+                serde_json::Value::Null,
+                EnqueueOptions {
+                    id: Some(id),
+                    unique_key: Some(SINGLE_RUN.to_string()),
+                    ..EnqueueOptions::default()
+                },
+            )
+            .await;
+        match enqueued {
+            Ok(Enqueued::Inserted(_)) => {
+                tracing::info!(job_type, run_id = %id, "job queued");
+                Ok(run_out(run))
+            }
+            Ok(Enqueued::Duplicate(existing)) => {
+                let _ = self.store.delete_run(id).await;
+                Err(AppError::Conflict(format!(
+                    "{job_type} is already queued or running (run {existing}) — wait for it to finish"
+                )))
+            }
+            Err(e) => {
+                let _ = self.store.delete_run(id).await;
+                Err(AppError::Worker(format!("enqueue: {e}")))
+            }
+        }
     }
 
-    /// Cancel the active (queued or running) run of a job type — the
-    /// admin "kill" button. Marks the `job_run` row `cancelled` so the
-    /// history shows the stop, then fires the run's cancellation token
-    /// (or pre-marks it if no worker picked the envelope up yet, in
-    /// which case the handler exits immediately on dispatch).
-    ///
-    /// Cancellation is cooperative: the handler observes the token at
-    /// phase boundaries (download select / indexer stop checks) and
-    /// finalizes its own row. The runner ACKs a cancelled run — no retry.
+    /// Cancel the queued or running run of a job (the admin cancel
+    /// button). A queued run is removed; a running one stops at once in
+    /// this process, or at its worker's next lease renewal in another.
     pub async fn cancel(&self, job_type: &str) -> AppResult<CronJobRunOut> {
-        let run = self.store.find_active_run(job_type).await?.ok_or_else(|| {
-            AppError::NotFound(format!(
-                "job {job_type:?} has no queued/running run to cancel"
-            ))
-        })?;
-
-        let mut am: job_run::ActiveModel = run.clone().into();
-        am.status = Set(status::CANCELLED.into());
-        am.error = Set(Some("cancelled by operator".to_string()));
-        am.finished_at = Set(Some(now_iso()));
-        let updated = self.store.update_run(am).await?;
-
-        // Fire the token (live) or pre-mark (still queued) so the
-        // handler / next dispatch sees the cancellation.
-        self.cancels.cancel(run.id);
-
-        tracing::info!(job_type, run_id = %run.id, "job run cancelled by operator");
-        Ok(run_out(updated))
+        let queue = self.queue()?;
+        let job = queue
+            .live_by_key(job_type, SINGLE_RUN)
+            .await
+            .map_err(|e| AppError::Worker(e.to_string()))?
+            .ok_or_else(|| {
+                AppError::NotFound(format!("{job_type} has no queued or running run"))
+            })?;
+        queue
+            .cancel(job.id)
+            .await
+            .map_err(|e| AppError::Worker(e.to_string()))?;
+        self.cancels.cancel(job.id);
+        let now = now_iso();
+        self.store
+            .set_run_state(job.id, status::CANCELLED, None, None, Some(&now))
+            .await?;
+        tracing::info!(job_type, run_id = %job.id, "run cancelled by an operator");
+        let run = self
+            .store
+            .find_run(job.id)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("run {} not found", job.id)))?;
+        Ok(run_out(run))
     }
 
     // ── Scheduler tick ─────────────────────────────────────────────
 
-    /// Spawn the tick loop. Exits promptly when `shutdown` is cancelled
-    /// (the worker runner's token — Ctrl+C / SIGTERM) so the process
-    /// can drain cleanly instead of ticking forever.
+    /// Spawn the tick loop; it stops when `shutdown` fires.
     pub fn spawn_scheduler(self: &Arc<Self>, shutdown: CancellationToken) -> JoinHandle<()> {
         let svc = Arc::clone(self);
         let interval = Duration::from_secs(svc.config.scheduler.tick_interval_secs.max(1));
         tokio::spawn(async move {
-            // First tick immediately: sweep interrupted runs from a
-            // previous process lifetime right at boot.
+            // First tick at once: settle runs a previous process left.
             svc.tick_once().await;
             loop {
                 tokio::select! {
                     _ = shutdown.cancelled() => {
-                        tracing::info!("scheduler tick loop stopped (shutdown)");
+                        tracing::info!("scheduler stopped");
                         break;
                     }
-                    _ = tokio::time::sleep(interval) => {
-                        svc.tick_once().await;
-                    }
+                    _ = tokio::time::sleep(interval) => svc.tick_once().await,
                 }
             }
         })
     }
 
-    /// One scheduler pass — extracted so tests can drive it directly.
+    /// One scheduler pass (also driven directly by tests).
     pub async fn tick_once(&self) {
         if let Err(e) = self.tick_inner().await {
-            // Tick errors mean the schedule tables are missing (e.g.
-            // migrations not applied) or the DB is down — log, retry on
-            // the next tick.
             tracing::warn!(error = %e, "scheduler tick failed");
         }
     }
 
     async fn tick_inner(&self) -> anyhow::Result<()> {
-        self.sweep_dead_runs().await;
-        self.prune_run_history().await;
+        self.settle_orphaned_runs().await;
+        self.prune().await;
 
         let now = Utc::now();
-        let now_iso = now.to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
-        let due = self.store.find_due_schedules(&now_iso).await?;
-        for schedule in due {
+        for schedule in self.store.find_due_schedules(&iso(now)).await? {
             let next = match &schedule.next_run_at {
-                Some(slot) => {
-                    let slot = parse_iso(slot)?;
-                    scheduler::catch_up(
-                        slot,
-                        schedule.interval_days.max(1),
-                        schedule.at_hour.max(0),
-                        schedule.at_minute.max(0),
-                        self.tz_offset(),
-                        now,
-                    )
-                }
+                Some(slot) => scheduler::catch_up(
+                    parse_iso(slot)?,
+                    schedule.interval_days.max(1),
+                    schedule.at_hour.max(0),
+                    schedule.at_minute.max(0),
+                    self.tz_offset(),
+                    now,
+                ),
                 None => next_occurrence(
                     now,
                     schedule.at_hour.max(0),
@@ -400,93 +351,165 @@ impl JobService {
                     self.tz_offset(),
                 ),
             };
-
-            // Fire (unless an in-flight run blocks it — e.g. a manual
-            // trigger landed between the due check and now).
-            match self.trigger(&schedule.job_type).await {
-                Ok(run) => tracing::info!(
-                    job_type = %schedule.job_type,
-                    run_id = %run.id,
-                    "scheduler fired job"
-                ),
-                // 409 conflict = an in-flight run: skip this slot (the
-                // next_run advance below already skips it).
-                Err(AppError::Conflict(msg)) => {
-                    tracing::info!(job_type = %schedule.job_type, reason = %msg, "due job skipped")
-                }
-                Err(e) => tracing::warn!(
-                    job_type = %schedule.job_type,
-                    error = %e,
-                    "scheduler failed to fire due job"
-                ),
+            // Claim the slot first: only the instance that moves it fires.
+            let claimed = self
+                .store
+                .advance_schedule(
+                    &schedule.job_type,
+                    schedule.next_run_at.as_deref(),
+                    &iso(next),
+                    &now_iso(),
+                )
+                .await?;
+            if !claimed {
+                continue;
             }
-
-            // Advance the slot whether or not the fire succeeded — a
-            // slot must never fire twice, and missed slots are skipped,
-            // not replayed.
-            let mut am: scheduled_job::ActiveModel = schedule.into();
-            am.next_run_at = Set(Some(
-                next.to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
-            ));
-            am.updated_at = Set(now_iso.clone());
-            if let Err(e) = self.store.update_schedule(am).await {
-                tracing::warn!(error = %e, "scheduler failed to advance next_run_at");
+            match self.trigger(&schedule.job_type).await {
+                Ok(run) => {
+                    tracing::info!(job_type = %schedule.job_type, run_id = %run.id, "scheduled run queued")
+                }
+                // A run is still going: this slot is skipped.
+                Err(AppError::Conflict(reason)) => {
+                    tracing::info!(job_type = %schedule.job_type, %reason, "scheduled run skipped")
+                }
+                Err(e) => {
+                    tracing::warn!(job_type = %schedule.job_type, error = %e, "scheduled run failed to queue")
+                }
             }
         }
         Ok(())
     }
 
-    /// Sweep `job_run` rows that can no longer make progress:
-    /// - `running` rows interrupted by a server restart (swept with a
-    ///   generous threshold so multi-hour imports aren't false-positived),
-    /// - `queued` rows no worker ever picked up.
-    async fn sweep_dead_runs(&self) {
-        let statuses = [status::RUNNING, status::QUEUED];
-        let running_cutoff = (Utc::now()
-            - chrono::Duration::from_std(STALE_RUNNING_AFTER).unwrap())
-        .to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
-        let queued_cutoff = (Utc::now() - chrono::Duration::from_std(LOST_QUEUED_AFTER).unwrap())
-            .to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
-
-        // Two sweeps: the running one uses a long cutoff, the queued one
-        // a short one; both share the same "mark failed" semantics.
-        for (statuses, cutoff) in [
-            (&statuses[..1], running_cutoff),
-            (&statuses[1..], queued_cutoff),
-        ] {
-            match self.store.sweep_stale_runs(statuses, &cutoff).await {
-                Ok(0) => {}
-                Ok(n) => tracing::info!(n, "swept dead job runs"),
-                Err(e) => tracing::warn!(error = %e, "job-run sweep failed"),
+    /// Runs still marked queued/running whose queue job no longer exists
+    /// can never finish: mark them failed.
+    async fn settle_orphaned_runs(&self) {
+        let Some(queue) = &self.queue else { return };
+        let runs = match self.store.list_active_runs().await {
+            Ok(runs) => runs,
+            Err(e) => return tracing::warn!(error = %e, "listing active runs failed"),
+        };
+        for run in runs {
+            match queue.get(run.id).await {
+                Ok(Some(_)) => {}
+                Ok(None) => {
+                    let now = now_iso();
+                    let error = "interrupted: its queued job no longer exists";
+                    if let Err(e) = self
+                        .store
+                        .set_run_state(run.id, status::FAILED, Some(error), None, Some(&now))
+                        .await
+                    {
+                        tracing::warn!(run_id = %run.id, error = %e, "could not settle an orphaned run");
+                    }
+                }
+                Err(e) => tracing::warn!(run_id = %run.id, error = %e, "queue lookup failed"),
             }
         }
     }
 
-    /// Delete terminal `job_run` rows past the retention window
-    /// (`JOB_RUN_RETENTION_DAYS`, default 30, 0 = keep forever).
-    /// Throttled to hourly: the prune DELETE runs from the 60s tick,
-    /// but only when an hour has passed since the previous prune —
-    /// the retention window is measured in days, so a tighter cadence
-    /// just burns a table scan per minute.
-    async fn prune_run_history(&self) {
+    /// Delete finished runs and dead jobs older than the retention window
+    /// (`JOB_RUN_RETENTION_DAYS`, default 30, 0 = keep forever). Hourly.
+    async fn prune(&self) {
         let days = self.config.scheduler.job_run_retention_days;
         if days == 0 {
-            return; // retention disabled — history is kept forever
+            return;
         }
         {
             let mut last = self.last_prune.lock().unwrap();
             match *last {
-                Some(t) if t.elapsed() < HISTORY_PRUNE_INTERVAL => return,
+                Some(t) if t.elapsed() < PRUNE_INTERVAL => return,
                 _ => *last = Some(std::time::Instant::now()),
             }
         }
-        let cutoff = (Utc::now() - chrono::Duration::days(days as i64))
-            .to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
-        match self.store.prune_finished_runs(&cutoff).await {
+        let cutoff = Utc::now() - chrono::Duration::days(days as i64);
+        match self.store.prune_finished_runs(&iso(cutoff)).await {
             Ok(0) => {}
-            Ok(n) => tracing::info!(n, retention_days = days, "pruned old job-run history"),
-            Err(e) => tracing::warn!(error = %e, "job-run history prune failed"),
+            Ok(n) => tracing::info!(n, retention_days = days, "pruned old run history"),
+            Err(e) => tracing::warn!(error = %e, "run history prune failed"),
         }
+        if let Some(queue) = &self.queue {
+            match queue.prune_dead(cutoff).await {
+                Ok(0) => {}
+                Ok(n) => tracing::info!(n, retention_days = days, "pruned old dead jobs"),
+                Err(e) => tracing::warn!(error = %e, "dead job prune failed"),
+            }
+        }
+    }
+}
+
+/// Run history is written from the runner's lifecycle events. Jobs
+/// without a `job_run` row (queued outside the scheduler) are no-ops.
+#[async_trait]
+impl RunObserver for JobService {
+    async fn started(&self, id: Uuid, _kind: &str, _attempt: u32) {
+        let now = now_iso();
+        if let Err(e) = self
+            .store
+            .set_run_state(id, status::RUNNING, None, Some(&now), None)
+            .await
+        {
+            tracing::warn!(run_id = %id, error = %e, "could not record run start");
+        }
+    }
+
+    async fn progressed(&self, id: Uuid, detail: &serde_json::Value) {
+        if let Err(e) = self.store.set_run_detail(id, &detail.to_string()).await {
+            tracing::warn!(run_id = %id, error = %e, "could not record run progress");
+        }
+    }
+
+    async fn finished(&self, id: Uuid, _kind: &str, outcome: &RunOutcome) {
+        let now = now_iso();
+        let result = match outcome {
+            RunOutcome::Succeeded => {
+                self.store
+                    .set_run_state(id, status::SUCCEEDED, None, None, Some(&now))
+                    .await
+            }
+            RunOutcome::Retrying { error, retry_at } => {
+                let error = format!("{error} — retrying at {retry_at}");
+                self.store
+                    .set_run_state(id, status::QUEUED, Some(&error), None, None)
+                    .await
+            }
+            RunOutcome::Failed { error } => {
+                self.store
+                    .set_run_state(id, status::FAILED, Some(error), None, Some(&now))
+                    .await
+            }
+            RunOutcome::Cancelled => {
+                self.store
+                    .set_run_state(id, status::CANCELLED, None, None, Some(&now))
+                    .await
+            }
+            // Runs again after restart.
+            RunOutcome::Interrupted => {
+                self.store
+                    .set_run_state(id, status::QUEUED, None, None, None)
+                    .await
+            }
+        };
+        if let Err(e) = result {
+            tracing::warn!(run_id = %id, error = %e, "could not record run outcome");
+        }
+    }
+}
+
+fn iso(t: chrono::DateTime<Utc>) -> String {
+    t.to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
+}
+
+fn schedule_out(s: scheduled_job::Model, last_run: Option<job_run::Model>) -> CronJobOut {
+    CronJobOut {
+        description: jobs::find_definition(&s.job_type).map(|d| d.description.to_string()),
+        job_type: s.job_type,
+        enabled: s.enabled,
+        interval_days: s.interval_days,
+        at_hour: s.at_hour,
+        at_minute: s.at_minute,
+        next_run_at: s.next_run_at,
+        last_run: last_run.map(run_out),
+        updated_at: s.updated_at,
     }
 }
 
@@ -507,41 +530,11 @@ fn run_out(run: job_run::Model) -> CronJobRunOut {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::store::DbJobStore;
-    use sea_orm::Set;
+    use crate::store::{migrated_test_db, DbJobQueueStore, DbJobStore};
+    use crate::worker::Job;
     use validator::Validate;
 
-    /// In-memory store + the migration's DDL for the two tables.
-    async fn mem_store() -> Arc<DbJobStore> {
-        use sea_orm::{ConnectionTrait, Database};
-        let db = Database::connect("sqlite::memory:").await.unwrap();
-        for stmt in [
-            r#"CREATE TABLE scheduled_job (
-                id TEXT PRIMARY KEY,
-                job_type TEXT NOT NULL,
-                enabled INTEGER NOT NULL DEFAULT 1,
-                interval_days INTEGER NOT NULL DEFAULT 14,
-                at_hour INTEGER NOT NULL DEFAULT 2,
-                at_minute INTEGER NOT NULL DEFAULT 0,
-                next_run_at TEXT,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
-            )"#,
-            r#"CREATE TABLE job_run (
-                id TEXT PRIMARY KEY,
-                job_type TEXT NOT NULL,
-                status TEXT NOT NULL,
-                detail TEXT,
-                error TEXT,
-                started_at TEXT,
-                finished_at TEXT,
-                created_at TEXT NOT NULL
-            )"#,
-        ] {
-            db.execute_unprepared(stmt).await.unwrap();
-        }
-        Arc::new(DbJobStore::new(Arc::new(db)))
-    }
+    const OSM: &str = jobs::osm_import::OsmImport::KIND;
 
     fn test_config() -> Arc<Config> {
         Arc::new(Config {
@@ -555,18 +548,25 @@ mod tests {
         })
     }
 
-    async fn insert_schedule(
-        store: &Arc<DbJobStore>,
-        job_type: &str,
-        enabled: bool,
-        next_run_at: Option<String>,
-    ) {
+    /// A service over a migrated in-memory DB, with or without a queue.
+    async fn service(with_queue: bool) -> (JobService, Arc<DbJobStore>, Option<Arc<JobQueue>>) {
+        let db = migrated_test_db().await;
+        let store = Arc::new(DbJobStore::new(db.clone()));
+        let mut svc = JobService::new(store.clone(), test_config());
+        let queue = with_queue.then(|| Arc::new(JobQueue::new(Arc::new(DbJobQueueStore::new(db)))));
+        if let Some(q) = &queue {
+            svc.attach_queue(q.clone());
+        }
+        (svc, store, queue)
+    }
+
+    async fn insert_schedule(store: &DbJobStore, job_type: &str, next_run_at: Option<String>) {
         let now = now_iso();
         store
             .insert_schedule(scheduled_job::ActiveModel {
                 id: Set(Uuid::new_v4()),
                 job_type: Set(job_type.to_string()),
-                enabled: Set(enabled),
+                enabled: Set(true),
                 interval_days: Set(14),
                 at_hour: Set(2),
                 at_minute: Set(0),
@@ -579,60 +579,151 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn ensure_default_jobs_is_idempotent_and_arms_next_occurrence() {
-        let store = mem_store().await;
-        let svc = JobService::new(store.clone(), test_config());
-
+    async fn seeding_is_idempotent_and_drops_schedules_of_removed_jobs() {
+        let (svc, store, _) = service(false).await;
+        insert_schedule(&store, "removed.job", None).await;
         svc.ensure_default_jobs().await.unwrap();
-        svc.ensure_default_jobs().await.unwrap(); // second run: no-op
+        svc.ensure_default_jobs().await.unwrap();
 
         let schedules = store.list_schedules().await.unwrap();
-        assert_eq!(schedules.len(), 1);
-        assert_eq!(schedules[0].job_type, jobs::osm_import::JOB_TYPE);
-        assert!(schedules[0].enabled);
-        assert_eq!(schedules[0].interval_days, 14);
-        assert_eq!(schedules[0].at_hour, 2);
-        let next = schedules[0].next_run_at.clone().unwrap();
-        // Armed in the future (next 02:00 +07).
-        let next = parse_iso(&next).unwrap();
+        assert_eq!(schedules.len(), 1, "only catalog jobs keep a schedule");
+        assert_eq!(schedules[0].job_type, OSM);
+        assert_eq!((schedules[0].interval_days, schedules[0].at_hour), (14, 2));
+        let next = parse_iso(schedules[0].next_run_at.as_deref().unwrap()).unwrap();
         assert!(next > Utc::now());
     }
 
     #[tokio::test]
-    async fn trigger_503s_without_a_broker_and_409s_on_an_active_run() {
-        let store = mem_store().await;
-        let svc = JobService::new(store.clone(), test_config());
-        insert_schedule(&store, jobs::osm_import::JOB_TYPE, true, None).await;
-
-        // No broker attached → 503.
-        let err = svc.trigger(jobs::osm_import::JOB_TYPE).await.unwrap_err();
-        assert!(
-            matches!(err, AppError::ServiceUnavailable(_)),
-            "got {err:?}"
-        );
-
-        // Simulate an in-flight run → 409 even with a broker… but the
-        // broker-less path is checked first, so drive the 409 through
-        // the tick instead (see the tick test below).
+    async fn trigger_needs_a_queue_and_a_catalog_job() {
+        let (svc, _, _) = service(false).await;
+        assert!(matches!(
+            svc.trigger(OSM).await.unwrap_err(),
+            AppError::ServiceUnavailable(_)
+        ));
+        let (svc, _, _) = service(true).await;
+        assert!(matches!(
+            svc.trigger("nope.job").await.unwrap_err(),
+            AppError::NotFound(_)
+        ));
     }
 
     #[tokio::test]
-    async fn unknown_job_type_is_404() {
-        let store = mem_store().await;
-        let svc = JobService::new(store.clone(), test_config());
-        let err = svc.trigger("nope.job").await.unwrap_err();
-        assert!(matches!(err, AppError::NotFound(_)), "got {err:?}");
+    async fn a_job_cannot_be_queued_twice_at_once() {
+        let (svc, store, queue) = service(true).await;
+        let run = svc.trigger(OSM).await.unwrap();
+        assert_eq!(run.status, status::QUEUED);
+        let job = queue.as_ref().unwrap().get(run.id).await.unwrap().unwrap();
+        assert_eq!(job.kind, OSM, "the queue job shares the run's id");
+
+        assert!(matches!(
+            svc.trigger(OSM).await.unwrap_err(),
+            AppError::Conflict(_)
+        ));
+        assert_eq!(
+            store.count_runs(OSM).await.unwrap(),
+            1,
+            "the refused run leaves no row"
+        );
+    }
+
+    #[tokio::test]
+    async fn cancelling_a_queued_run_removes_it() {
+        let (svc, store, queue) = service(true).await;
+        let run = svc.trigger(OSM).await.unwrap();
+        let cancelled = svc.cancel(OSM).await.unwrap();
+        assert_eq!(cancelled.status, status::CANCELLED);
+        assert!(queue.unwrap().get(run.id).await.unwrap().is_none());
+        assert!(matches!(
+            svc.cancel(OSM).await.unwrap_err(),
+            AppError::NotFound(_)
+        ));
+        // The job can be queued again.
+        svc.trigger(OSM).await.unwrap();
+        assert_eq!(store.count_runs(OSM).await.unwrap(), 2);
+    }
+
+    #[tokio::test]
+    async fn the_tick_fires_a_due_slot_once_and_advances_it() {
+        let (svc, store, _) = service(true).await;
+        insert_schedule(&store, OSM, Some("2020-01-01T00:00:00Z".into())).await;
+
+        svc.tick_once().await;
+        assert_eq!(store.count_runs(OSM).await.unwrap(), 1);
+        let schedule = store.find_schedule(OSM).await.unwrap().unwrap();
+        assert!(parse_iso(schedule.next_run_at.as_deref().unwrap()).unwrap() > Utc::now());
+
+        // Nothing is due any more, and a second instance's tick finds the
+        // slot already moved.
+        svc.tick_once().await;
+        assert_eq!(store.count_runs(OSM).await.unwrap(), 1);
+    }
+
+    #[tokio::test]
+    async fn run_history_follows_the_runner_events() {
+        let (svc, store, _) = service(true).await;
+        let run = svc.trigger(OSM).await.unwrap();
+
+        svc.started(run.id, OSM, 1).await;
+        svc.progressed(run.id, &serde_json::json!({ "phase": "indexing" }))
+            .await;
+        let row = store.find_run(run.id).await.unwrap().unwrap();
+        assert_eq!(row.status, status::RUNNING);
+        assert!(row.started_at.is_some());
+
+        let retry = RunOutcome::Retrying {
+            error: "boom".into(),
+            retry_at: "later".into(),
+        };
+        svc.finished(run.id, OSM, &retry).await;
+        let row = store.find_run(run.id).await.unwrap().unwrap();
+        assert_eq!(row.status, status::QUEUED);
+        assert!(row.error.as_deref().unwrap().contains("boom"));
+
+        svc.finished(run.id, OSM, &RunOutcome::Succeeded).await;
+        let row = store.find_run(run.id).await.unwrap().unwrap();
+        assert_eq!(row.status, status::SUCCEEDED);
+        assert!(row.error.is_none() && row.finished_at.is_some());
+        assert!(
+            row.detail.as_deref().unwrap().contains("indexing"),
+            "progress is kept"
+        );
+    }
+
+    #[tokio::test]
+    async fn runs_whose_queue_job_vanished_are_marked_failed() {
+        let (svc, store, _) = service(true).await;
+        let orphan = store
+            .insert_run(job_run::ActiveModel {
+                id: Set(Uuid::new_v4()),
+                job_type: Set(OSM.into()),
+                status: Set(status::QUEUED.into()),
+                detail: Set(None),
+                error: Set(None),
+                started_at: Set(None),
+                finished_at: Set(None),
+                created_at: Set(now_iso()),
+            })
+            .await
+            .unwrap();
+        let live = svc.trigger(OSM).await.unwrap();
+        svc.tick_once().await;
+        assert_eq!(
+            store.find_run(orphan.id).await.unwrap().unwrap().status,
+            status::FAILED
+        );
+        assert_eq!(
+            store.find_run(live.id).await.unwrap().unwrap().status,
+            status::QUEUED
+        );
     }
 
     #[tokio::test]
     async fn update_schedule_validates_and_rearms() {
-        let store = mem_store().await;
-        let svc = JobService::new(store.clone(), test_config());
-        insert_schedule(&store, jobs::osm_import::JOB_TYPE, true, None).await;
-
+        let (svc, store, _) = service(false).await;
+        insert_schedule(&store, OSM, None).await;
         let out = svc
             .update_schedule(
-                jobs::osm_import::JOB_TYPE,
+                OSM,
                 &UpdateCronJobRequest {
                     enabled: Some(false),
                     interval_days: Some(7),
@@ -644,109 +735,36 @@ mod tests {
             .await
             .unwrap();
         assert!(!out.enabled);
-        assert_eq!(out.interval_days, 7);
-        assert_eq!(out.at_hour, 3);
-        assert_eq!(out.at_minute, 30);
-        // Cadence change → re-armed from now (03:30 +07 is > 90 min out
-        // from any "now" only sometimes; just assert presence + future).
-        let next = parse_iso(&out.next_run_at.unwrap()).unwrap();
-        assert!(next > Utc::now());
-    }
+        assert_eq!((out.interval_days, out.at_hour, out.at_minute), (7, 3, 30));
+        assert!(parse_iso(&out.next_run_at.unwrap()).unwrap() > Utc::now());
 
-    #[tokio::test]
-    async fn update_schedule_rejects_out_of_range_values() {
-        let store = mem_store().await;
-        let _svc = JobService::new(store.clone(), test_config());
-        insert_schedule(&store, jobs::osm_import::JOB_TYPE, true, None).await;
-
-        let req: UpdateCronJobRequest = serde_json::from_value(serde_json::json!({
-            "intervalDays": 0
-        }))
-        .unwrap();
+        let req: UpdateCronJobRequest =
+            serde_json::from_value(serde_json::json!({ "intervalDays": 0 })).unwrap();
         assert!(req.validate().is_err());
-
-        let req: UpdateCronJobRequest = serde_json::from_value(serde_json::json!({
-            "atHour": 24
-        }))
-        .unwrap();
+        let req: UpdateCronJobRequest =
+            serde_json::from_value(serde_json::json!({ "atHour": 24 })).unwrap();
         assert!(req.validate().is_err());
     }
 
     #[tokio::test]
-    async fn tick_fires_due_schedules_and_advances_the_slot() {
-        let store = mem_store().await;
-        let db = sea_orm::Database::connect("sqlite::memory:").await.unwrap();
-        let broker: Arc<dyn crate::worker::WorkerBroker> = Arc::new(
-            crate::worker::DbBroker::with_db(Arc::new(db))
-                .await
-                .unwrap(),
-        );
-        let mut svc = JobService::new(store.clone(), test_config());
-        svc.attach_broker(broker.clone());
-
-        // A schedule that is due RIGHT NOW (armed in the past).
-        insert_schedule(
-            &store,
-            jobs::osm_import::JOB_TYPE,
-            true,
-            Some("2020-01-01T00:00:00Z".into()),
-        )
-        .await;
-
-        svc.tick_once().await;
-
-        // 1. A queued run row exists…
-        let active = store
-            .find_active_run(jobs::osm_import::JOB_TYPE)
-            .await
-            .unwrap();
-        assert_eq!(active.unwrap().status, status::QUEUED);
-        // …and the envelope is on the worker queue. Peek at the queue
-        // directly through the jobs table (the broker deletes on
-        // dequeue, and nobody is consuming yet).
-        // 2. next_run_at advanced to a future 02:00 +07 slot (14 days
-        // from the stale slot, catching up to > now).
-        let schedule = store
-            .find_schedule(jobs::osm_import::JOB_TYPE)
-            .await
-            .unwrap()
-            .unwrap();
-        let next = parse_iso(&schedule.next_run_at.unwrap()).unwrap();
-        assert!(next > Utc::now());
-
-        // 3. Second tick must NOT double-fire: the active (queued) run
-        //    blocks it and the slot is already in the future.
-        let runs_before = store.count_runs(jobs::osm_import::JOB_TYPE).await.unwrap();
-        svc.tick_once().await;
-        let runs_after = store.count_runs(jobs::osm_import::JOB_TYPE).await.unwrap();
-        assert_eq!(runs_before, runs_after);
-    }
-
-    #[tokio::test]
-    async fn list_schedules_attaches_last_run_and_scheduler_flag() {
-        let store = mem_store().await;
-        let svc = JobService::new(store.clone(), test_config());
-        insert_schedule(&store, jobs::osm_import::JOB_TYPE, true, None).await;
-        // No broker → scheduler_enabled=false in the response.
+    async fn list_schedules_reports_whether_jobs_run_here() {
+        let (svc, store, _) = service(false).await;
+        insert_schedule(&store, OSM, None).await;
         let out = svc.list_schedules().await.unwrap();
         assert!(!out.scheduler_enabled);
         assert_eq!(out.items.len(), 1);
+        assert!(out.items[0].description.is_some());
         assert!(out.items[0].last_run.is_none());
     }
 
     #[tokio::test]
-    async fn tick_prunes_old_terminal_runs_once_per_interval() {
-        // The retention prune runs on the first tick and is throttled
-        // afterwards: an immediate second prune must be a no-op. The
-        // observable contract is "old terminal rows disappear, fresh
-        // ones stay, and the throttled path returns cleanly".
-        let store = mem_store().await;
-        let svc = JobService::new(store.clone(), test_config());
+    async fn pruning_keeps_fresh_and_live_history() {
+        let (svc, store, _) = service(true).await;
         let old = (Utc::now() - chrono::Duration::days(90))
             .to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
         let fresh = (Utc::now() - chrono::Duration::days(1))
             .to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
-        let mk = |status: &str, finished: &str, created: &str| job_run::ActiveModel {
+        let mk = |status: &str, finished: &str| job_run::ActiveModel {
             id: Set(Uuid::new_v4()),
             job_type: Set("prune.test".into()),
             status: Set(status.into()),
@@ -754,26 +772,17 @@ mod tests {
             error: Set(None),
             started_at: Set(Some(finished.to_string())),
             finished_at: Set(Some(finished.to_string())),
-            created_at: Set(created.to_string()),
+            created_at: Set(finished.to_string()),
         };
+        store.insert_run(mk(status::SUCCEEDED, &old)).await.unwrap();
+        store.insert_run(mk(status::FAILED, &old)).await.unwrap();
         store
-            .insert_run(mk(status::SUCCEEDED, &old, &old))
+            .insert_run(mk(status::SUCCEEDED, &fresh))
             .await
             .unwrap();
-        store
-            .insert_run(mk(status::FAILED, &old, &old))
-            .await
-            .unwrap();
-        store
-            .insert_run(mk(status::SUCCEEDED, &fresh, &fresh))
-            .await
-            .unwrap();
-
-        svc.prune_run_history().await;
+        svc.prune().await;
         assert_eq!(store.count_runs("prune.test").await.unwrap(), 1);
-        // Throttled: the second immediate prune is a no-op — still 1 row
-        // (this also proves the throttle path returns without error).
-        svc.prune_run_history().await;
+        svc.prune().await; // throttled: a no-op
         assert_eq!(store.count_runs("prune.test").await.unwrap(), 1);
     }
 }

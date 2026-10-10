@@ -179,7 +179,7 @@ function PriceRange({ rf }: { rf: ResultFilters }) {
   return (
     <div>
       <div className="mb-2 flex items-center justify-between gap-2">
-        <span className="shrink-0 text-xs font-semibold uppercase text-muted-foreground">
+        <span className="shrink-0 text-sm font-semibold text-slate-900">
           {t('searchPage.priceRange')}
         </span>
         <span className="text-right text-[11px] font-medium leading-tight tabular-nums text-blue-700">

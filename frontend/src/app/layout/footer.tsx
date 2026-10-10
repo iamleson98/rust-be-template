@@ -1,398 +1,176 @@
-import { useSession } from '@/stores/session'
-import { useSearchForm } from '@/stores/search-form'
-import { useUi } from '@/stores/ui'
-import { memo, useCallback } from 'react'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
+import { memo, useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
+import { Headphones, Mail, MessageCircle, ShieldCheck } from 'lucide-react'
+import { routesOptions } from '@/api'
 import { useT } from '@/lib/i18n'
-import {
-  Phone,
-  Mail,
-  MapPin,
-  Facebook,
-  Youtube,
-  ShieldCheck,
-  CreditCard,
-  Heart,
-  Globe,
-  HelpCircle,
-  MessageCircle,
-  Award,
-  Send,
-  Headphones,
-  Stamp,
-  Ticket,
-} from 'lucide-react'
-import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
-import { Form, FormField, FormItem, FormControl, FormMessage } from '@/components/ui/form'
-import { emailSchema } from '@/lib/forms'
-import { toast } from 'sonner'
-import { buildSearchInput } from '@/lib/search-params'
+import { useEnabledProviders, type PaymentProvider } from '@/lib/payment'
+import { buildSearchInput, vnDate } from '@/lib/search-params'
+import { useSession } from '@/stores/session'
+import { useUi } from '@/stores/ui'
 
-const newsletterSchema = z.object({
-  email: emailSchema,
-})
-type NewsletterValues = z.infer<typeof newsletterSchema>
+const PROVIDER_LABEL: Record<PaymentProvider, string> = {
+  momo: 'payment.momo',
+  vnpay: 'payment.vnpay',
+  zalopay: 'payment.zalopay',
+  vietqr: 'payment.vietqr',
+  cod: 'bookingFlow.cash',
+}
 
+const LINK = 'text-slate-600 transition-colors hover:text-primary'
+
+function Column({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <h3 className="mb-3 text-sm font-semibold text-slate-900">{title}</h3>
+      <ul className="space-y-2.5 text-sm">{children}</ul>
+    </div>
+  )
+}
+
+/**
+ * Site footer: the routes people can actually book, how to reach support,
+ * the policies, and the payment methods this deployment takes — all real.
+ */
 export const Footer = memo(function Footer() {
   const setChatOpen = useUi((s) => s.setChatOpen)
   const user = useSession((s) => s.user)
   const navigate = useNavigate()
   const t = useT()
-  // Quick-route links carry the search date over (a dateless /search URL leaves the query idle), defaulting to today.
-  const searchDate = useSearchForm((s) => s.searchParams.date)
+  const providers = useEnabledProviders()
+  const { data } = useQuery(routesOptions())
 
-  const form = useForm<NewsletterValues>({
-    resolver: zodResolver(newsletterSchema),
-    mode: 'onBlur',
-    reValidateMode: 'onChange',
-    defaultValues: { email: '' },
-  })
+  // The first few distinct corridors on the platform (a route per brand can repeat a pair).
+  const routes = useMemo(() => {
+    const seen = new Set<string>()
+    return (data?.items ?? [])
+      .filter((r) => {
+        const key = `${r.from.name}→${r.to.name}`
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
+      .slice(0, 5)
+  }, [data])
 
-  const onSubscribe = useCallback(
-    (_values: NewsletterValues) => {
-      // Existing behavior: just confirm subscription with a toast.
-      // (No dedicated newsletter API exists yet — preserving the original
-      // success-only flow. The validation layer is what's been upgraded here.)
-      toast.success(t('footer.newsletterSuccess'))
-      form.reset({ email: '' })
-    },
-    [form, t],
-  )
+  const search = (from: string, to: string) => {
+    navigate({ to: '/search', search: buildSearchInput({ from, to, date: vnDate(1) }) })
+  }
 
   return (
-    <footer className="mt-auto bg-slate-950 text-slate-300">
-      {/* ── Newsletter Subscription Banner ── */}
-      <div className="relative bg-linear-to-r from-blue-600 via-blue-500 to-blue-500 overflow-hidden">
-        {/* Decorative wave at top */}
-        <svg
-          className="absolute -top-6 left-0 w-full h-6 text-slate-950"
-          viewBox="0 0 1440 24"
-          preserveAspectRatio="none"
-          fill="currentColor"
-        >
-          <path d="M0,24 C360,0 720,24 1080,8 C1260,0 1380,12 1440,24 L1440,24 L0,24 Z" />
-        </svg>
-        <div className="container mx-auto px-4 py-10 md:py-12">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-            <div className="text-center md:text-left">
-              <h3 className="flex items-center justify-center md:justify-start gap-2.5 text-2xl md:text-3xl font-bold text-white mb-1">
-                <Ticket className="h-7 w-7 text-amber-300" aria-hidden />
-                {t('footer.newsletter')}
-              </h3>
-              <p className="text-blue-100/90 text-sm md:text-base">
-                {t('layout.footer.newsletterDesc')}
-              </p>
-            </div>
-            <Form {...form}>
-              <form
-                onSubmit={form.handleSubmit(onSubscribe)}
-                className="w-full md:w-auto max-w-md"
-                noValidate
-              >
-                <FormField
-                  control={form.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <div className="flex w-full md:w-auto gap-2">
-                        <FormControl>
-                          <Input
-                            {...field}
-                            type="email"
-                            placeholder={t('footer.newsletterPlaceholder')}
-                            className="h-12 bg-white/20 border-white/30 text-white placeholder:text-white/60 focus-visible:ring-white/40 focus-visible:border-white/50 backdrop-blur-sm text-base"
-                          />
-                        </FormControl>
-                        <Button
-                          type="submit"
-                          className="h-12 px-6 bg-white text-blue-700 hover:bg-white/90 font-semibold shrink-0 text-base"
-                        >
-                          <Send className="h-4 w-4 mr-1.5" />
-                          {t('footer.newsletterBtn')}
-                        </Button>
-                      </div>
-                      <FormMessage className="mt-1.5 text-xs" />
-                    </FormItem>
-                  )}
-                />
-              </form>
-            </Form>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Animated wave SVG at top ── */}
-      <div className="relative -mt-1">
-        <svg
-          className="w-full h-8 text-slate-950"
-          viewBox="0 0 1440 32"
-          preserveAspectRatio="none"
-          fill="none"
-        >
-          <path
-            d="M0,16 C240,32 480,0 720,16 C960,32 1200,0 1440,16 L1440,32 L0,32 Z"
-            fill="oklch(0.556 0.13 250)"
-            opacity="0.15"
-          />
-          <path
-            d="M0,20 C360,4 720,28 1080,12 C1260,4 1380,20 1440,16 L1440,32 L0,32 Z"
-            fill="oklch(0.596 0.12 220)"
-            opacity="0.1"
-          />
-        </svg>
-      </div>
-
-      {/* ── Main Footer Content ── */}
-      <div className="container mx-auto px-4 py-12">
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-8">
-          {/* Brand */}
-          <div className="col-span-2 md:col-span-1">
-            <div className="flex items-center gap-2.5 mb-3">
-              <img src="/logo.svg" alt="" aria-hidden className="h-10 w-10 shrink-0" />
-              <div>
-                <div className="font-extrabold text-white text-lg tracking-tight">DatXeVui</div>
-                <div className="text-[10px] text-blue-400 font-medium -mt-0.5">
-                  {t('trips.tagline')}
-                </div>
-              </div>
-            </div>
-            <p className="text-sm text-slate-400 leading-relaxed mb-4">
+    <footer className="mt-auto border-t border-slate-200 bg-white">
+      <div className="page-x py-12 md:py-14">
+        <div className="grid grid-cols-2 gap-x-6 gap-y-10 sm:grid-cols-3 lg:grid-cols-12">
+          <div className="col-span-2 sm:col-span-3 lg:col-span-4">
+            <Link to="/" className="inline-flex items-center gap-2.5">
+              <img src="/logo.svg" alt="" aria-hidden className="size-9 shrink-0" />
+              <span className="text-lg font-extrabold tracking-tight text-slate-900">DatXeVui</span>
+            </Link>
+            <p className="mt-3 max-w-xs text-sm leading-relaxed text-slate-600">
               {t('layout.footer.brandIntro')}
             </p>
-
-            {/* Hotline */}
-            <div className="rounded-lg bg-slate-900/80 ring-1 ring-slate-800 p-3 mb-4">
-              <div className="text-[10px] text-slate-500 uppercase tracking-wider font-medium mb-1">
-                {t('footer.hotline')}
-              </div>
-              <a href="tel:19006067" className="flex items-center gap-2 group">
-                <div className="h-8 w-8 rounded-lg bg-blue-500/15 flex items-center justify-center group-hover:bg-blue-500/25 transition-colors">
-                  <Headphones className="h-4 w-4 text-blue-400" />
-                </div>
-                <span className="text-lg font-bold text-white group-hover:text-blue-400 transition-colors">
+            <a
+              href="tel:19006067"
+              className="mt-5 inline-flex items-center gap-3 rounded-2xl bg-slate-50 py-2.5 pr-4 pl-2.5 ring-1 ring-slate-200 transition-colors hover:bg-slate-100"
+            >
+              <span className="grid size-9 place-items-center rounded-xl bg-primary/10 text-primary">
+                <Headphones className="size-4.5" />
+              </span>
+              <span className="leading-tight">
+                <span className="block text-[11px] text-slate-500">{t('footer.hotline')}</span>
+                <span className="block text-base font-bold text-slate-900 tabular-nums">
                   1900 6067
                 </span>
-              </a>
-            </div>
-
-            {/* Social media with icons */}
-            <div className="flex items-center gap-2">
-              <a
-                href="#"
-                aria-label="Facebook"
-                className="h-9 w-9 rounded-lg bg-slate-800 hover:bg-blue-600 flex items-center justify-center transition-all"
-              >
-                <Facebook className="h-4 w-4" />
-              </a>
-              <a
-                href="#"
-                aria-label="Youtube"
-                className="h-9 w-9 rounded-lg bg-slate-800 hover:bg-rose-600 flex items-center justify-center transition-all"
-              >
-                <Youtube className="h-4 w-4" />
-              </a>
-              <a
-                href="#"
-                aria-label="Website"
-                className="h-9 w-9 rounded-lg bg-slate-800 hover:bg-blue-600 flex items-center justify-center transition-all"
-              >
-                <Globe className="h-4 w-4" />
-              </a>
-              <a
-                href="#"
-                aria-label="Zalo"
-                className="h-9 w-9 rounded-lg bg-slate-800 hover:bg-blue-500 flex items-center justify-center transition-all"
-              >
-                <MessageCircle className="h-4 w-4" />
-              </a>
-            </div>
+              </span>
+            </a>
           </div>
 
-          {/* Popular routes — with teal underline slide-in on hover */}
-          <div>
-            <h4 className="font-semibold text-white text-sm mb-3">{t('search.popularRoutes')}</h4>
-            <ul className="space-y-2 text-sm">
-              {[
-                'Hà Nội → Đà Nẵng',
-                'Hà Nội → Hồ Chí Minh',
-                'Hồ Chí Minh → Đà Lạt',
-                'Hồ Chí Minh → Nha Trang',
-                'Đà Nẵng → Hà Nội',
-              ].map((r) => {
-                // Parse "From → To" into separate legs so we can prefill
-                // the /search route's typed search params.
-                const [from, to] = r.split(' → ')
-                return (
-                  <li key={r}>
+          {routes.length > 0 && (
+            <div className="lg:col-span-3">
+              <Column title={t('search.popularRoutes')}>
+                {routes.map((r) => (
+                  <li key={r.id}>
                     <button
-                      onClick={() =>
-                        navigate({
-                          to: '/search',
-                          search: buildSearchInput({
-                            from,
-                            to,
-                            date: searchDate || new Date().toISOString().slice(0, 10),
-                          }),
-                        })
-                      }
-                      className="relative text-slate-400 hover:text-blue-400 transition-colors after:content-[''] after:absolute after:-bottom-0.5 after:left-0 after:w-0 after:h-[1.5px] after:bg-blue-400 after:transition-all after:duration-300 hover:after:w-full"
+                      onClick={() => search(r.from.name, r.to.name)}
+                      className={`${LINK} text-left`}
                     >
-                      {r}
+                      {r.from.name} → {r.to.name}
                     </button>
                   </li>
-                )
-              })}
-            </ul>
-          </div>
+                ))}
+              </Column>
+            </div>
+          )}
 
-          {/* Support — with teal underline slide-in on hover */}
-          <div>
-            <h4 className="font-semibold text-white text-sm mb-3">{t('nav.support')}</h4>
-            <ul className="space-y-2 text-sm">
+          <div className="min-w-0 lg:col-span-2">
+            <Column title={t('nav.support')}>
               <li>
                 <button
                   onClick={() => (user ? setChatOpen(true) : navigate({ to: '/login' }))}
-                  className="relative text-slate-400 hover:text-blue-400 transition-colors flex items-center gap-1.5 after:content-[''] after:absolute after:-bottom-0.5 after:left-0 after:w-0 after:h-[1.5px] after:bg-blue-400 after:transition-all after:duration-300 hover:after:w-full"
+                  className={`${LINK} inline-flex items-center gap-1.5 text-left`}
                 >
-                  <HelpCircle className="h-3.5 w-3.5" /> {t('home.trustChat')}
+                  <MessageCircle className="size-3.5" /> {t('home.trustChat')}
                 </button>
               </li>
               <li>
                 <a
-                  href="tel:19006067"
-                  className="relative flex items-center gap-1.5 text-slate-400 hover:text-blue-400 transition-colors after:content-[''] after:absolute after:-bottom-0.5 after:left-0 after:w-0 after:h-[1.5px] after:bg-blue-400 after:transition-all after:duration-300 hover:after:w-full"
-                >
-                  <Phone className="h-3.5 w-3.5" /> 1900 6067
-                </a>
-              </li>
-              <li>
-                <a
                   href="mailto:cskh@datxevui.com"
-                  className="relative flex items-center gap-1.5 text-slate-400 hover:text-blue-400 transition-colors after:content-[''] after:absolute after:-bottom-0.5 after:left-0 after:w-0 after:h-[1.5px] after:bg-blue-400 after:transition-all after:duration-300 hover:after:w-full"
+                  className={`${LINK} inline-flex max-w-full items-center gap-1.5`}
                 >
-                  <Mail className="h-3.5 w-3.5" /> cskh@datxevui.com
+                  <Mail className="size-3.5 shrink-0" />
+                  <span className="truncate">cskh@datxevui.com</span>
                 </a>
               </li>
-              <li className="flex items-center gap-1.5 text-slate-400">
-                <MapPin className="h-3.5 w-3.5" /> Hà Nội, Việt Nam
-              </li>
-            </ul>
+            </Column>
           </div>
 
-          {/* Company — with teal underline slide-in on hover */}
-          <div>
-            <h4 className="font-semibold text-white text-sm mb-3">{t('layout.footer.company')}</h4>
-            <ul className="space-y-2 text-sm">
-              {(
-                ['footer.about', 'layout.footer.careers', 'layout.footer.brandPartners'] as const
-              ).map((key) => (
-                <li key={key}>
-                  <a
-                    href="#"
-                    className="relative text-slate-400 hover:text-blue-400 transition-colors after:content-[''] after:absolute after:-bottom-0.5 after:left-0 after:w-0 after:h-[1.5px] after:bg-blue-400 after:transition-all after:duration-300 hover:after:w-full"
-                  >
-                    {t(key)}
-                  </a>
-                </li>
-              ))}
+          <div className="lg:col-span-3">
+            <Column title={t('layout.footer.policies')}>
               <li>
-                <Link
-                  to="/terms"
-                  hash="cancellation"
-                  className="relative text-slate-400 hover:text-blue-400 transition-colors after:content-[''] after:absolute after:-bottom-0.5 after:left-0 after:w-0 after:h-[1.5px] after:bg-blue-400 after:transition-all after:duration-300 hover:after:w-full"
-                >
+                <Link to="/terms" className={LINK}>
+                  {t('layout.footer.termsOfUse')}
+                </Link>
+              </li>
+              <li>
+                <Link to="/terms" hash="cancellation" className={LINK}>
                   {t('cancel.refundPolicy')}
                 </Link>
               </li>
               <li>
-                <Link
-                  to="/terms"
-                  className="relative text-slate-400 hover:text-blue-400 transition-colors after:content-[''] after:absolute after:-bottom-0.5 after:left-0 after:w-0 after:h-[1.5px] after:bg-blue-400 after:transition-all after:duration-300 hover:after:w-full"
-                >
-                  {t('layout.footer.termsOfUse')}
+                <Link to="/privacy" className={LINK}>
+                  {t('layout.footer.privacyPolicy')}
                 </Link>
               </li>
-            </ul>
-          </div>
-
-          {/* Payment */}
-          <div>
-            <h4 className="font-semibold text-white text-sm mb-3">{t('booking.payment')}</h4>
-            <div className="flex flex-wrap gap-2">
-              {['MoMo', 'VNPay', 'ZaloPay', 'Visa', 'Mastercard', 'Banking'].map((p) => (
-                <span
-                  key={p}
-                  className="rounded-md bg-slate-800 px-2.5 py-1.5 text-xs text-slate-300 hover:bg-slate-700 transition-colors cursor-default"
-                >
-                  {p}
-                </span>
-              ))}
-            </div>
-            <div className="mt-4 space-y-1.5 text-xs text-slate-400">
-              <div className="flex items-center gap-1.5">
-                <ShieldCheck className="h-3.5 w-3.5 text-blue-500" />
-                {t('layout.footer.ssl')}
-              </div>
-              <div className="flex items-center gap-1.5">
-                <CreditCard className="h-3.5 w-3.5 text-blue-500" />
-                PCI DSS Compliant
-              </div>
-            </div>
-
-            {/* Certification badges */}
-            <div className="mt-4 space-y-2">
-              <div className="flex items-center gap-2 rounded-lg bg-blue-500/10 ring-1 ring-blue-500/20 px-2.5 py-1.5">
-                <Award className="h-3.5 w-3.5 text-blue-400 shrink-0" />
-                <span className="text-xs text-blue-300 font-medium">
-                  {t('layout.footer.license')}
-                </span>
-              </div>
-              <div className="flex items-center gap-2 rounded-lg bg-blue-500/10 ring-1 ring-blue-500/20 px-2.5 py-1.5">
-                <Stamp className="h-3.5 w-3.5 text-blue-400 shrink-0" />
-                <span className="text-xs text-blue-300 font-medium">
-                  {t('layout.footer.insurance')}
-                </span>
-              </div>
-            </div>
+              <li>
+                <Link to="/privacy" hash="data-deletion" className={LINK}>
+                  {t('layout.footer.dataDeletion')}
+                </Link>
+              </li>
+            </Column>
           </div>
         </div>
 
-        {/* ── Bottom bar ── */}
-        <div className="mt-10 pt-6 border-t border-slate-800 flex flex-col md:flex-row items-center justify-between gap-3">
-          <div className="flex flex-col items-center md:items-start gap-1">
-            <div className="flex items-center gap-1 text-sm text-slate-400">
-              {t('layout.footer.copyright', { year: new Date().getFullYear() })}
-              <Heart className="h-3 w-3 text-rose-500 inline mx-0.5" />
-            </div>
-            <div className="text-xs text-slate-500">{t('layout.footer.registration')}</div>
+        <div className="mt-10 flex flex-col gap-4 border-t border-slate-200 pt-6 md:flex-row md:items-center md:justify-between">
+          <div className="space-y-1 text-xs text-slate-500">
+            <div>{t('layout.footer.copyright', { year: new Date().getFullYear() })}</div>
+            <div>{t('layout.footer.registration')}</div>
           </div>
-          <div className="flex flex-col items-center md:items-end gap-2">
-            <div className="flex items-center gap-4 text-xs text-slate-500">
-              <Link
-                to="/terms"
-                className="relative hover:text-blue-400 transition-colors after:content-[''] after:absolute after:-bottom-0.5 after:left-0 after:w-0 after:h-px after:bg-blue-400 after:transition-all after:duration-300 hover:after:w-full"
-              >
-                {t('layout.footer.termsOfUse')}
-              </Link>
-              <Link
-                to="/privacy"
-                className="relative hover:text-blue-400 transition-colors after:content-[''] after:absolute after:-bottom-0.5 after:left-0 after:w-0 after:h-px after:bg-blue-400 after:transition-all after:duration-300 hover:after:w-full"
-              >
-                {t('layout.footer.privacyPolicy')}
-              </Link>
-              <Link
-                to="/privacy"
-                hash="data-deletion"
-                className="relative hover:text-blue-400 transition-colors after:content-[''] after:absolute after:-bottom-0.5 after:left-0 after:w-0 after:h-px after:bg-blue-400 after:transition-all after:duration-300 hover:after:w-full"
-              >
-                {t('layout.footer.dataDeletion')}
-              </Link>
+          {providers && providers.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1 text-xs text-slate-500">
+                <ShieldCheck className="size-3.5 text-emerald-600" />
+                {t('layout.footer.payWith')}
+              </span>
+              {providers.map((p) => (
+                <span
+                  key={p}
+                  className="rounded-lg bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600 ring-1 ring-slate-200"
+                >
+                  {t(PROVIDER_LABEL[p] ?? p)}
+                </span>
+              ))}
             </div>
-          </div>
+          )}
         </div>
       </div>
     </footer>

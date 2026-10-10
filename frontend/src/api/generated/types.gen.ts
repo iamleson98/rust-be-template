@@ -2040,6 +2040,26 @@ export type OAuthProvidersResponse = {
 };
 
 /**
+ * Response of `GET /api/chat/channels/online`.
+ */
+export type OnlineChannelsResponse = {
+    /**
+     * The queue's channels whose customer is online, most recent
+     * activity first.
+     */
+    items: Array<ChatChannelOut>;
+    /**
+     * Presence sequence number this answer is at least as new as. A live
+     * `customer_presence` event with a higher `seq` is newer than it.
+     */
+    seq: number;
+    /**
+     * Every customer signed in with the site open right now.
+     */
+    userIds: Array<string>;
+};
+
+/**
  * One passenger on a booking.
  */
 export type PassengerReq = {
@@ -4632,6 +4652,10 @@ export type AdminCronJobsCancelErrors = {
      * No queued/running run for that job type
      */
     404: unknown;
+    /**
+     * Worker not running in this process
+     */
+    503: unknown;
 };
 
 export type AdminCronJobsCancelResponses = {
@@ -4665,7 +4689,7 @@ export type AdminCronJobsTriggerErrors = {
      */
     403: unknown;
     /**
-     * No schedule for that job type
+     * No such job
      */
     404: unknown;
     /**
@@ -6348,6 +6372,33 @@ export type CreateChannelResponses = {
 };
 
 export type CreateChannelResponse2 = CreateChannelResponses[keyof CreateChannelResponses];
+
+export type OnlineChannelsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/chat/channels/online';
+};
+
+export type OnlineChannelsErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden — staff only
+     */
+    403: unknown;
+};
+
+export type OnlineChannelsResponses = {
+    /**
+     * Online customers and their channels
+     */
+    200: OnlineChannelsResponse;
+};
+
+export type OnlineChannelsResponse2 = OnlineChannelsResponses[keyof OnlineChannelsResponses];
 
 export type ClaimChannelData = {
     body?: never;

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ArrowRight, CheckCircle2, PhoneCall, PhoneIncoming, RefreshCw } from 'lucide-react'
+import { CheckCircle2, PhoneCall, PhoneIncoming, RefreshCw } from 'lucide-react'
 import type { BookingOut } from '@/api'
 import { CountPill, Panel } from '@/components/console/panel'
 import { Button } from '@/components/ui/button'
@@ -11,6 +11,7 @@ import { BookingDetailDialog } from '@/features/admin/tickets/booking-detail-dia
 import { useTicketStatus } from '@/features/admin/tickets/use-ticket-status'
 import { formatDateVN, formatTimeVN, formatVND, relativeTime } from '@/lib/format'
 import { useT } from '@/lib/i18n'
+import { cn } from '@/lib/utils'
 
 const FILTER = { status: 'awaiting', sort: 'created_asc', limit: 20, offset: 0 } as const
 
@@ -27,7 +28,7 @@ export function AwaitingTicketsCard() {
 
   return (
     <Panel
-      className={tickets.length > 0 ? 'border-amber-300 dark:border-amber-500/40' : undefined}
+      className={tickets.length > 0 ? 'ring-amber-300 dark:ring-amber-500/40' : undefined}
       icon={<PhoneIncoming className="text-amber-600" />}
       title={
         <span className="inline-flex items-center gap-2">
@@ -38,13 +39,14 @@ export function AwaitingTicketsCard() {
       action={
         <Button
           variant="ghost"
-          size="sm"
-          className="h-8 gap-1 text-xs"
+          size="icon"
+          className="size-8 text-slate-500"
           onClick={() => query.refetch()}
           disabled={query.isFetching}
+          aria-label={t('common.refresh')}
+          title={t('common.refresh')}
         >
-          <RefreshCw className={`size-3.5 ${query.isFetching ? 'animate-spin' : ''}`} />
-          {t('common.refresh')}
+          <RefreshCw className={query.isFetching ? 'animate-spin' : ''} />
         </Button>
       }
     >
@@ -88,44 +90,46 @@ function AwaitingRow({
 }) {
   const t = useT()
   const trip = ticket.trip
+  const details = trip
+    ? [
+        `${trip.fromName} → ${trip.toName}`,
+        `${formatDateVN(trip.departureAt ?? trip.departureDate)} ${
+          trip.departureAt ? formatTimeVN(trip.departureAt) : trip.departureTime
+        }`,
+        t('adminDash.seatsList', { seats: ticket.seats.map((s) => s.seatCode ?? '—').join(', ') }),
+      ]
+    : []
   return (
-    <li className="flex flex-wrap items-center gap-3 py-3 first:pt-0 last:pb-0">
+    <li className="flex flex-col gap-2.5 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:gap-4">
       <button type="button" onClick={onOpen} className="min-w-0 flex-1 text-left">
-        <div className="flex flex-wrap items-center gap-2 text-sm">
-          <code className="font-mono font-bold text-blue-700">{ticket.code}</code>
-          <span className="font-semibold">{ticket.contactName ?? '—'}</span>
-          <span className="font-mono text-muted-foreground">{ticket.contactPhone}</span>
+        <div className="flex items-baseline gap-2">
+          <code className="font-mono text-sm font-bold text-primary">{ticket.code}</code>
+          <span className="ml-auto shrink-0 text-xs text-slate-400 sm:ml-0">
+            {relativeTime(ticket.createdAt)}
+          </span>
+        </div>
+        <div className="mt-1 truncate text-sm">
+          <span className="font-semibold text-slate-900">{ticket.contactName ?? '—'}</span>{' '}
+          <span className="text-slate-500 tabular-nums">{ticket.contactPhone}</span>
         </div>
         {trip && (
-          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
-            <span className="inline-flex items-center gap-1">
-              {trip.fromName} <ArrowRight className="h-3 w-3" /> {trip.toName}
-            </span>
-            <span>
-              {formatDateVN(trip.departureAt ?? trip.departureDate)}{' '}
-              {trip.departureAt ? formatTimeVN(trip.departureAt) : trip.departureTime}
-            </span>
-            <span>
-              {t('adminDash.seatsList', {
-                seats: ticket.seats.map((s) => s.seatCode ?? '—').join(', '),
-              })}
-            </span>
-            <span className="font-semibold text-foreground">{formatVND(ticket.total)}</span>
-            <span>· {relativeTime(ticket.createdAt)}</span>
+          <div className="mt-0.5 text-xs leading-relaxed text-slate-500">
+            {details.join(' · ')} ·{' '}
+            <span className="font-semibold text-slate-900">{formatVND(ticket.total)}</span>
           </div>
         )}
       </button>
-      <div className="flex shrink-0 gap-1.5">
+      <div className={cn('grid shrink-0 gap-2 sm:flex', ticket.contactPhone && 'grid-cols-2')}>
         {ticket.contactPhone && (
-          <Button asChild size="sm" variant="outline" className="h-8 gap-1">
+          <Button asChild variant="outline" className="h-9 gap-1.5 rounded-lg">
             <a href={`tel:${ticket.contactPhone}`}>
-              <PhoneCall className="h-3.5 w-3.5" />
+              <PhoneCall className="size-4" />
               {t('adminTickets.callCustomer')}
             </a>
           </Button>
         )}
-        <Button size="sm" className="h-8 gap-1" disabled={busy} onClick={onConfirm}>
-          <CheckCircle2 className="h-3.5 w-3.5" />
+        <Button className="h-9 gap-1.5 rounded-lg" disabled={busy} onClick={onConfirm}>
+          <CheckCircle2 className="size-4" />
           {t('adminTickets.confirmAfterCall')}
         </Button>
       </div>

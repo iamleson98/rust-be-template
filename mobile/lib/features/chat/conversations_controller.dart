@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/net/api_client.dart';
 import 'chat_service.dart';
+import 'customer_presence.dart';
 import 'models.dart';
 
 /// The agent's support queue: all channels (newest activity first),
@@ -164,18 +165,26 @@ final queueFilterProvider = NotifierProvider<QueueFilterNotifier, QueueFilter>(
   QueueFilterNotifier.new,
 );
 
-/// Filtered view of the queue for the list screen.
+/// Filtered view of the queue for the list screen: customers online right
+/// now first (including online customers' channels the list has not
+/// loaded), each group most recent activity first.
 final filteredChannelsProvider = Provider<List<Channel>>((ref) {
-  final channels = ref.watch(conversationsProvider).value ?? [];
+  final queue = ref.watch(conversationsProvider).value ?? [];
+  final presence = ref.watch(customerPresenceProvider);
   final filter = ref.watch(queueFilterProvider);
-  switch (filter) {
-    case QueueFilter.unassigned:
-      return channels.where((c) => c.isOpen && !c.assignedToMe).toList();
-    case QueueFilter.mine:
-      return channels.where((c) => c.assignedToMe && !c.isClosed).toList();
-    case QueueFilter.all:
-      return channels;
-  }
+  final loaded = {for (final c in queue) c.id};
+  final channels = [
+    ...queue,
+    ...presence.channels.where((c) => !loaded.contains(c.id)),
+  ];
+  bool waiting(Channel c) => c.isOpen && !c.assignedToMe;
+  bool mine(Channel c) => c.assignedToMe && !c.isClosed;
+  final visible = switch (filter) {
+    QueueFilter.unassigned => channels.where(waiting),
+    QueueFilter.mine => channels.where(mine),
+    QueueFilter.all => channels,
+  };
+  return onlineFirst(visible, presence);
 });
 
 /// Total unread across the queue (bottom-nav badge).

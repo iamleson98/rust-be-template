@@ -1,5 +1,11 @@
-import type { ReactNode } from 'react'
+import { createContext, useContext, type ReactNode } from 'react'
 import { cn } from '@/lib/utils'
+
+/**
+ * Whether pages pad and centre themselves (the admin console). The customer
+ * account frame already sets the width and gutters, so it turns this off.
+ */
+export const PageInset = createContext(true)
 
 /** A console page's frame: one width and rhythm for every page in both consoles. */
 export function ConsolePage({
@@ -12,12 +18,15 @@ export function ConsolePage({
   className?: string
   children: ReactNode
 }) {
+  const inset = useContext(PageInset)
   return (
     <div
       className={cn(
+        'w-full space-y-5',
         // Bottom room on phones: floating buttons (call, support) sit there.
-        'mx-auto w-full space-y-5 px-4 pt-5 pb-24 md:px-6 md:py-6',
-        width === 'wide' ? 'max-w-7xl' : 'max-w-2xl',
+        inset && 'mx-auto px-4 pt-5 pb-24 md:px-6 md:py-6',
+        inset && (width === 'wide' ? 'max-w-7xl' : 'max-w-2xl'),
+        !inset && width === 'narrow' && 'max-w-2xl',
         className,
       )}
     >

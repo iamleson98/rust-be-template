@@ -16,7 +16,7 @@ export function ExistingReviewCard({
 }) {
   const t = useT()
   return (
-    <Card className="border-border overflow-hidden">
+    <Card className="overflow-hidden py-0">
       <CardContent className="p-4 md:p-5 space-y-3">
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-700">

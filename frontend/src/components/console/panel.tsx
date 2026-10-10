@@ -2,9 +2,9 @@ import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 
 /**
- * A section of a console page: a white surface with a hairline border on
- * the canvas — separation by contrast, not shadows — and an optional
- * title row with an action on the right.
+ * A section of a console page: the site's card (white on the canvas, a
+ * hairline ring, a whisper of shadow) with an optional title row and an
+ * action on the right.
  */
 export function Panel({
   title,
@@ -22,7 +22,12 @@ export function Panel({
   children: ReactNode
 }) {
   return (
-    <section className={cn('rounded-xl border bg-card text-card-foreground', className)}>
+    <section
+      className={cn(
+        'rounded-2xl bg-card text-card-foreground shadow-soft ring-1 ring-slate-200/80 dark:ring-white/10',
+        className,
+      )}
+    >
       {(title || action) && (
         <div className="flex min-h-12 items-center gap-2 px-4 pt-3">
           {icon && (

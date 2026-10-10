@@ -15,6 +15,7 @@ import '../../shared/widgets.dart';
 import '../call/call_controller.dart';
 import '../notifications/notification_service.dart';
 import 'conversations_controller.dart';
+import 'customer_presence.dart';
 import 'models.dart';
 import 'rooms_controller.dart';
 
@@ -390,6 +391,10 @@ class _RoomScreenState extends ConsumerState<RoomScreen> {
     );
     final channel = room?.channel;
     final messages = room?.messages ?? const <ChatMessage>[];
+    final userId = channel?.userId;
+    final online = ref.watch(
+      customerPresenceProvider.select((p) => p.isOnline(userId ?? '')),
+    );
 
     _onMessagesChanged(messages);
 
@@ -408,7 +413,7 @@ class _RoomScreenState extends ConsumerState<RoomScreen> {
           children: [
             _RoomHeader(
               channel: channel,
-              online: room?.customerOnline ?? false,
+              online: online,
               typingName: room?.typingName,
               onBack: () => context.pop(),
               onCall: channel == null || channel.isClosed
@@ -512,11 +517,16 @@ class _RoomScreenState extends ConsumerState<RoomScreen> {
     final theme = context.theme;
     return Container(
       width: double.infinity,
-      color: theme.colors.primary.withValues(alpha: 0.10),
+      decoration: BoxDecoration(
+        color: AppBrand.warning.withValues(alpha: 0.08),
+        border: Border(
+          bottom: BorderSide(color: AppBrand.warning.withValues(alpha: 0.25)),
+        ),
+      ),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
         children: [
-          Icon(FLucideIcons.info, size: 15, color: theme.colors.primary),
+          Icon(FLucideIcons.userRoundSearch, size: 16, color: AppBrand.warning),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -645,28 +655,15 @@ class _RoomHeader extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 1),
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              width: 7,
-                              height: 7,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: statusColor,
-                              ),
-                            ),
-                            const SizedBox(width: 5),
-                            Text(
-                              statusText,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: theme.typography.body.xs.copyWith(
-                                color: statusColor,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
+                        // The avatar already carries the presence dot.
+                        Text(
+                          statusText,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.typography.body.xs.copyWith(
+                            color: statusColor,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ],
                     ),
@@ -1058,20 +1055,13 @@ class _MessageList extends StatelessWidget {
           constraints: const BoxConstraints(maxWidth: 330),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
           decoration: BoxDecoration(
-            gradient: failed
-                ? null
-                : mine
-                ? AppBrand.bubbleGradient
-                : null,
             color: failed
                 ? theme.colors.destructive.withValues(alpha: 0.14)
                 : mine
-                ? null
+                ? theme.colors.primary
                 : theme.colors.card,
             border: Border.all(
-              color: mine
-                  ? Colors.transparent
-                  : theme.colors.border.withValues(alpha: 0.8),
+              color: mine ? Colors.transparent : theme.colors.border,
             ),
             borderRadius: BorderRadius.only(
               topLeft: Radius.circular(topLeftR),
@@ -1079,16 +1069,7 @@ class _MessageList extends StatelessWidget {
               bottomLeft: Radius.circular(bottomLeftR),
               bottomRight: Radius.circular(bottomRightR),
             ),
-            boxShadow: [
-              if (!failed)
-                BoxShadow(
-                  color: mine
-                      ? AppBrand.violet.withValues(alpha: 0.22)
-                      : theme.colors.background.withValues(alpha: 0.9),
-                  blurRadius: 10,
-                  offset: const Offset(0, 3),
-                ),
-            ],
+            boxShadow: failed || mine ? null : AppShadow.soft,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.end,
@@ -1218,15 +1199,9 @@ class _NewMessagesPill extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           decoration: BoxDecoration(
-            gradient: AppBrand.bubbleGradient,
+            color: theme.colors.primary,
             borderRadius: BorderRadius.circular(999),
-            boxShadow: [
-              BoxShadow(
-                color: AppBrand.violet.withValues(alpha: 0.45),
-                blurRadius: 16,
-                offset: const Offset(0, 6),
-              ),
-            ],
+            boxShadow: AppShadow.float,
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -1253,7 +1228,7 @@ class _NewMessagesPill extends StatelessWidget {
   }
 }
 
-/// Gradient jump-to-bottom FAB with an unread-new badge.
+/// Jump-to-latest button (white, floating) with a new-messages badge.
 class _JumpFab extends StatelessWidget {
   const _JumpFab({required this.newCount, required this.onTap});
 
@@ -1271,23 +1246,18 @@ class _JumpFab extends StatelessWidget {
           width: 48,
           height: 48,
           decoration: BoxDecoration(
-            gradient: AppBrand.bubbleGradient,
+            color: context.theme.colors.card,
             shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: AppBrand.violet.withValues(alpha: 0.45),
-                blurRadius: 16,
-                offset: const Offset(0, 6),
-              ),
-            ],
+            border: Border.all(color: context.theme.colors.border),
+            boxShadow: AppShadow.float,
           ),
           child: Stack(
             children: [
-              const Center(
+              Center(
                 child: Icon(
                   FLucideIcons.arrowDown,
                   size: 22,
-                  color: Colors.white,
+                  color: context.theme.colors.foreground,
                 ),
               ),
               if (newCount > 0)
@@ -1356,13 +1326,6 @@ class _ComposerBar extends StatelessWidget {
                   color: theme.colors.card,
                   borderRadius: BorderRadius.circular(24),
                   border: Border.all(color: theme.colors.border),
-                  boxShadow: [
-                    BoxShadow(
-                      color: theme.colors.background.withValues(alpha: 0.9),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
                 ),
                 child: TextField(
                   controller: controller,
@@ -1409,8 +1372,8 @@ class _ComposerBar extends StatelessWidget {
   }
 }
 
-/// Circular send button: muted glass when idle, violet gradient with a
-/// glow once there's text; the icon scale-rotates across the switch.
+/// Circular send button: muted while empty, the brand blue once there's
+/// text; the icon switches with a small pop.
 class _SendButton extends StatelessWidget {
   const _SendButton({required this.enabled, required this.onTap});
 
@@ -1432,17 +1395,8 @@ class _SendButton extends StatelessWidget {
           width: 48,
           height: 48,
           decoration: BoxDecoration(
-            gradient: enabled ? AppBrand.bubbleGradient : null,
-            color: enabled ? null : theme.colors.muted,
+            color: enabled ? theme.colors.primary : theme.colors.muted,
             shape: BoxShape.circle,
-            boxShadow: [
-              if (enabled)
-                BoxShadow(
-                  color: AppBrand.violet.withValues(alpha: 0.45),
-                  blurRadius: 14,
-                  offset: const Offset(0, 5),
-                ),
-            ],
           ),
           child: Center(
             child: AnimatedSwitcher(

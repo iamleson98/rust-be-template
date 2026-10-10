@@ -23,10 +23,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
   const isAdmin = useSession((s) => s.user?.type === 'admin')
 
   const groups: ConsoleNavGroup[] = [
-    {
-      label: t('admin.group.overview'),
-      items: [{ title: t('admin.dashboard'), icon: LayoutDashboard, url: '/admin', exact: true }],
-    },
+    { items: [{ title: t('admin.dashboard'), icon: LayoutDashboard, url: '/admin', exact: true }] },
     {
       label: t('admin.group.operations'),
       items: [
@@ -69,7 +66,6 @@ export function AdminShell({ children }: { children: ReactNode }) {
       label={t('nav.admin')}
       groups={groups}
       exit={{ title: t('admin.customerSite'), icon: Eye, to: '/' }}
-      mobileNav="drawer"
     >
       {children}
     </ConsoleShell>

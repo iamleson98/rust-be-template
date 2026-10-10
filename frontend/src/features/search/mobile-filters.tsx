@@ -1,53 +1,58 @@
-'use client'
-
-import { Filter, SlidersHorizontal, X } from 'lucide-react'
+import { useState } from 'react'
+import { SlidersHorizontal } from 'lucide-react'
 import type { TripResult } from '@/api'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet'
 import { useT } from '@/lib/i18n'
 import { FilterPanel } from './filter-panel'
 import { UrlFilters } from './filter-controls'
 import type { ResultFilters } from './use-result-filters'
 
-/** Phone filter button (with the active count) and the sheet it opens. */
+/**
+ * Below lg: the Filter button (with how many are on) and the sheet it opens.
+ * The sheet's footer says how many trips the filters leave and closes it.
+ */
 export function MobileFilters({ results, rf }: { results: TripResult[]; rf: ResultFilters }) {
   const t = useT()
+  const [open, setOpen] = useState(false)
   return (
-    <Sheet>
+    <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        <Button variant="outline" size="sm" className="relative gap-1.5 lg:hidden">
-          <Filter className="h-3.5 w-3.5" />
+        <button className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-white px-3.5 text-sm font-medium text-slate-700 ring-1 ring-slate-200 transition-colors hover:ring-slate-300 lg:hidden">
+          <SlidersHorizontal className="size-3.5" />
           {t('searchPage.filter')}
           {rf.activeCount > 0 && (
-            <Badge className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center bg-blue-600 px-1 text-[10px] text-white">
+            <span className="grid h-5 min-w-5 place-items-center rounded-full bg-primary px-1 text-[11px] font-bold text-primary-foreground">
               {rf.activeCount}
-            </Badge>
+            </span>
           )}
-        </Button>
+        </button>
       </SheetTrigger>
-      <SheetContent side="left" className="w-[85vw] overflow-y-auto sm:max-w-md">
-        <SheetHeader>
-          <SheetTitle className="flex items-center gap-2">
-            <SlidersHorizontal className="h-4 w-4 text-blue-600" />
-            {t('searchPage.filters')}
-            {rf.activeCount > 0 && (
-              <Badge className="bg-blue-600 text-[10px] text-white">{rf.activeCount}</Badge>
-            )}
-          </SheetTitle>
+      <SheetContent side="right" className="flex w-[88vw] flex-col gap-0 p-0 sm:max-w-sm">
+        <SheetHeader className="border-b px-5 py-4">
+          <SheetTitle>{t('searchPage.filters')}</SheetTitle>
+          <SheetDescription className="sr-only">{t('searchPage.filters')}</SheetDescription>
         </SheetHeader>
-        <div className="space-y-4 px-4 pb-6">
-          <UrlFilters results={results} grid />
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-5 py-4">
+          <UrlFilters results={results} />
           <FilterPanel results={results} rf={rf} mobile />
+        </div>
+        <div className="flex gap-2 border-t bg-white px-5 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
           {rf.activeCount > 0 && (
-            <Button
-              variant="outline"
-              onClick={rf.reset}
-              className="w-full border-rose-300 text-rose-600 hover:bg-rose-50"
-            >
-              <X className="h-4 w-4" /> {t('searchPage.clearAllFilters')}
+            <Button variant="outline" onClick={rf.reset} className="h-11 rounded-xl">
+              {t('searchPage.clearAll')}
             </Button>
           )}
+          <Button onClick={() => setOpen(false)} className="h-11 flex-1 rounded-xl">
+            {t('searchPage.showTrips', { count: rf.filtered.length })}
+          </Button>
         </div>
       </SheetContent>
     </Sheet>

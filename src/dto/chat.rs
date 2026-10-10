@@ -140,6 +140,20 @@ pub struct ChatChannelListResponse {
     pub items: Vec<ChatChannelOut>,
 }
 
+/// Response of `GET /api/chat/channels/online`.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct OnlineChannelsResponse {
+    /// Presence sequence number this answer is at least as new as. A live
+    /// `customer_presence` event with a higher `seq` is newer than it.
+    pub seq: u64,
+    /// Every customer signed in with the site open right now.
+    pub user_ids: Vec<Uuid>,
+    /// The queue's channels whose customer is online, most recent
+    /// activity first.
+    pub items: Vec<ChatChannelOut>,
+}
+
 /// Response of `GET /api/chat/channels/{id}/messages`.
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]

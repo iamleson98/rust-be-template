@@ -1,24 +1,20 @@
-'use client'
-
 import { Bell, GitCompare, Heart } from 'lucide-react'
 import type { TripResult } from '@/api'
-import { Button } from '@/components/ui/button'
 import { useT } from '@/lib/i18n'
 import type { SearchParams } from '@/lib/search-params'
 import { useUi } from '@/stores/ui'
-import { MobileFilters } from './mobile-filters'
-import type { ResultFilters } from './use-result-filters'
 
-/** Save / track price / filter (phone) / compare buttons beside the results title. */
+const ICON_BUTTON =
+  'inline-flex h-9 items-center gap-1.5 rounded-full bg-white px-3 text-sm font-medium text-slate-700 ring-1 ring-slate-200 transition-colors hover:ring-slate-300 disabled:opacity-50'
+
+/** Save this search, watch the route's fares, open the comparison. */
 export function ResultsActions({
   search,
   results,
-  rf,
   onSave,
 }: {
   search: SearchParams
   results: TripResult[]
-  rf: ResultFilters
   onSave: () => void
 }) {
   const t = useT()
@@ -28,40 +24,36 @@ export function ResultsActions({
   const cheapest = results.length ? Math.min(...results.map((r) => r.minPrice)) : 0
 
   return (
-    <div className="flex items-center gap-2">
-      <Button
-        variant="outline"
-        size="sm"
+    <div className="flex shrink-0 items-center gap-2">
+      <button
         onClick={onSave}
         disabled={results.length === 0}
-        className="gap-1.5"
+        className={ICON_BUTTON}
         title={t('searchPage.saveThisSearch')}
+        aria-label={t('searchPage.saveThisSearch')}
       >
-        <Heart className="h-3.5 w-3.5 text-rose-500" />
-        <span className="hidden sm:inline">{t('common.save')}</span>
-      </Button>
-      <Button
-        variant="outline"
-        size="sm"
+        <Heart className="size-4 text-rose-500" />
+        <span className="hidden md:inline">{t('common.save')}</span>
+      </button>
+      <button
         onClick={() =>
           openPriceAlert({ fromName: search.from, toName: search.to, minPrice: cheapest })
         }
-        className="gap-1.5"
+        className={ICON_BUTTON}
+        title={t('searchPage.trackPrice')}
+        aria-label={t('searchPage.trackPrice')}
       >
-        <Bell className="h-3.5 w-3.5 text-blue-600" />
-        <span className="hidden sm:inline">{t('searchPage.trackPrice')}</span>
-      </Button>
-      <MobileFilters results={results} rf={rf} />
+        <Bell className="size-4 text-primary" />
+        <span className="hidden md:inline">{t('searchPage.trackPrice')}</span>
+      </button>
       {compareCount > 0 && (
-        <Button
-          variant="outline"
-          size="sm"
+        <button
           onClick={() => setCompareOpen(true)}
-          className="gap-1.5 border-violet-300 text-violet-700 hover:bg-violet-50"
+          className="inline-flex h-9 items-center gap-1.5 rounded-full bg-violet-600 px-3.5 text-sm font-semibold text-white transition-colors hover:bg-violet-700"
         >
-          <GitCompare className="h-3.5 w-3.5" />
+          <GitCompare className="size-4" />
           {t('searchPage.compareCount', { count: compareCount })}
-        </Button>
+        </button>
       )}
     </div>
   )

@@ -44,7 +44,7 @@ class _SplashScreenState extends State<SplashScreen>
       body: Container(
         width: double.infinity,
         height: double.infinity,
-        decoration: const BoxDecoration(gradient: AppBrand.heroGradient),
+        color: theme.colors.background,
         child: SafeArea(
           child: Center(
             child: FadeTransition(
@@ -54,22 +54,21 @@ class _SplashScreenState extends State<SplashScreen>
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    _LogoMark(size: 96),
+                    _LogoMark(size: 80),
                     const SizedBox(height: 26),
                     Text(
-                      'đặt xe vui',
-                      style: theme.typography.display.xl3.copyWith(
+                      'DatXeVui',
+                      style: theme.typography.display.xl2.copyWith(
                         fontWeight: FontWeight.w800,
-                        letterSpacing: -0.8,
-                        color: Colors.white,
+                        letterSpacing: -0.6,
+                        color: theme.colors.foreground,
                       ),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       'Tổng đài hỗ trợ',
                       style: theme.typography.body.md.copyWith(
-                        color: Colors.white.withValues(alpha: 0.85),
-                        letterSpacing: 0.2,
+                        color: theme.colors.mutedForeground,
                       ),
                     ),
                     const SizedBox(height: 34),
@@ -78,7 +77,7 @@ class _SplashScreenState extends State<SplashScreen>
                       height: 26,
                       child: CircularProgressIndicator(
                         strokeWidth: 2.4,
-                        color: Colors.white.withValues(alpha: 0.85),
+                        color: theme.colors.primary,
                       ),
                     ),
                   ],
@@ -93,7 +92,7 @@ class _SplashScreenState extends State<SplashScreen>
 }
 
 /// Rounded-circle brand mark: the DatXeVui "dx + heart" logo (white disc,
-/// soft shadow — baked into the asset) over the brand gradient.
+/// soft shadow — baked into the asset).
 class _LogoMark extends StatelessWidget {
   const _LogoMark({this.size = 72});
 

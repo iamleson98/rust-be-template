@@ -1,148 +1,84 @@
-'use client'
-
-import { useQuery } from '@tanstack/react-query'
-import { brandsOptions } from '@/api'
 import { memo } from 'react'
-import { Card } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Star, Bus, ChevronRight } from 'lucide-react'
-import type { BrandOut } from '@/api'
-import { useT } from '@/lib/i18n'
-import { useNavigate } from '@tanstack/react-router'
+import { useQuery } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
+import { ChevronRight, Route, Star } from 'lucide-react'
+import { brandsOptions } from '@/api'
 import { ErrorState } from '@/components/error-state'
-import { BrandShowcaseSkeleton } from '@/features/brand/components/brand-showcase-skeleton'
+import { HomeSection, RAIL, RailSkeleton } from '@/features/home/section'
+import { useT } from '@/lib/i18n'
+import { cn } from '@/lib/utils'
 
+const initials = (name: string) => {
+  const parts = name.trim().split(/\s+/)
+  return (parts.length >= 2 ? parts[0][0] + parts[1][0] : name.slice(0, 2)).toUpperCase()
+}
+
+/** The operators on the platform, each card opening its page (routes, reviews). */
 export const BrandShowcase = memo(function BrandShowcase() {
   const { data, isLoading, isError, refetch } = useQuery(brandsOptions())
-  const navigate = useNavigate()
   const t = useT()
-  const brands: BrandOut[] = data?.items ?? []
+  const brands = data?.items ?? []
 
-  /** Get initials from brand name (up to 2 chars) */
-  const getInitials = (name: string) => {
-    const parts = name.trim().split(/\s+/)
-    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase()
-    return name.slice(0, 2).toUpperCase()
-  }
-
-  /** Render star rating */
-  const renderStars = (rating: number) => {
-    const full = Math.floor(rating)
-    const hasHalf = rating - full >= 0.3
-    const stars = []
-    for (let i = 0; i < 5; i++) {
-      if (i < full) {
-        stars.push(<Star key={i} className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />)
-      } else if (i === full && hasHalf) {
-        stars.push(<Star key={i} className="h-3.5 w-3.5 fill-amber-400/50 text-amber-400" />)
-      } else {
-        stars.push(<Star key={i} className="h-3.5 w-3.5 text-muted-foreground/30" />)
-      }
-    }
-    return stars
-  }
+  if (isLoading) return <RailSkeleton count={4} />
+  if (isError)
+    return (
+      <div className="page-x py-10">
+        <ErrorState description={t('brandDetail.loadBrandsError')} onRetry={() => refetch()} />
+      </div>
+    )
+  if (brands.length === 0) return null
 
   return (
-    <section className="bg-background">
-      <div className="container mx-auto px-4 py-12 md:py-16">
-        {isLoading ? (
-          <BrandShowcaseSkeleton count={5} />
-        ) : isError ? (
-          <ErrorState description={t('brandDetail.loadBrandsError')} onRetry={() => refetch()} />
-        ) : brands.length === 0 ? null : (
-          <>
-            {/* Header */}
-            <div className="mb-8">
-              <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight">
-                {t('brandDetail.partnersTitle')}
-              </h2>
-              <p className="text-muted-foreground mt-1 text-sm">
-                {t('brandDetail.partnersSubtitle')}
-              </p>
-            </div>
-
-            {/* Horizontally scrollable brand cards */}
-            <div className="relative">
-              {/* Scroll container */}
-              <div className="flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory scrollbar-thin scrollbar-thumb-muted-foreground/20 scrollbar-track-transparent">
-                {brands.map((brand) => (
-                  <div key={brand.id} className="snap-start shrink-0 w-65 sm:w-70">
-                    <Card className="group overflow-hidden border-border/60 hover:border-blue-400 transition-all duration-300 h-full">
-                      <div className="p-4 flex flex-col gap-3">
-                        {/* BrandOut logo/initials + name */}
-                        <div className="flex items-center gap-3">
-                          <div
-                            className="h-11 w-11 rounded-lg flex items-center justify-center text-white font-bold text-sm shrink-0"
-                            style={{ backgroundColor: brand.accentColor ?? '#2563eb' }}
-                          >
-                            {brand.logoUrl ? (
-                              <img
-                                src={brand.logoUrl}
-                                alt={brand.name}
-                                className="h-8 w-8 object-contain"
-                                loading="lazy"
-                                decoding="async"
-                              />
-                            ) : (
-                              getInitials(brand.name)
-                            )}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="font-bold text-base truncate">{brand.name}</div>
-                            {brand.rating != null ? (
-                              <div className="flex items-center gap-1 mt-0.5">
-                                {renderStars(brand.rating)}
-                                <span className="text-xs font-medium text-amber-600 ml-1">
-                                  {brand.rating.toFixed(1)}
-                                </span>
-                              </div>
-                            ) : (
-                              <div className="mt-0.5 text-xs text-muted-foreground">
-                                {t('brandDetail.noReviewsYet')}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Route count badge */}
-                        <div className="flex items-center gap-2">
-                          <Badge
-                            variant="secondary"
-                            className="text-xs gap-1 bg-blue-50 text-blue-700 border-blue-200/60 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800/40"
-                          >
-                            <Bus className="h-3 w-3" />
-                            {t('brands.routesCount', { count: brand.routeCount })}
-                          </Badge>
-                        </div>
-
-                        {/* "Xem chuyến" button — navigates to /brands/$slug */}
-                        <Button
-                          size="sm"
-                          className="mt-auto w-full"
-                          onClick={() =>
-                            navigate({
-                              to: '/brands/$slug',
-                              params: { slug: brand.slug },
-                            })
-                          }
-                        >
-                          {t('brandDetail.viewTrips')}
-                          <ChevronRight className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </Card>
-                  </div>
-                ))}
-              </div>
-
-              {/* Scroll fade indicators */}
-              <div className="pointer-events-none absolute top-0 left-0 bottom-4 w-8 bg-linear-to-r from-background to-transparent" />
-              <div className="pointer-events-none absolute top-0 right-0 bottom-4 w-8 bg-linear-to-l from-background to-transparent" />
-            </div>
-          </>
-        )}
+    <HomeSection
+      title={t('brandDetail.partnersTitle')}
+      subtitle={t('brandDetail.partnersSubtitle')}
+    >
+      <div className={cn(RAIL, 'lg:grid-cols-4')}>
+        {brands.map((brand) => (
+          <Link
+            key={brand.id}
+            to="/brands/$slug"
+            params={{ slug: brand.slug }}
+            className="group flex items-center gap-3 rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-200/80 transition duration-200 hover:-translate-y-0.5 hover:shadow-float hover:ring-primary/30"
+          >
+            <span
+              className="grid size-12 shrink-0 place-items-center overflow-hidden rounded-xl text-sm font-bold text-white"
+              style={{ backgroundColor: brand.accentColor ?? '#2563eb' }}
+            >
+              {brand.logoUrl ? (
+                <img
+                  src={brand.logoUrl}
+                  alt=""
+                  className="size-9 object-contain"
+                  loading="lazy"
+                  decoding="async"
+                />
+              ) : (
+                initials(brand.name)
+              )}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate font-semibold text-slate-900">{brand.name}</span>
+              <span className="mt-0.5 flex items-center gap-1.5 text-xs whitespace-nowrap text-slate-500">
+                {brand.rating != null ? (
+                  <span className="inline-flex items-center gap-0.5 font-medium text-slate-700">
+                    <Star className="size-3 fill-amber-400 text-amber-400" />
+                    {brand.rating.toFixed(1)}
+                  </span>
+                ) : (
+                  <span>{t('brandDetail.noReviewsYet')}</span>
+                )}
+                <span aria-hidden>·</span>
+                <span className="inline-flex items-center gap-1">
+                  <Route className="size-3" />
+                  {t('brands.routesCount', { count: brand.routeCount })}
+                </span>
+              </span>
+            </span>
+            <ChevronRight className="size-4 shrink-0 text-slate-300 transition-colors group-hover:text-primary" />
+          </Link>
+        ))}
       </div>
-    </section>
+    </HomeSection>
   )
 })

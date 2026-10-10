@@ -71,13 +71,10 @@ pub fn run() -> anyhow::Result<()> {
     println!("  s3_force_path_style:{}", cfg.storage.s3_force_path_style);
     println!();
     println!("Worker:");
-    println!("  backend:            {:?}", cfg.worker.backend);
-    println!("  concurrency:       {}", cfg.worker.concurrency);
+    println!("  queue:              database (background_job)");
+    println!("  concurrency:        {}", cfg.worker.concurrency);
     println!("  poll_int_ms:        {}", cfg.worker.poll_interval_ms);
     println!("  idle_poll_max_ms:   {}", cfg.worker.idle_poll_max_ms);
-    println!("  kafka_brokers:      {}", cfg.worker.kafka_brokers);
-    println!("  kafka_group_id:     {}", cfg.worker.kafka_group_id);
-    println!("  kafka_topic:        {}", cfg.worker.kafka_topic);
     println!();
     println!("Rate limit:");
     println!("  rpm:                {}", cfg.rate_limit.rpm);

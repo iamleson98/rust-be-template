@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from '@tanstack/react-router'
-import { CalendarClock, ChevronRight, Clock, Ticket } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
+import { Bus, CalendarClock, ChevronRight, Clock, Ticket } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
@@ -10,11 +10,10 @@ import {
   ticketStage,
   type BookingItem,
 } from '@/features/booking/history/booking-types'
-import { formatDayTime } from '@/lib/format'
+import { formatDateVN, formatDayTime, formatTimeVN } from '@/lib/format'
 import { useT } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 import { BusTile } from '@/components/bus-tile'
-import { CountPill, EmptyState, Panel } from '@/components/console/panel'
 
 type Translate = ReturnType<typeof useT>
 
@@ -52,7 +51,10 @@ function DepartureChip({ departureMs }: { departureMs: number }) {
   )
 }
 
-/** The next three upcoming trips, soonest first; the nearest carries a live countdown. */
+/**
+ * The next trip as a boarding pass (live countdown, times, seats, code), the
+ * two after it as rows, or a nudge to book when there is none.
+ */
 export function ActiveTicketsCard({
   bookings,
   loading,
@@ -61,7 +63,6 @@ export function ActiveTicketsCard({
   loading: boolean
 }) {
   const t = useT()
-  const navigate = useNavigate()
   const upcoming = useMemo(
     () =>
       bookings
@@ -70,95 +71,120 @@ export function ActiveTicketsCard({
         .slice(0, 3),
     [bookings],
   )
+  const [next, ...later] = upcoming
 
   return (
-    <Panel
-      icon={<CalendarClock />}
-      title={t('accountPage.console.activeTickets')}
-      action={upcoming.length > 0 && <CountPill n={upcoming.length} />}
-    >
+    <section className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h2 className="text-base font-semibold text-slate-900">
+          {t('accountPage.console.activeTickets')}
+        </h2>
+        {upcoming.length > 0 && (
+          <Link
+            to="/account/trips"
+            className="inline-flex items-center gap-0.5 text-sm font-semibold text-primary hover:underline"
+          >
+            {t('accountPage.console.viewAllTickets')}
+            <ChevronRight className="size-4" />
+          </Link>
+        )}
+      </div>
+
       {loading ? (
-        <div className="space-y-2">
-          {Array.from({ length: 2 }, (_, i) => (
-            <Skeleton key={i} className="h-16 w-full rounded-xl" />
-          ))}
+        <Skeleton className="h-44 w-full rounded-2xl" />
+      ) : !next ? (
+        <div className="flex flex-col items-center rounded-2xl bg-white px-6 py-10 text-center shadow-soft ring-1 ring-slate-200/80">
+          <span className="grid size-12 place-items-center rounded-full bg-primary/10 text-primary">
+            <CalendarClock className="size-6" />
+          </span>
+          <p className="mt-3 text-sm text-slate-500">{t('accountPage.console.noActiveTickets')}</p>
+          <Button asChild className="mt-4 rounded-xl">
+            <Link to="/search">{t('home.bookATrip')}</Link>
+          </Button>
         </div>
-      ) : upcoming.length === 0 ? (
-        <EmptyState
-          icon={<CalendarClock />}
-          text={t('accountPage.console.noActiveTickets')}
-          action={
-            <Button variant="outline" size="sm" onClick={() => navigate({ to: '/' })}>
-              {t('home.bookATrip')}
-            </Button>
-          }
-        />
       ) : (
-        <ul className="space-y-2">
-          {upcoming.map((b, i) => {
-            const departureMs = effectiveDeparture(b)
-            const status = STAGE_CONFIG[ticketStage(b)]
-            return (
-              <li key={b.id}>
-                <button
-                  type="button"
-                  onClick={() => navigate({ to: '/account/trips/$code', params: { code: b.code } })}
-                  className="group flex w-full items-start gap-3 rounded-lg border p-3 text-left transition-colors hover:border-primary/40 hover:bg-primary/[0.03]"
-                >
-                  <BusTile accent={b.trip?.brandAccent} size="md" />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="min-w-0 flex-1 truncate text-sm font-semibold">
-                        {b.trip?.routeName ?? t('accountPage.feedback.tripFallback')}
-                      </span>
-                      <ChevronRight
-                        className="size-4 shrink-0 text-muted-foreground/60 transition-transform group-hover:translate-x-0.5"
-                        aria-hidden
-                      />
-                    </div>
-                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                      <span className="inline-flex items-center gap-1">
-                        <CalendarClock className="size-3.5" aria-hidden />
-                        {formatDayTime(b.trip?.departureAt ?? b.trip?.departureDate)}
-                      </span>
-                      <span className="inline-flex items-center gap-1">
-                        <Ticket className="size-3.5" aria-hidden />
-                        {b.seats?.length ?? 0} {t('accountPage.console.seatsUnit')}
-                      </span>
-                      <code className="font-mono">{b.code}</code>
-                    </div>
-                    <div className="mt-2">
-                      {i === 0 && departureMs > 0 ? (
-                        <DepartureChip departureMs={departureMs} />
-                      ) : (
-                        <span
-                          className={cn(
-                            'inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold',
-                            status.cls,
-                          )}
-                        >
-                          {t(status.labelKey)}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </button>
-              </li>
-            )
-          })}
-          <li>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="mt-1 w-full gap-1 text-primary hover:bg-primary/5"
-              onClick={() => navigate({ to: '/account/trips' })}
+        <>
+          <NextTrip booking={next} />
+          {later.map((b) => (
+            <Link
+              key={b.id}
+              to="/account/trips/$code"
+              params={{ code: b.code }}
+              className="group flex items-center gap-3 rounded-2xl bg-white p-3.5 shadow-soft ring-1 ring-slate-200/80 transition-colors hover:ring-primary/30"
             >
-              {t('accountPage.console.viewAllTickets')}
-              <ChevronRight className="h-3.5 w-3.5" />
-            </Button>
-          </li>
-        </ul>
+              <BusTile accent={b.trip?.brandAccent} size="md" />
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-semibold text-slate-900">
+                  {b.trip?.routeName ?? t('accountPage.feedback.tripFallback')}
+                </div>
+                <div className="text-xs text-slate-500">
+                  {formatDayTime(b.trip?.departureAt ?? b.trip?.departureDate)} · {b.code}
+                </div>
+              </div>
+              <ChevronRight className="size-4 shrink-0 text-slate-300 group-hover:text-primary" />
+            </Link>
+          ))}
+        </>
       )}
-    </Panel>
+    </section>
+  )
+}
+
+/** The nearest trip, laid out like a boarding pass. */
+function NextTrip({ booking: b }: { booking: BookingItem }) {
+  const t = useT()
+  const departureMs = effectiveDeparture(b)
+  const status = STAGE_CONFIG[ticketStage(b)]
+  return (
+    <Link
+      to="/account/trips/$code"
+      params={{ code: b.code }}
+      className="group block overflow-hidden rounded-2xl bg-white shadow-soft ring-1 ring-slate-200/80 transition hover:shadow-float hover:ring-primary/30"
+    >
+      <div className="flex items-center justify-between gap-2 px-5 pt-4">
+        {departureMs > 0 && <DepartureChip departureMs={departureMs} />}
+        <span className={cn('rounded-full px-2.5 py-1 text-[11px] font-semibold', status.cls)}>
+          {t(status.labelKey)}
+        </span>
+      </div>
+      <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 px-5 py-4">
+        <div className="min-w-0">
+          <div className="text-2xl font-bold tracking-tight text-slate-900 tabular-nums">
+            {b.trip?.departureTime ?? formatTimeVN(b.trip?.departureAt)}
+          </div>
+          <div className="truncate text-sm text-slate-500">
+            {b.trip?.fromName ?? b.trip?.routeName}
+          </div>
+        </div>
+        <span className="grid size-9 place-items-center rounded-full bg-primary/10 text-primary">
+          <Bus className="size-4.5" />
+        </span>
+        <div className="min-w-0 text-right">
+          <div className="text-sm font-semibold text-slate-900">
+            {formatDateVN(b.trip?.departureAt ?? b.trip?.departureDate, {
+              weekday: 'short',
+              day: '2-digit',
+              month: '2-digit',
+            })}
+          </div>
+          <div className="truncate text-sm text-slate-500">{b.trip?.toName ?? ''}</div>
+        </div>
+      </div>
+      <div className="relative border-t border-dashed border-slate-200" aria-hidden>
+        <span className="absolute -top-2 -left-2 size-4 rounded-full bg-canvas ring-1 ring-slate-200" />
+        <span className="absolute -top-2 -right-2 size-4 rounded-full bg-canvas ring-1 ring-slate-200" />
+      </div>
+      <div className="flex items-center gap-4 px-5 py-3 text-xs text-slate-500">
+        <span className="truncate">{b.trip?.brandName}</span>
+        <span className="inline-flex shrink-0 items-center gap-1">
+          <Ticket className="size-3.5" />
+          {b.seats
+            .map((s) => s.seatCode)
+            .filter(Boolean)
+            .join(', ')}
+        </span>
+        <code className="ml-auto shrink-0 font-mono font-semibold text-slate-700">{b.code}</code>
+      </div>
+    </Link>
   )
 }

@@ -77,7 +77,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
             end: Alignment.bottomCenter,
             colors: [
               theme.colors.background,
-              AppBrand.violet.withValues(alpha: 0.10),
+              AppBrand.primary.withValues(alpha: 0.06),
               theme.colors.background,
             ],
             stops: const [0, 0.45, 1],

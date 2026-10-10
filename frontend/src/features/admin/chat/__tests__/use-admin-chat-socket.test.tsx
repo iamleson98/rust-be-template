@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   playSound: vi.fn(),
   startTitleNotification: vi.fn(),
   stopTitleNotification: vi.fn(),
+  online: vi.fn(async () => ({ seq: 0, userIds: [] as string[], items: [] as unknown[] })),
 }))
 
 vi.mock('@/features/chat/use-chat-socket', () => ({
@@ -23,10 +24,17 @@ vi.mock('@/features/chat/use-chat-socket', () => ({
     return { connected: true, send: mocks.send }
   },
 }))
-vi.mock('@/api', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/api')>()),
-  chatMarkReadMutation: () => ({ mutationFn: async (vars: unknown) => mocks.markRead(vars) }),
-}))
+vi.mock('@/api', async (importOriginal) => {
+  const api = await importOriginal<typeof import('@/api')>()
+  return {
+    ...api,
+    chatMarkReadMutation: () => ({ mutationFn: async (vars: unknown) => mocks.markRead(vars) }),
+    onlineChannelsOptions: () => ({
+      queryKey: api.onlineChannelsQueryKey(),
+      queryFn: mocks.online,
+    }),
+  }
+})
 vi.mock('@/lib/sound-effects', () => ({ playSound: mocks.playSound }))
 vi.mock('@/lib/title-notifier', () => ({
   startTitleNotification: mocks.startTitleNotification,
@@ -40,8 +48,8 @@ const wrapper = ({ children }: { children: ReactNode }) => (
 const staff = { id: 'staff-1', type: 'admin', role: 'admin', name: 'S' } as never
 
 const fire = (event: ChatEvent) => act(() => mocks.onEvent?.(event))
-const setup = (channelId?: string) =>
-  renderHook((p: { id?: string }) => useAdminChatSocket(p.id), {
+const setup = (channelId?: string, loaded: ReadonlySet<string> = new Set()) =>
+  renderHook((p: { id?: string }) => useAdminChatSocket(p.id, loaded), {
     initialProps: { id: channelId },
     wrapper,
   })
@@ -90,19 +98,46 @@ describe('useAdminChatSocket', () => {
     expect(mocks.markRead).not.toHaveBeenCalled()
   })
 
-  it('shows the customer typing and online state of the open channel, and resets on switching', () => {
+  it('shows the customer typing in the open channel, and resets on switching', () => {
     const { result, rerender } = setup('open')
     fire({ type: 'typing', channelId: 'open', name: 'An', isTyping: true })
-    fire({ type: 'presence', channelId: 'open', online: true })
     expect(result.current.typingUser).toEqual({ name: 'An' })
-    expect(result.current.userOnline).toBe(true)
 
     fire({ type: 'typing', channelId: 'open', userId: 'staff-1', name: 'Me', isTyping: false })
     expect(result.current.typingUser).toEqual({ name: 'An' }) // own echo ignored
 
     rerender({ id: 'next' })
     expect(result.current.typingUser).toBeNull()
-    expect(result.current.userOnline).toBe(false)
+  })
+
+  it('knows who is online from the snapshot plus newer events only', async () => {
+    mocks.online.mockResolvedValueOnce({ seq: 10, userIds: ['a', 'b'], items: [] })
+    const { result } = setup()
+    await vi.waitFor(() => expect([...result.current.onlineUserIds]).toEqual(['a', 'b']))
+
+    fire({ type: 'customer_presence', userId: 'a', online: false, seq: 9 }) // older than snapshot
+    expect(result.current.onlineUserIds.has('a')).toBe(true)
+
+    fire({ type: 'customer_presence', userId: 'a', online: false, seq: 12 })
+    fire({ type: 'customer_presence', userId: 'a', online: true, seq: 11 }) // arrived late
+    fire({ type: 'customer_presence', userId: 'c', online: true, seq: 13, channelIds: [] })
+    expect([...result.current.onlineUserIds].sort()).toEqual(['b', 'c'])
+  })
+
+  it('refetches the online list when a customer comes online with a channel it lacks', async () => {
+    const { result } = setup(undefined, new Set(['loaded']))
+    await vi.waitFor(() => expect(mocks.online).toHaveBeenCalledTimes(1))
+
+    fire({ type: 'customer_presence', userId: 'a', online: true, seq: 1, channelIds: ['loaded'] })
+    fire({ type: 'customer_presence', userId: 'b', online: true, seq: 2, channelIds: [] })
+    fire({ type: 'customer_presence', userId: 'a', online: false, seq: 3 })
+    await act(async () => {})
+    expect(mocks.online).toHaveBeenCalledTimes(1)
+
+    mocks.online.mockResolvedValueOnce({ seq: 4, userIds: ['b', 'c'], items: [] })
+    fire({ type: 'customer_presence', userId: 'c', online: true, seq: 4, channelIds: ['new'] })
+    await vi.waitFor(() => expect(mocks.online).toHaveBeenCalledTimes(2))
+    await vi.waitFor(() => expect([...result.current.onlineUserIds]).toEqual(['b', 'c']))
   })
 
   it('keeps the latest staff presence snapshot, defaulting what the hub omits', () => {

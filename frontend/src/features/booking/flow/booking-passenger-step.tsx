@@ -23,6 +23,7 @@ export function BookingPassengerStep({
   const t = useT()
   const guestName = useGuest((s) => s.guestName)
   const { form, fields, passengers, seats, tickets } = booking
+  const severalSeats = seats.length > 1
   return (
     <div className="p-5 space-y-4">
       {/* Header + actions */}
@@ -50,20 +51,23 @@ export function BookingPassengerStep({
             <Copy className="h-3.5 w-3.5" />
             {t('bookingFlow.copyFromContact')}
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={booking.autoAssignSeats}
-            disabled={booking.unassigned === 0}
-            className="gap-1.5 h-8 text-xs"
-          >
-            <Sparkles className="h-3.5 w-3.5" />
-            {t('bookingFlow.autoMatchSeats')}
-          </Button>
+          {severalSeats && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={booking.autoAssignSeats}
+              disabled={booking.unassigned === 0}
+              className="gap-1.5 h-8 text-xs"
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              {t('bookingFlow.autoMatchSeats')}
+            </Button>
+          )}
         </div>
       </div>
 
-      <SeatSelector tickets={tickets} />
+      {/* Matching people to seats only matters with more than one seat. */}
+      {severalSeats && <SeatSelector tickets={tickets} />}
 
       <div className="space-y-3">
         {fields.map((field, i) => (

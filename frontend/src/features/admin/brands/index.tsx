@@ -40,10 +40,10 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { ComboboxField } from '@/components/ui/combobox'
-import { Loader2, Plus, RotateCcw, Search, Trash2, X } from 'lucide-react'
+import { Loader2, Plus, RotateCcw, Trash2 } from 'lucide-react'
 import { ConsolePage, PageHeader } from '@/components/console/page'
+import { FilterBar, FilterSearch } from '@/components/console/filter-bar'
 import { toast } from 'sonner'
 import { useT } from '@/lib/i18n'
 import { useDebouncedValue } from '@/hooks/use-debounced-value'
@@ -77,10 +77,11 @@ export function AdminBrandManagement() {
 
   // City filter options — flat list with an "any" reset entry first,
   // then every Vietnamese city (searchable in the combobox).
-  const CITY_FILTER_ITEMS = useMemo(
-    () => [{ value: 'any', label: t('brands.anyPoint') }, ...CITY_ITEMS],
+  const START_ITEMS = useMemo(
+    () => [{ value: 'any', label: t('brands.startAny') }, ...CITY_ITEMS],
     [t],
   )
+  const END_ITEMS = useMemo(() => [{ value: 'any', label: t('brands.endAny') }, ...CITY_ITEMS], [t])
 
   // Sort options — the active key carries a direction arrow in its
   // label so the trigger reflects the current asc/desc state.
@@ -297,96 +298,82 @@ export function AdminBrandManagement() {
         }
       />
 
-      {/* Smart filter bar */}
-      <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
-        <div className="relative w-full lg:w-64">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={brandSearch}
-            onChange={(e) => setBrandSearch(e.target.value)}
-            placeholder={t('brands.searchBrand')}
-            className="pl-9"
-            aria-label={t('brands.searchLabel')}
-          />
-          {brandSearch && (
-            <button
-              type="button"
-              aria-label={t('map.clearSearch')}
-              onClick={() => setBrandSearch('')}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          )}
-        </div>
-
-        <div className="flex flex-1 flex-wrap items-center gap-2">
-          <div className="min-w-40 flex-1 sm:max-w-56">
-            <ComboboxField
-              value={startLocationId || 'any'}
-              onValueChange={(v) => setStartLocationId(v === 'any' ? '' : v)}
-              items={CITY_FILTER_ITEMS}
-              placeholder={t('brands.startAny')}
-              searchPlaceholder={t('routeForm.searchCity')}
-              aria-label={t('brands.startPoint')}
-              data-testid="start-city-filter"
+      <div className="space-y-2">
+        <FilterBar
+          search={
+            <FilterSearch
+              value={brandSearch}
+              onChange={setBrandSearch}
+              placeholder={t('brands.searchBrand')}
             />
-          </div>
-          <span className="hidden text-xs text-muted-foreground sm:inline" aria-hidden>
-            →
-          </span>
-          <div className="min-w-40 flex-1 sm:max-w-56">
-            <ComboboxField
-              value={endLocationId || 'any'}
-              onValueChange={(v) => setEndLocationId(v === 'any' ? '' : v)}
-              items={CITY_FILTER_ITEMS}
-              placeholder={t('brands.endAny')}
-              searchPlaceholder={t('routeForm.searchCity')}
-              aria-label={t('brands.endPoint')}
-              data-testid="end-city-filter"
-            />
-          </div>
+          }
+          filters={
+            <>
+              <ComboboxField
+                value={startLocationId || 'any'}
+                onValueChange={(v) => setStartLocationId(v === 'any' ? '' : v)}
+                items={START_ITEMS}
+                className="h-10 min-w-0 rounded-xl md:w-48"
+                placeholder={t('brands.startAny')}
+                searchPlaceholder={t('routeForm.searchCity')}
+                aria-label={t('brands.startPoint')}
+                data-testid="start-city-filter"
+              />
+              <ComboboxField
+                value={endLocationId || 'any'}
+                onValueChange={(v) => setEndLocationId(v === 'any' ? '' : v)}
+                items={END_ITEMS}
+                className="h-10 min-w-0 rounded-xl md:w-48"
+                placeholder={t('brands.endAny')}
+                searchPlaceholder={t('routeForm.searchCity')}
+                aria-label={t('brands.endPoint')}
+                data-testid="end-city-filter"
+              />
+              {/* Schedule sort — applies inside every expanded route group */}
+              <ComboboxField
+                value={scheduleSort?.key ?? 'none'}
+                onValueChange={(v: string) => {
+                  if (v === 'none') {
+                    setScheduleSort(null)
+                    return
+                  }
+                  setScheduleSort((prev) =>
+                    prev && prev.key === (v as ScheduleSortKey)
+                      ? { key: prev.key, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
+                      : { key: v as ScheduleSortKey, dir: 'asc' },
+                  )
+                }}
+                items={SCHEDULE_SORT_ITEMS}
+                className="h-10 min-w-0 rounded-xl md:w-44"
+                placeholder={t('brands.sortSchedules')}
+                searchPlaceholder={t('combobox.search')}
+                aria-label={t('brands.sortSchedules')}
+                data-testid="schedule-sort"
+              />
+            </>
+          }
+          activeCount={(startLocationId ? 1 : 0) + (endLocationId ? 1 : 0) + (scheduleSort ? 1 : 0)}
+          onReset={() => {
+            clearLocationFilter()
+            setScheduleSort(null)
+          }}
+        />
 
-          {/* Schedule sort — applies inside every expanded route group */}
-          <div className="flex items-center gap-1.5">
-            <ComboboxField
-              value={scheduleSort?.key ?? 'none'}
-              onValueChange={(v: string) => {
-                if (v === 'none') {
-                  setScheduleSort(null)
-                  return
-                }
-                setScheduleSort((prev) =>
-                  prev && prev.key === (v as ScheduleSortKey)
-                    ? { key: prev.key, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
-                    : { key: v as ScheduleSortKey, dir: 'asc' },
-                )
-              }}
-              items={SCHEDULE_SORT_ITEMS}
-              className="h-9 w-44"
-              placeholder={t('brands.sortSchedules')}
-              searchPlaceholder={t('combobox.search')}
-              aria-label={t('brands.sortSchedules')}
-              data-testid="schedule-sort"
-            />
+        {locationFilterActive && (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            {filteredRoutesQuery.isLoading ? (
+              <Loader2
+                className="size-4 animate-spin text-primary"
+                aria-label={t('brands.filtering')}
+              />
+            ) : (
+              <span>{filterSummary}</span>
+            )}
+            <Button variant="ghost" size="sm" className="h-8 gap-1" onClick={clearLocationFilter}>
+              <RotateCcw className="size-3.5" /> {t('brands.clearFilter')}
+            </Button>
           </div>
-
-          {locationFilterActive && (
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" size="sm" className="h-9 gap-1" onClick={clearLocationFilter}>
-                <RotateCcw className="h-3.5 w-3.5" /> {t('brands.clearFilter')}
-              </Button>
-              {filteredRoutesQuery.isLoading ? (
-                <Loader2
-                  className="h-4 w-4 animate-spin text-blue-600"
-                  aria-label={t('brands.filtering')}
-                />
-              ) : (
-                <span className="text-xs text-muted-foreground">{filterSummary}</span>
-              )}
-            </div>
-          )}
-        </div>
+        )}
       </div>
 
       {/* The tree table */}

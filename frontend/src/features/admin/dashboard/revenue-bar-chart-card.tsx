@@ -54,17 +54,16 @@ export function RevenueBarChartCard({
                 onMouseEnter={() => setHoveredBar(i)}
                 onMouseLeave={() => setHoveredBar(null)}
               >
-                <div className="text-[10px] sm:text-[10px] font-semibold text-muted-foreground truncate">
-                  {formatVNDMillions(b.value)}M
+                {/* Only days with revenue get a figure; empty ones stay a quiet stub. */}
+                <div className="h-3.5 truncate text-[10px] font-semibold text-muted-foreground">
+                  {b.value > 0 ? `${formatVNDMillions(b.value)}M` : ''}
                 </div>
                 <div className="w-full relative" style={{ height: '120px' }}>
                   <div
-                    className={`absolute bottom-0 left-0 right-0 rounded-t-md bg-linear-to-t cursor-pointer group transition-all ${
-                      isHover
-                        ? 'from-blue-500 to-blue-300 scale-[1.03]'
-                        : 'from-blue-600 to-blue-400 hover:from-blue-500 hover:to-blue-300'
+                    className={`group absolute right-0 bottom-0 left-0 cursor-pointer rounded-md transition-colors ${
+                      b.value === 0 ? 'bg-slate-100' : isHover ? 'bg-primary/80' : 'bg-primary'
                     }`}
-                    style={{ height: `${heightPct}%` }}
+                    style={{ height: b.value > 0 ? `max(${heightPct}%, 4px)` : '4px' }}
                   >
                     <div
                       className={`absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap bg-slate-800 text-white text-[10px] px-1.5 py-0.5 rounded transition-opacity ${
@@ -89,7 +88,7 @@ export function RevenueBarChartCard({
       )}
       <div className="flex items-center justify-between mt-3 pt-3 border-t">
         <div className="text-xs text-muted-foreground">{t('adminDash.periodTotal')}</div>
-        <div className="text-sm font-bold text-blue-700">{formatVNDShort(totalRangeRevenue)}</div>
+        <div className="text-sm font-bold text-primary">{formatVNDShort(totalRangeRevenue)}</div>
       </div>
     </Panel>
   )

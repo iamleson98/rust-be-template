@@ -206,8 +206,6 @@ binaries" steps of ci.yml.
 - **Admin E2E** (`frontend/e2e-admin/`, real backend + seeded DB) runs
   locally only (`bun run test:e2e:admin`) — it needs the debug binary +
   demo seed; wiring it into CI would duplicate the whole Rust build.
-- **`--features kafka`** (rdkafka/librdkafka) is not CI-compiled — needs
-  system librdkafka; compile it manually when touching `src/worker/kafka.rs`.
 - **CodeQL** runs the default security-extended suites; findings land in
   the Security tab, not as PR annotations for info-level results. The
   default-branch analysis baseline refreshes weekly (Monday 04:30 UTC

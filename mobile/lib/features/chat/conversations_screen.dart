@@ -10,6 +10,7 @@ import '../../core/net/ws_client.dart';
 import '../../shared/widgets.dart';
 import 'chat_service.dart';
 import 'conversations_controller.dart';
+import 'customer_presence.dart';
 import 'models.dart';
 
 /// The support queue — the agent's home screen.
@@ -17,26 +18,27 @@ import 'models.dart';
 /// Live-updating list of customer conversations with unread badges,
 /// queue filters (all / waiting / mine) as an animated segmented
 /// control, a WS health indicator, and pull-to-refresh. Rows use the
-/// modern messenger list layout: gradient avatar + presence, name,
-/// time, two-line preview, and a purple unread pill.
+/// messenger list layout: tinted avatar + presence, name, time, the
+/// last message, and a blue unread count.
 class ConversationsScreen extends ConsumerWidget {
   const ConversationsScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final channels = ref.watch(filteredChannelsProvider);
+    final onlineCount = onlineLead(
+      channels,
+      ref.watch(customerPresenceProvider),
+    );
     final queue = ref.watch(conversationsProvider);
     final status = ref.watch(chatStatusProvider).value;
     final user = ref.watch(authControllerProvider).user;
-    final totalUnread = ref.watch(totalUnreadProvider);
 
     return Scaffold(
       backgroundColor: context.theme.colors.background,
       body: Column(
         children: [
           _QueueHeader(
-            totalUnread: totalUnread,
-            online: status == WsStatus.connected,
             userName: user?.name ?? '?',
             userAvatar: user?.avatarUrl,
             onReconnect: status != null && status != WsStatus.connected
@@ -71,17 +73,15 @@ class ConversationsScreen extends ConsumerWidget {
                                 .refetch(showSpinner: false),
                             child: ListView.separated(
                               physics: const AlwaysScrollableScrollPhysics(),
-                              padding: const EdgeInsets.fromLTRB(
-                                12,
-                                4,
-                                12,
-                                110,
-                              ),
+                              padding: const EdgeInsets.fromLTRB(12, 4, 12, 24),
                               itemCount: channels.length,
                               separatorBuilder: (_, __) =>
                                   const SizedBox(height: 4),
-                              itemBuilder: (context, i) =>
-                                  _ConversationRow(channel: channels[i]),
+                              itemBuilder: (context, i) => _ConversationRow(
+                                channel: channels[i],
+                                online: i < onlineCount,
+                                section: _sectionLabel(i, onlineCount),
+                              ),
                             ),
                           ))
                   : queue.hasError
@@ -102,20 +102,17 @@ class ConversationsScreen extends ConsumerWidget {
   }
 }
 
-/// Big-title header with the agent's avatar (taps into settings) and a
-/// live connection dot.
+/// Big-title header with the agent's avatar (taps into settings). Unread
+/// counts live on the tab badge and a dropped socket gets its own banner,
+/// so the header stays quiet.
 class _QueueHeader extends StatelessWidget {
   const _QueueHeader({
-    required this.totalUnread,
-    required this.online,
     required this.userName,
     required this.userAvatar,
     required this.onAvatar,
     this.onReconnect,
   });
 
-  final int totalUnread;
-  final bool online;
   final String userName;
   final String? userAvatar;
   final VoidCallback onAvatar;
@@ -127,58 +124,17 @@ class _QueueHeader extends StatelessWidget {
     return SafeArea(
       bottom: false,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 10, 16, 6),
+        padding: const EdgeInsets.fromLTRB(20, 12, 16, 8),
         child: Row(
           children: [
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Hỗ trợ',
-                    style: theme.typography.display.xl3.copyWith(
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.8,
-                      color: theme.colors.foreground,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Row(
-                    children: [
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: online
-                              ? AppBrand.success
-                              : theme.colors.mutedForeground,
-                          boxShadow: [
-                            BoxShadow(
-                              color:
-                                  (online
-                                          ? AppBrand.success
-                                          : theme.colors.mutedForeground)
-                                      .withValues(alpha: 0.5),
-                              blurRadius: 6,
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        totalUnread > 0
-                            ? '$totalUnread tin nhắn chưa đọc'
-                            : online
-                            ? 'Đang kết nối thời gian thực'
-                            : 'Mất kết nối',
-                        style: theme.typography.body.sm.copyWith(
-                          color: theme.colors.mutedForeground,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+              child: Text(
+                'Hỗ trợ',
+                style: theme.typography.display.xl2.copyWith(
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.6,
+                  color: theme.colors.foreground,
+                ),
               ),
             ),
             if (onReconnect != null)
@@ -272,7 +228,8 @@ class _ConnectionBanner extends ConsumerWidget {
   }
 }
 
-/// Queue filter as an animated segmented pill control.
+/// Queue filter as a segmented control: a white segment slides on a
+/// quiet track (no colored fill competing with the rows).
 class _FilterTabs extends ConsumerWidget {
   static const _filters = [
     (QueueFilter.all, 'Tất cả'),
@@ -313,22 +270,16 @@ class _FilterTabs extends ConsumerWidget {
                   children: [
                     AnimatedPositioned(
                       duration: AppMotion.page,
-                      curve: AppMotion.overshoot,
+                      curve: AppMotion.easeOutCubic,
                       left: index * w + (w - pillWidth) / 2,
                       top: 3,
                       width: pillWidth,
                       height: 34,
                       child: DecoratedBox(
                         decoration: BoxDecoration(
-                          gradient: AppBrand.bubbleGradient,
+                          color: theme.colors.card,
                           borderRadius: BorderRadius.circular(999),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppBrand.violet.withValues(alpha: 0.32),
-                              blurRadius: 8,
-                              offset: const Offset(0, 3),
-                            ),
-                          ],
+                          boxShadow: AppShadow.soft,
                         ),
                       ),
                     ),
@@ -350,10 +301,10 @@ class _FilterTabs extends ConsumerWidget {
                           curve: Curves.easeOut,
                           style: theme.typography.body.sm.copyWith(
                             color: selected == filter
-                                ? theme.colors.primaryForeground
+                                ? theme.colors.foreground
                                 : theme.colors.mutedForeground,
                             fontWeight: selected == filter
-                                ? FontWeight.w700
+                                ? FontWeight.w600
                                 : FontWeight.w500,
                           ),
                           child: Text(
@@ -375,19 +326,71 @@ class _FilterTabs extends ConsumerWidget {
   }
 }
 
-/// One conversation row: messenger-style — avatar + presence, name,
-/// time, preview, status chip, purple unread pill.
+/// The heading above row [i]: where the online customers start, and
+/// where they end.
+String? _sectionLabel(int i, int onlineCount) {
+  if (onlineCount == 0) return null;
+  if (i == 0) return 'Đang online · $onlineCount';
+  if (i == onlineCount) return 'Ngoại tuyến';
+  return null;
+}
+
+/// Heading over a group of rows; the online group's carries a green dot.
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel(this.text, {required this.online});
+
+  final String text;
+  final bool online;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.theme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 10, 8, 4),
+      child: Row(
+        children: [
+          if (online) ...[
+            const PresenceDot(online: true, size: 8),
+            const SizedBox(width: 6),
+          ],
+          Text(
+            text.toUpperCase(),
+            style: theme.typography.body.xs.copyWith(
+              color: theme.colors.mutedForeground,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.6,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// One conversation row: messenger-style — avatar with a green dot while
+/// the customer is online, name, time, preview, status chip, purple
+/// unread pill.
 class _ConversationRow extends ConsumerWidget {
-  const _ConversationRow({required this.channel});
+  const _ConversationRow({
+    required this.channel,
+    required this.online,
+    this.section,
+  });
 
   final Channel channel;
+
+  /// The customer is signed in with the site open.
+  final bool online;
+
+  /// Heading to show above this row, if it starts a group.
+  final String? section;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = context.theme;
     final unread = channel.unreadEmployee;
 
-    return Semantics(
+    final row = Semantics(
       button: true,
       label: channel.displayName,
       child: GestureDetector(
@@ -398,22 +401,12 @@ class _ConversationRow extends ConsumerWidget {
         },
         child: Container(
           margin: const EdgeInsets.symmetric(vertical: 2),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
             color: theme.colors.card,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: unread > 0
-                  ? theme.colors.primary.withValues(alpha: 0.35)
-                  : theme.colors.border.withValues(alpha: 0.6),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: theme.colors.background.withValues(alpha: 0.8),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: theme.colors.border),
+            boxShadow: AppShadow.soft,
           ),
           child: Row(
             children: [
@@ -443,11 +436,11 @@ class _ConversationRow extends ConsumerWidget {
                         ),
                       ),
                     )
-                  else
-                    Positioned(
+                  else if (online)
+                    const Positioned(
                       right: -1,
                       bottom: -1,
-                      child: PresenceDot(online: channel.isOpen, size: 12),
+                      child: PresenceDot(online: true, size: 12),
                     ),
                 ],
               ),
@@ -496,11 +489,11 @@ class _ConversationRow extends ConsumerWidget {
                           _chip(
                             theme,
                             channel.assignedTo!.fullName ?? 'Đã gán',
-                            theme.colors.muted,
+                            theme.colors.mutedForeground,
                           ),
                           const SizedBox(width: 6),
                         ] else if (channel.isOpen) ...[
-                          _chip(theme, 'Chờ nhận', theme.colors.primary),
+                          _chip(theme, 'Chờ nhận', AppBrand.warning),
                           const SizedBox(width: 6),
                         ],
                         Expanded(
@@ -524,17 +517,8 @@ class _ConversationRow extends ConsumerWidget {
                             ),
                             constraints: const BoxConstraints(minWidth: 22),
                             decoration: BoxDecoration(
-                              gradient: AppBrand.bubbleGradient,
+                              color: theme.colors.primary,
                               borderRadius: BorderRadius.circular(999),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: AppBrand.violet.withValues(
-                                    alpha: 0.35,
-                                  ),
-                                  blurRadius: 6,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
                             ),
                             child: Text(
                               unread > 99 ? '99+' : '$unread',
@@ -557,13 +541,22 @@ class _ConversationRow extends ConsumerWidget {
         ),
       ),
     );
+    final label = section;
+    if (label == null) return row;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _SectionLabel(label, online: online),
+        row,
+      ],
+    );
   }
 
   Widget _chip(FThemeData theme, String label, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.14),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
@@ -616,7 +609,7 @@ class _ConversationSkeletonState extends State<_ConversationSkeleton>
       ).animate(CurvedAnimation(parent: _breath, curve: Curves.easeInOut)),
       child: ListView.separated(
         physics: const NeverScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(12, 4, 12, 110),
+        padding: const EdgeInsets.fromLTRB(12, 4, 12, 24),
         itemCount: 7,
         separatorBuilder: (_, __) => const SizedBox(height: 4),
         itemBuilder: (context, _) => const _SkeletonRow(),

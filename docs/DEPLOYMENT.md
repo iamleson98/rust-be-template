@@ -16,7 +16,6 @@ For the current single-node production setup:
 
 ```dotenv
 CACHE_BACKEND=moka
-WORKER_BACKEND=db
 ```
 
 Redis is not required for production right now. Reintroduce Redis only when you need a shared cache or Redis-backed worker queue across multiple app instances.

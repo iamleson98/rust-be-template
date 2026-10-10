@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Brand off-white — the logo's backdrop (#F7F8FA). Used by the launch
-         background and the adaptive launcher icon background. -->
+    <!-- The app canvas (#F7F8FA) behind the launch logo, so the splash
+         screen continues it seamlessly; the launcher icon sits on white. -->
     <color name="launch_background">#F7F8FA</color>
-    <color name="ic_launcher_background">#F7F8FA</color>
+    <color name="ic_launcher_background">#FFFFFF</color>
 </resources>
