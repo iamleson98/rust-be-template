@@ -22,13 +22,14 @@ pub async fn sitemap(State(st): State<AppState>) -> AppResult<Response> {
     let base = public_base_url(&st);
     let now = chrono::Utc::now().format("%Y-%m-%d").to_string();
 
+    // Public pages the SPA actually has (no `/bookings` or `/map` index).
     let static_routes = [
         ("/", "1.0", "daily"),
         ("/search", "0.9", "daily"),
-        ("/bookings", "0.5", "weekly"),
-        ("/map", "0.6", "weekly"),
         ("/compare", "0.4", "weekly"),
         ("/login", "0.3", "monthly"),
+        ("/privacy", "0.2", "yearly"),
+        ("/terms", "0.2", "yearly"),
     ];
 
     let mut xml = String::with_capacity(2048);

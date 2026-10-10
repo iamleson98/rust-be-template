@@ -219,7 +219,14 @@ pub fn build_router(state: AppState) -> Router<()> {
                         .expect("static 404 response is always constructible");
                     return Ok::<_, std::convert::Infallible>(resp);
                 }
-                match tokio::fs::read(&index_html_path).await {
+                // "/privacy" → dist/privacy.html when the build prerendered
+                // that page, so crawlers and provider reviewers read its
+                // text without running scripts; other routes → index.html.
+                let page = match prerendered_page(&index_html_path, req.uri().path()) {
+                    Some(p) if tokio::fs::try_exists(&p).await.unwrap_or(false) => p,
+                    _ => index_html_path,
+                };
+                match tokio::fs::read(&page).await {
                     Ok(bytes) => {
                         let resp = axum::response::Response::builder()
                             .status(axum::http::StatusCode::OK)
@@ -409,4 +416,41 @@ pub fn build_router(state: AppState) -> Router<()> {
             HeaderValue::from_static("strict-origin-when-cross-origin"),
         ))
         .with_state(state)
+}
+
+/// `dist/<name>.html` beside `index_html` for a one-segment path such as
+/// `/privacy`. Only lowercase letters, digits and dashes qualify, so a
+/// request can never name a file outside the build directory.
+fn prerendered_page(index_html: &std::path::Path, path: &str) -> Option<std::path::PathBuf> {
+    let name = path.strip_prefix('/')?;
+    let safe = !name.is_empty()
+        && name
+            .bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-');
+    safe.then(|| index_html.with_file_name(format!("{name}.html")))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::prerendered_page;
+    use std::path::Path;
+
+    #[test]
+    fn only_safe_one_segment_paths_map_to_prerendered_pages() {
+        let index = Path::new("/srv/dist/index.html");
+        assert_eq!(
+            prerendered_page(index, "/privacy"),
+            Some(Path::new("/srv/dist/privacy.html").to_path_buf())
+        );
+        for path in [
+            "/",
+            "/admin/brands",
+            "/../etc/passwd",
+            "/Privacy",
+            "/a.b",
+            "/x%2e",
+        ] {
+            assert_eq!(prerendered_page(index, path), None, "{path}");
+        }
+    }
 }

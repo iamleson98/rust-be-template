@@ -76,6 +76,20 @@ const compare = createRoute({
   staticData: { seo: 'compare' },
 })
 
+const privacy = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/privacy',
+  component: lazy(() => import('@/features/legal/pages'), 'PrivacyPage'),
+  staticData: { seo: 'privacy' },
+})
+
+const terms = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/terms',
+  component: lazy(() => import('@/features/legal/pages'), 'TermsPage'),
+  staticData: { seo: 'terms' },
+})
+
 const login = createRoute({
   getParentRoute: () => rootRoute,
   path: '/login',
@@ -247,6 +261,8 @@ export const routeTree = rootRoute.addChildren({
   brand,
   booking,
   compare,
+  privacy,
+  terms,
   login,
   admin: admin.addChildren({ ...adminPages, oldRoutes, oldSchedules }),
   account: account.addChildren(accountPages),
