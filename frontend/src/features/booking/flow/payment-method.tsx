@@ -1,15 +1,15 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { CheckCircle2, ChevronLeft, Loader2, Lock, ShieldCheck, Tag, X } from 'lucide-react'
+import { ChevronLeft, Loader2, Lock, ShieldCheck, TicketPercent } from 'lucide-react'
+import { validityText } from '@/features/campaigns/labels'
 import { useMoney } from '@/lib/format'
 import { useT } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 import { PriceSummary } from './price-summary'
 import type { PaymentProvider } from '@/lib/payment'
 import { ProviderTile } from './provider-tile'
-import type { PromoCode } from './use-promo-code'
+import type { CheckoutCoupon } from './use-checkout-coupon'
 import type { Ticket } from './use-booking-form'
 import { StepActions } from './step-actions'
 
@@ -39,7 +39,7 @@ const methodText = (t: ReturnType<typeof useT>, m: PaymentMethodKey) =>
   })[m]
 
 /**
- * Step 3, checkout: how to pay, the promo code (next to the price it discounts),
+ * Step 3, checkout: how to pay, the customer's coupon (next to the price it discounts),
  * the price breakdown and the pay button. Methods use solid icon tiles rather
  * than emoji, which render differently on every platform.
  */
@@ -47,7 +47,7 @@ export function PaymentMethodStep({
   methods,
   method,
   onMethodChange,
-  promo,
+  coupon,
   tickets,
   total,
   error,
@@ -59,7 +59,7 @@ export function PaymentMethodStep({
   methods: PaymentMethodKey[]
   method: PaymentMethodKey
   onMethodChange: (method: PaymentMethodKey) => void
-  promo: PromoCode
+  coupon: CheckoutCoupon
   tickets: Ticket[]
   total: number
   error: string
@@ -117,53 +117,12 @@ export function PaymentMethodStep({
         </div>
       </div>
 
-      <div className="rounded-lg border bg-amber-50/50 p-3">
-        <div className="flex items-center gap-2 mb-2">
-          <Tag className="h-4 w-4 text-amber-600" />
-          <span className="font-medium text-sm">{t('bookingFlow.promoCode')}</span>
-        </div>
-        <div className="flex gap-2">
-          <Input
-            value={promo.code}
-            onChange={(e) => promo.setCode(e.target.value)}
-            placeholder={t('bookingFlow.promoCodePh')}
-            className="bg-white"
-            aria-label={t('bookingFlow.promoCode')}
-          />
-          <Button
-            variant="outline"
-            onClick={promo.apply}
-            disabled={promo.checking || !promo.code.trim()}
-          >
-            {promo.checking ? <Loader2 className="h-4 w-4 animate-spin" /> : t('bookingFlow.apply')}
-          </Button>
-        </div>
-        {promo.result?.valid && promo.discount > 0 && (
-          <div className="mt-2 rounded-md bg-blue-50 border border-blue-200 px-3 py-2 text-sm flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-blue-600" />
-              <div>
-                <div className="font-medium text-blue-800">
-                  {t('bookingFlow.promoApplied', { code: promo.appliedCode ?? '' })}
-                </div>
-                <div className="text-xs text-blue-600">{t('bookingFlow.promoAppliedDesc')}</div>
-              </div>
-            </div>
-            <div className="font-bold text-blue-700">-{money(promo.discount)}</div>
-          </div>
-        )}
-        {promo.result?.valid === false && (
-          <div className="mt-2 rounded-md bg-rose-50 border border-rose-200 px-3 py-2 text-sm text-rose-700 flex items-center gap-2">
-            <X className="h-4 w-4" />
-            {t('bookingFlow.promoInvalid')}
-          </div>
-        )}
-      </div>
+      <CouponRow coupon={coupon} />
 
       <PriceSummary
         tickets={tickets}
-        promoCode={promo.appliedCode}
-        discount={promo.discount}
+        couponCode={coupon.applied ? coupon.coupon?.code : undefined}
+        discount={coupon.discount}
         total={total}
       />
 
@@ -202,5 +161,75 @@ export function PaymentMethodStep({
         </Button>
       </StepActions>
     </div>
+  )
+}
+
+/**
+ * The coupon the customer holds: a switch when it fits this trip (on by
+ * default), else one line saying why it does not apply here.
+ */
+function CouponRow({ coupon: c }: { coupon: CheckoutCoupon }) {
+  const t = useT()
+  const money = useMoney()
+  const coupon = c.coupon
+  if (!coupon) return null
+
+  if (!c.usable) {
+    return (
+      <p className="flex items-center gap-2 rounded-xl border border-dashed border-slate-300 px-3.5 py-3 text-sm text-muted-foreground">
+        <TicketPercent className="size-4 shrink-0" aria-hidden />
+        {coupon.status === 'reserved' && coupon.bookingCode
+          ? t('campaigns.couponOnOtherBooking', { code: coupon.bookingCode })
+          : t('campaigns.notForThisOperator')}
+      </p>
+    )
+  }
+
+  // The whole row is the switch: one big target, one state for screen readers.
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={c.applied}
+      onClick={() => c.setApplied(!c.applied)}
+      className={cn(
+        'flex w-full items-center gap-3 rounded-xl border p-3.5 text-left transition-colors',
+        c.applied ? 'border-rose-300 bg-rose-50/70' : 'border-slate-200 hover:bg-slate-50',
+      )}
+    >
+      <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-linear-to-br from-rose-500 to-orange-400 text-white">
+        <TicketPercent className="size-5" aria-hidden />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-semibold">
+          {t('campaigns.useCoupon', { code: coupon.code })}
+        </span>
+        <span className="block truncate text-[11px] text-muted-foreground">
+          {coupon.campaignName} · {validityText(coupon.validUntil, t)}
+        </span>
+      </span>
+      <span
+        className={cn(
+          'shrink-0 text-sm font-bold tabular-nums',
+          c.applied ? 'text-rose-600' : 'text-muted-foreground line-through',
+        )}
+      >
+        -{money(c.worth)}
+      </span>
+      <span
+        aria-hidden
+        className={cn(
+          'flex h-5 w-9 shrink-0 items-center rounded-full p-0.5 transition-colors',
+          c.applied ? 'bg-rose-600' : 'bg-slate-300',
+        )}
+      >
+        <span
+          className={cn(
+            'size-4 rounded-full bg-white shadow-sm transition-transform',
+            c.applied && 'translate-x-4',
+          )}
+        />
+      </span>
+    </button>
   )
 }

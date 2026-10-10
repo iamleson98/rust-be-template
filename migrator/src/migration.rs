@@ -26,6 +26,7 @@
 //! | 17 | `create_ad_conversions` | ad_conversion |
 //! | 18 | `add_seat_class_fares` | schedule_fare + brand child-fare policy |
 //! | 19 | `create_background_job` | background_job (worker queue; replaces the runtime-created `jobs`) |
+//! | 20 | `create_discount_campaigns` | discount_campaign, discount_campaign_brand, discount_tier, coupon + admin-only grant |
 //!
 //! Tables are created strictly in FK dependency order (referenced tables
 //! first). All seed data lives in the final migration so it runs after
@@ -62,6 +63,7 @@ mod m20261002_000016_add_query_indexes;
 mod m20261007_000017_create_ad_conversions;
 mod m20261009_000018_add_seat_class_fares;
 mod m20261010_000019_create_background_job;
+mod m20261011_000020_create_discount_campaigns;
 
 pub struct Migrator;
 
@@ -88,6 +90,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20261007_000017_create_ad_conversions::Migration),
             Box::new(m20261009_000018_add_seat_class_fares::Migration),
             Box::new(m20261010_000019_create_background_job::Migration),
+            Box::new(m20261011_000020_create_discount_campaigns::Migration),
         ]
     }
 }

@@ -586,11 +586,28 @@ mod tests {
         svc.ensure_default_jobs().await.unwrap();
 
         let schedules = store.list_schedules().await.unwrap();
-        assert_eq!(schedules.len(), 1, "only catalog jobs keep a schedule");
-        assert_eq!(schedules[0].job_type, OSM);
-        assert_eq!((schedules[0].interval_days, schedules[0].at_hour), (14, 2));
-        let next = parse_iso(schedules[0].next_run_at.as_deref().unwrap()).unwrap();
-        assert!(next > Utc::now());
+        let scheduled: Vec<_> = crate::jobs::catalog()
+            .iter()
+            .filter(|d| d.schedule.is_some())
+            .collect();
+        assert_eq!(
+            schedules.len(),
+            scheduled.len(),
+            "only catalog jobs keep a schedule"
+        );
+        for def in scheduled {
+            let row = schedules
+                .iter()
+                .find(|s| s.job_type == def.kind)
+                .unwrap_or_else(|| panic!("{} has no schedule", def.kind));
+            let want = def.schedule.unwrap();
+            assert_eq!(
+                (row.interval_days, row.at_hour, row.at_minute),
+                (want.interval_days, want.at_hour, want.at_minute)
+            );
+            let next = parse_iso(row.next_run_at.as_deref().unwrap()).unwrap();
+            assert!(next > Utc::now());
+        }
     }
 
     #[tokio::test]

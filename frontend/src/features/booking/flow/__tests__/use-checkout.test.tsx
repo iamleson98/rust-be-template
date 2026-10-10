@@ -57,7 +57,7 @@ const payment = (status: string) => ({
   gatewayUrl: 'https://pay.example/vnpay',
 })
 
-function setup(method: PaymentMethodKey) {
+function setup(method: PaymentMethodKey, couponId?: string) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
@@ -65,7 +65,7 @@ function setup(method: PaymentMethodKey) {
   return renderHook(
     () => {
       const form = useForm<BookingValues>({ defaultValues: values })
-      return useCheckout({ form, context, method, promoCode: undefined })
+      return useCheckout({ form, context, method, couponId })
     },
     { wrapper },
   )
@@ -149,5 +149,43 @@ describe('useCheckout', () => {
     expect(result.current.error).not.toBe('')
     expect(useBookingFlow.getState().step).toBe('payment')
     expect(result.current.hold?.code).toBe('VX-ABC123')
+  })
+
+  it('sends the applied coupon with the seat hold', async () => {
+    const COUPON = 'c0000000-0000-4000-8000-000000000001'
+    let sent: Promise<{ couponId?: string }> | undefined
+    mockApi({
+      'POST /api/bookings': (_url: URL, request: Request) => {
+        sent = request.clone().json()
+        return { ...hold, discount: 50000, total: 300000, couponId: COUPON }
+      },
+      [`POST /api/bookings/${BOOKING}/place`]: {
+        bookingId: BOOKING,
+        status: 'pending',
+        paymentMethod: 'cod',
+      },
+    })
+    const { result } = setup('cod', COUPON)
+
+    await act(() => result.current.submit(values))
+
+    expect((await sent)?.couponId).toBe(COUPON)
+    expect(useBookingFlow.getState().lastBooking?.total).toBe(300000)
+  })
+
+  it('explains a coupon the server no longer accepts', async () => {
+    mockApi({
+      'POST /api/bookings': () =>
+        Response.json(
+          { error: 'bad_request', message: 'bad request: coupon_expired' },
+          { status: 400 },
+        ),
+    })
+    const { result } = setup('cod', 'c0000000-0000-4000-8000-000000000001')
+
+    await act(() => result.current.submit(values))
+
+    expect(result.current.error).toBe('Mã đã hết hạn.')
+    expect(useBookingFlow.getState().step).toBe('payment')
   })
 })

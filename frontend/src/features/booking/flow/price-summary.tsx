@@ -6,16 +6,16 @@ import { useT } from '@/lib/i18n'
 import { PASSENGER_TYPE_META } from './booking-form'
 import type { Ticket } from './use-booking-form'
 
-/** One line per ticket, the promo discount (when there is one) and the total to pay. */
+/** One line per ticket, the coupon discount (when there is one) and the total to pay. */
 export function PriceSummary({
   tickets,
-  promoCode,
+  couponCode,
   discount,
   total,
   className,
 }: {
   tickets: Ticket[]
-  promoCode?: string
+  couponCode?: string
   discount: number
   total: number
   className?: string
@@ -40,7 +40,7 @@ export function PriceSummary({
       {discount > 0 && (
         <div className="flex justify-between text-sm text-blue-700">
           <span className="text-muted-foreground">
-            {t('bookingFlow.discountLabel', { code: promoCode ?? '' })}
+            {t('bookingFlow.discountLabel', { code: couponCode ?? '' })}
           </span>
           <span className="tabular-nums">-{money(discount)}</span>
         </div>

@@ -4,8 +4,8 @@ use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::dto::public::{
-    BrandDetailOut, BrandListResponse, CampaignListResponse, CampaignValidateResponse,
-    RouteListResponse, SearchTripsQuery, StatsResponse, TripDetail, TripSearchResponse,
+    BrandDetailOut, BrandListResponse, RouteListResponse, SearchTripsQuery, StatsResponse,
+    TripDetail, TripSearchResponse,
 };
 use crate::dto::route_media::RoutePictureListResponse;
 use crate::error::AppError;
@@ -177,45 +177,6 @@ pub async fn recommendations(
     Ok(Json(st.public.recommendations().await?))
 }
 
-/// `GET /api/campaigns` — list campaigns.
-#[utoipa::path(
-    get,
-    path = "/api/campaigns",
-    tag = "public",
-    responses(
-        (status = 200, description = "Campaign list", body = CampaignListResponse),
-    )
-)]
-pub async fn campaigns(State(st): State<AppState>) -> Result<Json<CampaignListResponse>, AppError> {
-    Ok(Json(st.public.list_campaigns().await?))
-}
-
-#[derive(Deserialize, utoipa::IntoParams)]
-pub struct CampaignValidateQuery {
-    pub code: String,
-    pub subtotal: i64,
-}
-
-/// `GET /api/campaigns/validate` — validate a campaign code.
-#[utoipa::path(
-    get,
-    path = "/api/campaigns/validate",
-    tag = "public",
-    params(CampaignValidateQuery),
-    responses(
-        (status = 200, description = "Validation result", body = CampaignValidateResponse),
-        (status = 400, description = "Invalid campaign"),
-    )
-)]
-pub async fn validate_campaign(
-    State(st): State<AppState>,
-    Query(q): Query<CampaignValidateQuery>,
-) -> Result<Json<CampaignValidateResponse>, AppError> {
-    Ok(Json(
-        st.public.validate_campaign(&q.code, q.subtotal).await?,
-    ))
-}
-
 /// `GET /api/stats` — get public stats.
 #[utoipa::path(
     get,
@@ -334,14 +295,6 @@ pub async fn search_trips_geo(
 pub fn recommendations_router() -> axum::Router<crate::state::AppState> {
     use axum::routing::get;
     axum::Router::new().route("/", get(recommendations))
-}
-
-/// `/api/campaigns` + `/api/campaigns/validate`.
-pub fn campaigns_router() -> axum::Router<crate::state::AppState> {
-    use axum::routing::get;
-    axum::Router::new()
-        .route("/", get(campaigns))
-        .route("/validate", get(validate_campaign))
 }
 
 /// `/api/stats`.

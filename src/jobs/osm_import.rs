@@ -475,8 +475,10 @@ mod integration {
             },
             ..Default::default()
         });
+        let store = CompositeStore::in_memory().await;
         let deps = JobDeps {
-            places: Arc::new(PlaceService::new(CompositeStore::in_memory().await)),
+            places: Arc::new(PlaceService::new(store.clone())),
+            campaigns: store.campaign_store(),
             config,
         };
         let progress = Arc::new(Progress::default());

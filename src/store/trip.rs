@@ -1,5 +1,5 @@
 //! Trip store — read/write access to the `trip_session`, `seat_inventory`,
-//! `seat`, and `campaign` tables.
+//! and `seat` tables.
 //!
 //! Follows the template's store pattern: `TripStore` trait +
 //! `DbTripStore` (`#[retry]`).
@@ -14,7 +14,7 @@ use sea_orm::{
 use store_macros::retry;
 use uuid::Uuid;
 
-use crate::entity::{campaign, seat, seat_inventory, trip_session};
+use crate::entity::{seat, seat_inventory, trip_session};
 
 use super::error::{StoreError, StoreResult};
 use super::retry::RetryPolicy;
@@ -60,14 +60,6 @@ pub trait TripStore: Send + Sync {
 
     async fn find_seat_by_id(&self, id: Uuid) -> StoreResult<Option<seat::Model>>;
     async fn list_seats_by_ids(&self, ids: Vec<String>) -> StoreResult<Vec<seat::Model>>;
-
-    // ── Campaign ────────────────────────────────────────────────
-
-    async fn find_active_campaign(
-        &self,
-        code: &str,
-        now: &str,
-    ) -> StoreResult<Option<campaign::Model>>;
 
     // ── Write operations ───────────────────────────────────────
 
@@ -136,12 +128,6 @@ pub trait TripStore: Send + Sync {
     /// correctness — this only maintains the display/hint counter.
     async fn decrement_available_seats(&self, trip_session_id: &str, n: i64) -> StoreResult<u64>;
 
-    /// Atomic `used_count = used_count + 1` (one UPDATE). Replaces the
-    /// read-modify-write in `hold` with the same lost-update race. Returns
-    /// 0 when the campaign no longer exists (deleted concurrently) — the
-    /// caller treats that as a no-op, matching the previous behaviour.
-    async fn increment_campaign_usage(&self, campaign_id: Uuid) -> StoreResult<u64>;
-
     async fn list_trips_by_schedule_ids(
         &self,
         schedule_ids: Vec<Uuid>,
@@ -170,7 +156,6 @@ pub trait TripStore: Send + Sync {
         &self,
         trip_ids: Vec<Uuid>,
     ) -> StoreResult<std::collections::HashMap<Uuid, (i64, i64)>>;
-    async fn list_active_campaigns(&self, limit: u64) -> StoreResult<Vec<campaign::Model>>;
     async fn list_seats_by_bus_layout_id(
         &self,
         bus_layout_id: &str,
@@ -275,42 +260,6 @@ impl TripStore for DbTripStore {
         Ok(seat::Entity::find()
             .filter(seat::Column::Id.is_in(uuids))
             .all(self.db.as_ref())
-            .await?)
-    }
-
-    // ── Campaign ────────────────────────────────────────────────
-
-    async fn find_active_campaign(
-        &self,
-        code: &str,
-        now: &str,
-    ) -> StoreResult<Option<campaign::Model>> {
-        use sea_orm::sea_query::Expr;
-        use sea_orm::Condition;
-        // Open-ended dates and an unlimited `max_uses` are NULL; a bare
-        // `starts_at <= now` would drop those campaigns (NULL compares false).
-        Ok(campaign::Entity::find()
-            .filter(campaign::Column::Code.eq(code.to_string()))
-            .filter(campaign::Column::Status.eq("active"))
-            .filter(
-                Condition::any()
-                    .add(campaign::Column::StartsAt.is_null())
-                    .add(campaign::Column::StartsAt.lte(now.to_string())),
-            )
-            .filter(
-                Condition::any()
-                    .add(campaign::Column::EndsAt.is_null())
-                    .add(campaign::Column::EndsAt.gte(now.to_string())),
-            )
-            .filter(
-                Condition::any()
-                    .add(campaign::Column::MaxUses.is_null())
-                    .add(
-                        Expr::col(campaign::Column::UsedCount)
-                            .lt(Expr::col(campaign::Column::MaxUses)),
-                    ),
-            )
-            .one(self.db.as_ref())
             .await?)
     }
 
@@ -441,21 +390,6 @@ impl TripStore for DbTripStore {
     }
 
     #[store_macros::no_retry]
-    async fn increment_campaign_usage(&self, campaign_id: Uuid) -> StoreResult<u64> {
-        use sea_orm::sea_query::{BinOper, Expr};
-        // `used_count = used_count + 1`, computed by the engine.
-        let res = campaign::Entity::update_many()
-            .col_expr(
-                campaign::Column::UsedCount,
-                Expr::col(campaign::Column::UsedCount).binary(BinOper::Add, Expr::value(1)),
-            )
-            .filter(campaign::Column::Id.eq(campaign_id))
-            .exec(self.db.as_ref())
-            .await?;
-        Ok(res.rows_affected)
-    }
-
-    #[store_macros::no_retry]
     async fn release_held_seats_for_booking(&self, held_by_booking_id: &str) -> StoreResult<u64> {
         // Single bulk UPDATE — replaces the N-row load + N sequential
         // UPDATE pattern that previously dominated cancel/confirm latency
@@ -579,14 +513,6 @@ impl TripStore for DbTripStore {
             .into_iter()
             .map(|(trip, min, max)| (trip, (min, max)))
             .collect())
-    }
-
-    async fn list_active_campaigns(&self, limit: u64) -> StoreResult<Vec<campaign::Model>> {
-        Ok(campaign::Entity::find()
-            .filter(campaign::Column::Status.eq("active"))
-            .limit(limit)
-            .all(self.db.as_ref())
-            .await?)
     }
 
     async fn list_seats_by_bus_layout_id(

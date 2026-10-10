@@ -39,6 +39,10 @@ pub enum Relation {
     Campaign,
     #[sea_orm(has_many = "super::chat_channel::Entity")]
     ChatChannel,
+    #[sea_orm(has_many = "super::coupon::Entity")]
+    Coupon,
+    #[sea_orm(has_many = "super::discount_campaign_brand::Entity")]
+    DiscountCampaignBrand,
     #[sea_orm(has_many = "super::discount_program::Entity")]
     DiscountProgram,
     #[sea_orm(has_many = "super::review::Entity")]
@@ -71,6 +75,18 @@ impl Related<super::chat_channel::Entity> for Entity {
     }
 }
 
+impl Related<super::coupon::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Coupon.def()
+    }
+}
+
+impl Related<super::discount_campaign_brand::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::DiscountCampaignBrand.def()
+    }
+}
+
 impl Related<super::discount_program::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::DiscountProgram.def()
@@ -86,6 +102,15 @@ impl Related<super::review::Entity> for Entity {
 impl Related<super::route::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Route.def()
+    }
+}
+
+impl Related<super::discount_campaign::Entity> for Entity {
+    fn to() -> RelationDef {
+        super::discount_campaign_brand::Relation::DiscountCampaign.def()
+    }
+    fn via() -> Option<RelationDef> {
+        Some(super::discount_campaign_brand::Relation::Brand.def().rev())
     }
 }
 

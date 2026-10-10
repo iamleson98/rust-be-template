@@ -309,55 +309,20 @@ impl BookingService {
         let adult_count = tickets.len() as i64 - child_count;
         let subtotal: i64 = tickets.iter().map(|t| t.price).sum();
 
-        // Campaign discount
-        let mut discount: i64 = 0;
-        let mut applied_campaign_id: Option<String> = None;
-        let mut applied_campaign: Option<Uuid> = None;
-        if let Some(ref cc) = req.campaign_code {
-            let code = cc.trim().to_uppercase();
-            let now = now_iso();
-            let campaign = self
-                .store
-                .trip_store()
-                .find_active_campaign(&code, &now)
-                .await
-                .map_err(|e| AppError::Internal(e.to_string()))?;
-
-            if let Some(c) = campaign {
-                // Promos belong to the operator that issued them.
-                if route_model.brand_id != Some(c.brand_id) {
-                    return Err(AppError::BadRequest(
-                        "this promo code does not apply to this operator".into(),
-                    ));
-                }
-                match c.discount_type.as_str() {
-                    "percent" => {
-                        let raw =
-                            ((subtotal as f64) * c.discount_value as f64 / 100.0).round() as i64;
-                        discount = raw;
-                    }
-                    "fixed_amount" => {
-                        discount = c.discount_value;
-                    }
-                    "free_child" => {
-                        // The cheapest child ticket rides free.
-                        discount = tickets
-                            .iter()
-                            .filter(|t| t.kind == Passenger::Child)
-                            .map(|t| t.price)
-                            .min()
-                            .unwrap_or(0);
-                    }
-                    _ => {}
-                }
-                applied_campaign_id = Some(c.id.to_string());
-                applied_campaign = Some(c.id);
-            } else {
-                return Err(AppError::BadRequest(
-                    "invalid or expired campaign code".into(),
-                ));
+        // Coupon discount: checked here, reserved as the hold's last step.
+        let discount = match req.coupon_id {
+            Some(coupon_id) => {
+                crate::service::campaign_service::coupon_discount(
+                    &self.store,
+                    caller_user_id,
+                    coupon_id,
+                    route_model.brand_id,
+                    subtotal,
+                )
+                .await?
             }
-        }
+            None => 0,
+        };
 
         // A promo can never be worth more than the order.
         let discount = discount.clamp(0, subtotal);
@@ -401,7 +366,7 @@ impl BookingService {
             currency: Set("VND".to_string()),
             status: Set("pending".to_string()),
             payment_method: Set(None),
-            campaign_applied_id: Set(applied_campaign),
+            campaign_applied_id: Set(None),
             contact_name: Set(Some(req.contact_name.clone())),
             contact_phone: Set(Some(req.contact_phone.clone())),
             contact_email: Set(req.contact_email.clone()),
@@ -518,6 +483,34 @@ impl BookingService {
             return Err(AppError::Internal(e.to_string()));
         }
 
+        // Put the coupon on the booking. It changed since the check (used
+        // on another booking, expired, given up): undo the whole hold.
+        if let (Some(coupon_id), Some(owner)) = (req.coupon_id, caller_user_id) {
+            let reserved = self
+                .store
+                .campaign_store()
+                .reserve_coupon(
+                    coupon_id,
+                    owner,
+                    booking_id,
+                    route_model.brand_id,
+                    &now_iso(),
+                )
+                .await
+                .map_err(|e| AppError::Internal(e.to_string()))?;
+            if !reserved {
+                let _ = self
+                    .store
+                    .trip_store()
+                    .release_held_seats_for_booking(&booking_id_str)
+                    .await;
+                let _ = self.store.booking_store().delete_booking(booking_id).await;
+                return Err(AppError::Conflict(
+                    crate::service::campaign_service::codes::UNAVAILABLE.into(),
+                ));
+            }
+        }
+
         // Decrement available seats — computed in SQL
         // (`available_seats = available_seats - n`), closing the
         // lost-update race the read-modify-write had: two concurrent
@@ -529,21 +522,6 @@ impl BookingService {
             .decrement_available_seats(&trip_id_str, wanted as i64)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
-
-        // Increment campaign usage — also computed in SQL
-        // (`used_count = used_count + 1`) for the same lost-update
-        // reason. Errors propagate (a swallowed failure here would
-        // leave the campaign counter wrong). A campaign deleted between
-        // validation and this update reports 0 rows — a no-op, matching
-        // the previous behaviour.
-        if let Some(ref cid) = applied_campaign_id {
-            let c_uuid = Uuid::parse_str(cid).map_err(|e| AppError::Internal(e.to_string()))?;
-            self.store
-                .trip_store()
-                .increment_campaign_usage(c_uuid)
-                .await
-                .map_err(|e| AppError::Internal(e.to_string()))?;
-        }
 
         // Build response
         let seats_json: Vec<BookingSeatOut> = tickets
@@ -572,7 +550,7 @@ impl BookingService {
             total,
             expires_at,
             seats: seats_json,
-            campaign_id: applied_campaign_id,
+            coupon_id: req.coupon_id,
         })
     }
 
@@ -943,7 +921,7 @@ mod tests {
     use super::*;
     use crate::entity::trip_session;
     use crate::service::test_support::{fixture, hold_req, seed_trip_with_seats};
-    use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter};
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 
     #[test]
     fn normalize_phone_leading_zero() {
@@ -1417,59 +1395,5 @@ mod tests {
             .unwrap_err();
         assert!(matches!(err, AppError::BadRequest(_)), "{err:?}");
         assert_eq!(f.seats_now().await, (1, 0, 0, 1));
-    }
-
-    #[tokio::test]
-    async fn a_promo_is_capped_scoped_and_returned_with_an_abandoned_hold() {
-        use crate::entity::campaign;
-        let f = fixture(2).await;
-        let owner = f.owner().await;
-        let brand = f.brand_of_trip().await;
-        let promo = |code: &str, brand_id: Uuid, max_uses: Option<i64>| campaign::ActiveModel {
-            id: Set(Uuid::new_v4()),
-            brand_id: Set(brand_id),
-            code: Set(code.into()),
-            discount_type: Set("fixed_amount".into()),
-            discount_value: Set(1_000_000), // more than one seat costs
-            max_uses: Set(max_uses),
-            used_count: Set(0),
-            starts_at: Set(None), // open-ended
-            ends_at: Set(None),
-            status: Set("active".into()),
-            created_at: Set(now_iso()),
-            updated_at: Set(now_iso()),
-        };
-        promo("ONCE", brand, Some(1))
-            .insert(f.store.db())
-            .await
-            .unwrap();
-        promo("OTHER", Uuid::new_v4(), None)
-            .insert(f.store.db())
-            .await
-            .ok();
-
-        let mut req = hold_req(f.trip, vec![f.seats[0]], f.stops);
-        req.campaign_code = Some("once".into());
-        let first = f.svc.hold_with_user(owner, &req).await.unwrap();
-        assert_eq!(
-            (first.discount, first.total),
-            (first.subtotal, 0),
-            "capped at the order"
-        );
-        assert!(first.campaign_id.is_some());
-
-        // Single use: the second customer is refused while the first still holds it...
-        req.seat_ids = vec![f.seats[1]];
-        req.passengers.truncate(1);
-        let err = f.svc.hold_with_user(owner, &req).await.unwrap_err();
-        assert!(matches!(err, AppError::BadRequest(_)), "{err:?}");
-
-        // ...and gets it back when that hold is abandoned.
-        f.age_hold(first.booking_id, 5).await;
-        f.svc.expire_stale_holds(100).await.unwrap();
-        f.svc
-            .hold_with_user(owner, &req)
-            .await
-            .expect("promo returned");
     }
 }

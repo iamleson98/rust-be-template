@@ -10,6 +10,7 @@ import {
   type BookingHoldResponse,
 } from '@/api'
 import { invalidateResources } from '@/api/query-client'
+import { couponErrorText } from '@/features/campaigns/api'
 import { trackConversion } from '@/lib/analytics'
 import { getErrorMessage } from '@/lib/error-message'
 import { useMoney } from '@/lib/format'
@@ -38,12 +39,15 @@ const KNOWN_FAILURES: Record<string, string> = {
 
 /**
  * Runs `work`; a failure becomes an Error whose message is what the customer should
- * read, in their language: a known cause when the API names one, else `fallback`.
+ * read, in their language: a known cause when the API names one (a coupon problem
+ * first, its code is more precise than the error kind), else `fallback`.
  */
-async function orFail<T>(work: Promise<T>, fallback: string, t: (key: string) => string) {
+async function orFail<T>(work: Promise<T>, fallback: string, t: ReturnType<typeof useT>) {
   try {
     return await work
   } catch (error) {
+    const coupon = couponErrorText(error, t)
+    if (coupon) throw new Error(coupon)
     const kind = (error as { error?: unknown } | null)?.error
     const known = typeof kind === 'string' ? KNOWN_FAILURES[kind] : undefined
     throw new Error(known ? t(known) : fallback)
@@ -54,8 +58,8 @@ type Options = {
   form: UseFormReturn<BookingValues>
   context: BookingContext | null
   method: PaymentMethodKey
-  /** A promo code the server already accepted. */
-  promoCode: string | undefined
+  /** The customer's coupon, when they apply it. */
+  couponId: string | undefined
 }
 
 /**
@@ -64,7 +68,7 @@ type Options = {
  *  - online: a payment is created and polled. The booking stays pending until the
  *    provider's webhook confirms it (confirming up front would block later attempts).
  */
-export function useCheckout({ form, context, method, promoCode }: Options) {
+export function useCheckout({ form, context, method, couponId }: Options) {
   const t = useT()
   const money = useMoney()
   const queryClient = useQueryClient()
@@ -140,7 +144,7 @@ export function useCheckout({ form, context, method, promoCode }: Options) {
             contactName: values.contactName,
             contactPhone: normalizePhone(values.contactPhone),
             contactEmail: values.contactEmail || undefined,
-            campaignCode: promoCode,
+            couponId,
           },
         }),
         t('bookingFlow.holdFailed'),
@@ -157,6 +161,8 @@ export function useCheckout({ form, context, method, promoCode }: Options) {
       }
     } catch (e) {
       setError((e as Error).message)
+      // The coupon may have changed under us (expired, used elsewhere): show its real state.
+      if (couponId) void invalidateResources(queryClient, 'coupons')
     } finally {
       setSubmitting(false)
     }

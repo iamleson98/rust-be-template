@@ -13,8 +13,7 @@
  *   GET /api/trips/{id}                — trip detail
  *   GET /api/search                    — search trips (from/to/date)
  *   GET /api/recommendations           — homepage recommendations
- *   GET /api/campaigns                 — list active campaigns
- *   GET /api/campaigns/validate        — validate a campaign code
+ *   GET /api/campaigns                 — running discount campaigns (15 s cache)
  *   GET /api/stats                      — public stats (counts)
  *   GET /api/places                     — list OSM places
  *   GET /api/places/search             — place autocomplete
@@ -122,7 +121,7 @@ export function getRecommendations() {
 }
 
 /**
- * List active campaigns.
+ * List the running and upcoming discount campaigns.
  *
  * @returns {object} the k6 response
  */
@@ -130,24 +129,6 @@ export function listCampaigns() {
   const res = http.get(`${BASE_URL}/api/campaigns`, withAuth());
   check(res, {
     'listCampaigns status 200': (r) => r.status === 200,
-  });
-  return res;
-}
-
-/**
- * Validate a campaign code against a subtotal.
- *
- * @param {string} code — the campaign code
- * @param {number} subtotal — the order subtotal
- * @returns {object} the k6 response
- */
-export function validateCampaign(code, subtotal) {
-  const res = http.get(
-    `${BASE_URL}/api/campaigns/validate?code=${encodeURIComponent(code)}&subtotal=${subtotal}`,
-    withAuth(),
-  );
-  check(res, {
-    'validateCampaign status 200': (r) => r.status === 200,
   });
   return res;
 }

@@ -36,6 +36,9 @@ pub mod admin_service;
 pub mod auth_service;
 pub mod booking_service;
 pub mod booking_view;
+pub mod campaign_service;
+#[cfg(test)]
+mod campaign_tests;
 pub mod chat_service;
 pub mod fares;
 pub mod job_service;
@@ -67,6 +70,7 @@ pub mod users_service;
 pub use admin_service::AdminService;
 pub use auth_service::AuthService;
 pub use booking_service::BookingService;
+pub use campaign_service::CampaignService;
 pub use chat_service::ChatService;
 pub use job_service::JobService;
 pub use loyalty_service::LoyaltyService;

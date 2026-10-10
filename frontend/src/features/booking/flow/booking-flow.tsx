@@ -15,7 +15,7 @@ import { offeredMethods, PaymentMethodStep, type PaymentMethodKey } from './paym
 import { PaymentProcessingStep } from './payment-processing-step'
 import { useBookingForm } from './use-booking-form'
 import { useCheckout } from './use-checkout'
-import { usePromoCode } from './use-promo-code'
+import { useCheckoutCoupon } from './use-checkout-coupon'
 
 const NO_SEATS: string[] = []
 
@@ -45,13 +45,13 @@ export function BookingFlow() {
     adults,
     children,
   })
-  const promo = usePromoCode(booking.subtotal)
-  const total = Math.max(0, booking.subtotal - promo.discount)
+  const coupon = useCheckoutCoupon(trip?.brand.id, booking.subtotal)
+  const total = Math.max(0, booking.subtotal - coupon.discount)
   const checkout = useCheckout({
     form: booking.form,
     context,
     method,
-    promoCode: promo.appliedCode,
+    couponId: coupon.couponId,
   })
 
   // Each step validates only its own fields before moving on.
@@ -102,7 +102,7 @@ export function BookingFlow() {
               methods={methods}
               method={method}
               onMethodChange={setMethod}
-              promo={promo}
+              coupon={coupon}
               tickets={booking.tickets}
               total={total}
               error={checkout.error}

@@ -15,7 +15,7 @@ use store_macros::retry;
 use uuid::Uuid;
 
 use crate::entity::{
-    booking, booking_seat, campaign, payment, route, schedule, seat_inventory, trip_session,
+    booking, booking_seat, payment, route, schedule, seat_inventory, trip_session,
 };
 use crate::payment::statuses as payment_status;
 
@@ -567,15 +567,27 @@ impl BookingStore for DbBookingStore {
 
     #[store_macros::no_retry]
     async fn complete_booking(&self, booking_id: Uuid) -> StoreResult<bool> {
-        let done = booking::Entity::update_many()
-            .col_expr(booking::Column::Status, Expr::value("completed"))
-            .col_expr(booking::Column::UpdatedAt, Expr::value(now_iso()))
-            .filter(booking::Column::Id.eq(booking_id))
-            .filter(booking::Column::Status.eq("confirmed"))
-            .exec(self.db.as_ref())
-            .await?
-            .rows_affected;
-        Ok(done == 1)
+        self.db
+            .transaction::<_, bool, StoreError>(|txn| {
+                Box::pin(async move {
+                    let now = now_iso();
+                    let done = booking::Entity::update_many()
+                        .col_expr(booking::Column::Status, Expr::value("completed"))
+                        .col_expr(booking::Column::UpdatedAt, Expr::value(now.clone()))
+                        .filter(booking::Column::Id.eq(booking_id))
+                        .filter(booking::Column::Status.eq("confirmed"))
+                        .exec(txn)
+                        .await?
+                        .rows_affected;
+                    if done == 1 {
+                        // The trip happened: its coupon becomes payable.
+                        super::campaigns::redeem_booking_coupon(txn, booking_id, &now).await?;
+                    }
+                    Ok(done == 1)
+                })
+            })
+            .await
+            .map_err(StoreError::from)
     }
 }
 
@@ -644,21 +656,8 @@ impl DbBookingStore {
                             .await?;
                     }
 
-                    if let (true, Some(campaign_id)) =
-                        (b.status == "pending", b.campaign_applied_id)
-                    {
-                        // The promo use was reserved by the hold and the sale never happened.
-                        campaign::Entity::update_many()
-                            .col_expr(
-                                campaign::Column::UsedCount,
-                                Expr::col(campaign::Column::UsedCount)
-                                    .binary(BinOper::Sub, Expr::value(1)),
-                            )
-                            .filter(campaign::Column::Id.eq(campaign_id))
-                            .filter(campaign::Column::UsedCount.gt(0))
-                            .exec(txn)
-                            .await?;
-                    }
+                    // The trip will not happen: its coupon goes back to its owner.
+                    super::campaigns::return_booking_coupon(txn, booking_id, &now_iso()).await?;
 
                     payment::Entity::update_many()
                         .col_expr(

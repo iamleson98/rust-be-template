@@ -7,6 +7,7 @@ mod admin;
 mod ads;
 mod auth;
 mod bookings;
+mod campaigns;
 mod chat;
 mod health;
 mod loyalty;

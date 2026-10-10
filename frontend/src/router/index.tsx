@@ -175,6 +175,13 @@ const adminPages = {
     component: lazy(() => import('@/features/admin/system/system-page'), 'AdminSystemPage'),
     staticData: { seo: 'adminSystem' },
   }),
+  campaigns: createRoute({
+    getParentRoute: () => admin,
+    path: '/campaigns',
+    beforeLoad: requireAdmin,
+    component: lazy(() => import('@/features/admin/campaigns/campaigns-page'), 'CampaignsPage'),
+    staticData: { seo: 'adminCampaigns' },
+  }),
   users: createRoute({
     getParentRoute: () => admin,
     path: '/users',

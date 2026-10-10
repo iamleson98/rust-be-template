@@ -5,9 +5,10 @@ use axum::extract::FromRef;
 use crate::config::Config;
 use crate::rbac::RbacChecker;
 use crate::service::{
-    AdminService, AuthService, BookingService, ChatService, JobService, LoyaltyService,
-    NotificationService, PaymentService, PlaceService, PostService, PriceAlertService,
-    PublicService, ReviewService, RouteMediaService, RoutingService, UserService,
+    AdminService, AuthService, BookingService, CampaignService, ChatService, JobService,
+    LoyaltyService, NotificationService, PaymentService, PlaceService, PostService,
+    PriceAlertService, PublicService, ReviewService, RouteMediaService, RoutingService,
+    UserService,
 };
 
 /// The single application state object shared across handlers.
@@ -78,6 +79,7 @@ pub struct AppState {
     pub reviews: Arc<ReviewService>,
     pub bookings: Arc<BookingService>,
     pub loyalty: Arc<LoyaltyService>,
+    pub campaigns: Arc<CampaignService>,
     pub public: Arc<PublicService>,
     pub routing: Arc<RoutingService>,
     pub places: Arc<PlaceService>,
@@ -127,6 +129,7 @@ impl AppState {
         chats: Arc<ChatService>,
         jobs: Arc<JobService>,
         media: Arc<RouteMediaService>,
+        campaigns: Arc<CampaignService>,
     ) -> Self {
         Self {
             config,
@@ -148,6 +151,7 @@ impl AppState {
             chats,
             jobs,
             media,
+            campaigns,
         }
     }
 }

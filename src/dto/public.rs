@@ -1,6 +1,6 @@
 //! DTOs for the public catalog service — `/api/brands`, `/api/routes`,
-//! `/api/trips/{id}`, `/api/search`, `/api/recommendations`,
-//! `/api/campaigns`, `/api/campaigns/validate`, `/api/stats`.
+//! `/api/trips/{id}`, `/api/search`, `/api/recommendations`, `/api/stats`
+//! (discount campaigns live in [`super::campaign`]).
 //!
 //! All DTOs use `#[serde(rename_all = "camelCase")]` so Rust field names
 //! stay snake_case (Rust convention) while the JSON wire shape is
@@ -253,7 +253,6 @@ pub struct TripDetail {
     /// frontend falls back to the route-level `pickup_points`.
     pub schedule_points: Vec<TripSchedulePoint>,
     pub seat_map: TripSeatMap,
-    pub campaigns: Vec<TripCampaign>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -457,55 +456,6 @@ pub struct TripSeat {
     /// Price for a child; absent when the brand has no child tickets.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub child_price: Option<i64>,
-}
-
-#[derive(Debug, Serialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct TripCampaign {
-    pub id: Uuid,
-    pub code: String,
-    pub discount_type: String,
-    pub discount_value: i64,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub max_uses: Option<i64>,
-    pub used_count: i64,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub starts_at: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub ends_at: Option<String>,
-    pub status: String,
-}
-
-// ────────────────────────────────────────────────────────────────
-//  Campaigns
-// ────────────────────────────────────────────────────────────────
-
-/// Campaign list item returned by `GET /api/campaigns`.
-#[derive(Debug, Serialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct CampaignOut {
-    pub id: Uuid,
-    pub code: String,
-    pub discount_type: String,
-    pub discount_value: i64,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub ends_at: Option<String>,
-}
-
-/// Response of `GET /api/campaigns`.
-#[derive(Debug, Serialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct CampaignListResponse {
-    pub items: Vec<CampaignOut>,
-}
-
-/// Response of `GET /api/campaigns/validate?code=&subtotal=`.
-#[derive(Debug, Serialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct CampaignValidateResponse {
-    pub valid: bool,
-    /// Discount amount (VND) applied to the subtotal. 0 when invalid.
-    pub discount: i64,
 }
 
 // ────────────────────────────────────────────────────────────────
