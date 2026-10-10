@@ -81,11 +81,11 @@ jobs:
             echo "== stopping datxevui_backend =="
             docker service scale datxevui_backend=0 --detach
             for i in $(seq 1 60); do
-              n=$(docker service ls --filter name=datxevui_backend --format '{{.Replicas}}')
-              [ "$n" = "0/0" ] && break
+              n=$(docker service ls --filter name=datxevui_backend --format '{{.Replicas}}' || true)
+              if [ "$n" = "0/0" ]; then break; fi
               sleep 2
             done
-            echo "service scaled to 0 (replicas: $(docker service ls --filter name=datxevui_backend --format '{{.Replicas}}'))"
+            echo "service scaled to 0 (replicas: $(docker service ls --filter name=datxevui_backend --format '{{.Replicas}}' || true))"
 
             mkdir -p "$DEPLOY_DIR/backups"
             if [ "$DO_BACKUP" != "false" ]; then
