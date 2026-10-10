@@ -1,6 +1,4 @@
-import type React from 'react'
 import { z } from 'zod'
-import { cn } from '@/lib/utils'
 import { emailSchema, fullNameSchema } from '@/lib/forms'
 import { useT, tSync } from '@/lib/i18n'
 
@@ -60,34 +58,4 @@ export function scorePassword(pwd: string): { score: number; label: string } {
   if (/\d/.test(pwd) && /[^A-Za-z0-9]/.test(pwd)) score++
   const labelKey = STRENGTH_LABEL_KEYS[score]
   return { score, label: labelKey ? tSync(labelKey) : '' }
-}
-
-// ── Tab button ───────────────────────────────────────────
-export function TabButton({
-  active,
-  onClick,
-  icon,
-  label,
-}: {
-  active: boolean
-  onClick: () => void
-  icon: React.ReactNode
-  label: string
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        'flex-1 flex items-center justify-center gap-1.5 py-3.5 text-xs sm:text-sm font-semibold transition-colors relative',
-        active ? 'text-blue-700' : 'text-slate-500 hover:text-slate-700',
-      )}
-    >
-      {icon}
-      {label}
-      {active && (
-        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 h-0.5 w-10 rounded-full bg-blue-600" />
-      )}
-    </button>
-  )
 }

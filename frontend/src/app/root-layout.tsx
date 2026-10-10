@@ -44,11 +44,12 @@ function SessionSync() {
   return null
 }
 
-/** Customer chrome (header, footer, mobile nav, overlays) around every page; admin and account bring their own shells. */
+/** Customer chrome (header, footer, mobile nav, overlays) around every page; the admin console brings its own shell. */
 export function RootLayout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname })
   const admin = pathname.startsWith('/admin')
-  const ownShell = admin || pathname.startsWith('/account')
+  // The admin console brings its own frame; the account area lives in the site chrome.
+  const ownShell = admin
 
   return (
     // Customer pages sit on the soft canvas (white cards lift off it); the admin console keeps white.
@@ -72,7 +73,7 @@ export function RootLayout() {
         </Suspense>
       </main>
 
-      {!ownShell && pathname !== '/login' && (
+      {!ownShell && pathname !== '/login' && !pathname.startsWith('/account') && (
         <Deferred>
           <Footer />
         </Deferred>

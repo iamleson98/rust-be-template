@@ -396,7 +396,7 @@ export const vi: TranslationMap = {
   'authPage.benefitPoints': 'Tích điểm thưởng và nhận ưu đãi độc quyền',
   'authPage.benefitReviews': 'Quản lý đánh giá và phản hồi chuyến đi',
   'authPage.headerSubtitle': 'Đăng nhập để quản lý vé, đánh giá và ưu đãi',
-  'authPage.trustNote': 'Thông tin cá nhân của bạn được bảo mật và mã hoá an toàn tuyệt đối.',
+  'authPage.trustNote': 'Thông tin của bạn được gửi qua kết nối mã hoá.',
   'authPage.accountCreated': 'Tài khoản đã được tạo!',
   'authPage.registerFailedEmail': 'Đăng ký thất bại. Email có thể đã được sử dụng.',
   'authPage.registerReady': 'Tài khoản của bạn đã sẵn sàng. Bắt đầu đặt vé ngay!',

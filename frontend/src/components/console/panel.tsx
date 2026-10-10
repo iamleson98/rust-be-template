@@ -1,5 +1,6 @@
-import type { ReactNode } from 'react'
+import { useContext, type ReactNode } from 'react'
 import { cn } from '@/lib/utils'
+import { PageInset } from './page'
 
 /**
  * A section of a console page: a white surface with a hairline border on
@@ -21,8 +22,16 @@ export function Panel({
   bodyClassName?: string
   children: ReactNode
 }) {
+  // In the customer account area: the site's softer cards.
+  const inset = useContext(PageInset)
   return (
-    <section className={cn('rounded-xl border bg-card text-card-foreground', className)}>
+    <section
+      className={cn(
+        'rounded-xl border bg-card text-card-foreground',
+        !inset && 'rounded-2xl border-0 shadow-soft ring-1 ring-slate-200/80',
+        className,
+      )}
+    >
       {(title || action) && (
         <div className="flex min-h-12 items-center gap-2 px-4 pt-3">
           {icon && (

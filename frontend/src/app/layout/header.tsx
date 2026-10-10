@@ -209,14 +209,16 @@ export const Header = memo(function Header() {
           </DropdownMenu>
 
           {!user ? (
-            <Button
-              onClick={() => navigate({ to: '/login' })}
-              size="sm"
-              className={cn('ml-1 h-9 gap-1.5 rounded-full px-4', tone.login)}
-            >
-              <LogIn className="size-4" />
-              {t('nav.login')}
-            </Button>
+            pathname !== '/login' && (
+              <Button
+                onClick={() => navigate({ to: '/login' })}
+                size="sm"
+                className={cn('ml-1 h-9 gap-1.5 rounded-full px-4', tone.login)}
+              >
+                <LogIn className="size-4" />
+                {t('nav.login')}
+              </Button>
+            )
           ) : (
             <DropdownMenu>
               <DropdownMenuTrigger

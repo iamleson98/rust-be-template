@@ -395,7 +395,7 @@ export const en: TranslationMap = {
   'authPage.benefitPoints': 'Earn loyalty points and get exclusive offers',
   'authPage.benefitReviews': 'Manage your trip reviews and feedback',
   'authPage.headerSubtitle': 'Sign in to manage tickets, reviews, and offers',
-  'authPage.trustNote': 'Your personal information is kept private and fully encrypted.',
+  'authPage.trustNote': 'Your details travel over an encrypted connection.',
   'authPage.accountCreated': 'Account created!',
   'authPage.registerFailedEmail': 'Registration failed. The email may already be in use.',
   'authPage.registerReady': 'Your account is ready. Start booking now!',

@@ -120,7 +120,9 @@ describe('PaymentMethodStep', () => {
   it('edits and applies the promo code through the promo state', () => {
     const p = promo({ code: 'TET' })
     render(<PaymentMethodStep {...baseProps} promo={p} />)
-    fireEvent.change(screen.getByPlaceholderText(/Nhập mã khuyến mãi/), { target: { value: 'TET2026' } })
+    fireEvent.change(screen.getByPlaceholderText(/Nhập mã khuyến mãi/), {
+      target: { value: 'TET2026' },
+    })
     expect(p.setCode).toHaveBeenCalledWith('TET2026')
     fireEvent.click(screen.getByRole('button', { name: 'Áp dụng' }))
     expect(p.apply).toHaveBeenCalled()
@@ -165,5 +167,4 @@ describe('PaymentMethodStep', () => {
     render(<PaymentMethodStep {...baseProps} />)
     expect(screen.getByText(/Nghị định 13\/2023\/NĐ-CP/i)).toBeInTheDocument()
   })
-
 })
