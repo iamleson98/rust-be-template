@@ -1,249 +1,75 @@
-'use client'
-
 import { useQuery } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
+import { Clock } from 'lucide-react'
 import { recommendationsOptions } from '@/api'
-import { useGuest } from '@/stores/guest'
-import { usePrefs } from '@/stores/prefs'
-import { useSession } from '@/stores/session'
-import { useNavigate } from '@tanstack/react-router'
-import type { TripResult } from '@/api'
-import { Card } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { ErrorState } from '@/components/error-state'
-import { formatCurrency } from '@/lib/format'
+import { formatCurrency, formatDateVN } from '@/lib/format'
 import { useT } from '@/lib/i18n'
-import {
-  Sparkles,
-  ArrowRight,
-  Bus,
-  TrendingUp,
-  History,
-  Compass,
-  ChevronRight,
-  Loader2,
-} from 'lucide-react'
-import { buildSearchInput } from '@/lib/search-params'
+import { cn } from '@/lib/utils'
+import { usePrefs } from '@/stores/prefs'
+import { HomeSection, RAIL, RailSkeleton } from './section'
 
-// Deterministic reason picker — `TripResult` from the generated SDK doesn't
-// include a `reason` field, so we derive one from the tripId hash for display
-// (keeps the visual variety the UI was designed for).
-const REASONS = ['recent', 'booking', 'trending'] as const
-type Reason = (typeof REASONS)[number]
-
-// REASON_LABELS values are i18n keys (home.reason*) — rendered via t().
-const REASON_LABELS: Record<Reason, string> = {
-  recent: 'home.reasonRecent',
-  booking: 'home.reasonBooking',
-  trending: 'home.reasonTrending',
-}
-
-const REASON_STYLES: Record<
-  Reason,
-  { badgeBg: string; badgeText: string; icon: typeof TrendingUp }
-> = {
-  recent: {
-    badgeBg: 'bg-violet-100',
-    badgeText: 'text-violet-700',
-    icon: History,
-  },
-  booking: {
-    badgeBg: 'bg-blue-100',
-    badgeText: 'text-blue-700',
-    icon: Compass,
-  },
-  trending: {
-    badgeBg: 'bg-amber-100',
-    badgeText: 'text-amber-700',
-    icon: TrendingUp,
-  },
-}
-
-function reasonFor(tripId: string): Reason {
-  let hash = 0
-  for (let i = 0; i < tripId.length; i++) {
-    hash = ((hash << 5) - hash + tripId.charCodeAt(i)) | 0
-  }
-  return REASONS[Math.abs(hash) % REASONS.length]
-}
-
+/** The next departures with seats left (`GET /api/recommendations`); each opens the trip. */
 export function Recommendations() {
-  const user = useSession((s) => s.user)
-  const guestPhone = useGuest((s) => s.guestPhone)
-  const recentlyViewed = useGuest((s) => s.recentlyViewed)
   const currency = usePrefs((s) => s.currency)
-  const navigate = useNavigate()
   const t = useT()
+  const { data, isLoading } = useQuery(recommendationsOptions())
+  const items = data?.items ?? []
 
-  // ── Data: TanStack Query ─────────────────────────────────────────
-  // The recommendations endpoint takes no query params — the backend uses
-  // the authenticated session + recent-activity cookies to personalize.
-  // We still keep `guestPhone` + `recentlyViewed` in the closure so the
-  // component re-renders when they change (the hook's cache is keyed by
-  // nothing, so a stale-then-refetch is fine).
-  void guestPhone
-  void recentlyViewed
-  const { data, isLoading, isError, refetch } = useQuery(recommendationsOptions())
-  const items: TripResult[] = data?.items ?? []
-
-  // Click → navigate to /search with the recommended route's from/to.
-  // The /search route owns the actual trip-search fetch via useTripSearch.
-  const handleView = (rec: TripResult) => {
-    const tomorrow = new Date()
-    tomorrow.setDate(tomorrow.getDate() + 1)
-    const date = tomorrow.toISOString().slice(0, 10)
-    navigate({
-      to: '/search',
-      search: buildSearchInput({ from: rec.fromName, to: rec.toName, date }),
-    })
-  }
-
-  if (isLoading) {
-    return (
-      <section className="container mx-auto px-4 py-8">
-        <div className="flex items-center gap-2 mb-4">
-          <div className="h-9 w-9 rounded-full bg-linear-to-br from-blue-500 to-blue-500 text-white inline-flex items-center justify-center">
-            <Sparkles className="h-4.5 w-4.5" />
-          </div>
-          <div>
-            <h2 className="font-bold text-lg md:text-xl tracking-tight">
-              {t('home.recommendationsTitle')}
-            </h2>
-            <p className="text-xs text-muted-foreground">{t('home.recommendationsAnalyzing')}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3 text-muted-foreground text-sm py-8">
-          <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
-          {t('home.recommendationsLoading')}
-        </div>
-      </section>
-    )
-  }
-
-  if (isError) {
-    return (
-      <section className="container mx-auto px-4 py-8">
-        <ErrorState description={t('home.recommendationsError')} onRetry={() => refetch()} />
-      </section>
-    )
-  }
-
+  if (isLoading) return <RailSkeleton count={4} />
   if (items.length === 0) return null
 
   return (
-    <section className="py-8 md:py-10 bg-linear-to-b from-blue-50/40 via-white to-white">
-      <div className="container mx-auto px-4">
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <div className="h-9 w-9 rounded-full bg-linear-to-br from-blue-500 to-blue-500 text-white inline-flex items-center justify-center">
-                <Sparkles className="h-4.5 w-4.5" />
-              </div>
-              <div>
-                <h2 className="font-bold text-lg md:text-xl tracking-tight">
-                  {t('home.recommendationsTitle')}
-                </h2>
-                <p className="text-xs text-muted-foreground">
-                  {user
-                    ? t('home.recommendationsPersonalized', { name: user.name })
-                    : t('home.recommendationsGuest')}
-                </p>
-              </div>
+    <HomeSection
+      title={t('home.recommendationsTitle')}
+      subtitle={t('home.recommendationsSubtitle')}
+    >
+      <div className={cn(RAIL, 'lg:grid-cols-4')}>
+        {items.map((rec) => (
+          <Link
+            key={rec.tripId}
+            to="/trips/$tripId"
+            params={{ tripId: rec.tripId }}
+            className="group flex flex-col rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-200/80 transition duration-200 hover:-translate-y-0.5 hover:shadow-float hover:ring-primary/30"
+          >
+            <div className="flex items-center gap-2 text-xs text-slate-500">
+              <span
+                className="size-2 shrink-0 rounded-full"
+                style={{ background: rec.brandAccent }}
+              />
+              <span className="truncate">{rec.brandName}</span>
+              <span className="ml-auto shrink-0 rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-600">
+                {rec.vehicleTypeLabel}
+              </span>
             </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-xs text-muted-foreground hover:text-foreground"
-              onClick={() =>
-                navigate({
-                  to: '/search',
-                  search: buildSearchInput({ from: '', to: '', date: '' }),
-                })
-              }
-            >
-              {t('home.allTrips')}
-              <ChevronRight className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-
-          {/* Horizontal scroll on mobile, grid on desktop */}
-          <div className="flex md:grid md:grid-cols-4 gap-3 overflow-x-auto md:overflow-visible snap-x snap-mandatory pb-2 md:pb-0 -mx-4 px-4 md:mx-0 md:px-0">
-            {items.map((rec) => {
-              const reason = reasonFor(rec.tripId)
-              const style = REASON_STYLES[reason]
-              const ReasonIcon = style.icon
-              return (
-                <div
-                  key={rec.tripId + rec.routeId}
-                  className="snap-start shrink-0 w-[78vw] sm:w-[320px] md:w-auto"
-                >
-                  <Card className="flex h-full flex-col overflow-hidden">
-                    {/* Gradient accent header */}
-                    <div className="p-4 flex-1 flex flex-col gap-3">
-                      {/* Reason badge */}
-                      <div className="flex items-center justify-between">
-                        <span
-                          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${style.badgeBg} ${style.badgeText}`}
-                        >
-                          <ReasonIcon className="h-3 w-3" />
-                          {t(REASON_LABELS[reason])}
-                        </span>
-                        <span className="text-[10px] text-muted-foreground inline-flex items-center gap-0.5">
-                          <Bus className="h-3 w-3" style={{ color: rec.brandAccent }} />
-                          {rec.brandName}
-                        </span>
-                      </div>
-
-                      {/* Route */}
-                      <div className="flex items-center gap-2">
-                        <div className="min-w-0 flex-1">
-                          <div className="font-bold text-base truncate">{rec.fromName}</div>
-                          <div className="text-[10px] text-muted-foreground">
-                            {t('search.from')}
-                          </div>
-                        </div>
-                        <div className="grid size-8 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
-                          <ArrowRight className="h-4 w-4" />
-                        </div>
-                        <div className="min-w-0 flex-1 text-right">
-                          <div className="font-bold text-base truncate">{rec.toName}</div>
-                          <div className="text-[10px] text-muted-foreground">{t('search.to')}</div>
-                        </div>
-                      </div>
-
-                      {/* Meta */}
-                      <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t">
-                        <span className="font-medium text-blue-700">{rec.departureTime}</span>
-                      </div>
-
-                      {/* Price + CTA */}
-                      <div className="flex items-end justify-between gap-2 mt-auto pt-2">
-                        <div>
-                          <div className="text-[10px] text-muted-foreground uppercase tracking-wide">
-                            {t('common.fromPrice')}
-                          </div>
-                          <div className="text-base font-extrabold text-blue-700">
-                            {formatCurrency(rec.minPrice, currency)}
-                          </div>
-                        </div>
-                        <Button size="sm" onClick={() => handleView(rec)} className="gap-1">
-                          {t('home.viewTrip')}
-                          <ChevronRight className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    </div>
-                  </Card>
-                </div>
-              )
-            })}
-          </div>
-
-          {/* Hint to scroll horizontally on mobile */}
-          <div className="md:hidden mt-2 flex items-center justify-center gap-1 text-[10px] text-muted-foreground">
-            <ChevronRight className="h-3 w-3" />
-            {t('home.swipeForMore')}
-          </div>
-        </div>
+            <div className="mt-3 truncate text-[15px] font-semibold text-slate-900">
+              {rec.fromName} → {rec.toName}
+            </div>
+            <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-500">
+              <Clock className="size-3.5" />
+              <span className="font-semibold text-slate-700 tabular-nums">{rec.departureTime}</span>
+              <span>
+                ·{' '}
+                {formatDateVN(rec.departureAt ?? rec.departureDate, {
+                  weekday: 'short',
+                  day: '2-digit',
+                  month: '2-digit',
+                })}
+              </span>
+            </div>
+            <div className="mt-4 flex items-end justify-between border-t border-slate-100 pt-3">
+              <span className="text-xs text-slate-500">
+                {rec.availableSeats} {t('common.seatsAvailable')}
+              </span>
+              <span className="text-right leading-tight">
+                <span className="block text-[11px] text-slate-500">{t('common.fromPrice')}</span>
+                <span className="text-base font-bold text-primary tabular-nums">
+                  {formatCurrency(rec.minPrice, currency)}
+                </span>
+              </span>
+            </div>
+          </Link>
+        ))}
       </div>
-    </section>
+    </HomeSection>
   )
 }

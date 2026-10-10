@@ -54,7 +54,7 @@ describe('PaymentMethodStep', () => {
     // Coupons live on the PAYMENT step now (moved off the contact step).
     render(<PaymentMethodStep {...baseProps} />)
     expect(screen.getByText('Mã khuyến mãi')).toBeInTheDocument()
-    expect(screen.getByPlaceholderText(/VD: TET2025/)).toBeInTheDocument()
+    expect(screen.getByPlaceholderText(/Nhập mã khuyến mãi/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Áp dụng' })).toBeDisabled()
   })
 
@@ -120,7 +120,7 @@ describe('PaymentMethodStep', () => {
   it('edits and applies the promo code through the promo state', () => {
     const p = promo({ code: 'TET' })
     render(<PaymentMethodStep {...baseProps} promo={p} />)
-    fireEvent.change(screen.getByPlaceholderText(/VD: TET2025/), { target: { value: 'TET2026' } })
+    fireEvent.change(screen.getByPlaceholderText(/Nhập mã khuyến mãi/), { target: { value: 'TET2026' } })
     expect(p.setCode).toHaveBeenCalledWith('TET2026')
     fireEvent.click(screen.getByRole('button', { name: 'Áp dụng' }))
     expect(p.apply).toHaveBeenCalled()
@@ -155,9 +155,10 @@ describe('PaymentMethodStep', () => {
     expect(screen.getByText('Thanh toán thất bại')).toBeInTheDocument()
   })
 
-  it('shows SSL trust note', () => {
+  it('says only what is true about security and the ticket', () => {
     render(<PaymentMethodStep {...baseProps} />)
-    expect(screen.getByText(/SSL 256-bit/i)).toBeInTheDocument()
+    expect(screen.getByText(/HTTPS/)).toBeInTheDocument()
+    expect(screen.queryByText(/SMS|PCI DSS|SSL 256-bit/)).toBeNull()
   })
 
   it('shows Decree 13 compliance text', () => {
@@ -165,10 +166,4 @@ describe('PaymentMethodStep', () => {
     expect(screen.getByText(/Nghị định 13\/2023\/NĐ-CP/i)).toBeInTheDocument()
   })
 
-  it('shows payment trust badges (SSL, PCI DSS, refund)', () => {
-    render(<PaymentMethodStep {...baseProps} />)
-    expect(screen.getByText('Mã hoá SSL')).toBeInTheDocument()
-    expect(screen.getByText('PCI DSS')).toBeInTheDocument()
-    expect(screen.getByText('Hoàn tiền 24h')).toBeInTheDocument()
-  })
 })

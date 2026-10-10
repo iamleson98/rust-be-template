@@ -1,62 +1,45 @@
-'use client'
-
+import { memo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { campaignsOptions } from '@/api'
-import { memo, useEffect, useState } from 'react'
-import type { CampaignOut } from '@/api'
-import { Card } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { ErrorState } from '@/components/error-state'
-import { Tag, Copy, Check, Zap, Timer } from 'lucide-react'
+import { Check, Copy } from 'lucide-react'
 import { toast } from 'sonner'
-import { useT } from '@/lib/i18n'
+import { campaignsOptions, type CampaignOut } from '@/api'
+import { ErrorState } from '@/components/error-state'
 import { CampaignsSkeleton } from '@/features/home/components/campaigns-skeleton'
+import { formatDay } from '@/lib/format'
+import { useT } from '@/lib/i18n'
+import { cn } from '@/lib/utils'
+import { HomeSection, RAIL } from './section'
 
-/* Countdown timer for campaigns */
-function CampaignCountdown({ endTime }: { endTime: number }) {
-  const t = useT()
-  // Lazy initializer: without the arrow, endTime - Date.now() would be
-  // re-evaluated on EVERY render (impure + resets the countdown).
-  const [timeLeft, setTimeLeft] = useState(() => endTime - Date.now())
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setTimeLeft(endTime - Date.now())
-    }, 1000)
-    return () => clearInterval(interval)
-  }, [endTime])
-
-  if (timeLeft <= 0)
-    return <span className="text-[10px] text-muted-foreground">{t('home.campaignExpired')}</span>
-
-  const hours = Math.floor(timeLeft / 3600000)
-  const minutes = Math.floor((timeLeft % 3600000) / 60000)
-  const seconds = Math.floor((timeLeft % 60000) / 1000)
-
-  return (
-    <div className="flex items-center gap-1 text-[11px] font-mono">
-      <Timer className="h-3 w-3 text-amber-500" />
-      <span className="text-amber-600 font-semibold">
-        {String(hours).padStart(2, '0')}:{String(minutes).padStart(2, '0')}:
-        {String(seconds).padStart(2, '0')}
-      </span>
-    </div>
-  )
+/** The discount in a few characters, for the coupon stub. */
+function stubLabel(c: CampaignOut, t: ReturnType<typeof useT>) {
+  if (c.discountType === 'percent') return `-${c.discountValue}%`
+  if (c.discountType === 'fixed_amount')
+    return `-${Math.round(c.discountValue / 1000).toLocaleString('vi-VN')}k`
+  return t('home.discountDefault')
 }
 
+/** Active promo codes as coupons: what it gives, until when, one tap to copy. */
 export const CampaignsBanner = memo(function CampaignsBanner() {
   const t = useT()
   const { data, isLoading, isError, refetch } = useQuery(campaignsOptions())
-  const items: CampaignOut[] = data?.items ?? []
+  const items = data?.items ?? []
   const [copied, setCopied] = useState<string | null>(null)
 
-  /* Copy a campaign code — guarded: navigator.clipboard is undefined on
-     non-secure contexts (http:// LAN access) and would throw on click. */
+  const describe = (c: CampaignOut) => {
+    if (c.discountType === 'percent') return t('home.discountPercent', { value: c.discountValue })
+    if (c.discountType === 'fixed_amount')
+      return t('home.discountFixed', { value: c.discountValue.toLocaleString('vi-VN') })
+    if (c.discountType === 'free_child') return t('home.discountFreeChild')
+    if (c.discountType === 'seat_upgrade') return t('home.discountSeatUpgrade')
+    return t('home.discountDefault')
+  }
+
+  // navigator.clipboard is missing on insecure origins (http:// on a LAN); the code stays visible.
   const copy = (code: string) => {
     try {
-      navigator.clipboard?.writeText(code)
+      void navigator.clipboard?.writeText(code)
     } catch {
-      /* non-fatal — the code is shown in the card */
+      /* non-fatal */
     }
     setCopied(code)
     toast.success(t('home.campaignCopiedToast'), {
@@ -66,99 +49,59 @@ export const CampaignsBanner = memo(function CampaignsBanner() {
     setTimeout(() => setCopied(null), 1500)
   }
 
-  const typeLabel = (kind: string, v: number) => {
-    if (kind === 'percent') return t('home.discountPercent', { value: v })
-    if (kind === 'fixed_amount')
-      return t('home.discountFixed', { value: v.toLocaleString('vi-VN') })
-    if (kind === 'free_child') return t('home.discountFreeChild')
-    if (kind === 'seat_upgrade') return t('home.discountSeatUpgrade')
-    return t('home.discountDefault')
-  }
+  if (isLoading) return <CampaignsSkeleton count={3} />
+  if (isError)
+    return (
+      <div className="page-x py-10">
+        <ErrorState description={t('home.campaignLoadError')} onRetry={() => refetch()} />
+      </div>
+    )
+  if (items.length === 0) return null
 
   return (
-    <section className="bg-linear-to-br from-amber-50 via-orange-50 to-rose-50 border-y border-amber-100/80">
-      <div className="container mx-auto px-4 py-12">
-        {isLoading ? (
-          <CampaignsSkeleton count={3} />
-        ) : isError ? (
-          <ErrorState description={t('home.campaignLoadError')} onRetry={() => refetch()} />
-        ) : items.length === 0 ? null : (
-          <>
-            <div className="flex items-end justify-between mb-6">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <Tag className="h-5 w-5 text-rose-500" />
-                  <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight">
-                    {t('home.campaignsTitle')}
-                  </h2>
-                </div>
-                <p className="text-muted-foreground text-sm">{t('home.campaignsSubtitle')}</p>
+    <HomeSection title={t('home.campaignsTitle')} subtitle={t('home.campaignsSubtitle')}>
+      <div className={cn(RAIL, 'lg:grid-cols-3')}>
+        {items.map((c) => (
+          <div
+            key={c.id}
+            className="flex overflow-hidden rounded-2xl bg-white shadow-soft ring-1 ring-slate-200/80"
+          >
+            {/* The stub, with a perforated edge. */}
+            <div className="relative flex w-24 shrink-0 flex-col items-center justify-center bg-linear-to-br from-rose-500 to-orange-500 px-2 text-white">
+              <span className="text-xl leading-none font-extrabold tracking-tight">
+                {stubLabel(c, t)}
+              </span>
+              <span className="absolute inset-y-2 -right-1.5 w-3 bg-[radial-gradient(circle,white_3px,transparent_3.5px)] bg-size-[12px_12px]" />
+            </div>
+            <div className="flex min-w-0 flex-1 flex-col gap-3 p-4">
+              <div className="min-w-0">
+                <div className="truncate text-sm font-semibold text-slate-900">{describe(c)}</div>
+                {c.endsAt && (
+                  <div className="mt-0.5 text-xs text-slate-500">
+                    {t('home.campaignEnds', { date: formatDay(c.endsAt) })}
+                  </div>
+                )}
+              </div>
+              <div className="mt-auto flex items-center gap-2">
+                <code className="min-w-0 truncate rounded-lg border border-dashed border-rose-300 bg-rose-50 px-2.5 py-1.5 font-mono text-sm font-bold tracking-wider text-rose-600">
+                  {c.code}
+                </code>
+                <button
+                  onClick={() => copy(c.code)}
+                  className="ml-auto inline-flex shrink-0 items-center gap-1 rounded-full bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-slate-700"
+                >
+                  {copied === c.code ? (
+                    <Check className="size-3.5" />
+                  ) : (
+                    <Copy className="size-3.5" />
+                  )}
+                  {copied === c.code ? t('home.copiedShort') : t('home.copy')}
+                </button>
               </div>
             </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {items.map((c) => {
-                // `CampaignOut` only exposes `code`, `discountType`,
-                // `discountValue`, `endsAt`, `id`. We use a fixed rose banner color
-                // since the API no longer returns one.
-                const bannerColor = '#f43f5e'
-                // Real server-provided expiry (ISO string) — campaigns without
-                // an end date simply don't render a countdown.
-                const endsAtMs = c.endsAt ? Date.parse(c.endsAt) : NaN
-                return (
-                  <Card key={c.id} className="relative h-full overflow-hidden">
-                    {/* "Hot" badge removed — a fabricated "every 3rd card is
-                          featured" rule presented invented urgency. */}
-
-                    <div className="relative p-5">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <Badge
-                            className="mb-2 text-[11px] font-bold"
-                            style={{ background: `${bannerColor}20`, color: bannerColor }}
-                          >
-                            <Zap className="h-3 w-3 mr-0.5" />
-                            {typeLabel(c.discountType, c.discountValue)}
-                          </Badge>
-                          <h3 className="font-bold text-base leading-snug">{c.code}</h3>
-                        </div>
-                        {/* Countdown timer — only when the server provided an end date */}
-                        {Number.isFinite(endsAtMs) && <CampaignCountdown endTime={endsAtMs} />}
-                      </div>
-
-                      <div className="mt-4 flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <code
-                            className="rounded-md px-2.5 py-1.5 text-sm font-mono font-bold tracking-wider border-2 border-dashed"
-                            style={{ borderColor: `${bannerColor}50`, color: bannerColor }}
-                          >
-                            {c.code}
-                          </code>
-                        </div>
-                        <button
-                          onClick={() => copy(c.code)}
-                          className="inline-flex items-center gap-1 rounded-lg px-3.5 py-2 text-xs font-bold text-white transition-all"
-                          style={{ background: bannerColor }}
-                        >
-                          {copied === c.code ? (
-                            <>
-                              <Check className="h-3.5 w-3.5" /> {t('home.copiedShort')}
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="h-3.5 w-3.5" /> {t('home.copy')}
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                  </Card>
-                )
-              })}
-            </div>
-          </>
-        )}
+          </div>
+        ))}
       </div>
-    </section>
+    </HomeSection>
   )
 })

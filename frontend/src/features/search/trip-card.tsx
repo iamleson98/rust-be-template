@@ -1,133 +1,93 @@
-'use client'
-
-import type { TripResult } from '@/api'
 import { memo, useCallback } from 'react'
-import { Card } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { formatTimeVN, parseDateSafe } from '@/lib/format'
-import { GitCompare, Sparkles, Share2, ArrowRight } from 'lucide-react'
-import { useUi } from '@/stores/ui'
+import { useQueryClient } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
+import { ChevronRight, Droplet, GitCompare, Share2, Snowflake, Star, Wifi, Zap } from 'lucide-react'
+import { toast } from 'sonner'
+import { tripDetailOptions, type TripResult } from '@/api'
+import { formatCurrency, formatDuration, formatTimeVN, parseDateSafe } from '@/lib/format'
+import { useT } from '@/lib/i18n'
+import { AMENITY_LABELS } from '@/lib/labels'
+import { cn } from '@/lib/utils'
 import { useGuest } from '@/stores/guest'
 import { usePrefs } from '@/stores/prefs'
-import { useSearchForm } from '@/stores/search-form'
-import { useT } from '@/lib/i18n'
-import { useQueryClient } from '@tanstack/react-query'
-import { tripDetailOptions } from '@/api'
-import { useNavigate } from '@tanstack/react-router'
-import { toast } from 'sonner'
-import { TripCardAmenities, TripCardAmenitiesMobile } from './trip-card-amenities'
-import { TripCardPrice } from './trip-card-price'
-import { TripCardBrand } from './trip-card-brand'
+import { useUi } from '@/stores/ui'
 
-/** Format a date to short dd/mm for overnight trip display ('' when
- *  the value is missing/unparseable — e.g. arrivalAt is null for
- *  schedules without configured arrival times). Parses via
- *  parseDateSafe so timezone-less ISO strings are read as Vietnam time. */
-function formatShortDate(dateStr: string | null | undefined): string {
-  const d = parseDateSafe(dateStr)
-  if (!d) return ''
-  return new Intl.DateTimeFormat('vi-VN', {
-    day: '2-digit',
-    month: '2-digit',
-    timeZone: 'Asia/Ho_Chi_Minh',
-  }).format(d)
+const AMENITY_ICON: Record<string, typeof Wifi> = {
+  wifi: Wifi,
+  ac: Snowflake,
+  water: Droplet,
+  charging: Zap,
 }
 
-/** Check if arrival date differs from departure date (overnight trip).
- *  False when either timestamp is missing — no arrival info means we
- *  can't know, so we simply don't badge it. */
-function isOvernight(
-  departureAt: string | null | undefined,
-  arrivalAt: string | null | undefined,
-): boolean {
+const DAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' })
+
+/** Calendar days between departure and arrival in Vietnam (0 when unknown). */
+function daysLater(departureAt?: string | null, arrivalAt?: string | null): number {
   const dep = parseDateSafe(departureAt)
   const arr = parseDateSafe(arrivalAt)
-  if (!dep || !arr) return false
-  // Same dd/mm-in-Vietnam format as formatShortDate — an overnight
-  // trip is exactly "the short dates differ".
-  return formatShortDate(departureAt) !== formatShortDate(arrivalAt)
+  if (!dep || !arr) return 0
+  return Math.round((Date.parse(DAY.format(arr)) - Date.parse(DAY.format(dep))) / 86_400_000)
 }
 
+/** Minutes on the road, when the schedule gives an arrival time. */
+function minutesBetween(departureAt?: string | null, arrivalAt?: string | null) {
+  const dep = parseDateSafe(departureAt)
+  const arr = parseDateSafe(arrivalAt)
+  return dep && arr && arr > dep ? Math.round((arr.getTime() - dep.getTime()) / 60_000) : null
+}
+
+const initials = (name: string) =>
+  name
+    .split(/\s+/)
+    .map((w) => w[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase()
+
+/**
+ * One search result. The times and the journey lead (what people compare
+ * first), then the operator, then price and the way in. Every number is the
+ * API's: no "original" prices, no invented urgency — "almost full" means at
+ * most three seats left, "cheapest" means the lowest fare in these results.
+ */
 export const TripCard = memo(function TripCard({
   trip,
   onSelect,
-  isRecommended = false,
+  cheapest = false,
 }: {
   trip: TripResult
   onSelect?: () => void
-  isRecommended?: boolean
+  /** The lowest fare among the results on screen. */
+  cheapest?: boolean
 }) {
-  const lowSeats = trip.availableSeats <= 5 && trip.availableSeats > 0
-  const sellingFast = trip.availableSeats <= 3 && trip.availableSeats > 0
+  const t = useT()
+  const currency = usePrefs((s) => s.currency)
   const toggleCompare = useUi((s) => s.toggleCompare)
   const compareCount = useUi((s) => s.compareList.length)
   const inCompare = useUi((s) => s.compareList.includes(trip.tripId))
-  const openPriceAlert = useUi((s) => s.openPriceAlert)
   const openShare = useUi((s) => s.openShare)
   const pushRecentlyViewed = useGuest((s) => s.pushRecentlyViewed)
-  const searchDate = useSearchForm((s) => s.searchParams.date)
-  const currency = usePrefs((s) => s.currency)
-  const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const t = useT()
 
-  // Prefetch trip detail on hover so clicking feels instant — the dialog
-  // reads from the same query cache, so when the user clicks the result is
-  // already there. We use prefetchQuery (no throw on failure) with a long
-  // staleTime so the prefetched entry isn't immediately re-fetched.
-  const handleHoverPrefetch = useCallback(() => {
-    const opts = tripDetailOptions({ path: { id: trip.tripId } })
-    queryClient.prefetchQuery({
-      queryKey: opts.queryKey,
-      queryFn: opts.queryFn,
-      staleTime: 60 * 1000,
+  // Warm the detail query on hover: the trip dialog reads the same cache.
+  const prefetch = useCallback(() => {
+    void queryClient.prefetchQuery({
+      ...tripDetailOptions({ path: { id: trip.tripId } }),
+      staleTime: 60_000,
     })
   }, [queryClient, trip.tripId])
 
-  // Overnight trip detection — arrivalAt comes from the schedule's last
-  // stop; trips without configured arrival times simply don't badge.
-  const overnight = isOvernight(trip.departureAt, trip.arrivalAt)
-  // Date differs from search date?
-  const searchDateShort = searchDate ? formatShortDate(searchDate + 'T00:00:00+07:00') : null
-  const departureDateShort = formatShortDate(trip.departureAt)
-  const arrivalDateShort = formatShortDate(trip.arrivalAt)
-  const showDepartureDate = !!(
-    searchDateShort &&
-    departureDateShort &&
-    departureDateShort !== searchDateShort
-  )
-  const showArrivalDate = !!(
-    departureDateShort &&
-    arrivalDateShort &&
-    departureDateShort !== arrivalDateShort
-  )
-
-  // Amenities overflow
-  const maxVisibleAmenities = 4
-  const overflowCount = Math.max(0, trip.amenities.length - maxVisibleAmenities)
-
-  // Seat availability percentage
-  const seatAvailPct = trip.totalSeats > 0 ? (trip.availableSeats / trip.totalSeats) * 100 : 100
-  const availBarColor =
-    seatAvailPct > 50 ? 'bg-blue-500' : seatAvailPct > 20 ? 'bg-amber-500' : 'bg-rose-500'
-
-  const handleSelect = () => {
-    // Push to recently viewed
+  const select = () => {
     pushRecentlyViewed({
       tripId: trip.tripId,
       routeId: trip.routeId,
       label: `${trip.fromName} → ${trip.toName}`,
       brandName: trip.brandName,
     })
-    // Delegate navigation to the caller via onSelect — the search-results
-    // page (and any other consumer) passes `() => navigate({ to: '/trips/$tripId', ... })`
-    // so the URL becomes the source of truth. This keeps TripCard
-    // navigation-agnostic (no double-navigate race) while preserving
-    // side-effects like recently-viewed tracking.
     onSelect?.()
   }
 
-  const handleCompareToggle = (e: React.MouseEvent) => {
+  const compare = (e: React.MouseEvent) => {
     e.stopPropagation()
     if (!inCompare && compareCount >= 3) {
       toast.info(t('searchPage.compareMax'))
@@ -137,17 +97,7 @@ export const TripCard = memo(function TripCard({
     toast.success(inCompare ? t('searchPage.compareRemoved') : t('searchPage.compareAdded'))
   }
 
-  const handleBrandClick = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    navigate({ to: '/brands/$slug', params: { slug: trip.brandSlug } })
-  }
-
-  const handlePriceAlert = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    openPriceAlert({ fromName: trip.fromName, toName: trip.toName, minPrice: trip.minPrice })
-  }
-
-  const handleShare = (e: React.MouseEvent) => {
+  const share = (e: React.MouseEvent) => {
     e.stopPropagation()
     openShare({
       tripId: trip.tripId,
@@ -163,154 +113,189 @@ export const TripCard = memo(function TripCard({
     })
   }
 
-  // The share/compare cluster — rendered inline (NOT absolute) so it can
-  // never overlap the price column. Shared by the desktop time-row (as a
-  // trailing element) and the mobile header row.
+  const minutes = minutesBetween(trip.departureAt, trip.arrivalAt)
+  const plusDays = daysLater(trip.departureAt, trip.arrivalAt)
+  const fewSeats = trip.availableSeats > 0 && trip.availableSeats <= 5
+  const almostFull = trip.availableSeats > 0 && trip.availableSeats <= 3
+
   const quickActions = (
-    <div className="flex items-center gap-1.5 shrink-0">
+    <div className="flex shrink-0 items-center gap-1">
       <button
-        onClick={handleCompareToggle}
+        onClick={compare}
         title={t('searchPage.addToCompare')}
+        aria-label={t('searchPage.addToCompare')}
         aria-pressed={inCompare}
-        className={`h-8 w-8 rounded-full inline-flex items-center justify-center transition-colors ${
+        className={cn(
+          'grid size-8 place-items-center rounded-full transition-colors',
           inCompare
             ? 'bg-violet-600 text-white'
-            : 'bg-slate-50 text-slate-500 hover:bg-violet-50 hover:text-violet-600 ring-1 ring-slate-200'
-        }`}
+            : 'text-slate-400 hover:bg-violet-50 hover:text-violet-600',
+        )}
       >
-        <GitCompare className="h-3.5 w-3.5" />
+        <GitCompare className="size-4" />
       </button>
       <button
-        onClick={handleShare}
+        onClick={share}
         title={t('searchPage.shareTrip')}
-        className="h-8 w-8 rounded-full inline-flex items-center justify-center bg-slate-50 text-slate-500 hover:bg-blue-50 hover:text-blue-600 ring-1 ring-slate-200 transition-colors"
+        aria-label={t('searchPage.shareTrip')}
+        className="grid size-8 place-items-center rounded-full text-slate-400 transition-colors hover:bg-primary/10 hover:text-primary"
       >
-        <Share2 className="h-3.5 w-3.5" />
+        <Share2 className="size-4" />
       </button>
     </div>
   )
 
   return (
-    <div onMouseEnter={handleHoverPrefetch} data-testid="trip-card">
-      {/* Blue border highlight on hover — no lift, no transform, no
-          colored rings (per the flat user-page design language). */}
-      <Card className="overflow-visible border-border/60 hover:border-primary/40 transition-colors group relative">
-        {/* Recommended badge — sits flush on the top-left, above content */}
-        {isRecommended && (
-          <div className="absolute -top-2 left-3 z-20">
-            <Badge className="bg-amber-500 text-white gap-1 text-[10px] font-bold hover:bg-amber-500">
-              <Sparkles className="h-3 w-3" />
-              {t('searchPage.recommended')}
-            </Badge>
-          </div>
-        )}
-
-        <div className="flex flex-col md:flex-row">
-          <TripCardBrand trip={trip} onBrandClick={handleBrandClick} />
-
-          {/* Main content */}
-          <div className="flex-1 p-3 md:p-3.5 min-w-0">
-            {/* Mobile quick actions — inline row, never overlap content */}
-            <div className="md:hidden flex justify-end mb-2">{quickActions}</div>
-
-            <div className="flex flex-col lg:flex-row lg:items-center gap-3 lg:gap-5">
-              {/* Time + route — SYMMETRIC slots: departure time + start
-                  city on the left, arrival time + end city on the right
-                  (same value types on both ends). Fixed min widths so
-                  times never clip; names truncate instead of wrapping
-                  into the connector. */}
-              <div className="flex items-center gap-2 md:gap-3 min-w-0 flex-1">
-                <div className="text-center shrink-0 min-w-15">
-                  <div className="text-xl md:text-2xl font-bold leading-tight tabular-nums text-slate-900">
-                    {trip.departureTime}
-                  </div>
-                  {showDepartureDate && (
-                    <div className="text-[10px] text-blue-600 font-medium">
-                      {departureDateShort}
-                    </div>
-                  )}
-                  <div className="text-xs text-muted-foreground mt-0.5 truncate max-w-22.5 mx-auto">
-                    {trip.fromName}
-                  </div>
-                </div>
-
-                <div className="flex-1 min-w-12.5 md:min-w-17.5 max-w-32.5 relative flex items-center justify-center">
-                  <div className="w-full border-t-2 border-dashed border-slate-200 group-hover:border-blue-300 transition-colors" />
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    {overnight ? (
-                      <div className="bg-white px-1.5 text-[10px] text-amber-600 font-semibold whitespace-nowrap ring-1 ring-amber-200 rounded-full">
-                        {t('searchPage.plusOneDay')}
-                      </div>
-                    ) : (
-                      <span className="h-5 w-5 rounded-full bg-white ring-1 ring-slate-200 flex items-center justify-center text-slate-400 group-hover:text-blue-600 group-hover:ring-blue-300 transition-colors">
-                        <ArrowRight className="h-3 w-3" />
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <div className="text-center shrink-0 min-w-15">
-                  {trip.arrivalAt ? (
-                    <>
-                      <div className="text-xl md:text-2xl font-bold leading-tight tabular-nums text-slate-900">
-                        {formatTimeVN(trip.arrivalAt)}
-                      </div>
-                      {showArrivalDate && (
-                        <div className="text-[10px] text-blue-600 font-medium">
-                          {arrivalDateShort}
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    /* Data gap (schedule has no arrival times configured):
-                     * the destination takes the slot with a "view detail"
-                     * hint — honest, never an orphaned dash. */
-                    <div className="text-base md:text-lg font-semibold leading-tight text-slate-900">
-                      {trip.toName}
-                    </div>
-                  )}
-                  <div className="text-xs text-muted-foreground mt-0.5 truncate max-w-22.5 mx-auto">
-                    {trip.arrivalAt ? trip.toName : t('searchPage.viewArrival')}
-                  </div>
-                </div>
-
-                {/* Desktop quick actions — trailing element of the time
-                    row: right-aligned in the content area, structurally
-                    clear of the price column (no more absolute overlap). */}
-                <div className="hidden md:flex ml-auto">{quickActions}</div>
+    <article
+      data-testid="trip-card"
+      onMouseEnter={prefetch}
+      onClick={select}
+      className="group relative cursor-pointer rounded-2xl bg-white shadow-soft ring-1 ring-slate-200/80 transition duration-200 hover:shadow-float hover:ring-primary/35"
+    >
+      <div className="grid gap-4 p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-0 sm:p-0">
+        <div className="min-w-0 sm:p-5">
+          {/* Operator */}
+          <div className="flex items-center gap-2.5">
+            <span
+              className="grid size-9 shrink-0 place-items-center rounded-xl text-xs font-bold text-white"
+              style={{ background: trip.brandAccent }}
+            >
+              {initials(trip.brandName)}
+            </span>
+            <div className="min-w-0 flex-1">
+              <Link
+                to="/brands/$slug"
+                params={{ slug: trip.brandSlug }}
+                onClick={(e) => e.stopPropagation()}
+                className="block truncate text-sm font-semibold text-slate-900 hover:text-primary"
+                title={t('searchPage.viewBrandDetails', { name: trip.brandName })}
+              >
+                {trip.brandName}
+              </Link>
+              <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                {trip.brandRating != null && (
+                  <>
+                    <span className="inline-flex items-center gap-0.5 font-medium text-slate-700">
+                      <Star className="size-3 fill-amber-400 text-amber-400" />
+                      {trip.brandRating.toFixed(1)}
+                    </span>
+                    <span aria-hidden>·</span>
+                  </>
+                )}
+                <span className="truncate">{trip.vehicleTypeLabel}</span>
               </div>
-
-              <TripCardAmenities
-                trip={trip}
-                maxVisibleAmenities={maxVisibleAmenities}
-                overflowCount={overflowCount}
-                lowSeats={lowSeats}
-                sellingFast={sellingFast}
-                availBarColor={availBarColor}
-                seatAvailPct={seatAvailPct}
-              />
             </div>
-
-            <TripCardAmenitiesMobile
-              trip={trip}
-              maxVisibleAmenities={maxVisibleAmenities}
-              overflowCount={overflowCount}
-              lowSeats={lowSeats}
-              sellingFast={sellingFast}
-              availBarColor={availBarColor}
-              seatAvailPct={seatAvailPct}
-            />
+            {quickActions}
           </div>
 
-          <TripCardPrice
-            trip={trip}
-            sellingFast={sellingFast}
-            currency={currency}
-            onSelect={handleSelect}
-            onPriceAlert={handlePriceAlert}
-          />
+          {/* Journey */}
+          <div className="mt-4 grid grid-cols-[auto_minmax(2.5rem,1fr)_auto] items-center gap-x-3">
+            <div className="text-[1.375rem] leading-none font-bold tracking-tight text-slate-900 tabular-nums sm:text-2xl">
+              {trip.departureTime}
+            </div>
+            <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-400">
+              <span className="size-1.5 shrink-0 rounded-full border border-slate-300" />
+              <span className="h-px flex-1 border-t border-dashed border-slate-300" />
+              {minutes != null && (
+                <span className="shrink-0 text-slate-500">{formatDuration(minutes)}</span>
+              )}
+              {minutes != null && (
+                <span className="h-px flex-1 border-t border-dashed border-slate-300" />
+              )}
+              <span className="size-1.5 shrink-0 rounded-full bg-slate-300" />
+            </div>
+            <div className="text-right text-[1.375rem] leading-none font-bold tracking-tight text-slate-900 tabular-nums sm:text-2xl">
+              {trip.arrivalAt ? (
+                <>
+                  {formatTimeVN(trip.arrivalAt)}
+                  {plusDays > 0 && (
+                    <sup className="ml-0.5 text-[10px] font-semibold text-amber-600">
+                      +{plusDays}
+                    </sup>
+                  )}
+                </>
+              ) : (
+                // No arrival time on this schedule: the destination takes the slot.
+                <span className="block max-w-32 truncate text-base font-semibold text-slate-900">
+                  {trip.toName}
+                </span>
+              )}
+            </div>
+            <div className="mt-1.5 truncate text-xs text-slate-500">{trip.fromName}</div>
+            <div />
+            <div className="mt-1.5 truncate text-right text-xs text-slate-500">
+              {trip.arrivalAt ? trip.toName : t('searchPage.viewArrival')}
+            </div>
+          </div>
+
+          {/* Comfort */}
+          {trip.amenities.length > 0 && (
+            <div className="mt-4 flex flex-wrap items-center gap-1.5">
+              {trip.amenities.slice(0, 4).map((a) => {
+                const Icon = AMENITY_ICON[a]
+                return (
+                  <span
+                    key={a}
+                    className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600"
+                  >
+                    {Icon && <Icon className="size-3" />}
+                    {t(AMENITY_LABELS[a] ?? a)}
+                  </span>
+                )
+              })}
+              {trip.amenities.length > 4 && (
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-500">
+                  +{trip.amenities.length - 4}
+                </span>
+              )}
+            </div>
+          )}
         </div>
-      </Card>
-    </div>
+
+        {/* Fare and the way in */}
+        <div className="flex items-center justify-between gap-3 border-t border-slate-100 pt-4 sm:w-48 sm:flex-col sm:items-end sm:justify-center sm:border-t-0 sm:border-l sm:p-5 md:w-52">
+          <div className="min-w-0 sm:text-right">
+            <div className="flex flex-wrap gap-1 sm:justify-end">
+              {cheapest && (
+                <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+                  {t('searchPage.cheapest')}
+                </span>
+              )}
+              {almostFull && (
+                <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-semibold text-rose-600">
+                  {t('searchPage.almostFull')}
+                </span>
+              )}
+            </div>
+            <div className="mt-1 text-xl font-extrabold tracking-tight whitespace-nowrap text-slate-900 tabular-nums sm:text-2xl">
+              {trip.maxPrice > trip.minPrice && (
+                <span className="mr-1 text-xs font-medium text-slate-500">
+                  {t('home.priceFrom')}
+                </span>
+              )}
+              {formatCurrency(trip.minPrice, currency)}
+            </div>
+            <div
+              className={cn('text-xs', fewSeats ? 'font-semibold text-rose-600' : 'text-slate-500')}
+            >
+              {fewSeats
+                ? t('searchPage.onlySeatsLeft', { count: trip.availableSeats })
+                : `${trip.availableSeats} ${t('common.seatsAvailable')}`}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              select()
+            }}
+            className="inline-flex h-10 shrink-0 items-center gap-1 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 sm:mt-3 sm:w-full sm:justify-center"
+          >
+            {t('searchPage.selectTrip')}
+            <ChevronRight className="size-4 transition-transform group-hover:translate-x-0.5" />
+          </button>
+        </div>
+      </div>
+    </article>
   )
 })

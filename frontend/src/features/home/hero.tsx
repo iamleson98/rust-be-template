@@ -1,95 +1,85 @@
-'use client'
-
 import { useQuery } from '@tanstack/react-query'
+import { Armchair, BusFront, QrCode, ShieldCheck } from 'lucide-react'
 import { statsOptions } from '@/api'
 import { SearchWidget } from '@/features/search/widget/search-widget'
-import { TrustBar } from '@/components/seo/trust-signals'
+import { formatNum } from '@/lib/format'
 import { useT } from '@/lib/i18n'
-import { ChevronDown } from 'lucide-react'
 import { HeroBackground } from './hero-background'
 import { WelcomeBar } from './welcome-bar'
-import { HeroTrustBadges } from './hero-trust-badges'
-import { HeroStat } from './hero-stat'
-import { HeroTrustedBy } from './hero-trusted-by'
 
+/** What the product really does for a traveller — features, not claims. */
+const FEATURES = [
+  { icon: BusFront, title: 'home.featureCompare', body: 'home.featureCompareBody' },
+  { icon: Armchair, title: 'home.featureSeats', body: 'home.featureSeatsBody' },
+  { icon: QrCode, title: 'home.featureTicket', body: 'home.featureTicketBody' },
+  { icon: ShieldCheck, title: 'home.featurePay', body: 'home.featurePayBody' },
+] as const
+
+/**
+ * The landing hero: a framed photo with the promise, the search card lifted
+ * over its lower edge (the one thing to do here), then what booking here gets
+ * you. Platform numbers come straight from `GET /api/stats`.
+ */
 export function Hero() {
   const t = useT()
-
-  // NOTE: the fabricated "Flash Sale" countdown that used to live here was
-  // removed — it set a fake 23h59m deadline not backed by any campaign API
-  // and its 1-second interval re-rendered the whole hero, hurting both
-  // honesty and load/CPU performance. The WelcomeBar below greets the
-  // visitor with REAL data instead (active tickets for signed-in users).
-
-  // Real platform stats (brands / routes / trips straight from
-  // GET /api/stats). The previous version ALSO showed a made-up
-  // "125.000+ passengers" badge and a "Places: 0" stat tile — both gone.
-  const { data: statsData } = useQuery(statsOptions())
+  const { data: stats } = useQuery(statsOptions())
+  const counts = stats
+    ? [
+        { value: Number(stats.brands) || 0, label: t('home.statBrands') },
+        { value: Number(stats.routes) || 0, label: t('home.statRoutes') },
+        { value: Number(stats.trips) || 0, label: t('home.statTrips') },
+      ].filter((c) => c.value > 0)
+    : []
 
   return (
-    <section className="relative overflow-hidden isolate">
-      {/* Background — section is a stacking context (isolate), so bg layers stay behind content but above page bg.
-          Natural photography look: clearer image, softer warm-to-neutral overlay instead of heavy blue. */}
-      <HeroBackground />
-
-      <div className="relative container mx-auto px-4 pt-12 pb-16 md:pt-20 md:pb-24">
-        <div className="max-w-3xl text-white">
-          <h1 className="text-balance text-4xl md:text-6xl font-extrabold tracking-tight leading-[1.05]">
-            <span className="text-white">{t('hero.title')}</span>
-            <br />
-            <span className="bg-linear-to-r from-amber-300 via-yellow-200 to-amber-300 bg-clip-text text-transparent">
-              {t('hero.titleHighlight')}
-            </span>
+    <section className="page-x pt-3 sm:pt-5">
+      <div className="relative isolate overflow-hidden rounded-3xl sm:rounded-[2rem]">
+        <HeroBackground />
+        <div className="px-5 pt-9 pb-24 sm:px-10 sm:pt-14 sm:pb-32 lg:px-14 lg:pt-20 lg:pb-40">
+          <h1 className="max-w-2xl text-[2rem] leading-[1.08] font-extrabold tracking-tight text-balance text-white sm:text-5xl lg:text-6xl">
+            {t('hero.title')} <span className="text-amber-300">{t('hero.titleHighlight')}</span>
           </h1>
-          <p className="mt-5 text-base md:text-lg text-blue-50/95 max-w-2xl leading-relaxed">
+          <p className="mt-4 max-w-xl text-[15px] leading-relaxed text-white/85 sm:text-lg">
             {t('hero.subtitle')}
           </p>
-        </div>
-
-        {/* Friendly personalized welcome — real data, no timers */}
-        <WelcomeBar />
-
-        {/* Search widget — z-40 lifts the whole widget (and its city
-            picker popup) above later siblings like TrustBadges that
-            also create their own stacking contexts via backdrop-blur. */}
-        <div className="relative z-40 mt-8 md:mt-10">
-          <div className="md:rounded-3xl md:bg-white/15 md:p-2 md:ring-1 md:ring-white/25 md:backdrop-blur-md">
-            <SearchWidget />
-          </div>
-        </div>
-
-        {/* Trust badges */}
-        <HeroTrustBadges />
-
-        {/* Stats — real numbers from the platform */}
-        {statsData && (
-          <div className="mt-8 grid grid-cols-3 gap-2 text-white sm:gap-4 md:mt-10">
-            <HeroStat value={Number(statsData.brands) || 0} label={t('home.statBrands')} />
-            <HeroStat value={Number(statsData.routes) || 0} label={t('home.statRoutes')} />
-            <HeroStat value={Number(statsData.trips) || 0} label={t('home.statTrips')} />
-          </div>
-        )}
-
-        {/* Trusted-by logos strip — REAL brands from the API */}
-        <HeroTrustedBy />
-
-        {/* Scroll down indicator */}
-        <div className="mt-10 flex justify-center">
-          <button
-            onClick={() => window.scrollTo({ top: window.innerHeight, behavior: 'smooth' })}
-            className="flex flex-col items-center gap-1 text-white/70 hover:text-white transition-colors"
-            aria-label={t('home.scrollDown')}
-          >
-            <span className="text-[11px] font-bold uppercase tracking-widest">
-              {t('home.discover')}
-            </span>
-            <ChevronDown className="h-5 w-5 animate-bounce" />
-          </button>
+          <WelcomeBar />
+          {counts.length > 0 && (
+            <dl className="mt-6 hidden flex-wrap gap-x-6 gap-y-2 text-white sm:flex">
+              {counts.map((c) => (
+                <div key={c.label} className="flex items-baseline gap-1.5">
+                  <dt className="sr-only">{c.label}</dt>
+                  <dd className="text-xl font-bold tabular-nums">{formatNum(c.value)}</dd>
+                  <span className="text-sm text-white/70">{c.label}</span>
+                </div>
+              ))}
+            </dl>
+          )}
         </div>
       </div>
 
-      {/* Trust signals bar — SSL + data protection + Decree 13 compliance */}
-      <TrustBar className="bg-white/95 dark:bg-slate-900/95 border-t border-border" />
+      {/* Lifted over the photo's lower edge; z-30 keeps its place picker above later sections. */}
+      <div className="relative z-30 -mt-16 sm:-mt-20 sm:px-4 lg:-mt-24 lg:px-10">
+        <SearchWidget />
+      </div>
+
+      <ul className="mt-6 grid grid-cols-2 gap-x-3 gap-y-4 sm:mt-10 sm:gap-x-4 sm:gap-y-6 lg:grid-cols-4 lg:px-10">
+        {FEATURES.map((f) => (
+          <li key={f.title} className="flex items-center gap-3 sm:items-start">
+            <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-primary/10 text-primary">
+              <f.icon className="size-5" />
+            </span>
+            <div className="min-w-0">
+              <div className="text-[13px] leading-snug font-semibold text-slate-900 sm:text-sm">
+                {t(f.title)}
+              </div>
+              {/* Phones: the titles say enough; the detail would crowd the half-width cells. */}
+              <p className="mt-0.5 hidden text-[13px] leading-relaxed text-slate-500 sm:block">
+                {t(f.body)}
+              </p>
+            </div>
+          </li>
+        ))}
+      </ul>
     </section>
   )
 }

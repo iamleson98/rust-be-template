@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Search } from 'lucide-react'
 import { buildSearchInput } from '@/lib/search-params'
 import { cn } from '@/lib/utils'
-import { useIsMobile } from '@/hooks/use-mobile'
+import { useMediaQuery } from '@/hooks/use-media-query'
 import { searchSchema, type SearchFormValues } from './schema'
 import { SearchRouteFields } from './route-fields'
 import { SearchDateFields } from './date-fields'
@@ -25,7 +25,8 @@ export function SearchWidget({ compact = false }: { compact?: boolean }) {
   const searchParams = useSearchForm((s) => s.searchParams)
   const setSearchParams = useSearchForm((s) => s.setSearchParams)
   const navigate = useNavigate()
-  const isMobile = useIsMobile()
+  // Below lg (phones and tablets) the results page shows a one-line summary instead of the form row.
+  const narrow = useMediaQuery('(max-width: 1023px)')
   const [paxOpen, setPaxOpen] = useState(false)
   // Mobile (compact mode): the stacked form lives in a bottom sheet that
   // opens from the one-line summary row — a 48px bar instead of a ~380px
@@ -158,12 +159,11 @@ export function SearchWidget({ compact = false }: { compact?: boolean }) {
   // its own validation message, so no manual "open the picker" hint.
   const onSubmit = form.handleSubmit(onValid)
 
-  // ── Compact mode on a PHONE: summary row + bottom-sheet form ──
-  // The full stacked widget measured ~380px on a 844px viewport and sat
-  // above the results — the results column started below the fold. The
-  // summary row keeps the sticky bar at one line; tapping it opens the
-  // form in a sheet with proper focus + big touch targets.
-  if (compact && isMobile) {
+  // ── Compact mode below lg: summary row + bottom-sheet form ──
+  // The stacked form filled a phone's (and a tablet's) first screen and pushed
+  // the results below the fold. The summary keeps the sticky bar to one line;
+  // tapping it opens the form in a sheet with big touch targets.
+  if (compact && narrow) {
     return (
       <MobileSearchSummary
         searchParams={searchParams}
@@ -185,8 +185,10 @@ export function SearchWidget({ compact = false }: { compact?: boolean }) {
   return (
     <div
       className={cn(
-        'relative z-50 rounded-2xl bg-white/95 backdrop-blur-xl border border-slate-200',
-        compact ? 'p-2.5 md:p-3' : 'p-3 sm:p-4 md:p-5',
+        'relative z-50 bg-white',
+        compact
+          ? 'rounded-2xl border border-slate-200 p-2.5 md:p-3'
+          : 'rounded-3xl p-4 shadow-float ring-1 ring-slate-900/5 sm:p-5 md:p-6',
       )}
     >
       <Form {...form}>
@@ -228,7 +230,8 @@ export function SearchWidget({ compact = false }: { compact?: boolean }) {
                 <Button
                   type="submit"
                   disabled={submitting}
-                  className="h-10 w-full shrink-0 gap-2 px-5 lg:w-auto lg:min-w-36"
+                  // Level with the inputs: the fields reserve a message line below them.
+                  className="h-10 w-full shrink-0 gap-2 px-5 lg:mb-5 lg:w-auto lg:min-w-36"
                 >
                   <Search className="h-4 w-4" />
                   <span>{submitting ? t('home.searching') : t('search.btn')}</span>

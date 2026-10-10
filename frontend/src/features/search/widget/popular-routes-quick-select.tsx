@@ -1,18 +1,19 @@
-'use client'
-
-// Extracted from the original 'search-widget.tsx'.
-
-import type { SearchParams } from '@/lib/search-params'
-import { Route } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { useT } from '@/lib/i18n'
+import { useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { buildSearchInput } from '@/lib/search-params'
+import { routesOptions } from '@/api'
+import { useT } from '@/lib/i18n'
+import { buildSearchInput, type SearchParams } from '@/lib/search-params'
+import { cn } from '@/lib/utils'
 
-/** Quick shortcuts for the most-travelled corridors — one tap fills the
- *  form AND runs the search (the same interaction model as the popular
- *  routes section further down the page). Users who want a different
- *  date can refine it in the compact bar on the results page. */
+/** "TP. Hồ Chí Minh" → "Hồ Chí Minh": chips stay short. */
+const short = (name: string) => name.replace(/^(TP\.|Tp\.|Thành phố)\s*/u, '')
+
+/**
+ * One-tap shortcuts under the home search card: the platform's own routes
+ * (the same list as the popular-routes section), each filling the form and
+ * running the search with the date and passengers already chosen.
+ */
 export function PopularRoutesQuickSelect({
   searchParams,
   setSearchParams,
@@ -22,6 +23,20 @@ export function PopularRoutesQuickSelect({
 }) {
   const t = useT()
   const navigate = useNavigate()
+  const { data } = useQuery(routesOptions())
+  const routes = useMemo(() => {
+    const seen = new Set<string>()
+    return (data?.items ?? [])
+      .filter((r) => {
+        const key = `${r.from.name}→${r.to.name}`
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
+      .slice(0, 5)
+  }, [data])
+
+  if (routes.length === 0) return null
 
   const go = (from: string, to: string) => {
     setSearchParams({ from, to })
@@ -42,38 +57,28 @@ export function PopularRoutesQuickSelect({
   }
 
   return (
-    <div className="mt-3 pt-3 border-t border-slate-100">
-      <div className="flex items-center gap-1.5 mb-2">
-        <Route className="h-3.5 w-3.5 text-muted-foreground" />
-        <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
-          {t('search.popularRoutes')}
-        </span>
-      </div>
-      <div className="flex flex-wrap gap-2">
-        {[
-          { from: 'Hà Nội', to: 'Đà Nẵng', label: 'HN → ĐN' },
-          { from: 'Hà Nội', to: 'TP. Hồ Chí Minh', label: 'HN → SG' },
-          { from: 'TP. Hồ Chí Minh', to: 'Đà Lạt', label: 'SG → ĐL' },
-          { from: 'TP. Hồ Chí Minh', to: 'Nha Trang', label: 'SG → NT' },
-        ].map((r) => {
-          const active = searchParams.from === r.from && searchParams.to === r.to
-          return (
-            <button
-              key={r.label}
-              type="button"
-              onClick={() => go(r.from, r.to)}
-              className={cn(
-                'shrink-0 rounded-full px-3 py-1 text-[11px] font-medium border transition-all',
-                active
-                  ? 'bg-primary/5 border-primary/40 text-primary'
-                  : 'bg-slate-50 border-slate-200 text-slate-600 hover:border-primary/40 hover:text-primary hover:bg-primary/5',
-              )}
-            >
-              {r.label}
-            </button>
-          )
-        })}
-      </div>
+    <div className="mt-4 flex items-center gap-2 overflow-x-auto border-t border-slate-100 pt-4 [scrollbar-width:none]">
+      <span className="shrink-0 text-xs font-medium text-slate-500">
+        {t('search.popularRoutes')}:
+      </span>
+      {routes.map((r) => {
+        const active = searchParams.from === r.from.name && searchParams.to === r.to.name
+        return (
+          <button
+            key={r.id}
+            type="button"
+            onClick={() => go(r.from.name, r.to.name)}
+            className={cn(
+              'shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-colors',
+              active
+                ? 'border-primary/40 bg-primary/5 text-primary'
+                : 'border-slate-200 bg-white text-slate-600 hover:border-primary/40 hover:bg-primary/5 hover:text-primary',
+            )}
+          >
+            {short(r.from.name)} → {short(r.to.name)}
+          </button>
+        )
+      })}
     </div>
   )
 }

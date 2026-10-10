@@ -1,10 +1,9 @@
 /**
- * Tests for trust-signal components — TrustBar, PrivacyNotice,
- * PaymentTrustBadges.
+ * Tests for trust-signal components — TrustBar and PrivacyNotice.
  */
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import { TrustBar, PrivacyNotice, PaymentTrustBadges } from '@/components/seo/trust-signals'
+import { TrustBar, PrivacyNotice } from '@/components/seo/trust-signals'
 
 describe('TrustBar', () => {
   it('renders all 3 trust badges', () => {
@@ -44,14 +43,5 @@ describe('PrivacyNotice', () => {
   it('has an accessible note role', () => {
     render(<PrivacyNotice />)
     expect(screen.getByRole('note', { name: /bảo mật/i })).toBeInTheDocument()
-  })
-})
-
-describe('PaymentTrustBadges', () => {
-  it('renders SSL, PCI DSS, and refund badges', () => {
-    render(<PaymentTrustBadges />)
-    expect(screen.getByText('Mã hoá SSL')).toBeInTheDocument()
-    expect(screen.getByText('PCI DSS')).toBeInTheDocument()
-    expect(screen.getByText('Hoàn tiền 24h')).toBeInTheDocument()
   })
 })

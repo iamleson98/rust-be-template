@@ -105,10 +105,12 @@ export function TripResultsList({
         ? ['searchPage.noTripsFound', 'searchPage.noTripsHint']
         : ['searchPage.noTripsMatchFilters', 'searchPage.noMatchHint']
     return (
-      <div className="rounded-xl border bg-white p-10 text-center">
-        <AlertCircle className="mx-auto mb-3 h-10 w-10 text-amber-500" />
-        <h3 className="text-lg font-semibold">{t(title)}</h3>
-        <p className="mt-1 text-sm text-muted-foreground">{t(hint)}</p>
+      <div className="rounded-2xl bg-white px-6 py-12 text-center shadow-soft ring-1 ring-slate-200/80">
+        <span className="mx-auto mb-4 grid size-14 place-items-center rounded-full bg-amber-50 text-amber-500">
+          <AlertCircle className="size-7" />
+        </span>
+        <h3 className="text-lg font-semibold text-slate-900">{t(title)}</h3>
+        <p className="mx-auto mt-1 max-w-sm text-sm text-slate-500">{t(hint)}</p>
         {results.length > 0 && hasActiveFilters && (
           <Button
             onClick={onResetFilters}
@@ -128,14 +130,19 @@ export function TripResultsList({
     )
   }
 
+  // "Cheapest" only when one trip alone has the lowest fare among several.
+  const lowest = Math.min(...filtered.map((r) => r.minPrice))
+  const atLowest = filtered.filter((r) => r.minPrice === lowest)
+  const cheapestId = filtered.length > 1 && atLowest.length === 1 ? atLowest[0].tripId : null
+
   return (
     <div className="space-y-3">
-      {filtered.map((trip, i) => (
+      {filtered.map((trip) => (
         <TripCard
           key={trip.tripId}
           trip={trip}
           onSelect={() => navigate({ to: '/trips/$tripId', params: { tripId: trip.tripId } })}
-          isRecommended={i === 0 && filtered.length > 1}
+          cheapest={trip.tripId === cheapestId}
         />
       ))}
       {pagination.hasMore && <LoadMore pagination={pagination} showing={results.length} />}

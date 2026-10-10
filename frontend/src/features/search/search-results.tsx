@@ -8,9 +8,11 @@ import { useT } from '@/lib/i18n'
 import type { SortKey } from '@/lib/search-params'
 import { SearchWidget } from './widget/search-widget'
 import { ActiveFilterChips } from './active-filter-chips'
-import { CompareTray } from './compare-tray'
 import { FiltersSidebar } from './filters-sidebar'
 import { ResultsActions } from './results-actions'
+import { DateStrip } from './date-strip'
+import { SortTabs } from './filter-controls'
+import { MobileFilters } from './mobile-filters'
 import { RouteDirectory } from './route-directory'
 import { SavedSearchesList } from './saved-searches'
 import { useTripSearchInfinite } from './api'
@@ -69,61 +71,66 @@ export function SearchResults() {
   const precise = search.fromLat !== undefined
 
   return (
-    <div className="min-h-[60vh] bg-slate-50">
-      <div className="sticky top-(--header-h) z-30 border-b bg-white/90 backdrop-blur-lg">
-        <div className="container mx-auto px-4 py-2 md:py-3">
+    <div className="min-h-[60vh]">
+      <div className="sticky top-(--header-h) z-30 border-b border-slate-200/80 bg-white/90 backdrop-blur-xl">
+        <div className="page-x py-2 lg:py-3">
           <SearchWidget compact />
         </div>
       </div>
 
       {browsing ? (
-        <div className="container mx-auto px-4 py-6">
+        <div className="page-x py-6">
           <RouteDirectory />
         </div>
       ) : (
-        <>
-          {precise && (
-            <div className="border-b bg-white/80 backdrop-blur">
-              <div className="container mx-auto px-4 py-2">
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700 ring-1 ring-emerald-200">
-                  <Navigation2 className="h-3.5 w-3.5" />
-                  {t('searchPage.smartSearchShort')}
-                </span>
-              </div>
-            </div>
-          )}
+        <div className="page-x py-5 md:py-6">
+          {search.date && <DateStrip date={search.date} onPick={(date) => update({ date })} />}
 
-          <div className="container mx-auto px-4 py-6">
-            <div className="flex flex-col gap-6 lg:flex-row">
-              <FiltersSidebar results={results} rf={rf} />
+          <div className="mt-5 flex gap-6">
+            <FiltersSidebar results={results} rf={rf} />
 
-              <div className="min-w-0 flex-1">
-                <div className="mb-4 flex items-center justify-between gap-3">
-                  <div>
-                    <h1 className="text-xl font-extrabold md:text-2xl">
-                      {search.from} → {search.to}
-                    </h1>
-                    <p className="text-sm text-muted-foreground">
-                      {loading
-                        ? t('searchPage.searchingTrips')
-                        : t('searchPage.tripsFound', {
-                            found: rf.filtered.length,
-                            total,
-                          })}
-                    </p>
-                  </div>
-                  <ResultsActions search={search} results={results} rf={rf} onSave={saveSearch} />
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
+                <div className="min-w-0">
+                  <h1 className="text-xl font-bold tracking-tight text-balance text-slate-900 md:text-2xl">
+                    {search.from} → {search.to}
+                  </h1>
+                  <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-sm text-slate-500">
+                    {loading
+                      ? t('searchPage.searchingTrips')
+                      : t('searchPage.tripsFound', { found: rf.filtered.length, total })}
+                    {precise && (
+                      <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700">
+                        <Navigation2 className="size-3" />
+                        {t('searchPage.smartSearchShort')}
+                      </span>
+                    )}
+                  </p>
                 </div>
+                <ResultsActions search={search} results={results} onSave={saveSearch} />
+              </div>
 
-                {rf.activeCount > 0 && <ActiveFilterChips rf={rf} brandNames={brandNames} />}
-                {saved.items.length > 0 && (
-                  <SavedSearchesList
-                    items={saved.items}
-                    onApply={applySaved}
-                    onRemove={saved.remove}
-                  />
-                )}
-                <CompareTray />
+              {/* Sort for everyone; the filters button below lg (the sidebar takes over above). */}
+              <div className="mt-4 flex items-center gap-2">
+                <SortTabs />
+                <div className="ml-auto shrink-0">
+                  <MobileFilters results={results} rf={rf} />
+                </div>
+              </div>
+
+              {rf.activeCount > 0 && (
+                <div className="mt-3">
+                  <ActiveFilterChips rf={rf} brandNames={brandNames} />
+                </div>
+              )}
+              {saved.items.length > 0 && (
+                <SavedSearchesList
+                  items={saved.items}
+                  onApply={applySaved}
+                  onRemove={saved.remove}
+                />
+              )}
+              <div className="mt-4">
                 <TripResultsList
                   loading={loading}
                   results={results}
@@ -142,7 +149,7 @@ export function SearchResults() {
               </div>
             </div>
           </div>
-        </>
+        </div>
       )}
     </div>
   )

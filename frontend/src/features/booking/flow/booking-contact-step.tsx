@@ -25,8 +25,6 @@ export function BookingContactStep({
   const t = useT()
   return (
     <div className="p-5 space-y-5">
-      <PrivacyNotice />
-
       <div>
         <h3 className="font-semibold text-sm mb-3">{t('booking.contactInfo')}</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
@@ -106,6 +104,9 @@ export function BookingContactStep({
           />
         </div>
       </div>
+
+      {/* After the fields: what happens to the details, once they are typed. */}
+      <PrivacyNotice />
 
       {error && (
         <div className="rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-sm px-3 py-2">

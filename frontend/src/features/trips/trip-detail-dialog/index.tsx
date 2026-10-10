@@ -37,8 +37,9 @@ import { tripStops } from './trip-stops'
 /** Seats one booking may hold. */
 const MAX_SEATS = 10
 
+// Underlined tabs: icon over label on phones, side by side from sm.
 const TAB =
-  'flex flex-col items-center justify-center gap-1.5 whitespace-normal rounded-none border-r border-slate-200/70 px-1 py-2.5 text-[11px] leading-tight sm:flex-row sm:text-xs'
+  'relative h-auto flex-col gap-1 whitespace-normal rounded-none border-0 px-1 py-2.5 text-[11px] leading-tight text-slate-500 after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:rounded-full hover:text-slate-900 data-[active]:text-primary data-[active]:after:bg-primary sm:flex-row sm:gap-1.5 sm:text-sm'
 
 /**
  * A trip in full: seat map, stops, fares and reviews, then the booking wizard, which
@@ -180,7 +181,7 @@ function TripView({ detail }: { detail: TripDetail }) {
       <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden md:grid-cols-[1fr_320px] lg:grid-cols-[1.3fr_420px]">
         <div className="flex min-h-0 flex-col overflow-hidden md:border-r">
           <Tabs defaultValue="seats" className="flex min-h-0 flex-1 flex-col">
-            <TabsList className="grid h-auto w-full shrink-0 grid-cols-5 rounded-none border-b bg-slate-50 p-0 md:grid-cols-4">
+            <TabsList className="grid h-auto w-full shrink-0 grid-cols-5 rounded-none border-b border-slate-200/80 bg-white p-0 px-2 md:grid-cols-4">
               <TabsTrigger value="seats" className={TAB}>
                 <Bus className="h-4 w-4 shrink-0" /> {t('booking.seatSelector')}
               </TabsTrigger>
@@ -193,7 +194,7 @@ function TripView({ detail }: { detail: TripDetail }) {
               <TabsTrigger value="info" className={TAB}>
                 <CheckCircle2 className="h-4 w-4 shrink-0" /> {t('tripDetail.tabPolicy')}
               </TabsTrigger>
-              <TabsTrigger value="reviews" className={`${TAB} border-r-0`}>
+              <TabsTrigger value="reviews" className={TAB}>
                 <MessageSquareQuote className="h-4 w-4 shrink-0" /> {t('tripDetail.tabReviews')}
               </TabsTrigger>
             </TabsList>
@@ -296,7 +297,7 @@ function TripView({ detail }: { detail: TripDetail }) {
           </Tabs>
         </div>
 
-        <aside className="hidden min-h-0 flex-col bg-slate-50 md:flex">
+        <aside className="hidden min-h-0 flex-col bg-canvas md:flex">
           <ScrollArea className="min-h-0 flex-1">
             <div className="space-y-5 p-4 md:p-5">
               {timeline}
