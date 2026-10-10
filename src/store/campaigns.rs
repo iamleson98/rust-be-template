@@ -75,7 +75,7 @@ pub struct CampaignBundle {
 pub struct TierSpec {
     pub id: Option<Uuid>,
     pub amount: i64,
-    pub total_slots: i32,
+    pub total_slots: i64,
     pub position: i16,
 }
 
@@ -111,7 +111,7 @@ pub enum ClaimOutcome {
     /// The coupon, and the slots its tier has left.
     Claimed {
         coupon: coupon::Model,
-        remaining: i32,
+        remaining: i64,
     },
     /// The account already holds this coupon.
     AlreadyHolding(coupon::Model),

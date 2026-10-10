@@ -29,7 +29,7 @@ const PUBLIC_TTL: Duration = Duration::from_secs(15);
 /// An account younger than this when it claims is flagged for review.
 const NEW_ACCOUNT_HOURS: i64 = 24;
 const MAX_TIERS: usize = 20;
-const MAX_SLOTS: i32 = 1_000_000;
+const MAX_SLOTS: i64 = 1_000_000;
 const MIN_AMOUNT: i64 = 1_000;
 const MAX_AMOUNT: i64 = 10_000_000;
 const MAX_DAYS: i64 = 366;
@@ -185,7 +185,7 @@ impl CampaignService {
     /// query. Counts only go down here, so a racing claim that read an older
     /// count never raises it (slots coming back invalidate the entry
     /// instead), and the entry keeps the expiry it was loaded with.
-    async fn note_remaining(&self, tier_id: Uuid, remaining: i32) {
+    async fn note_remaining(&self, tier_id: Uuid, remaining: i64) {
         let cache = self.cache.as_ref();
         let Ok(Some(mut list)) =
             get_serializable::<PublicCampaignListResponse>(cache, PUBLIC_KEY).await

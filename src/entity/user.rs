@@ -50,6 +50,10 @@ pub enum Relation {
     ChatChannel,
     #[sea_orm(has_many = "super::chat_channel_member::Entity")]
     ChatChannelMember,
+    #[sea_orm(has_many = "super::coupon::Entity")]
+    Coupon,
+    #[sea_orm(has_many = "super::discount_campaign::Entity")]
+    DiscountCampaign,
     #[sea_orm(has_many = "super::notification::Entity")]
     Notification,
     #[sea_orm(has_many = "super::payment::Entity")]
@@ -85,6 +89,18 @@ impl Related<super::chat_channel::Entity> for Entity {
 impl Related<super::chat_channel_member::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::ChatChannelMember.def()
+    }
+}
+
+impl Related<super::coupon::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Coupon.def()
+    }
+}
+
+impl Related<super::discount_campaign::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::DiscountCampaign.def()
     }
 }
 

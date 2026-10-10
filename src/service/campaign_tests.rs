@@ -25,7 +25,7 @@ fn at(offset: chrono::Duration) -> String {
     (Utc::now() + offset).to_rfc3339_opts(SecondsFormat::Secs, true)
 }
 
-fn input(tiers: &[(i64, i32)]) -> CampaignInput {
+fn input(tiers: &[(i64, i64)]) -> CampaignInput {
     CampaignInput {
         name: "Khai trương".into(),
         description: Some("Giảm giá mừng khai trương".into()),
@@ -82,7 +82,7 @@ impl Env {
             .unwrap()
     }
 
-    async fn claimed_slots(&self, tier: Uuid) -> i32 {
+    async fn claimed_slots(&self, tier: Uuid) -> i64 {
         discount_tier::Entity::find_by_id(tier)
             .one(self.f.store.db())
             .await

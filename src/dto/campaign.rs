@@ -26,10 +26,10 @@ pub struct CampaignTierOut {
     pub id: Uuid,
     /// The discount, in VND.
     pub amount: i64,
-    pub total_slots: i32,
+    pub total_slots: i64,
     /// Slots still free (from the cache: claims keep it current, claiming
     /// itself is exact).
-    pub remaining: i32,
+    pub remaining: i64,
 }
 
 /// A campaign as the home page shows it.
@@ -110,7 +110,7 @@ pub struct TierInput {
     pub id: Option<Uuid>,
     /// VND, a positive multiple of 1 000.
     pub amount: i64,
-    pub total_slots: i32,
+    pub total_slots: i64,
 }
 
 /// The whole campaign as the admin wants it (create, or replace on
@@ -142,8 +142,8 @@ pub struct CampaignInput {
 pub struct AdminTierOut {
     pub id: Uuid,
     pub amount: i64,
-    pub total_slots: i32,
-    pub claimed_slots: i32,
+    pub total_slots: i64,
+    pub claimed_slots: i64,
 }
 
 /// Where a campaign's money stands.
