@@ -2034,7 +2034,7 @@ export type NullclawStatusResponse = {
  */
 export type OAuthProvidersResponse = {
     /**
-     * Providers the sign-in page should offer (`google` | `facebook` | `twitter`).
+     * Providers the sign-in page should offer (`google` | `facebook`).
      */
     providers: Array<string>;
 };
@@ -5944,7 +5944,7 @@ export type OauthCallbackData = {
     body?: never;
     path: {
         /**
-         * OAuth provider name — one of `facebook`, `google`, `twitter`
+         * OAuth provider name: `facebook` or `google`
          */
         provider: string;
     };
@@ -5973,7 +5973,7 @@ export type OauthStartData = {
     body?: never;
     path: {
         /**
-         * OAuth provider name — one of `facebook`, `google`, `twitter`
+         * OAuth provider name: `facebook` or `google`
          */
         provider: string;
     };

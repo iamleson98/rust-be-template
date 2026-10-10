@@ -22,7 +22,7 @@ export const privacyPolicy: Record<Lang, LegalDoc> = {
           {
             list: [
               'Tài khoản: họ tên, email và/hoặc số điện thoại, mật khẩu (chỉ lưu dạng băm một chiều, không ai đọc được).',
-              'Đăng nhập bằng Google, Facebook hoặc X: tên, email (nếu nhà cung cấp cho phép), ảnh đại diện và mã tài khoản tại nhà cung cấp đó. Chúng tôi không bao giờ nhận mật khẩu của các tài khoản này.',
+              'Đăng nhập bằng Google hoặc Facebook: tên, email (nếu nhà cung cấp cho phép), ảnh đại diện và mã tài khoản tại nhà cung cấp đó. Chúng tôi không bao giờ nhận mật khẩu của các tài khoản này.',
               'Đặt vé: họ tên, tuổi và giới tính của hành khách; họ tên, số điện thoại và email người liên hệ; chuyến, ghế, điểm đón/trả, lịch sử vé và điểm thưởng.',
               'Thanh toán: phương thức, số tiền, mã và trạng thái giao dịch. Thông tin thẻ, ví và tài khoản ngân hàng do MoMo, VNPay, ZaloPay hoặc ngân hàng xử lý — chúng tôi không nhận và không lưu.',
               'Hỗ trợ: nội dung tin nhắn trò chuyện với chúng tôi. Cuộc gọi hỗ trợ qua internet được kết nối trực tiếp giữa hai bên và không được ghi âm.',
@@ -57,7 +57,7 @@ export const privacyPolicy: Record<Lang, LegalDoc> = {
             list: [
               'Nhà xe bạn đặt vé: thông tin hành khách và người liên hệ để phục vụ chuyến đi.',
               'Cổng thanh toán (MoMo, VNPay, ZaloPay, ngân hàng): số tiền và mã giao dịch.',
-              'Google, Facebook, X: khi bạn chọn đăng nhập bằng tài khoản của họ.',
+              'Google, Facebook: khi bạn chọn đăng nhập bằng tài khoản của họ.',
               'Nhà cung cấp hạ tầng: máy chủ, mạng phân phối Cloudflare, Firebase (gửi thông báo).',
               'Trợ lý tự động: khi không có nhân viên trực, tin nhắn chat có thể được trợ lý tự động xử lý để trả lời.',
               'Google Analytics/Google Ads (nếu được bật): dữ liệu sử dụng và mã nhấp quảng cáo — không gồm tên, email hay số điện thoại.',
@@ -104,7 +104,7 @@ export const privacyPolicy: Record<Lang, LegalDoc> = {
             list: [
               'Gửi email tới cskh@datxevui.com từ email của tài khoản (hoặc nhắn qua mục Hỗ trợ khi đang đăng nhập), tiêu đề “Yêu cầu xoá tài khoản”.',
               'Chúng tôi xác minh bạn là chủ tài khoản rồi xoá tài khoản cùng dữ liệu cá nhân, và báo cho bạn khi hoàn tất.',
-              'Nếu bạn đăng nhập bằng Google, Facebook hoặc X, bạn cũng có thể gỡ quyền của DatXeVui trong phần cài đặt bảo mật của tài khoản đó; việc này dừng đăng nhập, còn dữ liệu đã lưu sẽ được xoá khi bạn gửi yêu cầu như trên.',
+              'Nếu bạn đăng nhập bằng Google hoặc Facebook, bạn cũng có thể gỡ quyền của DatXeVui trong phần cài đặt bảo mật của tài khoản đó; việc này dừng đăng nhập, còn dữ liệu đã lưu sẽ được xoá khi bạn gửi yêu cầu như trên.',
             ],
           },
           'Hồ sơ giao dịch pháp luật bắt buộc lưu giữ sẽ được giữ ở mức tối thiểu và không còn gắn với tài khoản của bạn.',
@@ -142,7 +142,7 @@ export const privacyPolicy: Record<Lang, LegalDoc> = {
           {
             list: [
               'Account: name, email and/or phone number, password (stored only as a one-way hash that nobody can read).',
-              'Sign-in with Google, Facebook or X: name, email (where the provider allows), profile picture and your account id at that provider. We never receive the password of those accounts.',
+              'Sign-in with Google or Facebook: name, email (where the provider allows), profile picture and your account id at that provider. We never receive the password of those accounts.',
               'Bookings: passengers’ names, ages and genders; the contact person’s name, phone and email; trip, seats, pick-up and drop-off points, ticket history and loyalty points.',
               'Payments: method, amount, transaction reference and status. Card, wallet and bank details are handled by MoMo, VNPay, ZaloPay or your bank — we neither receive nor store them.',
               'Support: the messages you exchange with us in chat. Support calls over the internet connect the two sides directly and are not recorded.',
@@ -177,7 +177,7 @@ export const privacyPolicy: Record<Lang, LegalDoc> = {
             list: [
               'The bus operator you book with: passenger and contact details to run your trip.',
               'Payment gateways (MoMo, VNPay, ZaloPay, banks): amount and transaction reference.',
-              'Google, Facebook, X: when you choose to sign in with their account.',
+              'Google, Facebook: when you choose to sign in with their account.',
               'Infrastructure providers: servers, Cloudflare’s delivery network, Firebase (notifications).',
               'Automated assistant: when no staff member is available, chat messages may be processed by an automated assistant to reply.',
               'Google Analytics/Google Ads (if enabled): usage data and ad click ids — not your name, email or phone number.',
@@ -224,7 +224,7 @@ export const privacyPolicy: Record<Lang, LegalDoc> = {
             list: [
               'Email cskh@datxevui.com from your account’s email address (or message us under Support while signed in) with the subject “Account deletion request”.',
               'We verify that you own the account, delete it together with your personal data, and tell you when it is done.',
-              'If you signed in with Google, Facebook or X, you can also remove DatXeVui’s access in that account’s security settings; this stops the sign-in, and the data we hold is deleted once you send the request above.',
+              'If you signed in with Google or Facebook, you can also remove DatXeVui’s access in that account’s security settings; this stops the sign-in, and the data we hold is deleted once you send the request above.',
             ],
           },
           'Transaction records the law requires us to keep are kept to a minimum and no longer linked to your account.',

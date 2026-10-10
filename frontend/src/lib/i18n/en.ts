@@ -416,7 +416,6 @@ export const en: TranslationMap = {
   'authPage.or': 'or',
   'authPage.loginWithFacebook': 'Log in with Facebook',
   'authPage.loginWithGoogle': 'Log in with Google',
-  'authPage.loginWithX': 'Log in with X',
   'authPage.socialNote': 'Quick sign-in — no password needed',
   'priceAlert.removed': 'Price tracking removed',
   'priceAlert.removeFailed': 'Could not remove the alert',

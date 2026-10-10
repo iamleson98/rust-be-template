@@ -417,7 +417,6 @@ export const vi: TranslationMap = {
   'authPage.or': 'hoặc',
   'authPage.loginWithFacebook': 'Đăng nhập bằng Facebook',
   'authPage.loginWithGoogle': 'Đăng nhập bằng Google',
-  'authPage.loginWithX': 'Đăng nhập bằng X',
   'authPage.socialNote': 'Đăng nhập nhanh — không cần mật khẩu',
   'priceAlert.removed': 'Đã huỷ theo dõi giá',
   'priceAlert.removeFailed': 'Không thể xoá cảnh báo',

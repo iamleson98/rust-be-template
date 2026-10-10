@@ -1,4 +1,4 @@
-//! OAuth 2.0 social-auth providers (Facebook / Google / X-Twitter).
+//! OAuth 2.0 social-auth providers (Facebook / Google).
 //!
 //! ## Flow
 //!
@@ -42,7 +42,6 @@
 
 pub mod facebook;
 pub mod google;
-pub mod twitter;
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -94,7 +93,6 @@ pub fn build_provider(name: &str, cfg: &OAuthProviderConfig) -> Option<Box<dyn O
     let p: Box<dyn OAuthProvider> = match name {
         "facebook" => Box::new(facebook::FacebookProvider::with_credentials(cfg)),
         "google" => Box::new(google::GoogleProvider::with_credentials(cfg)),
-        "twitter" => Box::new(twitter::TwitterProvider::with_credentials(cfg)),
         _ => return None,
     };
     if p.is_configured() {
