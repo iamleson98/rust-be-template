@@ -1,0 +1,141 @@
+# ─── DB reset: remove the rust-sql DB file and let the backend ──────
+# recreate it fresh (migrations + seed defaults) on next boot. ───────
+#
+# WHY: the production app.db was created by an early rust-sql build and
+# carries that engine's page layout / freelist state. After a large
+# engine upgrade the clean path is a fresh file written entirely by the
+# new engine: stop the service, back the old file up, delete it, scale
+# back up — the backend opens `sqlite:...?mode=rwc`, applies every
+# migration from scratch and re-seeds default reference data.
+#
+# Trigger: workflow_dispatch ONLY (never on push — it is destructive to
+# the live data; the backup keeps a byte-copy in /opt/vexevn/backups).
+#
+# Inputs:
+#   backup   — "true" (default): copy app.db* to /opt/vexevn/backups/
+#              before deleting. Keep true unless the disk is full.
+#   confirm  — must be typed as "reset" (a second guard against a
+#              fat-fingered dispatch).
+#
+# After the reset:
+#   * user accounts are GONE — the next /api/auth/register becomes the
+#     admin (first-user promotion, see AuthService::register)
+#   * re-run the data migration (trip-crawler scripts/migration) to
+#     repopulate brands/routes/schedules/fares/pictures
+#   * the Tantivy index + uploads volumes are untouched
+
+name: DB reset
+
+on:
+  workflow_dispatch:
+    inputs:
+      backup:
+        description: "Back up app.db* before deleting (true/false)"
+        required: false
+        default: "true"
+      confirm:
+        description: 'Type "reset" to confirm'
+        required: true
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  reset:
+    name: Reset DB (stop → backup → remove → start → health)
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.confirm == 'reset' }}
+    env:
+      DEPLOY_DIR: ${{ vars.DEPLOY_DIR || '/opt/vexevn' }}
+      DB_VOLUME_DIR: /var/lib/docker/volumes/datxevui_vexevn-data/_data
+    steps:
+      - name: Guard — server secrets present?
+        id: guard
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+        run: |
+          if [ -z "$SERVER_HOST" ]; then
+            echo "::error::SERVER_HOST secret not set — cannot reset."
+            exit 1
+          fi
+
+      - name: Stop backend, back up + remove the DB, restart
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          DB_VOLUME_DIR: ${{ env.DB_VOLUME_DIR }}
+          DEPLOY_DIR: ${{ env.DEPLOY_DIR }}
+          DO_BACKUP: ${{ github.event.inputs.backup }}
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          envs: DB_VOLUME_DIR,DEPLOY_DIR,DO_BACKUP
+          script_stop: true
+          script: |
+            set -eu
+            echo "== before =="
+            ls -la "$DB_VOLUME_DIR" | sed -n '1,12p'
+            df -h "$DB_VOLUME_DIR" | tail -1
+
+            echo "== stopping datxevui_backend =="
+            docker service scale datxevui_backend=0 --detach
+            for i in $(seq 1 60); do
+              n=$(docker service ls --filter name=datxevui_backend --format '{{.Replicas}}')
+              [ "$n" = "0/0" ] && break
+              sleep 2
+            done
+            echo "service scaled to 0 (replicas: $(docker service ls --filter name=datxevui_backend --format '{{.Replicas}}'))"
+
+            mkdir -p "$DEPLOY_DIR/backups"
+            if [ "$DO_BACKUP" != "false" ]; then
+              ts=$(date -u +%Y%m%dT%H%M%SZ)
+              echo "== backing up app.db* -> $DEPLOY_DIR/backups/app.db.$ts.bak =="
+              cp -a "$DB_VOLUME_DIR/app.db" "$DEPLOY_DIR/backups/app.db.$ts.bak" 2>/dev/null || true
+              for side in -wal -shm -rsqllock; do
+                cp -a "$DB_VOLUME_DIR/app.db$side" "$DEPLOY_DIR/backups/app.db$side.$ts.bak" 2>/dev/null || true
+              done
+              ls -la "$DEPLOY_DIR/backups" | tail -5
+              du -sh "$DEPLOY_DIR/backups/app.db.$ts.bak" || true
+            fi
+
+            echo "== removing app.db* =="
+            rm -f "$DB_VOLUME_DIR/app.db" "$DB_VOLUME_DIR/app.db-wal" \
+                  "$DB_VOLUME_DIR/app.db-shm" "$DB_VOLUME_DIR/app.db-rsqllock"
+            ls -la "$DB_VOLUME_DIR" | sed -n '1,12p'
+
+            echo "== starting datxevui_backend =="
+            docker service scale datxevui_backend=1 --detach
+
+      - name: Health gate — fresh DB must boot and serve /health
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script_stop: true
+          script: |
+            set -eu
+            # Wait up to 4 minutes for the recreated task to pass /health.
+            # The first boot on a fresh DB applies every migration and
+            # seeds default reference data (roles/permissions/vehicle
+            # types), which takes longer than a normal restart.
+            ok=""
+            for i in $(seq 1 80); do
+              code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:8080/health || true)
+              # Caddy owns 80/443; the backend is reachable via the
+              # overlay through the container's published task. Probe the
+              # public site as the source of truth.
+              pub=$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 https://datxevui.com/health || true)
+              echo "attempt $i: local=$code public=$pub"
+              if [ "$pub" = "200" ]; then ok=1; break; fi
+              sleep 3
+            done
+            if [ -z "$ok" ]; then
+              echo "!! backend did not become healthy — last logs:"
+              docker service logs datxevui_backend --tail 40 2>&1 | tail -40
+              exit 1
+            fi
+            echo "== healthy; fresh DB details =="
+            docker service logs datxevui_backend --tail 25 2>&1 | grep -iE "migrat|seed|listen|started|fresh" | tail -12 || true
+            ls -la "$DB_VOLUME_DIR" 2>/dev/null | grep app.db || true
