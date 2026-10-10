@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useT } from '@/lib/i18n'
-import { useNavigate } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { useMutation } from '@tanstack/react-query'
 import { authRegisterMutation } from '@/api'
 import { Button } from '@/components/ui/button'
@@ -265,7 +265,18 @@ export function RegisterForm() {
           <ChevronRight className="h-4 w-4" />
         </Button>
 
-        <p className="text-[11px] text-muted-foreground text-center">{t('authPage.termsAgree')}</p>
+        <p className="text-[11px] text-muted-foreground text-center">
+          {t('authPage.agreeBefore')}{' '}
+          <Link to="/terms" className="text-primary hover:underline">
+            {t('layout.footer.termsOfUse')}
+          </Link>{' '}
+          {t('authPage.agreeAnd')}{' '}
+          <Link to="/privacy" className="text-primary hover:underline">
+            {t('layout.footer.privacyPolicy')}
+          </Link>
+          {/* Carries its own leading space where the language needs one. */}
+          {t('authPage.agreeAfter')}
+        </p>
       </form>
 
       <SocialAuthButtons />
