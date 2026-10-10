@@ -664,12 +664,8 @@ impl CampaignService {
             .into_iter()
             .map(|b| {
                 let mut t = CampaignTotalsOut {
-                    budget: b
-                        .tiers
-                        .iter()
-                        .map(|t| t.amount * i64::from(t.total_slots))
-                        .sum(),
-                    claimed: b.tiers.iter().map(|t| i64::from(t.claimed_slots)).sum(),
+                    budget: b.tiers.iter().map(|t| t.amount * t.total_slots).sum(),
+                    claimed: b.tiers.iter().map(|t| t.claimed_slots).sum(),
                     ..Default::default()
                 };
                 for s in totals.iter().filter(|s| s.campaign_id == b.campaign.id) {
