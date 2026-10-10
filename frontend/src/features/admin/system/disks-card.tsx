@@ -14,24 +14,24 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Progress } from '@/components/ui/progress'
 import type { DiskInfo } from '@/api'
 import { formatBytes, usagePercent, usageTone } from './metric-helpers'
+import { useT } from '@/lib/i18n'
 
 // ─── Disks ──────────────────────────────────────────────────────────
 
 export function DisksCard({ disks }: { disks: DiskInfo[] }) {
+  const t = useT()
   return (
     <Card data-testid="metric-disks-card">
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center gap-2 text-base">
           <HardDrive className="h-4 w-4 text-muted-foreground" aria-hidden />
-          Disks
+          {t('adminSystem.disks')}
         </CardTitle>
-        <CardDescription>
-          {disks.length} mounted volume{disks.length === 1 ? '' : 's'}
-        </CardDescription>
+        <CardDescription>{t('adminSystem.volumes', { count: disks.length })}</CardDescription>
       </CardHeader>
       <CardContent>
         {disks.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No mounted volumes reported.</p>
+          <p className="text-sm text-muted-foreground">{t('adminSystem.noVolumes')}</p>
         ) : (
           <div className="space-y-4">
             {disks.map((disk) => {
@@ -46,7 +46,7 @@ export function DisksCard({ disks }: { disks: DiskInfo[] }) {
                       </Badge>
                       {disk.isRemovable && (
                         <Badge variant="outline" className="text-[10px]">
-                          removable
+                          {t('adminSystem.removable')}
                         </Badge>
                       )}
                     </div>
@@ -58,7 +58,7 @@ export function DisksCard({ disks }: { disks: DiskInfo[] }) {
                   </div>
                   <Progress value={pct} className="h-2" />
                   <p className="text-xs text-muted-foreground">
-                    {formatBytes(disk.availableBytes)} available
+                    {t('adminSystem.freeSpace', { size: formatBytes(disk.availableBytes) })}
                   </p>
                 </div>
               )

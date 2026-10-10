@@ -58,7 +58,12 @@ const getRecentBookingsColumns = (t: ReturnType<typeof useT>) =>
           <span className="text-muted-foreground">—</span>
         )
       },
-      meta: { label: t('adminDash.route'), cellClassName: 'hidden md:table-cell' },
+      // Only on very wide screens: the card shares its row with campaigns.
+      meta: {
+        label: t('adminDash.route'),
+        headerClassName: 'hidden 2xl:table-cell',
+        cellClassName: 'hidden 2xl:table-cell',
+      },
     }),
     recentColumnHelper.accessor('total', {
       header: ({ column }) => (
@@ -92,6 +97,7 @@ const getRecentBookingsColumns = (t: ReturnType<typeof useT>) =>
       meta: {
         label: t('adminDash.time'),
         align: 'right',
+        headerClassName: 'hidden sm:table-cell',
         cellClassName: 'hidden sm:table-cell',
       },
     }),

@@ -49,10 +49,10 @@ describe('SystemMetricsSection (pdf-tts server-metrics port)', () => {
     renderWithQuery(<SystemMetricsSection />)
 
     expect(screen.getByTestId('system-metrics')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: /server metrics/i })).toBeInTheDocument()
-    expect(screen.getByText('live · 5s')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /tài nguyên máy chủ/i })).toBeInTheDocument()
+    expect(screen.getByText('trực tiếp · 5s')).toBeInTheDocument()
     await screen.findByTestId('metric-cpu-card')
-    expect(screen.getByRole('button', { name: /refresh/i })).toBeEnabled()
+    expect(screen.getByRole('button', { name: /làm mới/i })).toBeEnabled()
   })
 
   it('shows a structure-matched skeleton (not a data table) while the first snapshot loads', () => {
@@ -62,7 +62,7 @@ describe('SystemMetricsSection (pdf-tts server-metrics port)', () => {
     // The skeleton mirrors the loaded card layout…
     expect(screen.getByTestId('system-metrics-skeleton')).toBeInTheDocument()
     // …the header stays visible…
-    expect(screen.getByRole('heading', { name: /server metrics/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /tài nguyên máy chủ/i })).toBeInTheDocument()
     // …and no metric card or table renders before data arrives.
     expect(screen.queryByTestId('metric-cpu-card')).not.toBeInTheDocument()
     expect(screen.queryByTestId('metric-memory-card')).not.toBeInTheDocument()
@@ -78,7 +78,7 @@ describe('SystemMetricsSection (pdf-tts server-metrics port)', () => {
     // CPU card: overall percent + core count summary.
     expect(await screen.findByTestId('metric-cpu-card')).toBeInTheDocument()
     expect(screen.getByText('12.4%')).toBeInTheDocument()
-    expect(screen.getByText('4 logical · 2 physical cores')).toBeInTheDocument()
+    expect(screen.getByText('4 luồng · 2 nhân vật lý')).toBeInTheDocument()
     // Per-core mini-bars are rendered for every core.
     expect(screen.getAllByText('10%').length).toBeGreaterThan(0)
 
@@ -97,7 +97,7 @@ describe('SystemMetricsSection (pdf-tts server-metrics port)', () => {
     expect(screen.getByText('/')).toBeInTheDocument()
     expect(screen.getByText('/media/usb')).toBeInTheDocument()
     expect(screen.getByText('ext4')).toBeInTheDocument()
-    expect(screen.getByText('removable')).toBeInTheDocument()
+    expect(screen.getByText('tháo rời')).toBeInTheDocument()
 
     // Host card.
     expect(screen.getByTestId('metric-host-card')).toBeInTheDocument()
@@ -116,7 +116,7 @@ describe('SystemMetricsSection (pdf-tts server-metrics port)', () => {
     renderWithQuery(<SystemMetricsSection />)
 
     expect(await screen.findByTestId('system-metrics-error')).toBeInTheDocument()
-    expect(screen.getByText('Failed to load server metrics')).toBeInTheDocument()
+    expect(screen.getByText('Không tải được số liệu máy chủ')).toBeInTheDocument()
     expect(screen.getByText('forbidden: missing permission')).toBeInTheDocument()
     // No cards, no skeleton — just the error state.
     expect(screen.queryByTestId('metric-cpu-card')).not.toBeInTheDocument()
@@ -129,7 +129,7 @@ describe('SystemMetricsSection (pdf-tts server-metrics port)', () => {
 
     await screen.findByTestId('metric-cpu-card')
     expect(api.calls).toHaveLength(1)
-    screen.getByRole('button', { name: /refresh/i }).click()
+    screen.getByRole('button', { name: /làm mới/i }).click()
     await waitFor(() => expect(api.calls).toHaveLength(2))
   })
 })

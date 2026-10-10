@@ -61,18 +61,15 @@ export function BookingStatusDonutCard({
               </div>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          <ul className="flex flex-wrap justify-center gap-x-5 gap-y-2">
             {statusSegments.map((s, i) => (
-              <div key={i} className="flex items-center gap-2 text-xs">
-                <div
-                  className="h-2.5 w-2.5 rounded-full shrink-0"
-                  style={{ background: s.color }}
-                />
-                <span className="text-muted-foreground truncate">{s.label}</span>
-                <span className="font-bold ml-auto">{s.count}</span>
-              </div>
+              <li key={i} className="flex items-center gap-1.5 text-xs">
+                <span className="size-2.5 shrink-0 rounded-full" style={{ background: s.color }} />
+                <span className="text-muted-foreground">{s.label}</span>
+                <span className="font-semibold text-slate-900 tabular-nums">{s.count}</span>
+              </li>
             ))}
-          </div>
+          </ul>
         </>
       ) : (
         <div className="h-48 flex items-center justify-center text-xs text-muted-foreground">

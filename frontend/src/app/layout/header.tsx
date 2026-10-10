@@ -34,31 +34,10 @@ import {
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 
-/**
- * Customer pages get a light, translucent bar that lets the page breathe;
- * the admin console keeps its blue bar (it is a work tool with its own look).
- */
-const TONES = {
-  light: {
-    bar: 'border-b border-slate-200/80 bg-white/85 text-slate-900 backdrop-blur-xl',
-    inner: 'page-x',
-    wordmark: 'text-slate-900',
-    tagline: 'text-slate-500',
-    icon: 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
-    chip: 'bg-violet-50 text-violet-700 hover:bg-violet-100',
-    account: 'bg-white ring-1 ring-slate-200 hover:bg-slate-50',
-    login: '',
-  },
-  brand: {
-    bar: 'bg-linear-to-r from-blue-900 via-blue-800 to-blue-900 text-white',
-    inner: 'container mx-auto border-b border-white/10 px-4',
-    wordmark: 'text-white',
-    tagline: 'text-blue-200',
-    icon: 'text-blue-100 hover:bg-white/10 hover:text-white',
-    chip: 'bg-white/10 hover:bg-white/15',
-    account: 'bg-white/10 ring-1 ring-white/20 hover:bg-white/15',
-    login: 'bg-white text-blue-800 hover:bg-blue-50',
-  },
+/** The site's light, translucent bar (the admin console has its own frame). */
+const tone = {
+  bar: 'border-b border-slate-200/80 bg-white/85 text-slate-900 backdrop-blur-xl',
+  icon: 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
 }
 
 export const Header = memo(function Header() {
@@ -71,8 +50,6 @@ export const Header = memo(function Header() {
   const pathname = useRouterState({ select: (s) => s.location.pathname })
   const navigate = useNavigate()
   const t = useT()
-  const admin = pathname.startsWith('/admin')
-  const tone = TONES[admin ? 'brand' : 'light']
 
   const handleLangChange = useCallback(
     (newLang: 'vi' | 'en') => {
@@ -108,7 +85,7 @@ export const Header = memo(function Header() {
 
   return (
     <header className={cn('sticky top-0 z-40 w-full', tone.bar)}>
-      <div className={cn('flex h-(--header-h) items-center gap-2', tone.inner)}>
+      <div className="page-x flex h-(--header-h) items-center gap-2">
         <Link to="/" className="group flex shrink-0 items-center gap-2.5" aria-label="DatXeVui">
           <img
             src="/logo.svg"
@@ -117,19 +94,14 @@ export const Header = memo(function Header() {
             className="size-8 shrink-0 transition-transform duration-300 group-hover:scale-105 md:size-9"
           />
           <div className="leading-tight">
-            <div className={cn('text-lg font-extrabold tracking-tight', tone.wordmark)}>
-              DatXeVui
-            </div>
-            <div className={cn('-mt-0.5 hidden text-[10px] sm:block', tone.tagline)}>
+            <div className="text-lg font-extrabold tracking-tight text-slate-900">DatXeVui</div>
+            <div className="-mt-0.5 hidden text-[10px] text-slate-500 sm:block">
               {t('trips.imageTagline')}
             </div>
           </div>
         </Link>
 
-        <nav
-          className={cn('ml-6 hidden items-center gap-1', !admin && 'md:flex')}
-          aria-label={t('nav.home')}
-        >
+        <nav className="ml-6 hidden items-center gap-1 md:flex" aria-label={t('nav.home')}>
           {links.map((l) => (
             <Link
               key={l.to}
@@ -150,8 +122,7 @@ export const Header = memo(function Header() {
             <button
               onClick={() => setCompareOpen(true)}
               className={cn(
-                'relative inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition-colors',
-                tone.chip,
+                'relative inline-flex h-9 items-center gap-1.5 rounded-full bg-violet-50 px-3 text-xs font-semibold text-violet-700 transition-colors hover:bg-violet-100',
               )}
               title={t('nav.compare')}
             >
@@ -213,7 +184,7 @@ export const Header = memo(function Header() {
               <Button
                 onClick={() => navigate({ to: '/login' })}
                 size="sm"
-                className={cn('ml-1 h-9 gap-1.5 rounded-full px-4', tone.login)}
+                className="ml-1 h-9 gap-1.5 rounded-full px-4"
               >
                 <LogIn className="size-4" />
                 {t('nav.login')}
@@ -227,10 +198,7 @@ export const Header = memo(function Header() {
                     type="button"
                     title={user.name}
                     aria-label={user.name}
-                    className={cn(
-                      'ml-1 inline-flex h-9 items-center gap-2 rounded-full p-1 transition-colors sm:pr-3',
-                      tone.account,
-                    )}
+                    className="ml-1 inline-flex h-9 items-center gap-2 rounded-full bg-white p-1 ring-1 ring-slate-200 transition-colors hover:bg-slate-50 sm:pr-3"
                   />
                 }
               >

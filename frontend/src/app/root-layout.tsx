@@ -47,17 +47,16 @@ function SessionSync() {
 /** Customer chrome (header, footer, mobile nav, overlays) around every page; the admin console brings its own shell. */
 export function RootLayout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname })
-  const admin = pathname.startsWith('/admin')
   // The admin console brings its own frame; the account area lives in the site chrome.
-  const ownShell = admin
+  const ownShell = pathname.startsWith('/admin')
 
   return (
-    // Customer pages sit on the soft canvas (white cards lift off it); the admin console keeps white.
-    <div className={cn('flex min-h-screen flex-col', admin ? 'bg-background' : 'bg-canvas')}>
+    // Every page sits on the soft canvas; white cards lift off it.
+    <div className="flex min-h-screen flex-col bg-canvas">
       <RouteMeta />
       <ScrollToTop />
       <SessionSync />
-      <Header />
+      {!ownShell && <Header />}
 
       <main
         id="main-content"

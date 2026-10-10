@@ -1,24 +1,41 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useRouterState } from '@tanstack/react-router'
-import { LogOut, Menu, PanelLeft, PanelLeftClose, type LucideIcon } from 'lucide-react'
+import {
+  Check,
+  ChevronsUpDown,
+  LogOut,
+  Menu,
+  PanelLeft,
+  PanelLeftClose,
+  type LucideIcon,
+} from 'lucide-react'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { useLogout } from '@/features/auth/api'
 import { useT } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
-import { useSession } from '@/stores/session'
+import { usePrefs } from '@/stores/prefs'
+import { isStaffUser, useSession } from '@/stores/session'
 
 export type ConsoleNavItem = {
   title: string
-  /** A shorter label for the phone tab bar (defaults to `title`). */
-  short?: string
   icon: LucideIcon
   url: string
   /** Active on this exact path only (a console's home page). */
   exact?: boolean
 }
-export type ConsoleNavGroup = { label: string; items: ConsoleNavItem[] }
+/** A run of sections; `label` is left out for a group that needs no heading. */
+export type ConsoleNavGroup = { label?: string; items: ConsoleNavItem[] }
 
 const COLLAPSED_KEY = 'console.sidebar.collapsed'
 
@@ -30,52 +47,44 @@ function readCollapsed(): boolean {
   }
 }
 
-function initialsOf(name: string | undefined, fallback: string): string {
+function initialsOf(name: string | undefined): string {
   const parts = (name ?? '').trim().split(/\s+/).filter(Boolean)
-  return parts.length
-    ? parts
-        .map((p) => p[0])
-        .slice(-2)
-        .join('')
-        .toUpperCase()
-    : fallback
+  return (
+    parts
+      .map((p) => p[0])
+      .slice(-2)
+      .join('')
+      .toUpperCase() || 'U'
+  )
 }
 
 /**
- * The frame both consoles (account and admin) share: a sidebar on desktop
- * (collapsible, remembered). On phones, a console with up to five sections
- * gets a bottom tab bar (every section in thumb reach, like a native app);
- * a bigger one gets a slim top bar with a menu drawer. Only the content
- * pane scrolls.
+ * The admin console's frame, in the site's light look: a white sidebar
+ * with the logo and the sections (collapsible on desktop, a drawer on
+ * phones), one slim top bar with where you are and the account menu, and
+ * a canvas content pane that alone scrolls.
  */
 export function ConsoleShell({
   label,
   groups,
   exit,
-  mobileNav,
   children,
 }: {
-  /** Accessible name of the navigation ("Admin", "Account"). */
+  /** Accessible name of the navigation, also shown under the logo ("Admin"). */
   label: string
   groups: ConsoleNavGroup[]
-  /** The way out of the console, shown above sign-out. */
+  /** The way out of the console, at the foot of the sidebar. */
   exit: { title: string; icon: LucideIcon; to: '/' }
-  /** Phones: `tabs` = bottom tab bar (at most five sections), `drawer` = menu. */
-  mobileNav: 'tabs' | 'drawer'
   children: ReactNode
 }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname })
   const t = useT()
-  const user = useSession((s) => s.user)
-  const logout = useLogout()
   const [collapsed, setCollapsed] = useState(readCollapsed)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const contentRef = useRef<HTMLDivElement>(null)
 
-  const items = groups.flatMap((g) => g.items)
   const isActive = (item: ConsoleNavItem) =>
     item.exact ? pathname === item.url : pathname.startsWith(item.url)
-  const current = items.find(isActive)
 
   // New page: content back to the top.
   useEffect(() => {
@@ -102,177 +111,244 @@ export function ConsoleShell({
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  const navLink = (item: ConsoleNavItem, compact: boolean) => {
-    const active = isActive(item)
-    const Icon = item.icon
-    return (
-      <Link
-        key={item.url}
-        to={item.url as never}
-        onClick={() => setDrawerOpen(false)}
-        title={compact ? item.title : undefined}
-        aria-current={active ? 'page' : undefined}
-        className={cn(
-          'flex h-9 items-center gap-2.5 rounded-lg text-sm transition-colors',
-          compact ? 'justify-center' : 'px-3',
-          active
-            ? 'bg-primary/10 font-semibold text-primary'
-            : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-        )}
-      >
-        <Icon className="size-4 shrink-0" aria-hidden />
-        {!compact && <span className="truncate">{item.title}</span>}
-      </Link>
+  const row = (compact: boolean) =>
+    cn(
+      'flex h-9 items-center gap-3 rounded-lg text-sm transition-colors',
+      compact ? 'justify-center' : 'px-3',
     )
-  }
-
-  const nav = (compact: boolean) => (
+  const brand = (
     <>
-      <nav aria-label={label} className="flex-1 space-y-4 overflow-y-auto px-2 py-3">
-        {groups.map((group) => (
-          <div key={group.label}>
-            {!compact && (
-              <div className="px-3 pb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground/80">
-                {group.label}
-              </div>
-            )}
-            <div className="space-y-0.5">{group.items.map((item) => navLink(item, compact))}</div>
-          </div>
-        ))}
-      </nav>
-      <div className="shrink-0 space-y-0.5 border-t px-2 py-2">
-        <Link
-          to={exit.to}
-          onClick={() => setDrawerOpen(false)}
-          title={compact ? exit.title : undefined}
-          className={cn(
-            'flex h-9 items-center gap-2.5 rounded-lg text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground',
-            compact ? 'justify-center' : 'px-3',
-          )}
-        >
-          <exit.icon className="size-4 shrink-0" aria-hidden />
-          {!compact && <span>{exit.title}</span>}
-        </Link>
-        <button
-          type="button"
-          onClick={() => {
-            setDrawerOpen(false)
-            logout()
-          }}
-          title={compact ? t('auth.logout') : undefined}
-          className={cn(
-            'flex h-9 w-full items-center gap-2.5 rounded-lg text-sm text-rose-600 transition-colors hover:bg-rose-50 dark:hover:bg-rose-950/30',
-            compact ? 'justify-center' : 'px-3',
-          )}
-        >
-          <LogOut className="size-4 shrink-0" aria-hidden />
-          {!compact && <span>{t('auth.logout')}</span>}
-        </button>
-        {!compact && user && (
-          <div className="mt-1 flex items-center gap-2.5 rounded-lg px-3 py-2">
-            <Avatar className="size-8 shrink-0">
-              <AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">
-                {initialsOf(user.name, 'U')}
-              </AvatarFallback>
-            </Avatar>
-            <div className="grid min-w-0 text-xs leading-tight">
-              <span className="truncate font-medium">{user.name}</span>
-              <span className="truncate text-muted-foreground">{user.email ?? user.phone}</span>
-            </div>
-          </div>
-        )}
-      </div>
+      <img src="/logo.svg" alt="" className="size-8 shrink-0" />
+      <span className="min-w-0 leading-tight">
+        <span className="block text-[15px] font-bold tracking-tight text-slate-900">DatXeVui</span>
+        <span className="block text-[11px] font-medium text-slate-500">{label}</span>
+      </span>
     </>
   )
 
-  return (
-    <div className="flex h-[calc(100dvh-var(--header-h))] w-full overflow-hidden bg-background">
-      <aside
-        className={cn(
-          'hidden h-full shrink-0 flex-col border-r transition-[width] duration-200 ease-out md:flex',
-          collapsed ? 'w-14' : 'w-60',
-        )}
-      >
-        {nav(collapsed)}
-      </aside>
-
-      {mobileNav === 'drawer' && (
-        <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
-          <SheetContent side="left" className="w-72 p-0 [&>button]:hidden">
-            <SheetHeader className="sr-only">
-              <SheetTitle>{label}</SheetTitle>
-            </SheetHeader>
-            <div className="flex h-full flex-col">{nav(false)}</div>
-          </SheetContent>
-        </Sheet>
-      )}
-
-      <div className="flex h-full min-w-0 flex-1 flex-col">
-        {/* Desktop: collapse toggle + where you are. */}
-        <div className="hidden h-12 shrink-0 items-center gap-2 border-b px-3 md:flex">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-8"
-            onClick={() => setCollapsed((c) => !c)}
-            aria-label={collapsed ? t('console.expandSidebar') : t('console.collapseSidebar')}
-          >
-            {collapsed ? <PanelLeft className="size-4" /> : <PanelLeftClose className="size-4" />}
-          </Button>
-          <span className="truncate text-sm font-medium">{current?.title ?? label}</span>
-        </div>
-
-        {/* Phones, many sections: a slim bar with the menu. */}
-        {mobileNav === 'drawer' && (
-          <div className="flex h-12 shrink-0 items-center gap-2 border-b px-2 md:hidden">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-10"
-              onClick={() => setDrawerOpen(true)}
-              aria-label={t('console.openMenu')}
-            >
-              <Menu className="size-5" />
-            </Button>
-            <span className="truncate text-sm font-semibold">{current?.title ?? label}</span>
-          </div>
-        )}
-
-        {/* No scroll anchoring: placeholders swapping for content must not move the page. */}
-        <div
-          ref={contentRef}
-          className="flex-1 overflow-y-auto overscroll-contain bg-canvas [overflow-anchor:none]"
-        >
-          {children}
-        </div>
-
-        {/* Phones, few sections: every one in a bottom tab bar. */}
-        {mobileNav === 'tabs' && (
-          <nav
-            aria-label={label}
-            className="grid shrink-0 border-t bg-background pb-[env(safe-area-inset-bottom)] md:hidden"
-            style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}
-          >
-            {items.map((item) => {
+  const nav = (compact: boolean) => (
+    <nav aria-label={label} className="flex-1 space-y-5 overflow-y-auto px-3 py-4">
+      {groups.map((group, i) => (
+        <div key={group.label ?? i}>
+          {group.label && !compact && (
+            <div className="px-3 pb-1.5 text-xs font-medium text-slate-400">{group.label}</div>
+          )}
+          <div className="space-y-0.5">
+            {group.items.map((item) => {
               const active = isActive(item)
               return (
                 <Link
                   key={item.url}
                   to={item.url as never}
+                  activeOptions={{ exact: !!item.exact }}
+                  onClick={() => setDrawerOpen(false)}
+                  title={compact ? item.title : undefined}
                   aria-current={active ? 'page' : undefined}
                   className={cn(
-                    'flex h-14 min-w-0 flex-col items-center justify-center gap-1 px-1 text-[11px] transition-colors',
-                    active ? 'font-semibold text-primary' : 'text-muted-foreground',
+                    row(compact),
+                    active
+                      ? 'bg-primary/8 font-semibold text-primary'
+                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900',
                   )}
                 >
-                  <item.icon className="size-5" aria-hidden />
-                  <span className="max-w-full truncate">{item.short ?? item.title}</span>
+                  <item.icon className="size-4.5 shrink-0" aria-hidden />
+                  {!compact && <span className="truncate">{item.title}</span>}
                 </Link>
               )
             })}
-          </nav>
+          </div>
+        </div>
+      ))}
+    </nav>
+  )
+
+  const exitLink = (compact: boolean) => (
+    <Link
+      to={exit.to}
+      onClick={() => setDrawerOpen(false)}
+      title={compact ? exit.title : undefined}
+      className={cn(row(compact), 'text-slate-600 hover:bg-slate-50 hover:text-slate-900')}
+    >
+      <exit.icon className="size-4.5 shrink-0" aria-hidden />
+      {!compact && <span className="truncate">{exit.title}</span>}
+    </Link>
+  )
+
+  const toggleLabel = collapsed ? t('console.expandSidebar') : t('console.collapseSidebar')
+
+  return (
+    <div className="flex h-dvh w-full overflow-hidden bg-canvas">
+      {/* Desktop: the sidebar is the whole chrome — pages get the full height. */}
+      <aside
+        className={cn(
+          'hidden h-full shrink-0 flex-col border-r border-slate-200/80 bg-white transition-[width] duration-200 ease-out md:flex',
+          collapsed ? 'w-16' : 'w-64',
         )}
+      >
+        <div className="flex h-16 shrink-0 items-center gap-2 px-3">
+          {collapsed ? (
+            // Collapsed: the logo is the way back (it turns into the expand icon on hover).
+            <button
+              type="button"
+              onClick={() => setCollapsed(false)}
+              title={toggleLabel}
+              aria-label={toggleLabel}
+              className="group grid size-10 place-items-center rounded-lg hover:bg-slate-50"
+            >
+              <img src="/logo.svg" alt="" className="size-8 group-hover:hidden" />
+              <PanelLeft className="hidden size-4.5 text-slate-500 group-hover:block" />
+            </button>
+          ) : (
+            <>
+              <Link to="/admin" className="flex min-w-0 flex-1 items-center gap-2.5 px-1">
+                {brand}
+              </Link>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-8 shrink-0 text-slate-400 hover:text-slate-700"
+                onClick={() => setCollapsed(true)}
+                title={`${toggleLabel} (Ctrl/⌘ B)`}
+                aria-label={toggleLabel}
+              >
+                <PanelLeftClose className="size-4" />
+              </Button>
+            </>
+          )}
+        </div>
+        {nav(collapsed)}
+        <div className="shrink-0 space-y-1 border-t border-slate-100 p-3">
+          {exitLink(collapsed)}
+          <AccountMenu variant={collapsed ? 'avatar' : 'card'} />
+        </div>
+      </aside>
+
+      {/* Phones: the same sections in a drawer. */}
+      <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
+        <SheetContent side="left" className="w-72 bg-white p-0 [&>button]:hidden">
+          <SheetHeader className="sr-only">
+            <SheetTitle>{label}</SheetTitle>
+          </SheetHeader>
+          <div className="flex h-full flex-col">
+            <div className="flex h-16 shrink-0 items-center gap-2.5 px-4">{brand}</div>
+            {nav(false)}
+            <div className="shrink-0 border-t border-slate-100 p-3">{exitLink(false)}</div>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <div className="flex h-full min-w-0 flex-1 flex-col">
+        <header className="flex h-14 shrink-0 items-center gap-1 border-b border-slate-200/80 bg-white/90 pr-2 pl-1 backdrop-blur-xl md:hidden">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-11 text-slate-600"
+            onClick={() => setDrawerOpen(true)}
+            aria-label={t('console.openMenu')}
+          >
+            <Menu className="size-5" />
+          </Button>
+          <Link to="/admin" className="flex min-w-0 items-center gap-2.5">
+            {brand}
+          </Link>
+          <div className="ml-auto">
+            <AccountMenu variant="avatar" />
+          </div>
+        </header>
+
+        {/* No scroll anchoring: placeholders swapping for content must not move the page. */}
+        <div
+          ref={contentRef}
+          className="flex-1 overflow-y-auto overscroll-contain [overflow-anchor:none]"
+        >
+          {children}
+        </div>
       </div>
     </div>
+  )
+}
+
+/** Who is signed in, the language, and the way out. `card` = the sidebar foot, `avatar` = just the face. */
+function AccountMenu({ variant }: { variant: 'card' | 'avatar' }) {
+  const t = useT()
+  const user = useSession((s) => s.user)
+  const lang = usePrefs((s) => s.lang)
+  const setLang = usePrefs((s) => s.setLang)
+  const logout = useLogout()
+  if (!user) return null
+
+  const role = !isStaffUser(user)
+    ? null
+    : user.employeeRole === 'admin'
+      ? t('nav.role.admin')
+      : user.employeeRole === 'support_lead'
+        ? t('nav.role.supportLead')
+        : user.employeeRole === 'ops'
+          ? t('nav.role.operations')
+          : t('nav.role.support')
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <button
+            type="button"
+            aria-label={user.name}
+            title={variant === 'avatar' ? user.name : undefined}
+            className={cn(
+              'flex items-center rounded-lg text-left transition-colors hover:bg-slate-50',
+              variant === 'card' ? 'h-12 w-full gap-2.5 px-2' : 'size-10 justify-center',
+            )}
+          />
+        }
+      >
+        <Avatar className="size-8 shrink-0">
+          <AvatarFallback className="bg-primary text-xs font-semibold text-primary-foreground">
+            {initialsOf(user.name)}
+          </AvatarFallback>
+        </Avatar>
+        {variant === 'card' && (
+          <>
+            <span className="grid min-w-0 flex-1 leading-tight">
+              <span className="truncate text-sm font-medium text-slate-900">{user.name}</span>
+              <span className="truncate text-xs text-slate-500">{role}</span>
+            </span>
+            <ChevronsUpDown className="size-4 shrink-0 text-slate-400" aria-hidden />
+          </>
+        )}
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        side={variant === 'card' ? 'top' : 'bottom'}
+        align={variant === 'card' ? 'start' : 'end'}
+        className="w-64"
+      >
+        <DropdownMenuGroup>
+          <DropdownMenuLabel className="font-normal">
+            <div className="truncate text-sm font-semibold text-slate-900">{user.name}</div>
+            <div className="truncate text-xs text-slate-500">{user.email ?? user.phone}</div>
+            {role && (
+              <div className="mt-1.5 inline-flex rounded-md bg-primary/8 px-1.5 py-0.5 text-[11px] font-medium text-primary">
+                {role}
+                {user.brandName ? ` · ${user.brandName}` : ''}
+              </div>
+            )}
+          </DropdownMenuLabel>
+        </DropdownMenuGroup>
+        <DropdownMenuSeparator />
+        {(['vi', 'en'] as const).map((l) => (
+          <DropdownMenuItem key={l} onClick={() => setLang(l)} className="gap-2">
+            <Check className={cn('size-4 text-primary', lang !== l && 'invisible')} />
+            {l === 'vi' ? 'Tiếng Việt' : 'English'}
+          </DropdownMenuItem>
+        ))}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onClick={logout}
+          className="gap-2 text-rose-600 focus:bg-rose-50 focus:text-rose-700"
+        >
+          <LogOut className="size-4" /> {t('auth.logout')}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }

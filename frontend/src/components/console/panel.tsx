@@ -1,11 +1,10 @@
-import { useContext, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
-import { PageInset } from './page'
 
 /**
- * A section of a console page: a white surface with a hairline border on
- * the canvas — separation by contrast, not shadows — and an optional
- * title row with an action on the right.
+ * A section of a console page: the site's card (white on the canvas, a
+ * hairline ring, a whisper of shadow) with an optional title row and an
+ * action on the right.
  */
 export function Panel({
   title,
@@ -22,13 +21,10 @@ export function Panel({
   bodyClassName?: string
   children: ReactNode
 }) {
-  // In the customer account area: the site's softer cards.
-  const inset = useContext(PageInset)
   return (
     <section
       className={cn(
-        'rounded-xl border bg-card text-card-foreground',
-        !inset && 'rounded-2xl border-0 shadow-soft ring-1 ring-slate-200/80',
+        'rounded-2xl bg-card text-card-foreground shadow-soft ring-1 ring-slate-200/80 dark:ring-white/10',
         className,
       )}
     >

@@ -36,10 +36,10 @@ import { useT } from '@/lib/i18n'
 
 const PAGE_SIZE = 20
 
-const ROLES: { value: string; labelKey: string; hintKey: string }[] = [
-  { value: 'user', labelKey: 'users.roleUser', hintKey: 'users.roleUserHint' },
-  { value: 'employee', labelKey: 'users.roleEmployee', hintKey: 'users.roleEmployeeHint' },
-  { value: 'admin', labelKey: 'users.roleAdmin', hintKey: 'users.roleAdminHint' },
+const ROLES: { value: string; labelKey: string }[] = [
+  { value: 'user', labelKey: 'users.roleUser' },
+  { value: 'employee', labelKey: 'users.roleEmployee' },
+  { value: 'admin', labelKey: 'users.roleAdmin' },
 ]
 
 const ROLE_BADGE: Record<string, string> = {
@@ -133,33 +133,27 @@ export function UsersPanel() {
             const isSelf = me?.id === u.id
             const disabled = roleMutation.isPending || u.isBot || isSelf || me?.type !== 'admin'
             const roleDef = ROLES.find((r) => r.value === u.role)
-            return (
-              <div className="flex items-center gap-2">
-                <Badge
-                  className={cn(
-                    'text-[10px] border font-medium whitespace-nowrap',
-                    ROLE_BADGE[u.role] ?? ROLE_BADGE.user,
-                  )}
-                >
-                  {roleDef ? t(roleDef.labelKey) : u.role}
-                </Badge>
-                {me?.type === 'admin' && !u.isBot && !isSelf && (
-                  <ComboboxField
-                    value={u.role}
-                    disabled={disabled}
-                    onValueChange={(v) => void onRoleChange(u, v)}
-                    items={ROLES.map((r) => ({
-                      value: r.value,
-                      label: `${t(r.labelKey)} — ${t(r.hintKey)}`,
-                      disabled: r.value === 'admin' && isSelf,
-                    }))}
-                    className="h-7 w-32.5 text-xs"
-                    placeholder={t('adminUsers.role')}
-                    searchPlaceholder={t('combobox.search')}
-                    aria-label={t('users.changeRoleOf', { name: u.fullName })}
-                  />
+            // Editable rows show just the picker (it already shows the role).
+            return me?.type === 'admin' && !u.isBot && !isSelf ? (
+              <ComboboxField
+                value={u.role}
+                disabled={disabled}
+                onValueChange={(v) => void onRoleChange(u, v)}
+                items={ROLES.map((r) => ({ value: r.value, label: t(r.labelKey) }))}
+                className="h-8 w-36 text-xs"
+                placeholder={t('adminUsers.role')}
+                searchPlaceholder={t('combobox.search')}
+                aria-label={t('users.changeRoleOf', { name: u.fullName })}
+              />
+            ) : (
+              <Badge
+                className={cn(
+                  'border text-[10px] font-medium whitespace-nowrap',
+                  ROLE_BADGE[u.role] ?? ROLE_BADGE.user,
                 )}
-              </div>
+              >
+                {roleDef ? t(roleDef.labelKey) : u.role}
+              </Badge>
             )
           },
           sortFn: 'basic',

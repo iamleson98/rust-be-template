@@ -47,7 +47,7 @@ export function StatTile({
         {icon && (
           <span
             className={cn(
-              'grid size-7 shrink-0 place-items-center rounded-md [&_svg]:size-4',
+              'grid size-8 shrink-0 place-items-center rounded-full [&_svg]:size-4',
               TONES[tone],
             )}
             aria-hidden
@@ -71,12 +71,12 @@ export function StatTile({
     </>
   )
   const frame =
-    '@container flex flex-col rounded-xl border bg-card p-4 text-left text-card-foreground'
+    '@container flex flex-col rounded-2xl bg-card p-3.5 text-left text-card-foreground shadow-soft ring-1 ring-slate-200/80 sm:p-4 dark:ring-white/10'
   return onClick ? (
     <button
       type="button"
       onClick={onClick}
-      className={cn(frame, 'transition-colors hover:border-primary/40 hover:bg-primary/[0.03]')}
+      className={cn(frame, 'transition hover:ring-primary/40 hover:shadow-float')}
     >
       {body}
     </button>
@@ -105,7 +105,16 @@ function Trend({ delta, label }: { delta: number; label: string }) {
   )
 }
 
-/** Stat tiles: two to a row on phones, four on wide screens. */
+/** Stat tiles: two to a row on phones (an odd last one takes the whole row), four on wide screens. */
 export function StatGrid({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cn('grid grid-cols-2 gap-3 lg:grid-cols-4', className)}>{children}</div>
+  return (
+    <div
+      className={cn(
+        'grid grid-cols-2 gap-3 max-sm:[&>*:last-child:nth-child(odd)]:col-span-2 lg:grid-cols-4',
+        className,
+      )}
+    >
+      {children}
+    </div>
+  )
 }

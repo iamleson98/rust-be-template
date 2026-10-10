@@ -26,10 +26,12 @@ import { DisksCard } from './disks-card'
 import { HostCard } from './host-card'
 import { MemoryCard } from './memory-card'
 import { ProcessCard } from './process-card'
+import { useT } from '@/lib/i18n'
 
 const POLL_SECONDS = 5
 
 export function SystemMetricsSection() {
+  const t = useT()
   const metricsQuery = useQuery({ ...systemMetricsOptions(), refetchInterval: 5_000 })
 
   return (
@@ -37,13 +39,13 @@ export function SystemMetricsSection() {
       <div className="flex items-center justify-between gap-3">
         <h2 className="flex items-center gap-2 text-lg font-semibold">
           <Server className="h-5 w-5" aria-hidden />
-          Server Metrics
+          {t('adminSystem.serverMetrics')}
           <span className="ml-1 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium text-muted-foreground">
             <RefreshCw
               className={`h-3 w-3 ${metricsQuery.isFetching ? 'animate-spin' : ''}`}
               aria-hidden
             />
-            live · {POLL_SECONDS}s
+            {t('adminSystem.liveEvery', { s: POLL_SECONDS })}
           </span>
         </h2>
         <Button
@@ -56,7 +58,7 @@ export function SystemMetricsSection() {
             className={`h-4 w-4 ${metricsQuery.isFetching ? 'animate-spin' : ''}`}
             aria-hidden
           />
-          Refresh
+          {t('common.refresh')}
         </Button>
       </div>
 
@@ -65,9 +67,9 @@ export function SystemMetricsSection() {
           <CardContent className="flex items-center gap-3 pt-6 text-red-600">
             <AlertCircle className="h-5 w-5 shrink-0" aria-hidden />
             <div>
-              <p className="font-medium">Failed to load server metrics</p>
+              <p className="font-medium">{t('adminSystem.metricsLoadFailed')}</p>
               <p className="text-sm text-muted-foreground">
-                {getErrorMessage(metricsQuery.error, 'Unknown error')}
+                {getErrorMessage(metricsQuery.error, t('adminSystem.unknownError'))}
               </p>
             </div>
           </CardContent>

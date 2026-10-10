@@ -110,7 +110,7 @@ function LastRunCell({ job }: { job: CronJobOut }) {
       ? elapsedLabel(last.startedAt)
       : durationLabel(last.startedAt, last.finishedAt)
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col items-start gap-1">
       <StatusBadge status={last.status} />
       {workTime ? (
         <span className="text-xs text-muted-foreground tabular-nums">
@@ -146,7 +146,7 @@ function JobCard({
   const catalogNote = heading !== job.description ? job.description : null
 
   return (
-    <Card data-testid="cron-job-card" data-job-type={job.jobType}>
+    <Card className="py-0" data-testid="cron-job-card" data-job-type={job.jobType}>
       <CardContent className="p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
@@ -214,13 +214,13 @@ function JobCard({
         </div>
 
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="rounded-lg border p-3 space-y-1">
+          <div className="space-y-1 rounded-xl bg-slate-50 p-3 dark:bg-white/5">
             <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
               {t('adminCronJobs.nextRun')}
             </p>
             <NextRunCell job={job} />
           </div>
-          <div className="rounded-lg border p-3 space-y-1">
+          <div className="space-y-1 rounded-xl bg-slate-50 p-3 dark:bg-white/5">
             <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
               {t('adminCronJobs.lastRun')}
             </p>

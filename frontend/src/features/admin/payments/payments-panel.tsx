@@ -186,7 +186,7 @@ export function AdminPaymentsPanel() {
             setPage(0)
           }}
           items={STATUS_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))}
-          className="min-w-0 flex-1 sm:w-48 sm:flex-none"
+          className="h-10 min-w-0 flex-1 rounded-xl sm:w-48 sm:flex-none"
           placeholder={t('common.status')}
           searchPlaceholder={t('combobox.search')}
           aria-label={t('adminPayments.filterByStatus')}
@@ -202,15 +202,12 @@ export function AdminPaymentsPanel() {
             value: o.value,
             label: o.labelKey ? t(o.labelKey) : (o.label ?? o.value),
           }))}
-          className="min-w-0 flex-1 sm:w-44 sm:flex-none"
+          className="h-10 min-w-0 flex-1 rounded-xl sm:w-44 sm:flex-none"
           placeholder={t('adminPayments.method')}
           searchPlaceholder={t('combobox.search')}
           aria-label={t('adminPayments.filterByMethod')}
           data-testid="payment-provider-filter"
         />
-        <span className="ml-auto hidden text-xs text-muted-foreground sm:inline">
-          {t('adminPayments.transactionCount', { count: total })}
-        </span>
       </div>
 
       {/* ── Table / Cards — the DataTable renders its own bordered surface. ─── */}
@@ -238,7 +235,10 @@ export function AdminPaymentsPanel() {
         }
         emptyIcon={<CreditCard className="h-5 w-5" aria-hidden />}
         toolbar={(table) => (
-          <div className="hidden items-center justify-end border-b bg-muted/20 px-4 py-2 md:flex">
+          <div className="hidden items-center gap-2 border-b border-slate-100 py-2.5 pr-2.5 pl-4 md:flex">
+            <span className="text-xs text-muted-foreground">
+              {t('adminPayments.transactionCount', { count: total })}
+            </span>
             <DataTableViewOptions table={table} className="ml-auto h-8" />
           </div>
         )}

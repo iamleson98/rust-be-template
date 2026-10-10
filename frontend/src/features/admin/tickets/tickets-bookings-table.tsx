@@ -3,7 +3,7 @@
 import type { Dispatch, SetStateAction } from 'react'
 import type { CellData, ColumnDef, SortingState } from '@tanstack/react-table'
 import { DataTable, DataTableViewOptions, type DataTableFeatures } from '@/components/data-table'
-import { Badge } from '@/components/ui/badge'
+import { CountPill } from '@/components/console/panel'
 import { Button } from '@/components/ui/button'
 import { Ticket as TicketIcon, RefreshCw } from 'lucide-react'
 import type { useAdminBookings, AdminBookingFilter } from './api'
@@ -34,27 +34,6 @@ export function TicketsBookingsTable({
   const t = useT()
   return (
     <>
-      <div className="flex items-center justify-between gap-2 pb-2">
-        <h2 className="text-base font-semibold flex items-center gap-2">
-          <TicketIcon className="h-4 w-4 text-blue-600" />
-          {t('adminTickets.soldTicketsTitle')}
-          <Badge variant="secondary" className="text-[10px]">
-            {t('adminTickets.ticketCount', { count: total })}
-          </Badge>
-        </h2>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 text-xs"
-          onClick={() => bookingsQuery.refetch()}
-          disabled={bookingsQuery.isFetching}
-        >
-          <RefreshCw
-            className={`h-3.5 w-3.5 mr-1 ${bookingsQuery.isFetching ? 'animate-spin' : ''}`}
-          />
-          {t('common.refresh')}
-        </Button>
-      </div>
       <DataTable
         columns={columns}
         data={bookingsQuery.data?.items ?? []}
@@ -77,8 +56,25 @@ export function TicketsBookingsTable({
         emptyDescription={t('adminTickets.emptyDescription')}
         emptyIcon={<TicketIcon className="h-5 w-5" aria-hidden />}
         toolbar={(table) => (
-          <div className="flex items-center justify-end border-b bg-muted/20 px-4 py-2">
-            <DataTableViewOptions table={table} className="ml-auto h-8" />
+          <div className="flex items-center gap-2 border-b border-slate-100 py-2.5 pr-2.5 pl-4">
+            <h2 className="flex min-w-0 items-center gap-2 text-sm font-semibold">
+              <span className="truncate">{t('adminTickets.soldTicketsTitle')}</span>
+              <CountPill n={total} />
+            </h2>
+            <div className="ml-auto flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-8 text-slate-500"
+                onClick={() => bookingsQuery.refetch()}
+                disabled={bookingsQuery.isFetching}
+                aria-label={t('common.refresh')}
+                title={t('common.refresh')}
+              >
+                <RefreshCw className={bookingsQuery.isFetching ? 'animate-spin' : ''} />
+              </Button>
+              <DataTableViewOptions table={table} className="hidden h-8 md:inline-flex" />
+            </div>
           </div>
         )}
         mobileList={

@@ -86,7 +86,7 @@ export interface DataTableProps<TData extends RowData> {
   emptyAction?: ReactNode
 
   // ── Layout ──────────────────────────────────────────────────
-  /** Render the official `rounded-lg border` surface around the table. */
+  /** Render the card surface around the table, its phone cards and the pager. */
   bordered?: boolean
   /** Rendered above the table — receives the table instance (e.g. column menu). */
   toolbar?: (table: ReactTable<DataTableFeatures, TData>) => ReactNode
@@ -328,22 +328,22 @@ export function DataTable<TData extends RowData>({
   }
 
   return (
-    <div className={cn('w-full', className)} data-slot="data-table" data-testid={testId}>
-      <div
-        className={cn(
-          bordered && 'overflow-hidden rounded-lg border bg-card',
-          hideTableOnMobile && 'hidden md:block',
-        )}
-      >
-        {toolbar && !showSkeleton ? toolbar(table) : null}
-        {body}
-      </div>
+    // One surface for the toolbar, the rows (or the phone cards) and the pager.
+    <div
+      className={cn(
+        'w-full',
+        bordered &&
+          'overflow-hidden rounded-2xl bg-card shadow-soft ring-1 ring-slate-200/80 dark:ring-white/10',
+        className,
+      )}
+      data-slot="data-table"
+      data-testid={testId}
+    >
+      {toolbar && !showSkeleton ? toolbar(table) : null}
+      <div className={cn(hideTableOnMobile && 'hidden md:block')}>{body}</div>
 
       {hideTableOnMobile ? (
-        <div
-          className="overflow-hidden rounded-lg border bg-card md:hidden"
-          data-slot="data-table-mobile-list"
-        >
+        <div className="md:hidden" data-slot="data-table-mobile-list">
           {mobileList}
         </div>
       ) : null}
@@ -355,7 +355,6 @@ export function DataTable<TData extends RowData>({
           showPageSize={showPageSize}
           pageSizeOptions={pageSizeOptions}
           hideOnSinglePage={hidePaginationOnSinglePage}
-          className={bordered ? 'rounded-b-lg border border-t-0 bg-card' : undefined}
         />
       )}
     </div>

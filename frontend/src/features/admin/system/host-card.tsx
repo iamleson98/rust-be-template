@@ -10,6 +10,7 @@
 import { LoaderCircle } from 'lucide-react'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useT } from '@/lib/i18n'
 
 // ─── Host ───────────────────────────────────────────────────────────
 
@@ -27,29 +28,30 @@ export function HostCard({
   timestamp: string
   refreshing?: boolean
 }) {
+  const t = useT()
   return (
     <Card data-testid="metric-host-card">
       <CardHeader className="pb-2">
-        <CardTitle className="text-base">Host</CardTitle>
+        <CardTitle className="text-base">{t('adminSystem.host')}</CardTitle>
       </CardHeader>
       <CardContent>
         <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-4">
           <div>
-            <dt className="text-muted-foreground">Hostname</dt>
+            <dt className="text-muted-foreground">{t('adminSystem.hostname')}</dt>
             <dd className="font-medium">{hostname}</dd>
           </div>
           <div>
-            <dt className="text-muted-foreground">OS</dt>
+            <dt className="text-muted-foreground">{t('adminSystem.os')}</dt>
             <dd className="font-medium">{osName}</dd>
           </div>
           <div>
-            <dt className="text-muted-foreground">Kernel</dt>
+            <dt className="text-muted-foreground">{t('adminSystem.kernel')}</dt>
             <dd className="font-medium truncate" title={kernelVersion}>
               {kernelVersion}
             </dd>
           </div>
           <div>
-            <dt className="text-muted-foreground">Updated</dt>
+            <dt className="text-muted-foreground">{t('adminSystem.updated')}</dt>
             <dd className="font-medium tabular-nums">
               {new Date(timestamp).toLocaleTimeString()}
               {refreshing && (
