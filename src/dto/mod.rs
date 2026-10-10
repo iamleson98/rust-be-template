@@ -27,6 +27,7 @@ pub mod ad_conversion;
 pub mod admin;
 pub mod booking;
 pub mod chat;
+pub mod fares;
 pub mod job;
 pub mod loyalty;
 pub mod notification;
@@ -38,6 +39,7 @@ pub mod push_device;
 pub mod review;
 pub mod route_media;
 pub mod routing;
+pub mod seat_plan;
 pub mod system;
 
 use serde::{Deserialize, Serialize};

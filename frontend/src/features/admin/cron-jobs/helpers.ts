@@ -6,12 +6,12 @@
  * i18n dictionaries via the store's current language.
  */
 
-import { translate } from '@/lib/i18n'
-import { useApp } from '@/lib/store'
+import { usePrefs } from '@/stores/prefs'
+import { translate, tSync } from '@/lib/i18n'
 
 /** Human label for a run status (matching the admin UI language). */
 export function runStatusLabel(status: string): string {
-  const lang = useApp.getState().lang
+  const lang = usePrefs.getState().lang
   switch (status) {
     case 'queued':
       return translate(lang, 'admin.stats.openCount')
@@ -48,7 +48,7 @@ export function runStatusClass(status: string): string {
 
 /** "Mỗi 14 ngày" / "Hàng ngày" / … (interval is days). */
 export function scheduleIntervalLabel(intervalDays: number): string {
-  const lang = useApp.getState().lang
+  const lang = usePrefs.getState().lang
   if (intervalDays === 1) return translate(lang, 'adminCronJobs.daily')
   if (intervalDays === 7) return translate(lang, 'adminCronJobs.weekly')
   if (intervalDays === 14) return translate(lang, 'adminCronJobs.biweekly')
@@ -83,7 +83,7 @@ export function elapsedLabel(startedAt?: string | null, now = Date.now()): strin
 
 /** ms → "1 giờ 23 phút" / "45 giây" / "< 1 giây". */
 export function humanizeDuration(ms: number): string {
-  const lang = useApp.getState().lang
+  const lang = usePrefs.getState().lang
   const totalSeconds = Math.floor(ms / 1000)
   if (totalSeconds < 1) return translate(lang, 'adminCronJobs.ltOneSecond')
   if (totalSeconds < 60) return translate(lang, 'adminCronJobs.seconds', { n: totalSeconds })
@@ -134,7 +134,7 @@ export function jobHeading(job: { jobType: string; description?: string | null }
 /** Friendly job-type label: "osm.import" → "Làm mới chỉ mục địa điểm OSM". */
 export function jobTypeLabel(jobType: string): string {
   if (jobType === 'osm.import') {
-    return translate(useApp.getState().lang, 'adminCronJobs.osmImportLabel')
+    return tSync('adminCronJobs.osmImportLabel')
   }
   return jobType
 }

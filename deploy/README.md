@@ -89,11 +89,19 @@ home-NAT — those paths can rarely hole-punch with STUN alone, so the
 TURN relay is what makes calls actually connect (this was the root
 cause of the "call stuck on connecting, dies after ~25 s" reports).
 
-- Ports: `3478/tcp` + `3478/udp` (STUN+TURN) and `49160-49200/udp`
-  (relay range) — open them in any edge firewall.
-- Credentials: `TURN_USERNAME` (default `vexevn`) + `TURN_SECRET`
-  (random hex, generated on the server into `/opt/vexevn/.env`, never
-  committed).
+- Ports: `3478/tcp` + `3478/udp` (STUN+TURN) and `49160-65500/udp`
+  (relay range, widened by `tune-call-capacity.sh`) — open them in any
+  edge firewall.
+- Credentials: per user and time-limited (`AUDIO_CALL_TURN_AUTH_MODE=rest`,
+  the default). coturn checks `base64(HMAC-SHA1(TURN_SECRET,
+  "<expiry>:<userId>"))`; the backend mints them for each signed-in
+  caller in the `registered` frame and sends fresh ones to open sockets
+  every 30 minutes, each valid for a whole call. `TURN_SECRET` is random
+  hex generated on the server into `/opt/vexevn/.env`, never committed.
+  `turn.sh --static` brings back the legacy single shared password.
+- Relay hardening: coturn refuses private, CGNAT, link-local and
+  unique-local peers (`--denied-peer-ip`), TCP relays and its admin CLI,
+  so the relay can't be used to reach the host's internal networks.
 - The backend picks up `AUDIO_CALL_ICE_SERVERS` from the same `.env`
   and pushes the STUN/TURN list to every peer in the `registered`
   frame over the authed WebSocket.
@@ -103,6 +111,26 @@ cause of the "call stuck on connecting, dies after ~25 s" reports).
   bash /opt/vexevn/turn.sh            # (re)create + verify
   docker logs coturn-vexevn           # allocations + errors
   ```
+
+### Calls from Vietnam only
+
+`CALL_ALLOWED_COUNTRIES=VN` (the stack default) accepts calls only from
+Vietnamese addresses; staff are exempt. A refused caller is told so over
+the call socket (`region-blocked`, close code 4403), and the site shows
+"calls are only available in Vietnam" while the chat keeps working.
+
+- Country blocks come from the regional internet registry's delegation
+  file (APNIC). A Vietnam snapshot is built into the backend
+  (`src/geo/apnic-vn.txt`, regenerate with `deploy/geo-snapshot.sh`);
+  production re-downloads the full file daily (`GEO_RANGES_URL`) onto
+  the data volume (`GEO_RANGES_PATH`) and swaps it in without a restart.
+  A download with under half the known blocks is refused.
+- The caller's address is the real client IP behind Cloudflare and Caddy
+  (`middleware::client_ip`): when Caddy recorded a Cloudflare edge, the
+  backend reads `CF-Connecting-IP`.
+- Private and loopback addresses belong to no country and are allowed
+  (local development, LAN tests).
+- TURN credentials are only issued to callers who passed the gate.
 
 ### Corporate-network calls (TURN/TLS on 443 — LIVE since 2026-09-10)
 

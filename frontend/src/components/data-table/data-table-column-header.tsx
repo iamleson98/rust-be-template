@@ -1,16 +1,3 @@
-'use client'
-
-/**
- * Sortable column header following the official shadcn data-table guide
- * (https://ui.shadcn.com/docs/components/base/data-table).
- *
- * ONE control per header — a single ghost button that toggles the sort
- * direction (asc → desc) with an animated direction indicator. There is
- * deliberately no second dropdown next to it: hiding columns stays in
- * the toolbar's `DataTableViewOptions` menu, so nothing about sorting is
- * ever duplicated in the header.
- */
-
 import { ArrowDown, ArrowUp, ChevronsUpDown } from 'lucide-react'
 import type { Column, RowData } from '@tanstack/react-table'
 

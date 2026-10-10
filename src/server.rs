@@ -301,6 +301,15 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
             config.audio_call.max_call_duration(),
             config.audio_call.janitor_interval(),
         );
+
+        // Country gate for callers (CALL_ALLOWED_COUNTRIES), kept current
+        // from the registry file when GEO_RANGES_URL is set. See src/geo.
+        let geo_path = config.audio_call.geo_ranges_path.clone();
+        crate::geo::install(crate::geo::CallGate::load(
+            config.audio_call.allowed_countries.clone(),
+            geo_path.as_deref(),
+        ));
+        crate::geo::spawn_refresh(config.audio_call.geo_ranges_url.clone(), geo_path);
     }
 
     // ---- Domain services (pre-built, shared via Arc) -----------------
@@ -355,7 +364,14 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
     // ---- New domain services (booking logic) -------------------------
     let admin_service = Arc::new(AdminService::new(store.clone()));
     let review_service = Arc::new(ReviewService::new(store.clone()));
+    // Before serving, so no review moderation can interleave with it.
+    match crate::service::review_service::reconcile_brand_ratings(&store).await {
+        Ok(0) => {}
+        Ok(n) => tracing::info!(n, "brand ratings recomputed from approved reviews"),
+        Err(e) => tracing::warn!(%e, "brand rating reconcile failed (non-fatal)"),
+    }
     let booking_service = Arc::new(BookingService::new(store.clone()));
+    crate::service::booking_service::spawn_hold_sweeper(booking_service.clone());
     let loyalty_service = Arc::new(LoyaltyService::new(store.clone()));
     let public_service = Arc::new(PublicService::new(store.clone()));
     let routing_service = Arc::new(RoutingService::new(&config));

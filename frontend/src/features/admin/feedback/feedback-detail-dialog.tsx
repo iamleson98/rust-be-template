@@ -21,7 +21,7 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { CheckCircle2, EyeOff, Send, XCircle } from 'lucide-react'
 import { useT } from '@/lib/i18n'
-import { StarRating } from '@/features/feedback/star-rating'
+import { StarRating } from '@/features/account/feedback/star-rating'
 import { formatDate, type FeedbackRow } from './helpers'
 
 export function FeedbackDetailDialog({
@@ -166,7 +166,7 @@ export function FeedbackDetailDialog({
                   onChange={(e) => setReplyText(e.target.value)}
                   placeholder={t('adminFeedback.brandReplyPlaceholder')}
                   rows={3}
-                  className="bg-background text-sm resize-none"
+                  className="bg-background text-base md:text-sm resize-none"
                 />
                 <div className="flex items-center justify-end gap-2">
                   <Button

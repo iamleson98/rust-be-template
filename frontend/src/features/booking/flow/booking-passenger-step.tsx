@@ -1,61 +1,28 @@
 'use client'
 
-/**
- * BookingPassengerStep — step 1 (passengers) of the BookingDialog: the
- * header + "Sao chép từ liên hệ" / "Tự ghép ghế" actions, the mini seat
- * preview, the per-passenger form cards, the add-passenger button, the
- * passenger summary and the continue CTA.
- *
- * Extracted from the original `booking-dialog.tsx` — the parent owns the
- * RHF form (`form` is passed down) and all the passenger-array callbacks.
- */
-
-import type { FieldArrayWithId, UseFormReturn } from 'react-hook-form'
 import { Button } from '@/components/ui/button'
-import { Users, Copy, Sparkles, Plus, ChevronRight } from 'lucide-react'
-import type { Currency } from '@/lib/currency'
+import { Users, Copy, Sparkles, ChevronRight } from 'lucide-react'
+import { useGuest } from '@/stores/guest'
 import { useT } from '@/lib/i18n'
 import { SeatSelector } from './seat-selector'
 import { PassengerSummary } from './passenger-list'
 import { PassengerFormCard } from './passenger-form-card'
-import { type BookingValues, type PassengerFormValue, type SelectedSeat } from './booking-form'
+import type { BookingForm } from './use-booking-form'
+import { StepActions } from './step-actions'
 
+/** Step 1: who travels on which seat, with helpers to fill names and hand out seats. */
 export function BookingPassengerStep({
-  form,
-  passengers,
-  passengerFields,
-  selectedSeatCodes,
-  currency,
-  guestName,
-  subtotal,
-  unassignedCount,
-  hasDuplicateSeats,
-  canContinueStep1,
+  booking,
   error,
-  addPassenger,
-  removePassenger,
-  autoAssignSeats,
-  copyContactToFirst,
-  gotoContact,
+  onContinue,
 }: {
-  form: UseFormReturn<BookingValues>
-  passengers: PassengerFormValue[]
-  passengerFields: FieldArrayWithId<BookingValues, 'passengers'>[]
-  selectedSeatCodes: SelectedSeat[]
-  currency: Currency
-  guestName: string | null
-  subtotal: number
-  unassignedCount: number
-  hasDuplicateSeats: boolean
-  canContinueStep1: boolean
+  booking: BookingForm
   error: string
-  addPassenger: () => void
-  removePassenger: (index: number) => void
-  autoAssignSeats: () => void
-  copyContactToFirst: () => void
-  gotoContact: () => void
+  onContinue: () => void
 }) {
   const t = useT()
+  const guestName = useGuest((s) => s.guestName)
+  const { form, fields, passengers, seats, tickets } = booking
   return (
     <div className="p-5 space-y-4">
       {/* Header + actions */}
@@ -68,7 +35,7 @@ export function BookingPassengerStep({
           <p className="text-xs text-muted-foreground mt-0.5">
             {t('bookingFlow.passengerSeatSummary', {
               count: passengers.length,
-              seats: selectedSeatCodes.length,
+              seats: seats.length,
             })}
           </p>
         </div>
@@ -76,7 +43,7 @@ export function BookingPassengerStep({
           <Button
             variant="outline"
             size="sm"
-            onClick={copyContactToFirst}
+            onClick={booking.copyContactName}
             disabled={!form.getValues('contactName') && !guestName}
             className="gap-1.5 h-8 text-xs"
           >
@@ -86,8 +53,8 @@ export function BookingPassengerStep({
           <Button
             variant="outline"
             size="sm"
-            onClick={autoAssignSeats}
-            disabled={unassignedCount === 0}
+            onClick={booking.autoAssignSeats}
+            disabled={booking.unassigned === 0}
             className="gap-1.5 h-8 text-xs"
           >
             <Sparkles className="h-3.5 w-3.5" />
@@ -96,46 +63,29 @@ export function BookingPassengerStep({
         </div>
       </div>
 
-      {/* Mini seat preview — color-coded by passenger */}
-      {selectedSeatCodes.length > 0 && (
-        <SeatSelector selectedSeats={selectedSeatCodes} passengers={passengers} />
-      )}
+      <SeatSelector tickets={tickets} />
 
-      {/* Passenger cards */}
       <div className="space-y-3">
-        {passengerFields.map((p, i) => (
+        {fields.map((field, i) => (
           <PassengerFormCard
-            key={p.id}
-            p={p}
-            i={i}
+            key={field.id}
+            index={i}
             passengers={passengers}
-            passengerFields={passengerFields}
-            selectedSeatCodes={selectedSeatCodes}
+            seats={seats}
             control={form.control}
-            currency={currency}
-            removePassenger={removePassenger}
+            // `useWatch` lags a freshly reset field by one render.
+            type={booking.typeOf(passengers[i] ?? field)}
+            price={tickets.find((ticket) => ticket.passengerIndex === i)?.price}
           />
         ))}
       </div>
 
-      {/* Add passenger button */}
-      {passengerFields.length < selectedSeatCodes.length && (
-        <Button variant="outline" onClick={addPassenger} className="w-full gap-1.5 border-dashed">
-          <Plus className="h-4 w-4" />
-          {t('bookingFlow.addPassengerRemaining', {
-            count: selectedSeatCodes.length - passengerFields.length,
-          })}
-        </Button>
-      )}
-
-      {/* Summary section */}
       <PassengerSummary
-        passengers={passengers}
-        selectedSeatCount={selectedSeatCodes.length}
-        subtotal={subtotal}
-        currency={currency}
-        unassignedCount={unassignedCount}
-        hasDuplicateSeats={hasDuplicateSeats}
+        tickets={tickets}
+        childFare={booking.childFare}
+        subtotal={booking.subtotal}
+        unassigned={booking.unassigned}
+        duplicateSeats={booking.duplicateSeats}
       />
 
       {error && (
@@ -144,15 +94,15 @@ export function BookingPassengerStep({
         </div>
       )}
 
-      <div className="flex justify-end">
+      <StepActions>
         <Button
-          onClick={gotoContact}
-          disabled={!canContinueStep1}
-          className="gap-1 bg-primary hover:bg-primary/90"
+          onClick={onContinue}
+          disabled={!booking.canContinue}
+          className="ml-auto gap-1 max-sm:h-11 max-sm:flex-1"
         >
           {t('bookingFlow.continue')} <ChevronRight className="h-4 w-4" />
         </Button>
-      </div>
+      </StepActions>
     </div>
   )
 }

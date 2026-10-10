@@ -116,7 +116,7 @@ changes.
 | Frontend | Format | `prettier --check .` (`.prettierrc`, `.prettierignore`) | `make fmt-web` |
 | Frontend | Lint | `eslint --max-warnings 0 .` (whole tree incl. e2e + configs) | `make lint-web` |
 | Frontend | Types | `tsc --noEmit` (src + e2e + configs) | fix the flagged line |
-| Frontend | SDK freshness | regen `src/lib/api` + diff (below) | `cd frontend && bun run openapi` |
+| Frontend | SDK freshness | regen `src/api/generated` + diff (below) | `cd frontend && bun run openapi` |
 | Frontend | Dead code / unused deps | `knip --include files,dependencies` (`knip.json`) | delete the file / remove the dep |
 | Frontend | Unit tests | `vitest run` (225) | `make test-web` |
 | Frontend | Build | `vite build` + prerender | fix the build error |

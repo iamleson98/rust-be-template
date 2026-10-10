@@ -133,6 +133,24 @@ impl AppError {
         }
     }
 
+    /// What the client is told. Server-side faults carry SQL, hostnames or
+    /// file paths, so they get a generic text; the detail goes to the log.
+    fn public_message(&self) -> String {
+        use crate::store::StoreError;
+        match self {
+            AppError::Internal(_)
+            | AppError::Cache(_)
+            | AppError::Storage(_)
+            | AppError::Worker(_)
+            | AppError::Json(_)
+            | AppError::Store(StoreError::Database(_) | StoreError::Exhausted { .. }) => {
+                "internal server error".to_string()
+            }
+            AppError::UpstreamHttp(_) => "upstream service unavailable".to_string(),
+            _ => self.to_string(),
+        }
+    }
+
     fn kind(&self) -> &'static str {
         match self {
             AppError::NotFound(_) => "not_found",
@@ -158,9 +176,10 @@ impl AppError {
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         let status = self.status();
+        let detail = self.to_string();
         let body = ErrorBody {
             error: self.kind(),
-            message: self.to_string(),
+            message: self.public_message(),
         };
         // Differentiate log level by status family:
         // - 5xx (server errors) excluding 503: error — real signal for ops
@@ -171,22 +190,19 @@ impl IntoResponse for AppError {
                 target: "app_error",
                 kind = body.error,
                 status = status.as_u16(),
-                "{}",
-                body.message
+                "{detail}"
             ),
             500..=599 => tracing::error!(
                 target: "app_error",
                 kind = body.error,
                 status = status.as_u16(),
-                "{}",
-                body.message
+                "{detail}"
             ),
             _ => tracing::debug!(
                 target: "app_error",
                 kind = body.error,
                 status = status.as_u16(),
-                "{}",
-                body.message
+                "{detail}"
             ),
         }
         (status, Json(body)).into_response()
@@ -215,6 +231,37 @@ mod tests {
     use validator::Validate;
 
     use super::AppError;
+    use crate::store::StoreError;
+
+    #[test]
+    fn server_faults_do_not_leak_their_detail() {
+        for err in [
+            AppError::Internal("UNIQUE constraint failed: user.email".into()),
+            AppError::Store(StoreError::Database(
+                "disk I/O error at /var/db/app.db".into(),
+            )),
+            AppError::Cache("redis://10.0.0.5:6379 refused".into()),
+            AppError::Storage("s3 bucket secret-bucket".into()),
+        ] {
+            assert_eq!(err.public_message(), "internal server error", "{err:?}");
+        }
+    }
+
+    #[test]
+    fn client_errors_keep_their_message() {
+        assert_eq!(
+            AppError::Conflict("some seats are no longer available".into()).public_message(),
+            "conflict: some seats are no longer available"
+        );
+        assert_eq!(
+            AppError::Store(StoreError::NotFound("seat inventory".into())).public_message(),
+            "store error: entity not found: seat inventory"
+        );
+        assert_eq!(
+            AppError::ServiceUnavailable("provider 'momo' is not enabled".into()).public_message(),
+            "service unavailable: provider 'momo' is not enabled"
+        );
+    }
 
     #[derive(Validate)]
     struct ContactRequest {

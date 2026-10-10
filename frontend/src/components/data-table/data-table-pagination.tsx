@@ -1,13 +1,3 @@
-'use client'
-
-/**
- * Pagination footer following the shadcn data-table guide (rows-per-page
- * select, page indicator, first/prev/next/last icon buttons), localised
- * to Vietnamese and extended for server-side ("manual") pagination:
- * `rowCount` supplied by the table options drives the range label and
- * page count, so the same component works for both modes.
- */
-
 import type { RowData } from '@tanstack/react-table'
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react'
 

@@ -12,19 +12,20 @@
  * discovery — no dead ends, no fabricated prices.
  */
 
+import { usePrefs } from '@/stores/prefs'
+import { useSearchForm } from '@/stores/search-form'
 import { useMemo, useState } from 'react'
 import { useQueryClient, useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { useApp } from '@/lib/store'
-import type { RouteItem } from '@/lib/queries'
-import { routesOptions, searchTripsOptions } from '@/lib/api/@tanstack/react-query.gen'
+import type { RouteOut } from '@/api'
+import { routesOptions, searchTripsOptions } from '@/api'
 import { buildSearchInput } from '@/lib/search-params'
-import { formatCurrency } from '@/lib/currency'
+import { formatCurrency } from '@/lib/format'
 import { useT } from '@/lib/i18n'
-import { slugify } from '@/lib/slug'
+import { slugify } from '@/lib/text'
 import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
-import { ErrorState } from '@/components/layout/error-state'
+import { ErrorState } from '@/components/error-state'
 import { ArrowRight, Bus, SearchX } from 'lucide-react'
 
 /** Accent-insensitive comparison key ("Đà Nẵng" → "danang"). */
@@ -32,7 +33,8 @@ const norm = (s: string) => slugify(s).replaceAll('-', '')
 
 export function RouteDirectory() {
   const t = useT()
-  const { setSearchParams, currency } = useApp()
+  const setSearchParams = useSearchForm((s) => s.setSearchParams)
+  const currency = usePrefs((s) => s.currency)
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [filter, setFilter] = useState('')
@@ -42,7 +44,7 @@ export function RouteDirectory() {
     ...routesOptions({ query: { limit: 200 } }),
     staleTime: 5 * 60 * 1000,
   })
-  const items: RouteItem[] = useMemo(() => {
+  const items: RouteOut[] = useMemo(() => {
     const all = data?.items ?? []
     const q = norm(filter.trim())
     if (!q) return all
@@ -117,12 +119,6 @@ export function RouteDirectory() {
               className="group text-left"
             >
               <Card className="group overflow-hidden border-border/60 hover:border-blue-400 hover:-translate-y-0.5 transition-all duration-200">
-                <div
-                  className="h-1"
-                  style={{
-                    background: `linear-gradient(90deg, ${r.brand.accentColor ?? '#64748b'}, transparent)`,
-                  }}
-                />
                 <div className="p-4 space-y-3">
                   <div className="flex items-center justify-between gap-2">
                     <span className="flex min-w-0 items-center gap-1.5 text-xs font-semibold">

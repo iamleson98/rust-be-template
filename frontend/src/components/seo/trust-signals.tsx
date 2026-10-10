@@ -1,24 +1,7 @@
-'use client'
-
-/**
- * TrustSignals — reusable trust + privacy component.
- *
- * Shows SSL badge, data protection copy, and consumer rights affirmation.
- * Place near payment forms, booking dialogs, and on the homepage hero.
- *
- * The copy complies with Vietnam's Decree 13/2023/ND-CP on Personal
- * Data Protection — it affirms that user data is only used for the
- * stated purpose (sending tickets + trip notifications) and is NOT
- * shared with third parties.
- */
-
 import { ShieldCheck, Lock, FileCheck, Eye } from 'lucide-react'
 import { useT } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 
-// Labels/descriptions are i18n keys resolved at render time (see the
-// conversion guide's module-level-constant rule); the key doubles as the
-// React key below.
 const TRUST_ITEMS = [
   {
     icon: Lock,
@@ -80,7 +63,7 @@ export function PrivacyNotice({ className }: { className?: string }) {
     >
       <ShieldCheck className="h-4 w-4 text-info shrink-0 mt-0.5" />
       <div className="space-y-1">
-        <p className="font-medium text-info-foreground">{t('trust.privacyTitle')}</p>
+        <p className="font-semibold text-info">{t('trust.privacyTitle')}</p>
         <p>
           {t('trust.privacyBody')}
           <strong className="text-foreground"> {t('trust.privacyNoShare')}</strong> —

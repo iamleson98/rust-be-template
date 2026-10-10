@@ -1,4 +1,5 @@
-//! Schedule store — read/write access to the `schedule` and `bus_layout` tables.
+//! Schedule store — read/write access to the `schedule`, `schedule_fare` and
+//! `bus_layout` tables.
 //!
 //! Follows the template's store pattern: `ScheduleStore` trait +
 //! `DbScheduleStore` (`#[retry]`).
@@ -8,14 +9,14 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use sea_orm::{
     ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
-    QuerySelect,
+    QuerySelect, TransactionTrait,
 };
 use store_macros::retry;
 use uuid::Uuid;
 
-use crate::entity::{booking_seat, bus_layout, schedule, seat_inventory};
+use crate::entity::{booking_seat, bus_layout, schedule, schedule_fare, seat, seat_inventory};
 
-use super::error::StoreResult;
+use super::error::{StoreError, StoreResult};
 use super::retry::RetryPolicy;
 
 /// A page of bus layouts plus the total matching-row count (before
@@ -58,6 +59,19 @@ pub trait ScheduleStore: Send + Sync {
     async fn insert_schedule(&self, model: schedule::ActiveModel) -> StoreResult<()>;
     async fn update_schedule(&self, model: schedule::ActiveModel) -> StoreResult<schedule::Model>;
     async fn delete_schedule(&self, id: Uuid) -> StoreResult<()>;
+    async fn list_schedules_by_bus_layout(&self, id: Uuid) -> StoreResult<Vec<schedule::Model>>;
+
+    // ── Fares ───────────────────────────────────────────────────
+
+    /// The seat-class fares of these schedules.
+    async fn list_fares(&self, schedule_ids: Vec<Uuid>) -> StoreResult<Vec<schedule_fare::Model>>;
+
+    /// Replace every seat-class fare of a schedule, atomically.
+    async fn replace_fares(
+        &self,
+        schedule_id: Uuid,
+        fares: Vec<schedule_fare::ActiveModel>,
+    ) -> StoreResult<()>;
 
     // ── BusLayout ───────────────────────────────────────────────
 
@@ -108,6 +122,12 @@ pub trait ScheduleStore: Send + Sync {
     /// layout (sold tickets) — such layouts cannot be deleted.
     async fn count_booking_seats_by_bus_layout(&self, id: Uuid) -> StoreResult<usize>;
     async fn list_schedules_by_ids(&self, ids: Vec<Uuid>) -> StoreResult<Vec<schedule::Model>>;
+
+    /// `(layout, seat class, seats)` for these layouts.
+    async fn count_seat_classes(
+        &self,
+        layout_ids: Vec<Uuid>,
+    ) -> StoreResult<Vec<(Uuid, Option<String>, i64)>>;
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -231,6 +251,49 @@ impl ScheduleStore for DbScheduleStore {
             .exec(self.db.as_ref())
             .await?;
         Ok(())
+    }
+
+    async fn list_schedules_by_bus_layout(&self, id: Uuid) -> StoreResult<Vec<schedule::Model>> {
+        Ok(schedule::Entity::find()
+            .filter(schedule::Column::BusLayoutId.eq(id))
+            .all(self.db.as_ref())
+            .await?)
+    }
+
+    // ── Fares ───────────────────────────────────────────────────
+
+    async fn list_fares(&self, schedule_ids: Vec<Uuid>) -> StoreResult<Vec<schedule_fare::Model>> {
+        if schedule_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        Ok(schedule_fare::Entity::find()
+            .filter(schedule_fare::Column::ScheduleId.is_in(schedule_ids))
+            .order_by_asc(schedule_fare::Column::PriceAdult)
+            .all(self.db.as_ref())
+            .await?)
+    }
+
+    #[store_macros::no_retry]
+    async fn replace_fares(
+        &self,
+        schedule_id: Uuid,
+        fares: Vec<schedule_fare::ActiveModel>,
+    ) -> StoreResult<()> {
+        self.db
+            .transaction::<_, (), StoreError>(|txn| {
+                Box::pin(async move {
+                    schedule_fare::Entity::delete_many()
+                        .filter(schedule_fare::Column::ScheduleId.eq(schedule_id))
+                        .exec(txn)
+                        .await?;
+                    if !fares.is_empty() {
+                        schedule_fare::Entity::insert_many(fares).exec(txn).await?;
+                    }
+                    Ok(())
+                })
+            })
+            .await
+            .map_err(StoreError::from)
     }
 
     // ── BusLayout ───────────────────────────────────────────────
@@ -366,5 +429,26 @@ impl ScheduleStore for DbScheduleStore {
             ))
             .count(self.db.as_ref())
             .await? as usize)
+    }
+
+    async fn count_seat_classes(
+        &self,
+        layout_ids: Vec<Uuid>,
+    ) -> StoreResult<Vec<(Uuid, Option<String>, i64)>> {
+        use sea_orm::sea_query::Expr;
+        if layout_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        Ok(seat::Entity::find()
+            .filter(seat::Column::BusLayoutId.is_in(layout_ids))
+            .select_only()
+            .column(seat::Column::BusLayoutId)
+            .column(seat::Column::SeatClass)
+            .column_as(Expr::col(seat::Column::Id).count(), "seats")
+            .group_by(seat::Column::BusLayoutId)
+            .group_by(seat::Column::SeatClass)
+            .into_tuple()
+            .all(self.db.as_ref())
+            .await?)
     }
 }

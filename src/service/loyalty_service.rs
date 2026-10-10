@@ -95,14 +95,16 @@ impl LoyaltyService {
 
     /// The authenticated user's loyalty summary (points, tier, history).
     pub async fn summary(&self, user_id: Uuid) -> AppResult<LoyaltyResponse> {
-        let uid = user_id.to_string();
-
         // Completed bookings only — pending/cancelled trips never earn.
-        // No departure-date filter: a completed booking stays earned.
+        let completed = crate::store::BookingFilter {
+            user_id: Some(user_id),
+            status: Some("completed".into()),
+            ..Default::default()
+        };
         let bookings = self
             .store
             .booking_store()
-            .list_bookings_by_user_with_date_filter(&uid, "completed", None, None, SCAN_LIMIT, 0)
+            .list_bookings(&completed, SCAN_LIMIT, 0)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
 

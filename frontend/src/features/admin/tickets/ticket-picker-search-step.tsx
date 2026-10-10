@@ -6,9 +6,10 @@ import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { TripResultsSkeleton } from '@/features/search/trip-results-skeleton'
 import { Search, Bus, Clock } from 'lucide-react'
-import { usePlaceSearch, useTripSearch } from '@/lib/queries'
+import { usePlaceSearch } from '@/features/map/api'
+import { useTripSearch } from '@/features/search/api'
 import { useT } from '@/lib/i18n'
-import type { TripResult } from '@/lib/api/types.gen'
+import type { TripResult } from '@/api'
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10)

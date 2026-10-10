@@ -137,10 +137,8 @@ flutter pub get
 flutter run                                  # http://10.0.2.2:8080
 
 # Production server baked in:
-flutter build apk --release \
-  --dart-define=API_BASE_URL=https://datxevui.com
-flutter build ipa --release \
-  --dart-define=API_BASE_URL=https://datxevui.com
+flutter build apk --release --dart-define=API_BASE_URL=https://datxevui.com
+flutter build ipa --release --dart-define=API_BASE_URL=https://datxevui.com
 ```
 
 The agent can also set/change the server address in-app (login screen gear

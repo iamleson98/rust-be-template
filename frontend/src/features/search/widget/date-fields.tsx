@@ -1,0 +1,125 @@
+'use client'
+
+// Extracted from the original 'search-widget.tsx'.
+
+import type { SearchParams } from '@/lib/search-params'
+import type { UseFormReturn } from 'react-hook-form'
+import { useT } from '@/lib/i18n'
+import { DatePicker } from '@/components/ui/date-picker'
+import { FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
+import type { SearchFormValues } from './schema'
+
+/** Shared label style — darker than muted-foreground so the tiny
+ *  uppercase labels stay readable on the white widget card. */
+const LABEL_CLASS =
+  'h-5 text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 pl-1'
+
+/** Reserved error slot — see search-route-fields.tsx (keeps every field
+ *  the same height with or without a validation message). */
+function MessageSlot({ compact, children }: { compact: boolean; children: React.ReactNode }) {
+  // Phones stack or pair these fields, so only md+ rows need the reserve.
+  return (
+    <div
+      className={compact ? 'min-h-4 max-md:min-h-0' : 'min-h-5 max-md:min-h-0'}
+      aria-live="polite"
+    >
+      {children}
+    </div>
+  )
+}
+
+export function SearchDateFields({
+  form,
+  searchParams,
+  setSearchParams,
+  compact = false,
+}: {
+  form: UseFormReturn<SearchFormValues>
+  searchParams: SearchParams
+  setSearchParams: (p: Partial<SearchParams>) => void
+  compact?: boolean
+}) {
+  const t = useT()
+
+  const departDateForReturnDisabled = searchParams.date
+    ? new Date(searchParams.date + 'T00:00:00')
+    : new Date(new Date().setHours(0, 0, 0, 0))
+
+  return (
+    <>
+      {/* Depart Date */}
+      <FormField
+        control={form.control}
+        name="date"
+        render={({ field }) => (
+          <FormItem className={compact ? 'space-y-1' : 'space-y-1.5'}>
+            <FormLabel className={LABEL_CLASS}>
+              {t('search.date')}{' '}
+              <span className="text-destructive" aria-hidden="true">
+                *
+              </span>
+            </FormLabel>
+            <DatePicker
+              value={field.value || null}
+              onChange={(v) => {
+                const newDate = v ?? ''
+                field.onChange(newDate)
+                // If return date is before new depart date, clear it.
+                if (searchParams.returnDate && newDate && searchParams.returnDate < newDate) {
+                  setSearchParams({ date: newDate, returnDate: '' })
+                  form.setValue('returnDate', '', { shouldValidate: false })
+                } else {
+                  setSearchParams({ date: newDate })
+                }
+              }}
+              minDate={new Date()}
+              placeholder={t('home.chooseDatePh')}
+              displayFormat="EEEE, dd/MM"
+              clearable={false}
+              lunar
+              triggerClassName="h-10 bg-white/95"
+            />
+            <MessageSlot compact>
+              <FormMessage className={compact ? 'text-xs leading-4' : undefined} />
+            </MessageSlot>
+          </FormItem>
+        )}
+      />
+
+      {/* Return Date — only shown when round-trip is enabled */}
+      {searchParams.roundTrip && (
+        <FormField
+          control={form.control}
+          name="returnDate"
+          render={({ field }) => (
+            <FormItem className={compact ? 'space-y-1' : 'space-y-1.5'}>
+              <FormLabel className={LABEL_CLASS}>
+                {t('search.returnDate')}{' '}
+                <span className="text-destructive" aria-hidden="true">
+                  *
+                </span>
+              </FormLabel>
+              <DatePicker
+                value={field.value || null}
+                onChange={(v) => {
+                  const newReturn = v ?? ''
+                  field.onChange(newReturn)
+                  setSearchParams({ returnDate: newReturn })
+                }}
+                minDate={departDateForReturnDisabled}
+                placeholder={t('home.chooseReturnDatePh')}
+                displayFormat="EEEE, dd/MM"
+                clearable={false}
+                lunar
+                triggerClassName="h-10 bg-white/95"
+              />
+              <MessageSlot compact>
+                <FormMessage className={compact ? 'text-xs leading-4' : undefined} />
+              </MessageSlot>
+            </FormItem>
+          )}
+        />
+      )}
+    </>
+  )
+}

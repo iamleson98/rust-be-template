@@ -153,13 +153,14 @@ dashmap = "6"
 sysinfo = "0.32"
 
 # Payment provider integration
-# - `qrcode` generates PNG bytes for VietQR / provider-QR rendering
+# - `qrcode` generates PNG bytes for VietQR / provider-QR rendering and the
+#   SVG boarding QR on tickets
 #   (used in-memory, no file system access).
 # - `image` provides the `Luma<u8>` pixel type used by `qrcode::render`.
 #   Only the `png` encoder is enabled — keeps the dependency surface
 #   minimal. (The EMV QR CRC-16/CCITT checksum is implemented by hand
 #   in src/payment/vietqr.rs — no `crc` crate needed.)
-qrcode = { version = "0.14", default-features = false, features = ["image"] }
+qrcode = { version = "0.14", default-features = false, features = ["image", "svg"] }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }
 
 # Vietnamese text helpers — none anymore: `unidecode` was removed
@@ -215,6 +216,8 @@ ignored = ["rustqlite-compat", "sea-query"]
 
 [dev-dependencies]
 tokio-test = "0.4"
+# WebSocket client for socket-level tests (same version axum links).
+tokio-tungstenite = "0.29"
 http-body-util = "0.1"
 tower = { version = "0.5", features = ["util"] }
 # Direct C-ABI access for the engine regression test

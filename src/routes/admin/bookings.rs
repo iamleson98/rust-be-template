@@ -8,7 +8,6 @@ use validator::Validate;
 use crate::dto::admin::{
     AdminBookingDetailResponse, AdminBookingExportResponse, AdminBookingListResponse,
     AdminBookingStatsResponse, AdminBookingsQuery, UpdateBookingStatusRequest,
-    UpdateBookingStatusResponse,
 };
 use crate::error::AppError;
 use crate::middleware::AdminUser;
@@ -35,20 +34,7 @@ pub async fn list(
     st.rbac
         .require(admin.user_id(), rbac::ADMIN_BOOKINGS_READ)
         .await?;
-    Ok(Json(
-        st.admin
-            .list_bookings(
-                q.status.as_deref(),
-                q.brand_id.map(|u| u.to_string()).as_deref(),
-                q.route_id.map(|u| u.to_string()).as_deref(),
-                q.date_from.as_deref(),
-                q.date_to.as_deref(),
-                q.search.as_deref(),
-                q.limit.unwrap_or(50).min(200),
-                q.offset.unwrap_or(0),
-            )
-            .await?,
-    ))
+    Ok(Json(st.admin.list_bookings(&q).await?))
 }
 
 /// `GET /api/admin/bookings/{id}` — admin booking detail.
@@ -75,7 +61,8 @@ pub async fn get(
     Ok(Json(st.admin.get_booking(id).await?))
 }
 
-/// `PATCH /api/admin/bookings/{id}` — update booking status (admin override).
+/// `PATCH /api/admin/bookings/{id}` — confirm (after phoning the customer),
+/// complete or cancel a ticket. Completed and cancelled tickets are final.
 #[utoipa::path(
     patch,
     path = "/api/admin/bookings/{id}",
@@ -83,7 +70,8 @@ pub async fn get(
     params(("id" = Uuid, Path, description = "Booking ID")),
     request_body = UpdateBookingStatusRequest,
     responses(
-        (status = 200, description = "Status updated", body = UpdateBookingStatusResponse),
+        (status = 200, description = "Status updated", body = AdminBookingDetailResponse),
+        (status = 409, description = "The ticket is final or changed meanwhile"),
         (status = 401, description = "Unauthorized"),
         (status = 403, description = "Forbidden"),
         (status = 404, description = "Not found"),
@@ -94,12 +82,16 @@ pub async fn update_status(
     admin: AdminUser,
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateBookingStatusRequest>,
-) -> Result<Json<UpdateBookingStatusResponse>, AppError> {
+) -> Result<Json<AdminBookingDetailResponse>, AppError> {
     body.validate().map_err(AppError::from)?;
     st.rbac
         .require(admin.user_id(), rbac::ADMIN_BOOKINGS_WRITE)
         .await?;
-    Ok(Json(st.admin.update_booking_status(id, &body).await?))
+    Ok(Json(
+        st.admin
+            .update_booking_status(admin.user_id(), id, &body)
+            .await?,
+    ))
 }
 
 /// `GET /api/admin/bookings/stats` — aggregate booking stats.
@@ -122,15 +114,7 @@ pub async fn stats(
     st.rbac
         .require(admin.user_id(), rbac::ADMIN_STATS_READ)
         .await?;
-    Ok(Json(
-        st.admin
-            .booking_stats(
-                q.status.as_deref(),
-                q.date_from.as_deref(),
-                q.date_to.as_deref(),
-            )
-            .await?,
-    ))
+    Ok(Json(st.admin.booking_stats(&q).await?))
 }
 
 /// `GET /api/admin/bookings/export` — CSV export.
@@ -151,20 +135,7 @@ pub async fn export(
     Query(q): Query<AdminBookingsQuery>,
 ) -> Result<Json<AdminBookingExportResponse>, AppError> {
     st.rbac.require(admin.user_id(), rbac::ADMIN_EXPORT).await?;
-    Ok(Json(
-        st.admin
-            .booking_export(
-                q.status.as_deref(),
-                q.date_from.as_deref(),
-                q.date_to.as_deref(),
-                // The frontend sends `columns` as a separate query param
-                // (not in AdminBookingsQuery). We parse it manually from
-                // the raw query string via `Query<AdminBookingsQuery>`'s
-                // leftover — for now, pass None to use default columns.
-                None,
-            )
-            .await?,
-    ))
+    Ok(Json(st.admin.booking_export(&q).await?))
 }
 
 pub fn router() -> Router<AppState> {

@@ -3,7 +3,7 @@
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { useT } from '@/lib/i18n'
-import type { TripResult, TripDetail } from '@/lib/api/types.gen'
+import type { TripResult, TripDetail } from '@/api'
 import type { Seat, Passenger } from './chat-ticket-picker-types'
 
 // ── ConfirmStep ─────────────────────────────────────────────
@@ -99,13 +99,7 @@ export function ConfirmStep({
                 </Badge>
                 {p.name}
               </span>
-              <span className="text-muted-foreground">
-                {p.type === 'adult'
-                  ? t('booking.passengerType.adult')
-                  : p.type === 'child'
-                    ? t('booking.passengerType.child')
-                    : t('booking.passengerType.infant')}
-              </span>
+              <span className="text-muted-foreground">{t(`booking.passengerType.${p.type}`)}</span>
             </div>
           ))}
         </div>

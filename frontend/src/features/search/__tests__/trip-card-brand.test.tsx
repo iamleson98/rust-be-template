@@ -5,10 +5,10 @@
  * NO fabricated review count is rendered next to it (the old component
  * computed `rating * 250` and formatted it as "1.1k").
  */
+import type { TripResult } from '@/api'
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { TripCardBrand } from '@/features/search/trip-card-brand'
-import type { TripResult } from '@/lib/store'
 
 const baseTrip = {
   amenities: [],
@@ -52,6 +52,13 @@ describe('TripCardBrand', () => {
     render(<TripCardBrand trip={baseTrip} onBrandClick={onBrandClick} />)
     expect(screen.getByText('4.5')).toBeInTheDocument()
     expect(screen.getByText('/ 5')).toBeInTheDocument()
+  })
+
+  it('shows no rating for a brand nobody has reviewed yet', () => {
+    const { brandRating: _, ...unrated } = baseTrip
+    render(<TripCardBrand trip={unrated} onBrandClick={onBrandClick} />)
+    expect(screen.queryByText('/ 5')).not.toBeInTheDocument()
+    expect(screen.queryByText('0.0')).not.toBeInTheDocument()
   })
 
   it('does NOT render a fabricated review count', () => {

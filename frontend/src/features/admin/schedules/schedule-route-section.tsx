@@ -18,7 +18,7 @@ import {
   Route as RouteIcon,
   Trash2,
 } from 'lucide-react'
-import type { AdminAddressOut } from '@/lib/api/types.gen'
+import type { AdminAddressOut } from '@/api'
 import { useT } from '@/lib/i18n'
 import { AddressPointSelect } from '@/features/admin/addresses/address-point-select'
 import type { ScheduleFormInput, ScheduleFormInstance } from './schedule-schema'

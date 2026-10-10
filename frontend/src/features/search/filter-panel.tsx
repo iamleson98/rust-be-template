@@ -1,343 +1,206 @@
 'use client'
 
-/**
- * FilterPanel — the reusable filter controls (price range, departure time,
- * minimum rating, available seats, amenities) shared by the desktop filter
- * sidebar and the mobile filter sheet of the search-results page.
- *
- * Extracted from the original `search-results.tsx`.
- */
-
-import { useApp, type TripResult } from '@/lib/store'
-import { useT } from '@/lib/i18n'
-import { useMemo } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import {
-  Sunrise,
-  Sun,
-  Sunset,
+  Building2,
+  Droplet,
   Moon,
+  Snowflake,
   Star,
+  Sun,
+  Sunrise,
+  Sunset,
+  BedDouble,
   Users,
   Wifi,
-  Snowflake,
-  Droplet,
   Zap,
-  BedDouble,
-  Building2,
 } from 'lucide-react'
+import type { TripResult } from '@/api'
 import { Slider } from '@/components/ui/slider'
-import { Checkbox } from '@/components/ui/checkbox'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { formatCurrency } from '@/lib/format'
+import { useT } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
-import { formatCurrency } from '@/lib/currency'
-import { getHourOfDeparture, matchesTimeRange, type Filters, type TimeRange } from './helpers'
+import { usePrefs } from '@/stores/prefs'
+import {
+  brandOptions,
+  count,
+  departureHour,
+  FEW_SEATS,
+  inTimeRange,
+  toggle,
+  type TimeRange,
+} from './filters'
+import { CheckRow, FilterSection } from './filter-ui'
+import type { ResultFilters } from './use-result-filters'
 
-export const TIME_RANGE_OPTIONS: { key: TimeRange; labelKey: string; icon: React.ReactNode }[] = [
-  { key: '0-6', labelKey: 'search.filter.earlyMorning', icon: <Sunrise className="h-3.5 w-3.5" /> },
-  { key: '6-12', labelKey: 'search.filter.morning', icon: <Sun className="h-3.5 w-3.5" /> },
-  { key: '12-18', labelKey: 'search.filter.afternoon', icon: <Sunset className="h-3.5 w-3.5" /> },
-  { key: '18-24', labelKey: 'searchPage.timeEvening', icon: <Moon className="h-3.5 w-3.5" /> },
+const icon = (Icon: typeof Sun) => <Icon className="h-3.5 w-3.5" />
+
+export const TIME_RANGES: { key: TimeRange; labelKey: string; icon: ReactNode }[] = [
+  { key: '0-6', labelKey: 'search.filter.earlyMorning', icon: icon(Sunrise) },
+  { key: '6-12', labelKey: 'search.filter.morning', icon: icon(Sun) },
+  { key: '12-18', labelKey: 'search.filter.afternoon', icon: icon(Sunset) },
+  { key: '18-24', labelKey: 'searchPage.timeEvening', icon: icon(Moon) },
 ]
 
-export const AMENITY_OPTIONS: { key: string; labelKey: string; icon: React.ReactNode }[] = [
-  { key: 'wifi', labelKey: 'searchPage.amenityWifi', icon: <Wifi className="h-3.5 w-3.5" /> },
-  { key: 'ac', labelKey: 'searchPage.amenityAc', icon: <Snowflake className="h-3.5 w-3.5" /> },
-  { key: 'water', labelKey: 'searchPage.amenityWater', icon: <Droplet className="h-3.5 w-3.5" /> },
-  {
-    key: 'charging',
-    labelKey: 'searchPage.amenityCharging',
-    icon: <Zap className="h-3.5 w-3.5" />,
-  },
-  {
-    key: 'blanket',
-    labelKey: 'searchPage.amenityBlanket',
-    icon: <BedDouble className="h-3.5 w-3.5" />,
-  },
+export const AMENITIES: { key: string; labelKey: string; icon: ReactNode }[] = [
+  { key: 'wifi', labelKey: 'searchPage.amenityWifi', icon: icon(Wifi) },
+  { key: 'ac', labelKey: 'searchPage.amenityAc', icon: icon(Snowflake) },
+  { key: 'water', labelKey: 'searchPage.amenityWater', icon: icon(Droplet) },
+  { key: 'charging', labelKey: 'searchPage.amenityCharging', icon: icon(Zap) },
+  { key: 'blanket', labelKey: 'searchPage.amenityBlanket', icon: icon(BedDouble) },
 ]
 
-const RATING_OPTIONS: { value: number; label?: string; labelKey?: string }[] = [
-  { value: 0, labelKey: 'common.all' },
-  { value: 4.0, label: '4.0+' },
-  { value: 4.5, label: '4.5+' },
-  { value: 4.8, label: '4.8+' },
-]
+const RATINGS = [0, 4.0, 4.5, 4.8]
 
+/** The client-side filters: price, departure time, rating, brand, availability, amenities. */
 export function FilterPanel({
-  searchResults,
-  filters,
-  setFilters,
-  priceBounds,
-  effectivePriceRange,
-  isMobile = false,
+  results,
+  rf,
+  mobile,
 }: {
-  searchResults: TripResult[]
-  filters: Filters
-  setFilters: (f: Filters) => void
-  priceBounds: [number, number]
-  effectivePriceRange: [number, number]
-  isMobile?: boolean
+  results: TripResult[]
+  rf: ResultFilters
+  mobile?: boolean
 }) {
-  const { currency } = useApp()
   const t = useT()
-  const updatePrice = (val: number[]) => {
-    setFilters({ ...filters, priceMin: val[0], priceMax: val[1] })
-  }
-
-  const toggleTimeRange = (key: TimeRange) => {
-    const exists = filters.timeRanges.includes(key)
-    setFilters({
-      ...filters,
-      timeRanges: exists
-        ? filters.timeRanges.filter((x) => x !== key)
-        : [...filters.timeRanges, key],
-    })
-  }
-
-  const toggleAmenity = (key: string) => {
-    const exists = filters.amenities.includes(key)
-    setFilters({
-      ...filters,
-      amenities: exists ? filters.amenities.filter((x) => x !== key) : [...filters.amenities, key],
-    })
-  }
-
-  const toggleBrand = (slug: string) => {
-    const exists = filters.brands.includes(slug)
-    setFilters({
-      ...filters,
-      brands: exists ? filters.brands.filter((x) => x !== slug) : [...filters.brands, slug],
-    })
-  }
-
-  // Distinct brands among the current results (slug + display name),
-  // sorted by how many trips they run — the brand discovery filter.
-  const brandOptions = useMemo(() => {
-    const byslug = new Map<string, { slug: string; name: string; count: number }>()
-    for (const tr of searchResults) {
-      if (!tr.brandSlug) continue
-      const entry = byslug.get(tr.brandSlug)
-      if (entry) {
-        entry.count += 1
-      } else {
-        byslug.set(tr.brandSlug, {
-          slug: tr.brandSlug,
-          name: tr.brandName || tr.brandSlug,
-          count: 1,
-        })
-      }
-    }
-    return [...byslug.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
-  }, [searchResults])
-
-  const countForBrand = (slug: string) => searchResults.filter((tr) => tr.brandSlug === slug).length
-
-  // Count results per filter option (independent of that filter being active)
-  const countForTimeRange = (key: TimeRange) =>
-    searchResults.filter((tr) => matchesTimeRange(getHourOfDeparture(tr), key)).length
-
-  // `?? []` defends against incomplete API items — the search endpoint may
-  // return minimal trip objects before enrichment fills in `amenities`.
-  const countForAmenity = (key: string) =>
-    searchResults.filter((tr) => (tr.amenities ?? []).includes(key)).length
-
-  const countForRating = (value: number) =>
-    value === 0
-      ? searchResults.length
-      : searchResults.filter((tr) => tr.brandRating >= value).length
-
-  const countAvailableOnly = searchResults.filter((tr) => tr.availableSeats > 5).length
+  const { filters, setFilters } = rf
+  const brands = useMemo(() => brandOptions(results), [results])
+  const set = (patch: Partial<typeof filters>) => setFilters({ ...filters, ...patch })
 
   return (
-    <div className={cn('space-y-4', isMobile && 'space-y-5')}>
-      {/* Price Range Slider */}
-      <div>
-        <div className="flex items-center justify-between mb-2 gap-2">
-          <span className="text-xs font-semibold uppercase text-muted-foreground shrink-0">
-            {t('searchPage.priceRange')}
-          </span>
-          <span className="text-[11px] font-medium text-blue-700 text-right tabular-nums leading-tight">
-            {formatCurrency(effectivePriceRange[0], currency)}
-            <span className="text-slate-400 mx-0.5">–</span>
-            {formatCurrency(effectivePriceRange[1], currency)}
-          </span>
-        </div>
-        <Slider
-          value={[effectivePriceRange[0], effectivePriceRange[1]]}
-          min={priceBounds[0]}
-          max={priceBounds[1]}
-          step={50000}
-          onValueChange={updatePrice}
-          className="py-2"
-        />
-        <div className="flex justify-between text-[10px] text-muted-foreground mt-1 tabular-nums">
-          <span>{formatCurrency(priceBounds[0], currency)}</span>
-          <span>{formatCurrency(priceBounds[1], currency)}</span>
-        </div>
-      </div>
+    <div className={cn('space-y-4', mobile && 'space-y-5')}>
+      <PriceRange rf={rf} />
 
-      {/* Departure Time Range */}
-      <div className="pt-3 border-t">
-        <div className="text-xs font-semibold uppercase text-muted-foreground mb-2">
-          {t('search.sort.departure')}
-        </div>
+      <FilterSection title={t('search.sort.departure')}>
         <div className="space-y-1.5">
-          {TIME_RANGE_OPTIONS.map((opt) => {
-            const active = filters.timeRanges.includes(opt.key)
-            const count = countForTimeRange(opt.key)
-            return (
-              <label
-                key={opt.key}
-                className="flex items-center gap-2 cursor-pointer text-sm py-1 group"
-              >
-                <Checkbox
-                  checked={active}
-                  onCheckedChange={() => toggleTimeRange(opt.key)}
-                  className="data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
-                />
-                <span className="flex items-center gap-1.5 group-hover:text-blue-700 transition-colors flex-1">
-                  <span className="text-blue-500">{opt.icon}</span>
-                  {t(opt.labelKey)}
-                </span>
-                {count > 0 && (
-                  <span className="text-[10px] text-muted-foreground bg-slate-100 rounded-full px-1.5 py-0.5">
-                    {count}
-                  </span>
-                )}
-              </label>
-            )
-          })}
+          {TIME_RANGES.map((o) => (
+            <CheckRow
+              key={o.key}
+              checked={filters.timeRanges.includes(o.key)}
+              onChange={() => set({ timeRanges: toggle(filters.timeRanges, o.key) })}
+              icon={o.icon}
+              count={count(results, (r) => inTimeRange(departureHour(r), o.key))}
+            >
+              {t(o.labelKey)}
+            </CheckRow>
+          ))}
         </div>
-      </div>
+      </FilterSection>
 
-      {/* Minimum Rating */}
-      <div className="pt-3 border-t">
-        <div className="text-xs font-semibold uppercase text-muted-foreground mb-2">
-          {t('searchPage.minRating')}
-        </div>
+      <FilterSection title={t('searchPage.minRating')}>
         <RadioGroup
           value={String(filters.minRating)}
-          onValueChange={(v) => setFilters({ ...filters, minRating: Number(v) })}
+          onValueChange={(v) => set({ minRating: Number(v) })}
           className="grid grid-cols-2 gap-1.5"
         >
-          {RATING_OPTIONS.map((opt) => {
-            const count = countForRating(opt.value)
+          {RATINGS.map((min) => {
+            const n =
+              min === 0 ? results.length : count(results, (r) => (r.brandRating ?? 0) >= min)
             return (
               <label
-                key={opt.value}
+                key={min}
                 className={cn(
-                  'flex items-center gap-2 cursor-pointer px-2 py-1.5 rounded-md border text-sm transition-all',
-                  filters.minRating === opt.value
-                    ? 'border-blue-400 bg-blue-50 text-blue-700 font-medium'
+                  'flex cursor-pointer items-center gap-2 rounded-md border px-2 py-1.5 text-sm transition-all',
+                  filters.minRating === min
+                    ? 'border-blue-400 bg-blue-50 font-medium text-blue-700'
                     : 'border-transparent hover:bg-slate-100',
                 )}
               >
                 <RadioGroupItem
-                  value={String(opt.value)}
-                  id={`rating-${opt.value}`}
+                  value={String(min)}
+                  id={`rating-${min}`}
                   className="data-[state=checked]:border-blue-600 data-[state=checked]:text-blue-600"
                 />
-                {opt.value > 0 && <Star className="h-3 w-3 fill-amber-400 text-amber-400" />}
-                <span className="flex-1">{opt.labelKey ? t(opt.labelKey) : opt.label}</span>
-                {count > 0 && <span className="text-[10px] text-muted-foreground">{count}</span>}
+                {min > 0 && <Star className="h-3 w-3 fill-amber-400 text-amber-400" />}
+                <span className="flex-1">{min === 0 ? t('common.all') : `${min.toFixed(1)}+`}</span>
+                {n > 0 && <span className="text-[10px] text-muted-foreground">{n}</span>}
               </label>
             )
           })}
         </RadioGroup>
-      </div>
+      </FilterSection>
 
-      {/* Brands */}
-      {brandOptions.length > 1 && (
-        <div className="pt-3 border-t">
-          <div className="text-xs font-semibold uppercase text-muted-foreground mb-2">
-            {t('searchPage.brandFilter')}
+      {brands.length > 1 && (
+        <FilterSection title={t('searchPage.brandFilter')}>
+          <div className="max-h-44 space-y-1 overflow-y-auto pr-1">
+            {brands.map((b) => (
+              <CheckRow
+                key={b.slug}
+                boxed
+                checked={filters.brands.includes(b.slug)}
+                onChange={() => set({ brands: toggle(filters.brands, b.slug) })}
+                icon={<Building2 className="h-3.5 w-3.5" />}
+                count={b.count}
+              >
+                {b.name}
+              </CheckRow>
+            ))}
           </div>
-          <div className="space-y-1 max-h-44 overflow-y-auto pr-1">
-            {brandOptions.map((b) => {
-              const active = filters.brands.includes(b.slug)
-              const count = countForBrand(b.slug)
-              return (
-                <label
-                  key={b.slug}
-                  className={cn(
-                    'flex items-center gap-2 cursor-pointer px-2 py-1.5 rounded-md border text-xs transition-all',
-                    active
-                      ? 'border-blue-400 bg-blue-50 text-blue-700 font-medium'
-                      : 'border-slate-200 hover:bg-slate-50',
-                  )}
-                >
-                  <Checkbox
-                    checked={active}
-                    onCheckedChange={() => toggleBrand(b.slug)}
-                    className="h-3.5 w-3.5 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
-                  />
-                  <Building2 className="h-3.5 w-3.5 shrink-0 text-blue-500" />
-                  <span className="flex-1 truncate">{b.name}</span>
-                  {count > 0 && (
-                    <span className="text-[10px] text-muted-foreground bg-slate-100 rounded-full px-1.5 py-0.5">
-                      {count}
-                    </span>
-                  )}
-                </label>
-              )
-            })}
-          </div>
-        </div>
+        </FilterSection>
       )}
 
-      {/* Available Seats */}
-      <div className="pt-3 border-t">
-        <div className="text-xs font-semibold uppercase text-muted-foreground mb-2">
-          {t('searchPage.availableSeats')}
-        </div>
-        <label className="flex items-center gap-2 cursor-pointer text-sm py-1 group">
-          <Checkbox
-            checked={filters.availableOnly}
-            onCheckedChange={(c) => setFilters({ ...filters, availableOnly: c === true })}
-            className="data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
-          />
-          <span className="flex items-center gap-1.5 group-hover:text-blue-700 transition-colors flex-1">
-            <Users className="h-3.5 w-3.5 text-blue-500" />
-            {t('searchPage.availableOnlyLabel')}
-          </span>
-          {countAvailableOnly > 0 && (
-            <span className="text-[10px] text-muted-foreground bg-slate-100 rounded-full px-1.5 py-0.5">
-              {countAvailableOnly}
-            </span>
-          )}
-        </label>
-      </div>
+      <FilterSection title={t('searchPage.availableSeats')}>
+        <CheckRow
+          checked={filters.availableOnly}
+          onChange={() => set({ availableOnly: !filters.availableOnly })}
+          icon={<Users className="h-3.5 w-3.5" />}
+          count={count(results, (r) => r.availableSeats > FEW_SEATS)}
+        >
+          {t('searchPage.availableOnlyLabel')}
+        </CheckRow>
+      </FilterSection>
 
-      {/* Amenities */}
-      <div className="pt-3 border-t">
-        <div className="text-xs font-semibold uppercase text-muted-foreground mb-2">
-          {t('searchPage.amenities')}
-        </div>
+      <FilterSection title={t('searchPage.amenities')}>
         <div className="grid grid-cols-2 gap-1.5">
-          {AMENITY_OPTIONS.map((opt) => {
-            const active = filters.amenities.includes(opt.key)
-            const count = countForAmenity(opt.key)
-            return (
-              <label
-                key={opt.key}
-                className={cn(
-                  'flex items-center gap-1.5 cursor-pointer px-2 py-1.5 rounded-md border text-xs transition-all',
-                  active
-                    ? 'border-blue-400 bg-blue-50 text-blue-700 font-medium'
-                    : 'border-slate-200 hover:bg-slate-50',
-                )}
-              >
-                <Checkbox
-                  checked={active}
-                  onCheckedChange={() => toggleAmenity(opt.key)}
-                  className="h-3.5 w-3.5 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
-                />
-                <span className="text-blue-500">{opt.icon}</span>
-                <span className="flex-1 truncate">{t(opt.labelKey)}</span>
-                {count > 0 && <span className="text-[10px] text-muted-foreground">{count}</span>}
-              </label>
-            )
-          })}
+          {AMENITIES.map((o) => (
+            <CheckRow
+              key={o.key}
+              boxed
+              checked={filters.amenities.includes(o.key)}
+              onChange={() => set({ amenities: toggle(filters.amenities, o.key) })}
+              icon={o.icon}
+              count={count(results, (r) => (r.amenities ?? []).includes(o.key))}
+            >
+              {t(o.labelKey)}
+            </CheckRow>
+          ))}
         </div>
+      </FilterSection>
+    </div>
+  )
+}
+
+function PriceRange({ rf }: { rf: ResultFilters }) {
+  const t = useT()
+  const currency = usePrefs((s) => s.currency)
+  const money = (n: number) => formatCurrency(n, currency)
+  const { bounds, range } = rf
+  return (
+    <div>
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <span className="shrink-0 text-xs font-semibold uppercase text-muted-foreground">
+          {t('searchPage.priceRange')}
+        </span>
+        <span className="text-right text-[11px] font-medium leading-tight tabular-nums text-blue-700">
+          {money(range[0])}
+          <span className="mx-0.5 text-slate-400">–</span>
+          {money(range[1])}
+        </span>
+      </div>
+      <Slider
+        value={[range[0], range[1]]}
+        min={bounds[0]}
+        max={bounds[1]}
+        step={50000}
+        onValueChange={([priceMin, priceMax]) =>
+          rf.setFilters({ ...rf.filters, priceMin, priceMax })
+        }
+        className="py-2"
+      />
+      <div className="mt-1 flex justify-between text-[10px] tabular-nums text-muted-foreground">
+        <span>{money(bounds[0])}</span>
+        <span>{money(bounds[1])}</span>
       </div>
     </div>
   )

@@ -1,12 +1,16 @@
 'use client'
 
-import { useApp } from '@/lib/store'
+import { useQuery } from '@tanstack/react-query'
+import { recommendationsOptions } from '@/api'
+import { useGuest } from '@/stores/guest'
+import { usePrefs } from '@/stores/prefs'
+import { useSession } from '@/stores/session'
 import { useNavigate } from '@tanstack/react-router'
-import { useRecommendations, type RecommendationItem } from '@/lib/queries'
+import type { TripResult } from '@/api'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { ErrorState } from '@/components/layout/error-state'
-import { formatCurrency } from '@/lib/currency'
+import { ErrorState } from '@/components/error-state'
+import { formatCurrency } from '@/lib/format'
 import { useT } from '@/lib/i18n'
 import {
   Sparkles,
@@ -35,22 +39,19 @@ const REASON_LABELS: Record<Reason, string> = {
 
 const REASON_STYLES: Record<
   Reason,
-  { gradient: string; badgeBg: string; badgeText: string; icon: typeof TrendingUp }
+  { badgeBg: string; badgeText: string; icon: typeof TrendingUp }
 > = {
   recent: {
-    gradient: 'from-violet-500 to-fuchsia-500',
     badgeBg: 'bg-violet-100',
     badgeText: 'text-violet-700',
     icon: History,
   },
   booking: {
-    gradient: 'from-blue-500 to-blue-500',
     badgeBg: 'bg-blue-100',
     badgeText: 'text-blue-700',
     icon: Compass,
   },
   trending: {
-    gradient: 'from-amber-500 to-orange-500',
     badgeBg: 'bg-amber-100',
     badgeText: 'text-amber-700',
     icon: TrendingUp,
@@ -66,7 +67,10 @@ function reasonFor(tripId: string): Reason {
 }
 
 export function Recommendations() {
-  const { user, guestPhone, recentlyViewed, currency } = useApp()
+  const user = useSession((s) => s.user)
+  const guestPhone = useGuest((s) => s.guestPhone)
+  const recentlyViewed = useGuest((s) => s.recentlyViewed)
+  const currency = usePrefs((s) => s.currency)
   const navigate = useNavigate()
   const t = useT()
 
@@ -78,12 +82,12 @@ export function Recommendations() {
   // nothing, so a stale-then-refetch is fine).
   void guestPhone
   void recentlyViewed
-  const { data, isLoading, isError, refetch } = useRecommendations()
-  const items: RecommendationItem[] = data?.items ?? []
+  const { data, isLoading, isError, refetch } = useQuery(recommendationsOptions())
+  const items: TripResult[] = data?.items ?? []
 
   // Click → navigate to /search with the recommended route's from/to.
   // The /search route owns the actual trip-search fetch via useTripSearch.
-  const handleView = (rec: RecommendationItem) => {
+  const handleView = (rec: TripResult) => {
     const tomorrow = new Date()
     tomorrow.setDate(tomorrow.getDate() + 1)
     const date = tomorrow.toISOString().slice(0, 10)
@@ -172,9 +176,8 @@ export function Recommendations() {
                   key={rec.tripId + rec.routeId}
                   className="snap-start shrink-0 w-[78vw] sm:w-[320px] md:w-auto"
                 >
-                  <Card className="overflow-hidden ring-1 ring-black/5 transition-all duration-300 h-full flex flex-col">
+                  <Card className="flex h-full flex-col overflow-hidden">
                     {/* Gradient accent header */}
-                    <div className={`h-1.5 bg-linear-to-r ${style.gradient}`} />
                     <div className="p-4 flex-1 flex flex-col gap-3">
                       {/* Reason badge */}
                       <div className="flex items-center justify-between">
@@ -198,9 +201,7 @@ export function Recommendations() {
                             {t('search.from')}
                           </div>
                         </div>
-                        <div
-                          className={`shrink-0 h-8 w-8 rounded-full bg-linear-to-br ${style.gradient} text-white flex items-center justify-center`}
-                        >
+                        <div className="grid size-8 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
                           <ArrowRight className="h-4 w-4" />
                         </div>
                         <div className="min-w-0 flex-1 text-right">
@@ -224,11 +225,7 @@ export function Recommendations() {
                             {formatCurrency(rec.minPrice, currency)}
                           </div>
                         </div>
-                        <Button
-                          size="sm"
-                          onClick={() => handleView(rec)}
-                          className={`gap-1 bg-linear-to-r ${style.gradient} text-white hover:opacity-90`}
-                        >
+                        <Button size="sm" onClick={() => handleView(rec)} className="gap-1">
                           {t('home.viewTrip')}
                           <ChevronRight className="h-3.5 w-3.5" />
                         </Button>

@@ -1,134 +1,92 @@
 'use client'
 
-// Extracted from the original 'brand-detail-dialog.tsx'.
-
 import { DialogTitle, DialogDescription } from '@/components/ui/dialog'
-import { Badge } from '@/components/ui/badge'
-import { Star, Bus, Route as RouteIcon, MessageSquareQuote, CheckCircle2 } from 'lucide-react'
+import type { BrandDetailOut, RouteOut } from '@/api'
+import { Stars } from '@/features/reviews/review-summary'
 import { useT } from '@/lib/i18n'
-import { renderStars, type BrandDetail } from './brand-detail-helpers'
-import { StatCard } from './brand-dialog-parts'
 
-function getInitials(name: string): string {
+function initials(name: string): string {
   const parts = name.trim().split(/\s+/)
   if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase()
   return name.slice(0, 2).toUpperCase()
 }
 
+/** One figure of the brand's stats strip. */
+function Figure({ value, label }: { value: number; label: string }) {
+  return (
+    <div className="min-w-0 rounded-lg border bg-card px-3 py-2">
+      <div className="text-lg leading-tight font-semibold tabular-nums">
+        {value.toLocaleString('vi-VN')}
+      </div>
+      <div className="truncate text-[11px] text-muted-foreground">{label}</div>
+    </div>
+  )
+}
+
+/** The brand's identity, rating and what it runs. */
 export function BrandDialogHeader({
   brand,
   accent,
   reviewCount,
-  routesCount,
+  routes,
 }: {
-  brand: BrandDetail
+  brand: BrandDetailOut
   accent: string
   reviewCount: number
-  routesCount: number
+  routes: RouteOut[]
 }) {
   const t = useT()
+  // Each schedule departs once a day.
+  const departures = routes.reduce((sum, r) => sum + r.scheduleCount, 0)
+
   return (
-    <>
-      <div className="relative overflow-hidden">
+    <div className="shrink-0 space-y-3 border-b px-4 pt-4 pb-3 sm:px-5">
+      {/* pr-10 keeps the name clear of the dialog's close button. */}
+      <div className="flex items-start gap-3 pr-10">
         <div
-          className="absolute inset-0 opacity-10"
-          style={{
-            background: `linear-gradient(135deg, ${accent} 0%, transparent 60%)`,
-          }}
-        />
-        {/* Accent color bar */}
-        <div
-          className="h-1.5 w-full"
-          style={{ background: `linear-gradient(90deg, ${accent}, transparent)` }}
-        />
-        {/* pr-12 keeps the name/badge row clear of the dialog's close (X)
-            button in the top-right corner. */}
-        <div className="px-5 py-4 pr-12 relative">
-          <div className="flex items-start gap-4">
-            {/* Logo / initials */}
-            <div
-              className="h-16 w-16 rounded-xl flex items-center justify-center text-white font-extrabold text-xl shrink-0"
-              style={{ background: accent }}
-            >
-              {brand.logoUrl ? (
-                <img
-                  src={brand.logoUrl}
-                  alt={brand.name}
-                  className="h-11 w-11 object-contain"
-                  loading="lazy"
-                  decoding="async"
-                />
-              ) : (
-                getInitials(brand.name)
-              )}
+          className="grid size-14 shrink-0 place-items-center rounded-xl text-lg font-bold text-white"
+          style={{ background: accent }}
+        >
+          {brand.logoUrl ? (
+            <img
+              src={brand.logoUrl}
+              alt=""
+              className="size-10 object-contain"
+              loading="lazy"
+              decoding="async"
+            />
+          ) : (
+            initials(brand.name)
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <DialogTitle className="text-lg leading-snug font-bold">{brand.name}</DialogTitle>
+          <DialogDescription className="sr-only">
+            {t('brandDetail.dialogDescription', { brand: brand.name })}
+          </DialogDescription>
+          {brand.rating != null ? (
+            <div className="mt-1 flex flex-wrap items-center gap-1.5 text-sm">
+              <Stars rating={brand.rating} />
+              <span className="font-semibold text-amber-600">{brand.rating.toFixed(1)}</span>
+              <span className="text-xs text-muted-foreground">
+                ({t('reviews.countLabel', { count: reviewCount })})
+              </span>
             </div>
-
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <DialogTitle className="text-xl font-extrabold tracking-tight">
-                  {brand.name}
-                </DialogTitle>
-                {brand.status === 'active' && (
-                  <Badge
-                    className="text-[10px] gap-1 bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-100"
-                    variant="outline"
-                  >
-                    <CheckCircle2 className="h-3 w-3" />
-                    {t('brandDetail.activeBadge')}
-                  </Badge>
-                )}
-              </div>
-              <DialogDescription className="sr-only">
-                {t('brandDetail.dialogDescription', { brand: brand.name })}
-              </DialogDescription>
-
-              <div className="flex items-center gap-3 mt-1.5 text-sm flex-wrap">
-                <span className="flex items-center gap-1.5">
-                  <span className="flex items-center gap-0.5">{renderStars(brand.rating)}</span>
-                  <span className="font-semibold text-amber-600">{brand.rating.toFixed(1)}</span>
-                  <span className="text-xs text-muted-foreground">
-                    ({t('reviews.countLabel', { count: reviewCount })})
-                  </span>
-                </span>
-              </div>
-
-              {brand.description && (
-                <p className="text-sm text-muted-foreground mt-2 line-clamp-2">
-                  {brand.description}
-                </p>
-              )}
-            </div>
-          </div>
+          ) : (
+            <p className="mt-1 text-xs text-muted-foreground">{t('brandDetail.noReviewsYet')}</p>
+          )}
         </div>
       </div>
 
-      {/* Stats row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 px-5 py-3 bg-slate-50/70 border-b">
-        <StatCard
-          icon={<RouteIcon className="h-4 w-4" />}
-          label={t('admin.routes')}
-          value={routesCount}
-          color={accent}
-        />
-        <StatCard
-          icon={<Bus className="h-4 w-4" />}
-          label={t('brandDetail.tripsPerDay')}
-          value={brand.totalTrips ?? 0}
-          color={accent}
-        />
-        <StatCard
-          icon={<Star className="h-4 w-4" />}
-          label={t('brandDetail.avgRatingLabel')}
-          value={brand.rating.toFixed(1)}
-          color="#f59e0b"
-        />
-        <StatCard
-          icon={<MessageSquareQuote className="h-4 w-4" />}
-          label={t('brandDetail.reviewCountLabel')}
-          value={reviewCount}
-          color="#2563eb"
-        />
+      {brand.description && (
+        <p className="line-clamp-2 text-sm text-muted-foreground">{brand.description}</p>
+      )}
+
+      <div className="grid grid-cols-3 gap-2">
+        <Figure value={routes.length} label={t('admin.routes')} />
+        <Figure value={departures} label={t('brandDetail.tripsPerDay')} />
+        <Figure value={reviewCount} label={t('brandDetail.reviewCountLabel')} />
       </div>
-    </>
+    </div>
   )
 }

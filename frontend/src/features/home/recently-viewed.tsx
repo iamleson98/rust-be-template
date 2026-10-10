@@ -1,17 +1,18 @@
 'use client'
 
+import { useGuest } from '@/stores/guest'
 import { memo } from 'react'
-import { useApp } from '@/lib/store'
 import { useNavigate } from '@tanstack/react-router'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { History, ChevronRight, Bus, Clock } from 'lucide-react'
-import { relativeTime } from '@/lib/types'
+import { relativeTime } from '@/lib/format'
 import { useT } from '@/lib/i18n'
 import { buildSearchInput } from '@/lib/search-params'
 
 function RecentlyViewedImpl() {
-  const { recentlyViewed, pushRecentlyViewed } = useApp()
+  const recentlyViewed = useGuest((s) => s.recentlyViewed)
+  const pushRecentlyViewed = useGuest((s) => s.pushRecentlyViewed)
   const navigate = useNavigate()
   const t = useT()
 
@@ -62,7 +63,7 @@ function RecentlyViewedImpl() {
           {recentlyViewed.slice(0, 4).map((rv) => (
             <Card
               key={rv.tripId}
-              className="ring-1 ring-black/5 hover:ring-violet-300 transition-all cursor-pointer overflow-hidden group"
+              className="cursor-pointer overflow-hidden transition-colors hover:border-primary/40 group"
               onClick={() => handleReopen(rv.tripId, rv.label, rv.brandName, rv.routeId)}
             >
               <div className="p-4">

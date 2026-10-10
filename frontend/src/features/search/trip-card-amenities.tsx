@@ -10,9 +10,9 @@
  * shared by both variants) while the `amenityIcon` map lives here.
  */
 
-import type { TripResult } from '@/lib/store'
+import type { TripResult } from '@/api'
 import { useT } from '@/lib/i18n'
-import { AMENITY_LABELS } from '@/lib/types'
+import { AMENITY_LABELS } from '@/lib/labels'
 import { MapPin, Users, TrendingUp, Wifi, Snowflake, Droplet, Zap } from 'lucide-react'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 

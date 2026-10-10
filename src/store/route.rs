@@ -106,10 +106,12 @@ pub trait RouteStore: Send + Sync {
 
     /// Batched version of `count_routes_by_brand` — single SQL
     /// `SELECT brand_id, COUNT(*) GROUP BY brand_id WHERE brand_id IN (...)`
-    /// instead of N round-trips. Returns a map keyed by brand_id string.
+    /// instead of N round-trips, optionally only routes in `status`.
+    /// Returns a map keyed by brand_id string.
     async fn count_routes_by_brand_map(
         &self,
         brand_ids: Vec<String>,
+        status: Option<&str>,
     ) -> StoreResult<std::collections::HashMap<String, usize>>;
 
     // ── PickupPoint ─────────────────────────────────────────────
@@ -385,6 +387,7 @@ impl RouteStore for DbRouteStore {
     async fn count_routes_by_brand_map(
         &self,
         brand_ids: Vec<String>,
+        status: Option<&str>,
     ) -> StoreResult<std::collections::HashMap<String, usize>> {
         if brand_ids.is_empty() {
             return Ok(std::collections::HashMap::new());
@@ -396,8 +399,11 @@ impl RouteStore for DbRouteStore {
             .iter()
             .map(|id| super::parse_uuid(id))
             .collect::<StoreResult<Vec<_>>>()?;
-        let rows: Vec<(Uuid, i64)> = route::Entity::find()
-            .filter(route::Column::BrandId.is_in(brand_uuids))
+        let mut query = route::Entity::find().filter(route::Column::BrandId.is_in(brand_uuids));
+        if let Some(status) = status {
+            query = query.filter(route::Column::Status.eq(status));
+        }
+        let rows: Vec<(Uuid, i64)> = query
             .select_only()
             .column(route::Column::BrandId)
             .column_as(Expr::col(route::Column::Id).count(), "count")

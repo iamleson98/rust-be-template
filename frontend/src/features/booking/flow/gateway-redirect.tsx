@@ -13,7 +13,8 @@
 import { Button } from '@/components/ui/button'
 import { CheckCircle2, ExternalLink, Wallet, QrCode, Banknote } from 'lucide-react'
 import { useT } from '@/lib/i18n'
-import type { PaymentOut, PaymentProvider } from '@/lib/queries/payments'
+import type { PaymentOut } from '@/api'
+import type { PaymentProvider } from '@/lib/payment'
 
 function providerMeta(
   provider: PaymentProvider,
@@ -74,7 +75,7 @@ export function GatewayRedirect({
         <span className="font-medium text-sm">{meta.label}</span>
       </div>
       <a href={gatewayUrl} target="_blank" rel="noopener noreferrer">
-        <Button className="w-full gap-2 bg-linear-to-r from-primary to-primary hover:from-primary/90 hover:to-primary/90">
+        <Button className="w-full gap-2">
           <ExternalLink className="h-4 w-4" />
           {t('bookingFlow.openPaymentPage')}
         </Button>

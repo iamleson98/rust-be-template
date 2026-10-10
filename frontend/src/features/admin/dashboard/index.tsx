@@ -9,10 +9,10 @@
  * duplicated management panels (each management surface lives on its
  * own dedicated route):
  *
- *   - `useStats()`                     → `/api/stats`            (brands, routes, trips)
+ *   - `useQuery(statsOptions())`                     → `/api/stats`            (brands, routes, trips)
  *   - `useAdminBookingStats(filter)`   → `/api/admin/bookings/stats` (totals + byDay)
  *   - `useAdminBookings({ limit: 5 })` → `/api/admin/bookings`   (5 most-recent bookings)
- *   - `useCampaigns()`                 → `/api/campaigns`        (live campaigns)
+ *   - `useQuery(campaignsOptions())`                 → `/api/campaigns`        (live campaigns)
  *
  * What was intentionally REMOVED in the 2026-09 redesign:
  *   - the "revenue forecast" card (a client-side linear regression —
@@ -24,80 +24,57 @@
  *     dedicated `/admin/tickets`, `/admin/brands`, `/admin/chat` pages.
  */
 
-import { memo, useCallback, useState } from 'react'
-import { useStats, useAdminBookingExport } from '@/lib/queries'
-import { useT } from '@/lib/i18n'
+import { useQuery } from '@tanstack/react-query'
+import { memo, useState } from 'react'
+import { Download } from 'lucide-react'
+import { statsOptions } from '@/api'
+import { ConsolePage, PageHeader } from '@/components/console/page'
+import { Segmented } from '@/components/console/segmented'
 import { Button } from '@/components/ui/button'
-import { CalendarRange, Download } from 'lucide-react'
-import { toast } from 'sonner'
 import { AdminDashboardSkeleton } from '@/features/admin/dashboard/dashboard-skeleton'
-import type { DateRange } from './types'
-import { downloadCSV } from './helpers'
+import { useBookingsCsvExport } from '@/features/admin/tickets/api'
+import { useT } from '@/lib/i18n'
+import { AwaitingTicketsCard } from './awaiting-tickets-card'
 import { StatsOverview } from './stats-overview'
-import { getErrorMessage } from '@/lib/error-message'
-import { ButtonGroup } from '@/components/ui/button-group'
+import type { DateRange } from './types'
 
 export const AdminDashboard = memo(function AdminDashboard() {
   const t = useT()
   const [dateRange, setDateRange] = useState<DateRange>('7d')
-  const statsQuery = useStats()
-  const exportQuery = useAdminBookingExport({})
-
-  const handleExportCSV = useCallback(async () => {
-    try {
-      const result = await exportQuery.refetch()
-      const data = result.data
-      if (!data) throw new Error('Export failed')
-      downloadCSV(data.filename, data.csv)
-      toast.success(t('adminDash.exportCsvSuccess'), {
-        description: t('adminDash.exportCsvSuccessDesc', {
-          count: data.count,
-          file: data.filename,
-        }),
-      })
-    } catch (e) {
-      toast.error(t('adminDash.exportCsvFailed'), {
-        description: getErrorMessage(e, t('adminDash.pleaseRetry')),
-      })
-    }
-  }, [exportQuery, t])
+  const statsQuery = useQuery(statsOptions())
+  const csvExport = useBookingsCsvExport({ range: dateRange })
 
   if (statsQuery.isLoading) {
     return <AdminDashboardSkeleton />
   }
 
   return (
-    <div className="p-4 md:p-6 space-y-4">
-      {/* ─── Header: title + date range + actions ─── */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">{t('adminDash.overviewTitle')}</h1>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Date range selector */}
-          <ButtonGroup>
-            <Button variant="outline" size="icon" aria-label={t('adminDash.dateRangeLabel')}>
-              <CalendarRange />
+    <ConsolePage>
+      <PageHeader
+        title={t('adminDash.overviewTitle')}
+        actions={
+          <>
+            <Segmented
+              label={t('adminDash.dateRangeLabel')}
+              value={dateRange}
+              onChange={setDateRange}
+              options={[
+                { value: '7d', label: t('adminDash.range7d') },
+                { value: '30d', label: t('adminDash.range30d') },
+                { value: '90d', label: t('adminDash.range90d') },
+              ]}
+            />
+            <Button variant="outline" size="sm" className="h-9" onClick={csvExport.exportCsv}>
+              <Download className="size-4" />
+              {t('adminDash.exportCsv')}
             </Button>
-            {[
-              { key: '7d' as DateRange, label: t('adminDash.range7d') },
-              { key: '30d' as DateRange, label: t('adminDash.range30d') },
-              { key: '90d' as DateRange, label: t('adminDash.range90d') },
-            ].map((opt) => (
-              <Button key={opt.key} variant="outline" onClick={() => setDateRange(opt.key)}>
-                {opt.label}
-              </Button>
-            ))}
-          </ButtonGroup>
-          <Button variant="outline" onClick={handleExportCSV}>
-            <Download className="h-4 w-4" />
-            {t('adminDash.exportCsv')}
-          </Button>
-        </div>
-      </div>
+          </>
+        }
+      />
 
-      {/* ─── Summary report (all real backend data) ─── */}
-      <StatsOverview dateRange={dateRange} onExportCSV={handleExportCSV} />
-    </div>
+      <AwaitingTicketsCard />
+
+      <StatsOverview dateRange={dateRange} />
+    </ConsolePage>
   )
 })

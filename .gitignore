@@ -66,3 +66,7 @@ dev.log
 
 # Cloudflare Origin CA certs dropped for --profile direct (server-only, never commit)
 deploy/certs/
+
+# Python bytecode
+__pycache__/
+*.pyc

@@ -10,6 +10,9 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use uuid::Uuid;
 
+use crate::dto::fares::ChildFarePolicy;
+use crate::dto::seat_plan::{CellKind, PlanCell};
+
 // ────────────────────────────────────────────────────────────────
 //  Brands
 // ────────────────────────────────────────────────────────────────
@@ -25,9 +28,11 @@ pub struct BrandOut {
     pub logo_url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub accent_color: Option<String>,
+    /// Mean of the approved reviews; absent while there are none.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rating: Option<f64>,
-    pub total_trips: i64,
+    /// Active routes the brand runs.
+    pub route_count: usize,
 }
 
 /// Brand detail returned by `GET /api/brands/{slug}`.
@@ -47,9 +52,9 @@ pub struct BrandDetailOut {
     pub contact_email: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub accent_color: Option<String>,
+    /// Mean of the approved reviews; absent while there are none.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rating: Option<f64>,
-    pub total_trips: i64,
 }
 
 /// Response of `GET /api/brands`.
@@ -137,7 +142,9 @@ pub struct TripResult {
     pub brand_slug: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub brand_logo: Option<String>,
-    pub brand_rating: f64,
+    /// Mean of the brand's approved reviews; absent while there are none.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub brand_rating: Option<f64>,
     pub brand_accent: String,
     pub from_name: String,
     pub from_lat: f64,
@@ -153,11 +160,13 @@ pub struct TripResult {
     pub arrival_at: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bus_layout_id: Option<String>,
-    /// Adult ticket price (VND).
+    /// Cheapest seat still for sale (VND).
     pub min_price: i64,
-    /// Same as `min_price` for now (backend doesn't have a max price per trip).
+    /// Dearest seat still for sale (VND).
     pub max_price: i64,
+    /// Standard-seat price for an adult.
     pub price_adult: i64,
+    /// Standard-seat price for a child; `0` when the brand has no child tickets.
     pub price_child: i64,
     pub vehicle_type: String,
     pub vehicle_type_label: String,
@@ -251,6 +260,8 @@ pub struct TripDetail {
 #[serde(rename_all = "camelCase")]
 pub struct TripCore {
     pub id: Uuid,
+    /// Seats can still be sold: the trip is scheduled and has not left.
+    pub bookable: bool,
     pub departure_date: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub departure_at: Option<String>,
@@ -283,7 +294,9 @@ pub struct TripBrandDetail {
     pub slug: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub logo_url: Option<String>,
-    pub rating: f64,
+    /// Mean of the brand's approved reviews; absent while there are none.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rating: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub accent_color: Option<String>,
 }
@@ -312,8 +325,31 @@ pub struct TripBusLayout {
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct TripPricing {
+    /// Standard-seat price for an adult.
     pub base_price_adult: i64,
+    /// Standard-seat price for a child; `0` when the brand has no child tickets.
     pub base_price_child: i64,
+    /// One entry per seat class on this trip, cheapest first.
+    pub fares: Vec<TripFare>,
+    /// The brand's child tickets; absent = children pay the adult price.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub child_fare: Option<ChildFarePolicy>,
+}
+
+/// What a class of seats costs on this trip.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct TripFare {
+    /// `standard` for seats without a class.
+    pub seat_class: String,
+    /// Lowest adult price among the class's seats.
+    pub price_adult: i64,
+    /// Child price at `price_adult`; absent without child tickets.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub price_child: Option<i64>,
+    pub seats: i64,
+    /// Seats of the class still for sale.
+    pub available: i64,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -373,7 +409,24 @@ pub struct TripSeatMap {
 #[serde(rename_all = "camelCase")]
 pub struct TripSeatDeck {
     pub deck: i16,
+    /// Physical grid of the deck. Absent for layouts that predate seat
+    /// plans — clients then infer a grid from the seats' row/col.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plan: Option<TripDeckPlan>,
     pub rows: Vec<TripSeatRow>,
+}
+
+/// The drawable frame of one deck: grid size plus the non-sellable
+/// fixtures (driver, door, stairs, WC). Seats are placed by their own
+/// `row`/`col`; every other cell is an aisle or gap.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct TripDeckPlan {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    pub rows: i16,
+    pub cols: i16,
+    pub fixtures: Vec<PlanCell>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -394,8 +447,16 @@ pub struct TripSeat {
     pub deck: i16,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub seat_class: Option<String>,
+    /// What the seat physically is (`seat`, `bed`, `cabin`, …). Absent
+    /// for layouts that predate seat plans.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kind: Option<CellKind>,
     pub status: String,
+    /// Adult price (VND).
     pub final_price: i64,
+    /// Price for a child; absent when the brand has no child tickets.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub child_price: Option<i64>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -455,8 +516,11 @@ pub struct CampaignValidateResponse {
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct StatsResponse {
+    /// Active brands.
     pub brands: u64,
+    /// Active routes.
     pub routes: u64,
+    /// Scheduled trips departing today (Vietnam) or later.
     pub trips: u64,
 }
 

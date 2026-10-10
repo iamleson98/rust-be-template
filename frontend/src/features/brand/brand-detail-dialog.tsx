@@ -1,137 +1,72 @@
 'use client'
 
+import { useQuery } from '@tanstack/react-query'
+import { brandDetailOptions, reviewsStatsOptions, routesOptions } from '@/api'
+import { useSearchForm } from '@/stores/search-form'
 import { useState } from 'react'
-import { useBrand, useReviewsByBrand, usePopularRoutes, useReviewTags } from '@/lib/queries'
 import { useNavigate } from '@tanstack/react-router'
-import { useApp } from '@/lib/store'
 import { useT } from '@/lib/i18n'
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import {
-  AlertCircle,
-  Bus,
-  Loader2,
-  MessageSquareQuote,
-  Quote,
-  Route as RouteIcon,
-  Star,
-  ThumbsUp,
-} from 'lucide-react'
-import { formatDateTimeVN } from '@/lib/types'
+import { AlertCircle, Loader2, MessageSquareQuote, Route as RouteIcon } from 'lucide-react'
 import { buildSearchInput } from '@/lib/search-params'
-import { renderStars, type BrandDetail, type TagStat, type Review } from './brand-detail-helpers'
-import { EmptyState } from './brand-dialog-parts'
-import { BrandTagStats } from './brand-tag-stats'
+import { ReviewsList } from '@/features/reviews/reviews-list'
 import { BrandDialogHeader } from './brand-dialog-header'
 import { BrandRoutesTab } from './brand-routes-tab'
 
-// Map tag slug → i18n labelKey (rendered via t()).
-const TAG_LABELS: Record<string, string> = {
-  on_time: 'bookingHistory.tagOnTime',
-  clean: 'bookingHistory.tagClean',
-  friendly_driver: 'bookingHistory.tagFriendlyDriver',
-  comfortable: 'bookingHistory.tagComfortable',
-  value: 'reviews.tagValue',
-  easy_booking: 'bookingHistory.tagEasyBooking',
-  good_wifi: 'bookingHistory.tagGoodWifi',
-  safe_drive: 'reviews.tagSafeDrive',
-}
-
-type TagStatsResponse = { items: TagStat[] }
-
+/**
+ * A brand's public profile: who they are, the routes they run and what
+ * customers say. Every number comes from the server — routes and their
+ * daily departures from the brand's routes, ratings from its approved
+ * reviews. Full screen on phones.
+ */
 export function BrandDetailDialog({ slug, onClose }: { slug: string; onClose: () => void }) {
   const navigate = useNavigate()
-  const { setSearchParams } = useApp()
+  const setSearchParams = useSearchForm((s) => s.setSearchParams)
   const t = useT()
   const [tab, setTab] = useState('routes')
 
-  // ── Brand identity + brand-wide reviews ──────────────────
-  // useBrand is enabled only when slug is truthy; the dialog is only ever
-  // rendered for a real slug (the route guards this), so this is always
-  // enabled in practice.
-  const brandQuery = useBrand(slug)
-  const brand = brandQuery.data as BrandDetail | undefined
-
-  // Reviews come back with the legacy field names (`content` / `photos` /
-  // `reply` / `tags`) — the centralized ReviewItem type uses different
-  // names, so we cast through unknown to our local Review shape.
-  const reviewsQuery = useReviewsByBrand(brand?.id)
-  const reviews: Review[] = (reviewsQuery.data?.items ?? []) as unknown as Review[]
-
-  // ── Tag aggregate (brand-wide) ───────────────────────────
-  // Backend `GET /api/reviews/tags` returns the global tag index.
-  // We filter client-side by brandId if the items carry it.
-  const tagStatsQuery = useReviewTags()
-  const tagStats: TagStat[] = (
-    (tagStatsQuery.data as unknown as TagStatsResponse | undefined)?.items ?? []
-  ).filter((t) => !('brandId' in t) || (t as { brandId?: string }).brandId === brand?.id)
-
-  // ── Brand routes (filtered client-side from the popular routes cache) ──
-  // The `/api/routes` endpoint doesn't support brand filtering, but each
-  // route item carries a `brand.slug` so we filter on the client. This
-  // reuses the same query cache as the homepage's popular-routes section
-  // — no extra network round-trip if the user has already seen it.
-  const routesQuery = usePopularRoutes()
-  const routes = (routesQuery.data?.items ?? []).filter((r) => r.brand.slug === slug)
-
-  // ── Derived aggregate stats ──────────────────────────────
-  // The brand's `rating` field is the authoritative aggregate (the backend
-  // recomputes it on every review write). For the 5-bucket distribution,
-  // we approximate from the up-to-20 reviews we fetched — good enough for
-  // the visual; precise enough because most brands have < 20 reviews.
-  const distribution = [0, 0, 0, 0, 0]
-  for (const r of reviews) {
-    const idx = Math.max(0, Math.min(4, r.rating - 1))
-    distribution[idx] += 1
-  }
-  const reviewCount = reviews.length
-  const aggregate = {
-    avgRating: brand?.rating ?? 0,
-    count: reviewCount,
-    distribution,
-  }
+  const brandQuery = useQuery(brandDetailOptions({ path: { slug } }))
+  const brand = brandQuery.data
+  const routesQuery = useQuery({
+    ...routesOptions({ query: { brand_id: brand?.id } }),
+    enabled: !!brand,
+  })
+  const routes = routesQuery.data?.items ?? []
+  const statsQuery = useQuery({
+    ...reviewsStatsOptions({ query: { brand_id: brand?.id } }),
+    enabled: !!brand,
+  })
+  const reviewCount = statsQuery.data?.count ?? 0
 
   const accent = brand?.accentColor ?? '#2563eb'
 
-  // ── Quick search — navigate to /search with from/to/date in the URL ──
-  // The search route's validateSearch parses these and the SearchResults
-  // page uses useTripSearch() to fetch. No manual state juggling.
+  // Search this route from tomorrow.
   const quickSearch = (fromName: string, toName: string) => {
     const tomorrow = new Date()
     tomorrow.setDate(tomorrow.getDate() + 1)
     const date = tomorrow.toISOString().slice(0, 10)
     setSearchParams({ from: fromName, to: toName, date })
     onClose()
-    navigate({
-      to: '/search',
-      search: buildSearchInput({ from: fromName, to: toName, date }),
-    })
+    navigate({ to: '/search', search: buildSearchInput({ from: fromName, to: toName, date }) })
   }
 
-  const isLoading = brandQuery.isLoading
-  const isError = brandQuery.isError
-
   return (
-    <Dialog
-      open
-      onOpenChange={(open) => {
-        if (!open) onClose()
-      }}
-    >
-      <DialogContent className="max-w-4xl w-[95vw] max-h-[92dvh] p-0 gap-0 overflow-hidden">
-        {isLoading || !brand ? (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="flex max-h-[92dvh] w-[95vw] max-w-3xl flex-col gap-0 overflow-hidden p-0 max-md:h-dvh max-md:max-h-dvh max-md:w-screen max-md:max-w-none max-md:rounded-none max-md:border-0">
+        {!brand ? (
           <>
             <DialogTitle className="sr-only">{t('brandDetail.loadingTitle')}</DialogTitle>
             <DialogDescription className="sr-only">
               {t('brandDetail.loadingDesc')}
             </DialogDescription>
-            <div className="flex flex-col items-center justify-center h-64 gap-2">
-              {isError ? (
+            <div className="flex h-64 flex-col items-center justify-center gap-2">
+              {brandQuery.isError ? (
                 <>
-                  <AlertCircle className="h-8 w-8 text-rose-500" />
+                  <AlertCircle className="size-8 text-rose-500" />
                   <p className="text-sm text-muted-foreground">{t('brandDetail.loadError')}</p>
                   <Button size="sm" variant="outline" onClick={() => brandQuery.refetch()}>
                     {t('payment.retry')}
@@ -139,7 +74,7 @@ export function BrandDetailDialog({ slug, onClose }: { slug: string; onClose: ()
                 </>
               ) : (
                 <>
-                  <Loader2 className="h-7 w-7 animate-spin text-blue-700" />
+                  <Loader2 className="size-7 animate-spin text-primary" />
                   <p className="text-sm text-muted-foreground">{t('brandDetail.loadingText')}</p>
                 </>
               )}
@@ -147,218 +82,40 @@ export function BrandDetailDialog({ slug, onClose }: { slug: string; onClose: ()
           </>
         ) : (
           <>
-            {/* Header — brand identity with accent color theming */}
             <BrandDialogHeader
               brand={brand}
               accent={accent}
               reviewCount={reviewCount}
-              routesCount={routes.length}
+              routes={routes}
             />
 
-            {/* Tabs */}
-            <Tabs value={tab} onValueChange={setTab} className="flex-1 flex flex-col min-h-0">
-              <TabsList className="rounded-none border-b bg-white justify-start px-3 h-auto py-2 w-full">
-                <TabsTrigger value="routes" className="gap-1.5">
-                  <RouteIcon className="h-4 w-4" />
+            <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col gap-0">
+              <TabsList className="h-auto w-full justify-start gap-1 rounded-none border-b bg-background px-3 py-2">
+                <TabsTrigger value="routes" className="flex-none gap-1.5">
+                  <RouteIcon className="size-4" />
                   {t('admin.routes')}
-                  <Badge variant="secondary" className="text-[10px] ml-0.5">
+                  <Badge variant="secondary" className="ml-0.5 text-[10px]">
                     {routes.length}
                   </Badge>
                 </TabsTrigger>
-                <TabsTrigger value="reviews" className="gap-1.5">
-                  <MessageSquareQuote className="h-4 w-4" />
+                <TabsTrigger value="reviews" className="flex-none gap-1.5">
+                  <MessageSquareQuote className="size-4" />
                   {t('tripDetail.tabReviews')}
-                  <Badge variant="secondary" className="text-[10px] ml-0.5">
-                    {aggregate.count}
+                  <Badge variant="secondary" className="ml-0.5 text-[10px]">
+                    {reviewCount}
                   </Badge>
-                </TabsTrigger>
-                <TabsTrigger value="fleet" className="gap-1.5">
-                  <Bus className="h-4 w-4" />
-                  {t('brandDetail.tabFleet')}
                 </TabsTrigger>
               </TabsList>
 
-              <ScrollArea className="flex-1 max-h-[55dvh]">
-                {/* Routes tab */}
+              <ScrollArea className="min-h-0 flex-1">
                 <BrandRoutesTab
                   isLoading={routesQuery.isLoading}
                   routes={routes}
                   accent={accent}
                   onQuickSearch={quickSearch}
                 />
-
-                {/* Reviews tab */}
-                <TabsContent value="reviews" className="p-4 m-0">
-                  {reviewsQuery.isLoading ? (
-                    <div className="flex flex-col items-center justify-center py-10 text-muted-foreground">
-                      <Loader2 className="h-6 w-6 animate-spin text-blue-600 mb-2" />
-                      <p className="text-sm">{t('reviews.loading')}</p>
-                    </div>
-                  ) : reviewsQuery.isError ? (
-                    <div className="flex flex-col items-center justify-center py-10 text-center">
-                      <AlertCircle className="h-7 w-7 text-rose-500 mb-2" />
-                      <p className="text-sm text-muted-foreground mb-3">{t('reviews.loadError')}</p>
-                      <Button size="sm" variant="outline" onClick={() => reviewsQuery.refetch()}>
-                        {t('payment.retry')}
-                      </Button>
-                    </div>
-                  ) : aggregate.count === 0 ? (
-                    <EmptyState
-                      icon={<MessageSquareQuote className="h-7 w-7 text-slate-400" />}
-                      title={t('reviews.emptyTitle')}
-                      subtitle={t('brandDetail.emptyReviewsSubtitle', { brand: brand.name })}
-                    />
-                  ) : (
-                    <div className="space-y-4">
-                      {/* Aggregate */}
-                      <div className="grid grid-cols-1 md:grid-cols-[180px_1fr] gap-4 p-4 rounded-xl bg-linear-to-br from-amber-50 to-orange-50 ring-1 ring-amber-200/50">
-                        <div className="flex flex-col items-center justify-center text-center md:border-r md:border-amber-200/50">
-                          <div className="text-5xl font-extrabold text-amber-600 tabular-nums">
-                            {aggregate.avgRating.toFixed(1)}
-                          </div>
-                          <div className="flex items-center gap-0.5 mt-1">
-                            {renderStars(aggregate.avgRating, 'h-4 w-4')}
-                          </div>
-                          <div className="text-xs text-muted-foreground mt-1">
-                            {t('reviews.countLabel', {
-                              count: aggregate.count.toLocaleString('vi-VN'),
-                            })}
-                          </div>
-                        </div>
-                        <div className="space-y-1.5">
-                          <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">
-                            {t('reviews.ratingDistribution')}
-                          </div>
-                          {[5, 4, 3, 2, 1].map((star) => {
-                            const count = aggregate.distribution[star - 1] ?? 0
-                            const pct =
-                              aggregate.count > 0 ? Math.round((count / aggregate.count) * 100) : 0
-                            return (
-                              <div key={star} className="flex items-center gap-2">
-                                <div className="flex items-center gap-0.5 w-10">
-                                  <span className="text-xs text-muted-foreground">{star}</span>
-                                  <Star className="h-3 w-3 fill-amber-300 text-amber-300" />
-                                </div>
-                                <div className="h-2 flex-1 bg-slate-200 rounded-full overflow-hidden">
-                                  <div
-                                    className="h-full bg-amber-400 rounded-full transition-all"
-                                    style={{ width: `${pct}%` }}
-                                  />
-                                </div>
-                                <span className="text-xs text-muted-foreground w-10 text-right tabular-nums">
-                                  {count}
-                                </span>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      </div>
-
-                      {/* Tag aggregate stats —"Đặc điểm được khen nhiều"*/}
-                      {tagStats.length > 0 && (
-                        <BrandTagStats tagStats={tagStats.slice(0, 5)} accentColor={accent} />
-                      )}
-
-                      {/* Recent reviews */}
-                      <div>
-                        <div className="text-sm font-semibold mb-2 flex items-center gap-1.5">
-                          <MessageSquareQuote className="h-4 w-4 text-amber-500" />
-                          {t('brandDetail.recentReviews')}
-                        </div>
-                        <div className="space-y-3">
-                          {reviews.map((r) => (
-                            <div key={r.id} className="rounded-xl bg-white ring-1 ring-black/5 p-4">
-                              <div className="flex items-start gap-3">
-                                <div
-                                  className="h-9 w-9 rounded-full text-white inline-flex items-center justify-center text-sm font-bold shrink-0"
-                                  style={{
-                                    background: `linear-gradient(135deg, ${accent}, ${accent}dd)`,
-                                  }}
-                                >
-                                  {r.authorName?.slice(0, 1).toUpperCase() ?? 'A'}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <span className="font-semibold text-sm">{r.authorName}</span>
-                                    <div className="flex items-center gap-0.5">
-                                      {[1, 2, 3, 4, 5].map((n) => (
-                                        <Star
-                                          key={n}
-                                          className={`h-3 w-3 ${
-                                            n <= r.rating
-                                              ? 'fill-amber-400 text-amber-400'
-                                              : 'fill-slate-200 text-slate-200'
-                                          }`}
-                                        />
-                                      ))}
-                                    </div>
-                                    <span className="text-xs text-muted-foreground">•</span>
-                                    <span className="text-xs text-muted-foreground">
-                                      {formatDateTimeVN(r.createdAt)}
-                                    </span>
-                                  </div>
-                                  {r.title && (
-                                    <div className="font-medium text-sm mt-1">{r.title}</div>
-                                  )}
-                                  {r.content && (
-                                    <div className="text-sm text-muted-foreground mt-1 leading-relaxed">
-                                      <Quote className="inline h-3 w-3 mr-1 text-slate-400" />
-                                      {r.content}
-                                    </div>
-                                  )}
-                                  {(r.tags?.length ?? 0) > 0 && (
-                                    <div className="mt-2 flex flex-wrap gap-1">
-                                      {(r.tags ?? []).map((tag) => (
-                                        <Badge
-                                          key={tag}
-                                          variant="outline"
-                                          className="text-[10px] bg-slate-50 font-normal"
-                                        >
-                                          {TAG_LABELS[tag] ? t(TAG_LABELS[tag]) : tag}
-                                        </Badge>
-                                      ))}
-                                    </div>
-                                  )}
-                                  {r.reply && (
-                                    <div
-                                      className="mt-3 ml-3 pl-3 border-l-2"
-                                      style={{ borderColor: accent }}
-                                    >
-                                      <div className="text-xs font-semibold flex items-center gap-1">
-                                        <span
-                                          className="inline-flex h-5 w-5 rounded-full items-center justify-center text-[10px] text-white"
-                                          style={{ background: accent }}
-                                        >
-                                          {brand.name.slice(0, 1)}
-                                        </span>
-                                        {t('reviews.replyFrom', { brand: brand.name })}
-                                      </div>
-                                      <p className="text-xs text-muted-foreground mt-1">
-                                        {r.reply}
-                                      </p>
-                                    </div>
-                                  )}
-                                  <div className="mt-2 flex items-center gap-1 text-xs text-muted-foreground">
-                                    <ThumbsUp className="h-3 w-3" />
-                                    {t('reviews.helpfulCount', { count: r.helpfulCount })}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </TabsContent>
-
-                {/* Fleet tab — no public endpoint available, show empty state */}
-                <TabsContent value="fleet" className="p-4 m-0">
-                  <EmptyState
-                    icon={<Bus className="h-7 w-7 text-slate-400" />}
-                    title={t('brandDetail.fleetEmptyTitle')}
-                    subtitle={t('brandDetail.fleetEmptySubtitle')}
-                  />
+                <TabsContent value="reviews" className="m-0 p-4">
+                  <ReviewsList brandId={brand.id} brandName={brand.name} accentColor={accent} />
                 </TabsContent>
               </ScrollArea>
             </Tabs>

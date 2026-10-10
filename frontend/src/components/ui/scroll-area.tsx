@@ -1,43 +1,37 @@
 'use client'
 
-import { type ComponentProps, forwardRef } from 'react'
+import { type ComponentProps, forwardRef, type Ref } from 'react'
 import { ScrollArea as ScrollAreaPrimitive } from '@base-ui/react/scroll-area'
 
 import { cn } from '@/lib/utils'
 
-/**
- * ScrollArea wrapper around the base-ui ScrollArea primitive.
- *
- * Uses `forwardRef` so callers can attach a ref to the ROOT element
- * (e.g. to query the inner viewport for programmatic scrolling —
- * see `chat-panel.tsx`'s auto-scroll effect).
- *
- * The viewport is the element that actually scrolls. It's marked
- * with `data-slot="scroll-area-viewport"` so callers can find it via
- * `root.querySelector('[data-slot="scroll-area-viewport"]')`.
- */
-const ScrollArea = forwardRef<
-  React.ComponentRef<typeof ScrollAreaPrimitive.Root>,
-  ComponentProps<typeof ScrollAreaPrimitive.Root>
->(function ScrollArea({ className, children, ...props }, ref) {
-  return (
-    <ScrollAreaPrimitive.Root
-      ref={ref}
-      data-slot="scroll-area"
-      className={cn('relative', className)}
-      {...props}
-    >
-      <ScrollAreaPrimitive.Viewport
-        data-slot="scroll-area-viewport"
-        className="focus-visible:ring-ring/50 size-full rounded-[inherit] transition-[color,box-shadow] outline-none focus-visible:ring-[3px] focus-visible:outline-1"
+type ScrollAreaProps = ComponentProps<typeof ScrollAreaPrimitive.Root> & {
+  /** Ref to the element that actually scrolls (the root only clips). */
+  viewportRef?: Ref<HTMLDivElement>
+}
+
+const ScrollArea = forwardRef<React.ComponentRef<typeof ScrollAreaPrimitive.Root>, ScrollAreaProps>(
+  function ScrollArea({ className, children, viewportRef, ...props }, ref) {
+    return (
+      <ScrollAreaPrimitive.Root
+        ref={ref}
+        data-slot="scroll-area"
+        className={cn('relative', className)}
+        {...props}
       >
-        {children}
-      </ScrollAreaPrimitive.Viewport>
-      <ScrollBar />
-      <ScrollAreaPrimitive.Corner />
-    </ScrollAreaPrimitive.Root>
-  )
-})
+        <ScrollAreaPrimitive.Viewport
+          ref={viewportRef}
+          data-slot="scroll-area-viewport"
+          className="focus-visible:ring-ring/50 size-full rounded-[inherit] transition-[color,box-shadow] outline-none focus-visible:ring-[3px] focus-visible:outline-1"
+        >
+          {children}
+        </ScrollAreaPrimitive.Viewport>
+        <ScrollBar />
+        <ScrollAreaPrimitive.Corner />
+      </ScrollAreaPrimitive.Root>
+    )
+  },
+)
 
 function ScrollBar({
   className,

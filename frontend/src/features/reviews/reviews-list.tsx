@@ -1,50 +1,31 @@
 'use client'
 
+import { useQuery } from '@tanstack/react-query'
+import { reviewsListOptions, reviewsStatsOptions } from '@/api'
 import { memo, useState } from 'react'
-import { useReviewsByRoute, useReviewsByBrand, useReviewTags } from '@/lib/queries'
-import {
-  Star,
-  Loader2,
-  MessageSquareQuote,
-  ChevronLeft,
-  ChevronRight,
-  AlertCircle,
-} from 'lucide-react'
+import { Loader2, MessageSquareQuote, ChevronLeft, ChevronRight, AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Progress } from '@/components/ui/progress'
 import { useT } from '@/lib/i18n'
 import { NoReviewsYet } from '@/features/reviews/no-reviews-yet'
 import { Lightbox } from '@/components/icons/lightbox'
 import { type Review, ReviewCard } from './review-card'
-import { type TagStat, TagStatsSection } from './tag-stats-section'
-
-type Aggregate = {
-  avgRating: number
-  count: number
-  distribution: number[] // length 5, index 0 = 1-star
-}
+import { ReviewSummary } from './review-summary'
 
 type Props = {
   brandId: string
-  routeId: string
+  /** Only this route's reviews in the list; else the whole brand's. */
+  routeId?: string
   brandName: string
-  routeName: string
+  routeName?: string
   accentColor?: string
 }
 
 const PAGE_SIZE = 5
 
-/** Compute the 5-bucket distribution from raw review items. */
-function computeDistribution(reviews: { rating?: number }[]): number[] {
-  const dist = [0, 0, 0, 0, 0]
-  for (const r of reviews) {
-    if (typeof r.rating !== 'number') continue
-    const idx = Math.max(0, Math.min(4, r.rating - 1))
-    dist[idx] += 1
-  }
-  return dist
-}
-
+/**
+ * A brand's review summary (counted on the server) above the latest
+ * reviews of one of its routes, or of the whole brand.
+ */
 export const ReviewsList = memo(function ReviewsList({
   brandId,
   routeId,
@@ -65,47 +46,23 @@ export const ReviewsList = memo(function ReviewsList({
     setLightboxOpen(true)
   }
 
-  // ── Reviews list (route-scoped) ─────────────────────────
-  // The centralized hook returns ReviewItem[] (the typed shape used by the
-  // rest of the app), but the backend serializes reviews with the legacy
-  // field names (`content` / `photos` / `reply` / `tags`). We cast the
-  // response to our local Review type so the renderer can access those
-  // fields without touching the centralized type definition.
-  const reviewsQuery = useReviewsByRoute(routeId)
+  // The latest reviews in scope. The backend serializes them with the
+  // legacy field names (`content` / `photos` / `reply` / `tags`), hence the
+  // local Review type.
+  const scope = routeId ? { route_id: routeId } : { brand_id: brandId }
+  const reviewsQuery = useQuery(reviewsListOptions({ query: { ...scope, limit: 20 } }))
   const reviews: Review[] = (reviewsQuery.data?.items ?? []) as unknown as Review[]
 
-  // ── Brand-wide aggregate (avg + 5-bucket distribution) ──
-  // Backend `GET /api/reviews` returns `{ items: [...] }` — no aggregate
-  // shape. We compute the avg + distribution client-side from the items
-  // we fetched. (The previous `?aggregate=1` query param was ignored by
-  // the backend and the response shape was wrong anyway.)
-  const aggregateQuery = useReviewsByBrand(brandId)
-  const aggregate: Aggregate | null = aggregateQuery.data
-    ? {
-        avgRating:
-          aggregateQuery.data.items && aggregateQuery.data.items.length > 0
-            ? aggregateQuery.data.items.reduce((s, r) => s + (r.rating ?? 0), 0) /
-              aggregateQuery.data.items.length
-            : 0,
-        count: aggregateQuery.data.items?.length ?? 0,
-        distribution: computeDistribution(aggregateQuery.data.items ?? []),
-      }
-    : null
+  // Exact totals from the server: the brand's summary, and how many
+  // reviews the list's scope has (the list only fetches the latest 20).
+  const brandStats = useQuery(reviewsStatsOptions({ query: { brand_id: brandId } }))
+  const routeStats = useQuery({
+    ...reviewsStatsOptions({ query: { route_id: routeId } }),
+    enabled: !!routeId,
+  })
+  const total = (routeId ? routeStats.data : brandStats.data)?.count ?? reviews.length
 
-  // ── Tag aggregate (route-scoped) ────────────────────────
-  // Top praised features for this specific route. Backend `GET /api/reviews/tags`
-  // takes NO params — returns the global tag index. We filter client-side
-  // by routeId if the items carry it.
-  const tagStatsQuery = useReviewTags()
-  const tagStats: TagStat[] = (
-    ((tagStatsQuery.data ?? {}) as { items?: Array<Record<string, unknown>> }).items ?? []
-  ).filter((t) => !('routeId' in t) || t.routeId === routeId) as TagStat[]
-
-  // Total review count — the backend's ReviewListResponse only has `items`
-  // (no `total` field). Fall back to the items length.
-  const total = reviews.length
-
-  const loading = reviewsQuery.isLoading || aggregateQuery.isLoading
+  const loading = reviewsQuery.isLoading || brandStats.isLoading
   const isError = reviewsQuery.isError
 
   const totalPages = Math.max(1, Math.ceil(reviews.length / PAGE_SIZE))
@@ -143,58 +100,7 @@ export const ReviewsList = memo(function ReviewsList({
 
   return (
     <div className="space-y-5">
-      {/* Aggregate header */}
-      {aggregate && aggregate.count > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-[200px_1fr] gap-4 p-4 rounded-xl bg-linear-to-br from-amber-50 to-orange-50 ring-1 ring-amber-200/50">
-          <div className="flex flex-col items-center justify-center text-center md:border-r md:border-amber-200/50">
-            <div className="text-5xl font-extrabold text-amber-600 tabular-nums">
-              {aggregate.avgRating.toFixed(1)}
-            </div>
-            <div className="flex items-center gap-0.5 mt-1">
-              {[1, 2, 3, 4, 5].map((n) => (
-                <Star
-                  key={n}
-                  className={`h-4 w-4 ${
-                    n <= Math.round(aggregate.avgRating)
-                      ? 'fill-amber-400 text-amber-400'
-                      : 'fill-slate-200 text-slate-200'
-                  }`}
-                />
-              ))}
-            </div>
-            <div className="text-xs text-muted-foreground mt-1">
-              {t('reviews.countLabel', { count: aggregate.count.toLocaleString('vi-VN') })}
-            </div>
-            <div className="text-[11px] text-muted-foreground mt-0.5">{brandName}</div>
-          </div>
-          <div className="space-y-1.5">
-            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">
-              {t('reviews.ratingDistribution')}
-            </div>
-            {[5, 4, 3, 2, 1].map((star) => {
-              const count = aggregate.distribution[star - 1] ?? 0
-              const pct = aggregate.count > 0 ? Math.round((count / aggregate.count) * 100) : 0
-              return (
-                <div key={star} className="flex items-center gap-2">
-                  <div className="flex items-center gap-0.5 w-10">
-                    <span className="text-xs text-muted-foreground">{star}</span>
-                    <Star className="h-3 w-3 fill-amber-300 text-amber-300" />
-                  </div>
-                  <Progress value={pct} className="h-2 flex-1" />
-                  <span className="text-xs text-muted-foreground w-10 text-right tabular-nums">
-                    {count}
-                  </span>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Tag aggregate stats —"Đặc điểm được khen nhiều"*/}
-      {tagStats.length > 0 && (
-        <TagStatsSection tagStats={tagStats.slice(0, 5)} accentColor={accentColor} />
-      )}
+      {brandStats.data && <ReviewSummary stats={brandStats.data} caption={brandName} />}
 
       {/* Reviews list */}
       {reviews.length === 0 ? (
@@ -204,7 +110,9 @@ export const ReviewsList = memo(function ReviewsList({
           <div className="flex items-center justify-between">
             <h4 className="font-semibold text-sm flex items-center gap-1.5">
               <MessageSquareQuote className="h-4 w-4 text-amber-500" />
-              {t('reviews.reviewsForRoute', { count: total, route: routeName })}
+              {routeName
+                ? t('reviews.reviewsForRoute', { count: total, route: routeName })
+                : t('reviews.countLabel', { count: total })}
             </h4>
             <div className="text-xs text-muted-foreground">
               {t('reviews.pageIndicator', { page, totalPages })}

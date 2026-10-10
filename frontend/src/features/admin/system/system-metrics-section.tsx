@@ -13,12 +13,14 @@
  * Errors render a red alert card with the backend's message.
  */
 
+import { useQuery } from '@tanstack/react-query'
+import { systemMetricsOptions } from '@/api'
 import { AlertCircle, RefreshCw, Server } from 'lucide-react'
+import { getErrorMessage } from '@/lib/error-message'
 
 import { SystemMetricsSkeleton } from '@/features/admin/system/system-metrics-skeleton'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { useSystemMetrics } from '@/lib/queries'
 import { CpuCard } from './cpu-card'
 import { DisksCard } from './disks-card'
 import { HostCard } from './host-card'
@@ -28,7 +30,7 @@ import { ProcessCard } from './process-card'
 const POLL_SECONDS = 5
 
 export function SystemMetricsSection() {
-  const metricsQuery = useSystemMetrics()
+  const metricsQuery = useQuery({ ...systemMetricsOptions(), refetchInterval: 5_000 })
 
   return (
     <section id="server-metrics" data-testid="system-metrics" className="space-y-3">
@@ -65,7 +67,7 @@ export function SystemMetricsSection() {
             <div>
               <p className="font-medium">Failed to load server metrics</p>
               <p className="text-sm text-muted-foreground">
-                {metricsQuery.error instanceof Error ? metricsQuery.error.message : 'Unknown error'}
+                {getErrorMessage(metricsQuery.error, 'Unknown error')}
               </p>
             </div>
           </CardContent>
@@ -75,7 +77,7 @@ export function SystemMetricsSection() {
       ) : metricsQuery.data ? (
         <div className="space-y-3">
           {/* CPU / Memory / This Process summary row */}
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <CpuCard
               cpuUsagePercent={metricsQuery.data.cpuUsagePercent}
               logicalCores={metricsQuery.data.logicalCores}

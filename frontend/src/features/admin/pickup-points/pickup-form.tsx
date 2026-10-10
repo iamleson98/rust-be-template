@@ -8,6 +8,8 @@
  * list query on success.
  */
 
+import { useMutation } from '@tanstack/react-query'
+import { adminPickupPointsCreateMutation, adminPickupPointsUpdateMutation } from '@/api'
 import { useEffect, useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -35,9 +37,8 @@ import {
 import { MapPin, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { requiredText, positiveInt, optionalText } from '@/lib/forms'
-import { useUpsertAdminPickupPoint } from '@/lib/queries'
 import { useT } from '@/lib/i18n'
-import type { AdminPickupPointOut, PlaceOut, AdminRouteOut } from '@/lib/api/types.gen'
+import type { AdminPickupPointOut, PlaceOut, AdminRouteOut, UpsertPickupPointRequest } from '@/api'
 import { getErrorMessage } from '@/lib/error-message'
 
 // Schema factory — takes `t` so validation messages follow the UI language.
@@ -77,8 +78,9 @@ export function PickupPointFormDialog({
 }) {
   const t = useT()
   const isEdit = !!pickup
-  const upsertMutation = useUpsertAdminPickupPoint()
-  const saving = upsertMutation.isPending
+  const createMutation = useMutation(adminPickupPointsCreateMutation())
+  const updateMutation = useMutation(adminPickupPointsUpdateMutation())
+  const saving = createMutation.isPending || updateMutation.isPending
 
   // Rebuilt per render so validation messages follow the UI language.
   const pickupPointSchema = makePickupPointSchema(t)
@@ -142,7 +144,7 @@ export function PickupPointFormDialog({
       // `pickupType` + `etaOffsetMin` (none exist in the backend) and
       // omitted `lat`/`lon` → the row was saved with null coordinates.
       const selectedPlace = places.find((p) => p.id === values.placeId)
-      const payload: Record<string, unknown> = {
+      const body: UpsertPickupPointRequest = {
         routeId: route.id,
         name: values.name.trim(),
         address: (values.address ?? '').trim(),
@@ -152,16 +154,8 @@ export function PickupPointFormDialog({
         // Backend field is `kind` (not `pickupType`).
         kind: values.pickupType,
       }
-      if (isEdit) {
-        payload.id = pickup!.id
-      }
-      // SDK mutation hooks require { body: <payload> } — passing the raw
-      // payload makes `opts.body === undefined`, which causes the openapi-ts
-      // client to delete `Content-Type: application/json` before sending,
-      // and axum's `Json<T>` extractor then returns 415 Unsupported Media Type.
-      await upsertMutation.mutateAsync({ body: payload } as unknown as Parameters<
-        typeof upsertMutation.mutateAsync
-      >[0])
+      if (isEdit) await updateMutation.mutateAsync({ path: { id: pickup!.id }, body })
+      else await createMutation.mutateAsync({ body })
       toast.success(isEdit ? t('adminPickup.updated') : t('adminPickup.created'))
       onSaved()
     } catch (e) {

@@ -40,9 +40,9 @@ use uuid::Uuid;
 
 use crate::config::PaymentConfig;
 use crate::dto::payment::{
-    AdminPaymentListResponse, AdminPaymentOut, BankTransferInstructions, CancelPaymentResponse,
-    CreatePaymentReq, CreatePaymentResponse, ListPaymentsResponse, MarkCodCollectedResponse,
-    PaymentOut, UpdatePaymentStatusResponse,
+    AdminPaymentListResponse, AdminPaymentOut, AdminPaymentSummary, BankTransferInstructions,
+    CancelPaymentResponse, CreatePaymentReq, CreatePaymentResponse, ListPaymentsResponse,
+    MarkCodCollectedResponse, PaymentOut, PaymentProvidersResponse, UpdatePaymentStatusResponse,
 };
 use crate::entity::payment::{self};
 use crate::error::{AppError, AppResult};
@@ -53,9 +53,23 @@ use crate::payment::vietqr::VietQrProvider;
 use crate::payment::vnpay::VnpayProvider;
 use crate::payment::zalopay::{ZalopayCallbackPayload, ZalopayProvider};
 use crate::payment::{providers, statuses};
+use crate::service::booking_service::hold_expired;
 use crate::store::CompositeStore;
 
 use base64::Engine;
+
+/// A booking and its payments belong to the user who made the booking.
+/// Only a booking with no owner at all (a legacy guest booking) is open
+/// to whoever holds its id. Signed-out callers get 401 on an owned
+/// booking so the client can send them to sign in.
+fn ensure_owner(owner: Option<Uuid>, caller: Option<&str>) -> AppResult<()> {
+    let Some(owner) = owner else { return Ok(()) };
+    match caller {
+        None => Err(AppError::Unauthorized("sign in to continue".into())),
+        Some(c) if Uuid::parse_str(c) == Ok(owner) => Ok(()),
+        Some(_) => Err(AppError::Forbidden("not your booking".into())),
+    }
+}
 
 // ────────────────────────────────────────────────────────────────
 //  Service
@@ -110,6 +124,17 @@ impl PaymentService {
         }
     }
 
+    /// The providers checkout can offer: exactly those `select_provider` accepts.
+    pub fn enabled_providers(&self) -> PaymentProvidersResponse {
+        PaymentProvidersResponse {
+            providers: providers::ALL
+                .iter()
+                .filter(|p| self.select_provider(p).is_ok())
+                .map(|p| p.to_string())
+                .collect(),
+        }
+    }
+
     // ── User-facing ops ──────────────────────────────────────────
 
     /// Create a payment intent for a booking.
@@ -135,28 +160,37 @@ impl PaymentService {
             .map_err(|e| AppError::Internal(e.to_string()))?
             .ok_or_else(|| AppError::NotFound("booking not found".into()))?;
 
-        // Ownership check — a booking can be paid by either:
-        //   1. The authenticated user who created it (booking.user_id == user_id).
-        //   2. A guest (no user_id on the booking, no auth required).
-        // This matches the booking flow's existing guest-lookup pattern.
-        if let (Some(uid), Some(b_uid)) =
-            (user_id, booking.user_id.map(|id| id.to_string()).as_deref())
-        {
-            if uid != b_uid {
-                return Err(AppError::Forbidden("not your booking".into()));
-            }
-        }
+        ensure_owner(booking.user_id, user_id)?;
         if booking.status != "pending" {
             return Err(AppError::BadRequest(format!(
                 "booking is not in pending status (current: {})",
                 booking.status
             )));
         }
+        if hold_expired(&booking) {
+            return Err(AppError::Gone("booking hold has expired".into()));
+        }
+        // Paying on board places the booking: its seats wait until departure
+        // for the operator's confirmation call. A gateway payment needs longer
+        // than the checkout hold; the seats stay put while it runs.
+        let held = if req.provider == providers::COD {
+            self.booking
+                .hold_until_departure(&booking, providers::COD)
+                .await?
+        } else {
+            self.booking
+                .hold_for_payment(booking.id, &req.provider)
+                .await?
+        };
+        if !held {
+            return Err(AppError::BadRequest(
+                "booking is not in pending status".into(),
+            ));
+        }
 
         // Cancel any prior pending payment for this booking — one
         // active payment per booking. Atomic conditional UPDATE.
-        self.cancel_prior_pending_payments(booking.id.to_string().as_str())
-            .await?;
+        self.cancel_prior_pending_payments(booking.id).await?;
 
         // Dispatch to provider.
         let provider = self.select_provider(&req.provider)?;
@@ -240,28 +274,7 @@ impl PaymentService {
             .map_err(|e| AppError::Internal(e.to_string()))?
             .ok_or_else(|| AppError::NotFound("payment not found".into()))?;
 
-        // Ownership check.
-        if let Some(uid) = user_id {
-            if let Some(p_uid) = p.user_id.map(|id| id.to_string()).as_deref() {
-                if uid != p_uid {
-                    return Err(AppError::Forbidden("not your payment".into()));
-                }
-            } else {
-                // Payment belongs to a guest booking — only the booking
-                // owner can view. We can't enforce this without loading
-                // the booking; let's check.
-                let booking = self
-                    .store
-                    .booking_store()
-                    .find_booking_by_id(p.booking_id)
-                    .await
-                    .map_err(|e| AppError::Internal(e.to_string()))?
-                    .ok_or_else(|| AppError::NotFound("booking not found".into()))?;
-                if booking.user_id.map(|id| id.to_string()).as_deref() != Some(uid) {
-                    return Err(AppError::Forbidden("not your payment".into()));
-                }
-            }
-        }
+        self.assert_ownership(&p, user_id).await?;
 
         Ok(self.to_payment_out(&p, &None))
     }
@@ -279,16 +292,12 @@ impl PaymentService {
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?
             .ok_or_else(|| AppError::NotFound("booking not found".into()))?;
-        if let Some(uid) = user_id {
-            if booking.user_id.map(|id| id.to_string()).as_deref() != Some(uid) {
-                return Err(AppError::Forbidden("not your booking".into()));
-            }
-        }
+        ensure_owner(booking.user_id, user_id)?;
 
         let payments = self
             .store
             .payment_store()
-            .list_by_booking(&booking_id.to_string())
+            .list_by_booking(booking_id)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
         let items = payments
@@ -396,9 +405,7 @@ impl PaymentService {
         // `confirm_as_system` because this is a server-side call (no
         // user in context) — payment has been verified, so bypass
         // the per-row ownership check.
-        let _ = self
-            .booking
-            .confirm_as_system(updated.booking_id, providers::COD)
+        self.confirm_paid_booking(updated.booking_id, updated.id, providers::COD)
             .await?;
 
         Ok(MarkCodCollectedResponse {
@@ -710,6 +717,33 @@ impl PaymentService {
         })
     }
 
+    /// Totals over every payment: how many per status and the money collected.
+    pub async fn admin_summary(&self) -> AppResult<AdminPaymentSummary> {
+        let rows = self
+            .store
+            .payment_store()
+            .status_totals()
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        let mut summary = AdminPaymentSummary::default();
+        for (status, count, amount) in rows {
+            let count = u64::try_from(count).unwrap_or(0);
+            summary.total += count;
+            match status.as_str() {
+                statuses::PENDING => summary.pending = count,
+                statuses::COMPLETED => {
+                    summary.completed = count;
+                    summary.collected = amount.unwrap_or(0);
+                }
+                statuses::FAILED => summary.failed = count,
+                statuses::CANCELLED => summary.cancelled = count,
+                statuses::REFUNDED => summary.refunded = count,
+                _ => {}
+            }
+        }
+        Ok(summary)
+    }
+
     pub async fn get_admin(&self, id: Uuid) -> AppResult<AdminPaymentOut> {
         let p = self
             .store
@@ -780,8 +814,7 @@ impl PaymentService {
         // If admin marks a payment as `completed`, also confirm the booking.
         if status == statuses::COMPLETED {
             let _ = self
-                .booking
-                .confirm_as_system(updated.booking_id, &updated.provider)
+                .confirm_paid_booking(updated.booking_id, updated.id, &updated.provider)
                 .await;
         }
 
@@ -795,28 +828,22 @@ impl PaymentService {
 
     // ── Internal helpers ─────────────────────────────────────────
 
+    /// The payment's owner: the user stored on the payment, else the
+    /// booking's.
     async fn assert_ownership(&self, p: &payment::Model, user_id: Option<&str>) -> AppResult<()> {
-        if let Some(uid) = user_id {
-            if p.user_id.map(|id| id.to_string()).as_deref() == Some(uid) {
-                return Ok(());
-            }
-            // Payment belongs to a guest booking — load the booking to check.
-            let booking = self
+        let owner = match p.user_id {
+            Some(owner) => Some(owner),
+            None => self
                 .store
                 .booking_store()
                 .find_booking_by_id(p.booking_id)
-                .await
-                .map_err(|e| AppError::Internal(e.to_string()))?
-                .ok_or_else(|| AppError::NotFound("booking not found".into()))?;
-            if booking.user_id.map(|id| id.to_string()).as_deref() == Some(uid) {
-                return Ok(());
-            }
-            return Err(AppError::Forbidden("not your payment".into()));
-        }
-        Ok(())
+                .await?
+                .and_then(|b| b.user_id),
+        };
+        ensure_owner(owner, user_id)
     }
 
-    async fn cancel_prior_pending_payments(&self, booking_id: &str) -> AppResult<()> {
+    pub(crate) async fn cancel_prior_pending_payments(&self, booking_id: Uuid) -> AppResult<()> {
         // Bulk UPDATE: flip all pending payments for this booking to cancelled.
         // Single SQL statement, no N round-trips.
         use crate::entity::payment as p;
@@ -890,11 +917,50 @@ impl PaymentService {
         // Confirm the booking outside the txn — `booking.confirm()` runs its
         // own transaction; running it nested would require passing the txn
         // handle down, which we explicitly avoid (see CompositeStore::db() docs).
+        // A failure is logged and recorded on the payment by the helper.
         let _ = self
-            .booking
-            .confirm_as_system(booking_id_str, &provider)
+            .confirm_paid_booking(booking_id_str, p_id, &provider)
             .await;
         Ok(())
+    }
+
+    /// Confirm the booking behind a payment that has been collected. If that
+    /// is no longer possible (the booking was cancelled or its seats were
+    /// released) the customer has paid for nothing: say so loudly and write
+    /// it on the payment so an admin sees it in the payments list.
+    async fn confirm_paid_booking(
+        &self,
+        booking_id: Uuid,
+        payment_id: Uuid,
+        provider: &str,
+    ) -> AppResult<()> {
+        let Err(error) = self.booking.confirm_as_system(booking_id, provider).await else {
+            return Ok(());
+        };
+        tracing::error!(
+            %payment_id,
+            %booking_id,
+            %error,
+            "payment collected but the booking could not be confirmed — refund or fix by hand"
+        );
+        use crate::entity::payment as p;
+        use sea_orm::sea_query::Expr;
+        use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+        let noted = p::Entity::update_many()
+            .col_expr(
+                p::Column::FailureReason,
+                Expr::value(Some(format!(
+                    "paid, but the booking could not be confirmed: {error}"
+                ))),
+            )
+            .col_expr(p::Column::UpdatedAt, Expr::value(now_iso()))
+            .filter(p::Column::Id.eq(payment_id))
+            .exec(self.store.db())
+            .await;
+        if let Err(e) = noted {
+            tracing::error!(%payment_id, error = %e, "could not record the unconfirmed payment");
+        }
+        Err(error)
     }
 
     async fn mark_failed(
@@ -1011,5 +1077,204 @@ fn bank_name_for_bin(bin: &str) -> String {
         "970432" => "VPBank".to_string(),
         "970436" => "Vietcombank".to_string(),
         _ => bin.to_string(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::service::test_support::fixture;
+    use sea_orm::EntityTrait;
+
+    fn cod(booking_id: Uuid) -> CreatePaymentReq {
+        CreatePaymentReq {
+            booking_id,
+            provider: "cod".into(),
+        }
+    }
+
+    fn id_of(owner: Uuid) -> String {
+        owner.to_string()
+    }
+
+    #[tokio::test]
+    async fn a_bookings_payments_are_private_to_its_owner() {
+        let f = fixture(2).await;
+        let (owner, stranger) = (f.owner().await, f.owner().await);
+        let held = f.hold(owner, 1).await;
+        let (owner_s, stranger_s) = (id_of(owner), id_of(stranger));
+
+        let made = f
+            .payments
+            .create_payment(&cod(held.booking_id), Some(&owner_s))
+            .await
+            .unwrap();
+        let pid = made.payment.id;
+
+        // Signed out: 401 on every door.
+        let anon = |e: AppError| matches!(e, AppError::Unauthorized(_));
+        assert!(anon(f.payments.get(pid, None).await.unwrap_err()));
+        assert!(anon(
+            f.payments
+                .list_by_booking(held.booking_id, None)
+                .await
+                .unwrap_err()
+        ));
+        assert!(anon(f.payments.cancel(pid, None, None).await.unwrap_err()));
+        assert!(anon(
+            f.payments
+                .create_payment(&cod(held.booking_id), None)
+                .await
+                .unwrap_err()
+        ));
+
+        // Someone else: 403.
+        let foreign = |e: AppError| matches!(e, AppError::Forbidden(_));
+        assert!(foreign(
+            f.payments.get(pid, Some(&stranger_s)).await.unwrap_err()
+        ));
+        assert!(foreign(
+            f.payments
+                .list_by_booking(held.booking_id, Some(&stranger_s))
+                .await
+                .unwrap_err()
+        ));
+        assert!(foreign(
+            f.payments
+                .cancel(pid, Some(&stranger_s), None)
+                .await
+                .unwrap_err()
+        ));
+        assert!(foreign(
+            f.payments
+                .create_payment(&cod(held.booking_id), Some(&stranger_s))
+                .await
+                .unwrap_err()
+        ));
+
+        // The owner sees it, and it is in the list.
+        assert_eq!(f.payments.get(pid, Some(&owner_s)).await.unwrap().id, pid);
+        let listed = f
+            .payments
+            .list_by_booking(held.booking_id, Some(&owner_s))
+            .await
+            .unwrap();
+        assert_eq!(listed.items.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn a_cash_payment_places_the_booking_and_collecting_confirms_it() {
+        let f = fixture(1).await;
+        let owner = f.owner().await;
+        let held = f.hold(owner, 1).await;
+
+        let made = f
+            .payments
+            .create_payment(&cod(held.booking_id), Some(&id_of(owner)))
+            .await
+            .unwrap();
+        // Placed: the seat stays held until departure for the operator's call.
+        let b = f.booking(held.booking_id).await;
+        assert_eq!(
+            (b.status.as_str(), b.payment_method.as_deref()),
+            ("pending", Some("cod"))
+        );
+        assert_eq!(f.seats_now().await, (0, 1, 0, 0));
+        assert_eq!(f.payment_status(made.payment.id).await, "pending");
+        f.svc.expire_stale_holds(10).await.unwrap();
+        assert_eq!(f.booking(held.booking_id).await.status, "pending");
+
+        let admin = Uuid::new_v4();
+        f.payments
+            .mark_cod_collected(made.payment.id, admin, None, None)
+            .await
+            .unwrap();
+        assert_eq!(f.payment_status(made.payment.id).await, "completed");
+        assert_eq!(f.booking(held.booking_id).await.status, "confirmed");
+    }
+
+    #[tokio::test]
+    async fn checkout_offers_only_the_providers_that_are_set_up() {
+        let f = fixture(1).await;
+        // The fixture enables cash only; no gateway has credentials.
+        assert_eq!(f.payments.enabled_providers().providers, ["cod"]);
+    }
+
+    #[tokio::test]
+    async fn the_admin_summary_counts_every_payment_and_the_money_collected() {
+        let f = fixture(1).await;
+        let owner = f.owner().await;
+        let held = f.hold(owner, 1).await;
+        for status in ["completed", "completed", "pending", "failed"] {
+            f.payment(&held, owner, status).await;
+        }
+
+        let summary = f.payments.admin_summary().await.unwrap();
+        assert_eq!(
+            summary,
+            AdminPaymentSummary {
+                total: 4,
+                pending: 1,
+                completed: 2,
+                failed: 1,
+                collected: 2 * held.total,
+                ..Default::default()
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn a_new_payment_supersedes_the_previous_pending_one() {
+        let f = fixture(1).await;
+        let owner = f.owner().await;
+        let held = f.hold(owner, 1).await;
+        let first = f.payment(&held, owner, "pending").await;
+        f.payments
+            .cancel_prior_pending_payments(held.booking_id)
+            .await
+            .unwrap();
+        assert_eq!(f.payment_status(first).await, "cancelled");
+    }
+
+    #[tokio::test]
+    async fn an_expired_booking_cannot_start_a_payment() {
+        let f = fixture(1).await;
+        let owner = f.owner().await;
+        let held = f.hold(owner, 1).await;
+        f.age_hold(held.booking_id, 5).await;
+
+        let err = f
+            .payments
+            .create_payment(&cod(held.booking_id), Some(&id_of(owner)))
+            .await
+            .unwrap_err();
+        assert!(matches!(err, AppError::Gone(_)), "{err:?}");
+        assert_eq!(f.booking(held.booking_id).await.status, "pending");
+    }
+
+    #[tokio::test]
+    async fn money_taken_for_a_lost_booking_is_flagged_not_swallowed() {
+        let f = fixture(1).await;
+        let owner = f.owner().await;
+        let held = f.hold(owner, 1).await;
+        let pay = f.payment(&held, owner, "pending").await;
+        f.age_hold(held.booking_id, 5).await;
+        f.svc.expire_stale_holds(10).await.unwrap(); // booking cancelled, payment cancelled
+
+        // An admin (or a very late webhook) marks it paid anyway.
+        f.payments
+            .update_status(pay, "completed", None)
+            .await
+            .unwrap();
+
+        let row = payment::Entity::find_by_id(pay)
+            .one(f.store.db())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(row.status, "completed");
+        let note = row.failure_reason.unwrap_or_default();
+        assert!(note.contains("could not be confirmed"), "note: {note}");
+        assert_eq!(f.booking(held.booking_id).await.status, "cancelled");
     }
 }

@@ -8,6 +8,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use sea_orm::sea_query::{Expr, Func};
 use sea_orm::{
     ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait, QueryFilter, QueryOrder,
     QuerySelect,
@@ -29,10 +30,12 @@ use super::retry::RetryPolicy;
 pub trait PaymentStore: Send + Sync {
     async fn find_by_id(&self, id: Uuid) -> StoreResult<Option<payment::Model>>;
     async fn find_by_txn_ref(&self, txn_ref: &str) -> StoreResult<Option<payment::Model>>;
-    async fn list_by_booking(&self, booking_id: &str) -> StoreResult<Vec<payment::Model>>;
+    /// A booking's payments, newest first. `booking_id` is bound as a `Uuid`: the
+    /// engine stores uuid columns as BLOBs, so a text bind would match nothing.
+    async fn list_by_booking(&self, booking_id: Uuid) -> StoreResult<Vec<payment::Model>>;
     async fn find_active_for_booking(
         &self,
-        booking_id: &str,
+        booking_id: Uuid,
     ) -> StoreResult<Option<payment::Model>>;
 
     /// Insert a new payment row.
@@ -54,6 +57,9 @@ pub trait PaymentStore: Send + Sync {
     /// Admin: count rows matching the same filters as `list_admin`.
     /// Uses `COUNT(*)` — does NOT load rows into memory.
     async fn count_admin(&self, status: Option<&str>, provider: Option<&str>) -> StoreResult<u64>;
+
+    /// Admin: per status, how many payments and the sum of their amounts.
+    async fn status_totals(&self) -> StoreResult<Vec<(String, i64, Option<i64>)>>;
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -89,7 +95,7 @@ impl PaymentStore for DbPaymentStore {
             .await?)
     }
 
-    async fn list_by_booking(&self, booking_id: &str) -> StoreResult<Vec<payment::Model>> {
+    async fn list_by_booking(&self, booking_id: Uuid) -> StoreResult<Vec<payment::Model>> {
         Ok(payment::Entity::find()
             .filter(payment::Column::BookingId.eq(booking_id))
             .order_by(payment::Column::CreatedAt, Order::Desc)
@@ -99,7 +105,7 @@ impl PaymentStore for DbPaymentStore {
 
     async fn find_active_for_booking(
         &self,
-        booking_id: &str,
+        booking_id: Uuid,
     ) -> StoreResult<Option<payment::Model>> {
         // A booking has at most one "active" payment — the most recent one
         // whose status is `pending`. Older pending rows are cancelled
@@ -156,5 +162,17 @@ impl PaymentStore for DbPaymentStore {
             q = q.filter(payment::Column::Provider.eq(p));
         }
         Ok(q.count(self.db.as_ref()).await?)
+    }
+
+    async fn status_totals(&self) -> StoreResult<Vec<(String, i64, Option<i64>)>> {
+        Ok(payment::Entity::find()
+            .select_only()
+            .column(payment::Column::Status)
+            .expr_as(Func::count(Expr::col(payment::Column::Id)), "count")
+            .expr_as(Func::sum(Expr::col(payment::Column::Amount)), "amount")
+            .group_by(payment::Column::Status)
+            .into_tuple()
+            .all(self.db.as_ref())
+            .await?)
     }
 }

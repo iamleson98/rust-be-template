@@ -10,13 +10,14 @@
  * (or fails) the section simply doesn't render — no fake fallback.
  */
 
+import { useQuery } from '@tanstack/react-query'
+import { reviewsListOptions } from '@/api'
 import { memo } from 'react'
 import { Star, Quote, ThumbsUp } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { useT } from '@/lib/i18n'
-import { useLatestReviews } from '@/lib/queries'
-import type { ReviewOut } from '@/lib/api/types.gen'
-import { formatDateTimeVN } from '@/lib/types'
+import type { ReviewOut } from '@/api'
+import { formatDateTimeVN } from '@/lib/format'
 import { TestimonialsSkeleton } from '@/features/home/components/testimonials-skeleton'
 
 /* Generate initials from a Vietnamese name */
@@ -56,7 +57,7 @@ const StarRating = memo(function StarRating({ rating }: { rating: number }) {
 
 export const Testimonials = memo(function Testimonials() {
   const t = useT()
-  const { data, isLoading } = useLatestReviews(6)
+  const { data, isLoading } = useQuery(reviewsListOptions({ query: { limit: 6 } }))
   const items: ReviewOut[] = data?.items ?? []
 
   if (isLoading) {
@@ -103,8 +104,6 @@ export const Testimonials = memo(function Testimonials() {
                 <Card className="group h-full border-slate-100 relative overflow-hidden">
                   {/* Quote mark decoration */}
                   <Quote className="absolute -top-2 -right-2 h-16 w-16 text-blue-50 rotate-0 group-hover:text-blue-100 transition-colors" />
-                  {/* Top gradient stripe (subtle) */}
-                  <div className="absolute inset-x-0 top-0 h-0.5 bg-linear-to-r from-blue-400 via-blue-400 to-amber-400 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
                   <CardContent className="p-5 relative">
                     {/* Top row: avatar + name + date */}

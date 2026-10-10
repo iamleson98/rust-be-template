@@ -19,6 +19,8 @@
  * (name, brand, start/end city, status).
  */
 
+import { adminRoutesCreateMutation, adminRoutesUpdateMutation } from '@/api'
+import { useMutation } from '@tanstack/react-query'
 import { useEffect, useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -45,9 +47,8 @@ import {
 import { Route as RouteIcon, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useT } from '@/lib/i18n'
-import { useUpsertAdminRoute, useUpdateAdminRoute } from '@/lib/queries'
-import type { AdminRouteOut } from '@/lib/api/types.gen'
-import type { AdminBrandOut } from '@/lib/api/types.gen'
+import type { AdminRouteOut } from '@/api'
+import type { AdminBrandOut } from '@/api'
 import { getCityGroups } from './city-select-content'
 import { getErrorMessage } from '@/lib/error-message'
 
@@ -86,8 +87,8 @@ export function RouteFormDialog({
 }) {
   const t = useT()
   const isEdit = !!route
-  const createMutation = useUpsertAdminRoute()
-  const updateMutation = useUpdateAdminRoute()
+  const createMutation = useMutation(adminRoutesCreateMutation())
+  const updateMutation = useMutation(adminRoutesUpdateMutation())
   const saving = createMutation.isPending || updateMutation.isPending
   const routeSchema = useMemo(() => makeRouteSchema(t), [t])
   const cityGroups = useMemo(() => getCityGroups(t), [t])

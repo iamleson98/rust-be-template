@@ -11,6 +11,7 @@
 //! - `worker`: pluggable async job broker (`Redis` | `Db` | `Kafka`)
 //! - `ws`: in-process WebSocket chat hub (extensible to Redis fan-out)
 //! - `audio_call`: WebRTC signaling relay (`/ws-call`)
+//! - `geo`: country of an IP address (the Vietnam-only call gate)
 //! - `osm`: Tantivy place-search index (Vietnamese-aware, OSM PBF ingestion)
 //! - `nullclaw`: pluggable AI customer-support assistant
 //! - `rbac`: cached role + permission checker
@@ -31,6 +32,7 @@ pub mod db;
 pub mod dto;
 pub mod entity;
 pub mod error;
+pub mod geo;
 pub mod guard;
 pub mod jobs;
 pub mod memory;

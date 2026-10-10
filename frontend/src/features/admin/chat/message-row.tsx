@@ -1,50 +1,43 @@
-'use client'
-
 import { memo } from 'react'
-import type { AdminChatMessage as ChatMessage } from '@/features/admin/dashboard/types'
-import { formatMessageTime } from './chat-helpers'
+import type { ChatMessageOut } from '@/api'
+import { messageTime } from '@/features/chat/format'
 import { parseTicketPayload, TicketCardMessage } from './ticket-card-message'
 
+const TIME_CLASS: Record<string, string> = {
+  employee: 'text-blue-100/80 text-right',
+  system: 'text-amber-600/80 text-center',
+  assistant: 'text-violet-400',
+}
+
+const BUBBLE_CLASS: Record<string, string> = {
+  employee: 'bg-blue-600 text-white rounded-br-sm',
+  system:
+    'bg-amber-50 text-amber-800 text-center text-xs border border-amber-100 mx-auto rounded-lg',
+  assistant: 'bg-violet-50 text-violet-900 border border-violet-100 rounded-bl-sm',
+}
+
+type Props = {
+  message: ChatMessageOut
+  /** Heading for the day this message starts, if any. */
+  dayLabel: string | null
+  isLast: boolean
+  onViewTicket?: (bookingCode: string) => void
+}
+
 /**
- * One chat message row — memoized so that typing in the reply input
- * (or any unrelated panel re-render) doesn't re-render the whole
- * message history.
- *
- * ## Virtual scrolling
- *
- * Each row sets `content-visibility: auto` +
- * `contain-intrinsic-size: auto 72px` — the browser skips layout +
- * paint for off-screen rows entirely while keeping them in the DOM.
- * This is native rendering-level virtual scrolling: it works with
- * dynamic message heights (long messages, ticket cards), preserves
- * scroll anchoring when prepending older pages, and needs zero JS
- * measurement — the right trade-off for a chat log inside ScrollArea
- * (a JS virtualizer with dynamic heights + bidirectional anchoring
- * would be far riskier for the same win).
+ * One message. Memoised so typing in the composer does not re-render the history, and
+ * `content-visibility: auto` lets the browser skip layout and paint for rows far off
+ * screen (it copes with variable heights and keeps the scroll anchor, unlike a JS virtualiser).
  */
 export const MessageRow = memo(function MessageRow({
   message,
   dayLabel,
   isLast,
   onViewTicket,
-}: {
-  message: ChatMessage
-  /** Day-separator label to render above this row (null = none). */
-  dayLabel: string | null
-  isLast: boolean
-  onViewTicket?: (bookingCode: string) => void
-}) {
+}: Props) {
   const isEmployee = message.senderType === 'employee'
-  const ticketPayload = parseTicketPayload(message)
-  const time = formatMessageTime(message.createdAt)
-  // Timestamp color adapts to the bubble style (legible on each).
-  const timeClass = isEmployee
-    ? 'text-blue-100/80 text-right'
-    : message.senderType === 'system'
-      ? 'text-amber-600/80 text-center'
-      : message.senderType === 'assistant'
-        ? 'text-violet-400'
-        : 'text-slate-400'
+  const ticket = parseTicketPayload(message)
+  const time = messageTime(message.createdAt)
 
   return (
     <>
@@ -56,22 +49,12 @@ export const MessageRow = memo(function MessageRow({
         </div>
       )}
       <div
-        style={{
-          // Browser-native virtual scrolling (see component doc).
-          // The intrinsic-size hint (72px) keeps the scrollbar
-          // estimated for far-off-screen rows.
-          contentVisibility: 'auto',
-          containIntrinsicSize: 'auto 72px',
-        }}
+        style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 72px' }}
         className={`flex animate-in fade-in slide-in-from-bottom-1 duration-200 ${isEmployee ? 'justify-end' : 'justify-start'}`}
       >
-        {ticketPayload ? (
+        {ticket ? (
           <div className="max-w-[88%] sm:max-w-[75%] space-y-0.5">
-            <TicketCardMessage
-              payload={ticketPayload}
-              isEmployee={isEmployee}
-              onView={onViewTicket}
-            />
+            <TicketCardMessage payload={ticket} isEmployee={isEmployee} onView={onViewTicket} />
             {time && (
               <div
                 className={`text-[10px] text-slate-400 ${isEmployee ? 'text-right' : 'text-left'}`}
@@ -83,22 +66,21 @@ export const MessageRow = memo(function MessageRow({
         ) : (
           <div
             className={`max-w-[75%] rounded-2xl px-3 py-2 text-sm wrap-break-word ${
-              isEmployee
-                ? 'bg-blue-600 text-white rounded-br-sm'
-                : message.senderType === 'system'
-                  ? 'bg-amber-50 text-amber-800 text-center text-xs border border-amber-100 mx-auto rounded-lg'
-                  : message.senderType === 'assistant'
-                    ? 'bg-violet-50 text-violet-900 border border-violet-100 rounded-bl-sm'
-                    : 'bg-white border rounded-bl-sm '
+              BUBBLE_CLASS[message.senderType] ?? 'bg-white border rounded-bl-sm '
             }`}
           >
             {message.content}
-            {time && <div className={`mt-0.5 text-[10px] ${timeClass}`}>{time}</div>}
+            {time && (
+              <div
+                className={`mt-0.5 text-[10px] ${TIME_CLASS[message.senderType] ?? 'text-slate-400'}`}
+              >
+                {time}
+              </div>
+            )}
           </div>
         )}
       </div>
-      {/* Accessibility: the last message's timestamp doubles as the
-          live region's data anchor (screen readers announce changes). */}
+      {/* Screen readers announce the newest message's timestamp as it changes. */}
       {isLast && (
         <span className="sr-only" aria-live="polite">
           {time}

@@ -1,22 +1,5 @@
-'use client'
-
-/**
- * AddressMapDialog — create a brand-owned address from a map.
- *
- * The modal the schedule form opens when the wanted point does not exist
- * yet ("Tạo địa điểm mới"):
- *   - full-text search (Tantivy/OSM, diacritic-insensitive) — picking a
- *     result drops the marker, fills lat/lon + name + hierarchy fields
- *     and flies the map there;
- *   - clicking the map reverse-geocodes the exact clicked coordinates
- *     (the marker never jumps — lat/lon stay the user's click);
- *   - the form (name / address / province / district / ward / lat / lon)
- *     is pre-filled but fully editable;
- *   - "Tạo địa điểm" POSTs to `/api/admin/addresses` with the parent
- *     brand id, then `onCreated` hands the new address back so the
- *     caller can immediately select it for the schedule point.
- */
-
+import { adminAddressesCreateMutation } from '@/api'
+import { useMutation } from '@tanstack/react-query'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import {
   Dialog,
@@ -31,16 +14,15 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { MapPin, Loader2, Plus, Search, X, Crosshair, Check } from 'lucide-react'
 import { toast } from 'sonner'
-import { useCreateAdminAddress, usePlaceSearch } from '@/lib/queries'
+import { usePlaceSearch } from '@/features/map/api'
 import { useT } from '@/lib/i18n'
 import { reverseGeocode } from '@/features/map/leaflet-map'
 import { useMyLocation } from '@/features/map/use-my-location'
-import type { AdminAddressOut, PlaceSearchHit } from '@/lib/api/types.gen'
+import type { AdminAddressOut, PlaceSearchHit } from '@/api'
 import { cn } from '@/lib/utils'
-import { LatLongRegex, parseLatLong } from '@/lib/slug'
+import { LatLongRegex, parseLatLong } from './lat-long'
 import { getErrorMessage } from '@/lib/error-message'
 
-// Leaflet touches `window` at import time — load the map client-side only.
 const LeafletMap = lazy(() =>
   import('@/features/map/leaflet-map').then((m) => ({ default: m.LeafletMap })),
 )
@@ -126,7 +108,7 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
   })
   const hits: PlaceSearchHit[] = searchData?.items ?? []
 
-  const createMutation = useCreateAdminAddress()
+  const createMutation = useMutation(adminAddressesCreateMutation())
 
   // Reset every time the dialog opens.
   useEffect(() => {
@@ -395,7 +377,7 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
                   tabIndex={-1}
                   value={form.lat != null ? form.lat.toFixed(6) : ''}
                   placeholder={t('adminAddresses.autoFromMap')}
-                  className="font-mono text-xs bg-muted/40"
+                  className="font-mono text-base md:text-xs bg-muted/40"
                 />
               </div>
               <div className="grid gap-1.5">
@@ -405,7 +387,7 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
                   tabIndex={-1}
                   value={form.lon != null ? form.lon.toFixed(6) : ''}
                   placeholder={t('adminAddresses.autoFromMap')}
-                  className="font-mono text-xs bg-muted/40"
+                  className="font-mono text-base md:text-xs bg-muted/40"
                 />
               </div>
             </div>
@@ -436,7 +418,7 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
                   onChange={(e) => onInput(e.target.value)}
                   onFocus={() => setSearchOpen(true)}
                   placeholder={t('map.searchField')}
-                  className="w-full h-10 pl-10 pr-9 rounded-lg border border-slate-200 bg-white/95 backdrop-blur text-sm outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-400"
+                  className="w-full h-10 pl-10 pr-9 rounded-lg border border-slate-200 bg-white/95 backdrop-blur text-base md:text-sm outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-400"
                 />
                 {searchLoading ? (
                   <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-blue-600" />

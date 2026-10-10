@@ -4,7 +4,7 @@
  * AdminPaymentsPanel — redesigned "Thanh toán" admin page.
  *
  * Features:
- *   - KPI summary cards (total revenue, pending count, completed count)
+ *   - Totals over every payment (`GET /api/admin/payments/summary`)
  *   - Filter bar with status + provider dropdowns
  *   - Responsive table → card list on mobile
  *   - Detail dialog with full payment info
@@ -12,32 +12,27 @@
  *   - Provider + status badges with semantic colors
  */
 
+import {
+  adminPaymentSummaryOptions,
+  markCodCollectedMutation,
+  updatePaymentStatusMutation,
+  listAdminPaymentsOptions,
+} from '@/api'
+import { useMutation, useQuery, keepPreviousData } from '@tanstack/react-query'
+import { usePrefs } from '@/stores/prefs'
 import { useMemo, useState } from 'react'
 import { DataTable, DataTableViewOptions } from '@/components/data-table'
-import { Card, CardContent } from '@/components/ui/card'
+import { ConsolePage, PageHeader } from '@/components/console/page'
+import { StatGrid, StatTile } from '@/components/console/stat-tile'
 import { Button } from '@/components/ui/button'
 import { ComboboxField } from '@/components/ui/combobox'
 import { toast } from 'sonner'
 import { AdminStatsCardsSkeleton } from '@/features/admin/dashboard/stats-cards-skeleton'
-import {
-  CreditCard,
-  Filter,
-  RefreshCw,
-  CheckCircle2,
-  Clock,
-  TrendingUp,
-  Wallet,
-} from 'lucide-react'
-import { formatCurrency } from '@/lib/currency'
+import { CheckCircle2, Clock, CreditCard, RefreshCw, TrendingUp, Wallet } from 'lucide-react'
+import { formatCurrency } from '@/lib/format'
 import { useT } from '@/lib/i18n'
-import { useApp } from '@/lib/store'
-import {
-  useAdminPayments,
-  useMarkCodCollected,
-  useUpdatePaymentStatus,
-} from '@/lib/queries/payments'
-import type { AdminPaymentOut, PaymentProvider, PaymentStatus } from '@/lib/queries/payments'
-import { KpiCard } from './payment-kpi-card'
+import type { AdminPaymentOut } from '@/api'
+import type { PaymentProvider, PaymentStatus } from '@/lib/payment'
 import { PROVIDER_OPTIONS } from './payment-badges'
 import { usePaymentColumns } from './payment-columns'
 import { PaymentMobileList } from './payment-mobile-list'
@@ -45,7 +40,7 @@ import { PaymentDetailDialog } from './payment-detail-dialog'
 import { PaymentActionDialog } from './payment-action-dialog'
 import type { PaymentAction } from './types'
 
-/** Stable empty default — keeps useMemo deps referentially stable when data is not loaded yet. */
+/** Stable empty default while the first page loads. */
 const EMPTY_ITEMS: never[] = []
 const PAGE_SIZE = 15
 
@@ -66,7 +61,7 @@ export function AdminPaymentsPanel() {
   const [actionDialog, setActionDialog] = useState<PaymentAction | null>(null)
   const [actionReason, setActionReason] = useState('')
   const [actionAmount, setActionAmount] = useState('')
-  const { currency } = useApp()
+  const currency = usePrefs((s) => s.currency)
   const t = useT()
 
   const query = useMemo(
@@ -79,28 +74,19 @@ export function AdminPaymentsPanel() {
     [statusFilter, providerFilter, page],
   )
 
-  const { data, isLoading, isError, refetch, isFetching } = useAdminPayments(query)
-  const updateStatus = useUpdatePaymentStatus()
+  const { data, isLoading, isError, refetch, isFetching } = useQuery({
+    ...listAdminPaymentsOptions({ query }),
+    placeholderData: keepPreviousData,
+  })
+  const summary = useQuery(adminPaymentSummaryOptions())
+  const updateStatus = useMutation(updatePaymentStatusMutation())
   // Goes through the shared SDK client (cookie auth + token refresh +
   // error parsing) — the previous raw `fetch` bypassed all of it, so an
   // expired access token surfaced as a bare "HTTP 401" toast.
-  const markCollected = useMarkCodCollected()
+  const markCollected = useMutation(markCodCollectedMutation())
 
   const items = data?.items ?? EMPTY_ITEMS
   const total = data?.total ?? 0
-
-  // Compute KPIs from current page data
-  const kpis = useMemo(() => {
-    const completed = items.filter((p) => p.status === 'completed')
-    const pending = items.filter((p) => p.status === 'pending')
-    const revenue = completed.reduce((sum, p) => sum + p.amount, 0)
-    return {
-      revenue,
-      pendingCount: pending.length,
-      completedCount: completed.length,
-      totalCount: total,
-    }
-  }, [items, total])
 
   const columns = usePaymentColumns({ currency, updateStatus, setActionDialog, setActionAmount })
 
@@ -110,28 +96,29 @@ export function AdminPaymentsPanel() {
     try {
       if (type === 'cancel') {
         await updateStatus.mutateAsync({
-          id: payment.id,
+          path: { id: payment.id },
           body: { status: 'cancelled', reason: actionReason || undefined },
-        } as unknown as { id: string; body: { status: PaymentStatus; reason?: string } })
+        })
         toast.success(t('adminPayments.cancelledToast'))
       } else if (type === 'refund') {
         await updateStatus.mutateAsync({
-          id: payment.id,
+          path: { id: payment.id },
           body: { status: 'refunded', reason: actionReason || undefined },
-        } as unknown as { id: string; body: { status: PaymentStatus; reason?: string } })
+        })
         toast.success(t('adminPayments.refundedToast'))
       } else if (type === 'mark_collected') {
         const amount = actionAmount ? parseInt(actionAmount, 10) : payment.amount
         await markCollected.mutateAsync({
-          id: payment.id,
+          path: { id: payment.id },
           body: { amountCollected: amount },
-        } as unknown as { id: string; body: { amountCollected?: number } })
+        })
         toast.success(t('adminPayments.collectedToast'))
       }
       setActionDialog(null)
       setActionReason('')
       setActionAmount('')
-      refetch()
+      void refetch()
+      void summary.refetch()
     } catch (e: unknown) {
       toast.error(t('adminPayments.actionFailed'), {
         description: e instanceof Error ? e.message : undefined,
@@ -140,108 +127,91 @@ export function AdminPaymentsPanel() {
   }
 
   return (
-    <div className="p-4 md:p-6 space-y-4">
-      {/* ── Header ─────────────────────────────────────────── */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-            <CreditCard className="h-3.5 w-3.5" />
-            {t('admin.payments')}
-          </div>
-          <h1 className="text-xl font-semibold tracking-tight">{t('adminPayments.title')}</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">{t('adminPayments.subtitle')}</p>
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => refetch()}
-          disabled={isFetching}
-          className="gap-1.5"
-        >
-          <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />
-          {t('common.refresh')}
-        </Button>
-      </div>
+    <ConsolePage>
+      <PageHeader
+        title={t('adminPayments.title')}
+        description={t('adminPayments.subtitle')}
+        actions={
+          <Button
+            variant="outline"
+            onClick={() => {
+              void refetch()
+              void summary.refetch()
+            }}
+            disabled={isFetching}
+          >
+            <RefreshCw className={isFetching ? 'animate-spin' : undefined} />
+            {t('common.refresh')}
+          </Button>
+        }
+      />
 
-      {/* ── KPI cards — skeleton while the first page loads (never zero-value cards) ── */}
-      {isLoading ? (
+      {/* Totals over every payment, from the server — never just this page. */}
+      {summary.isLoading ? (
         <AdminStatsCardsSkeleton count={4} />
-      ) : (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <KpiCard
-            icon={<TrendingUp className="h-4 w-4" />}
+      ) : summary.data ? (
+        <StatGrid>
+          <StatTile
+            icon={<TrendingUp />}
             label={t('adminPayments.kpiTotal')}
-            value={kpis.totalCount.toString()}
-            color="text-blue-600 bg-blue-50 dark:bg-blue-950/30"
+            value={summary.data.total.toLocaleString('vi-VN')}
           />
-          {/* These three are computed from the CURRENT PAGE's rows (the
-            endpoint has no aggregate endpoint) — labeled honestly instead
-            of masquerading as platform-wide totals. */}
-          <KpiCard
-            icon={<CheckCircle2 className="h-4 w-4" />}
+          <StatTile
+            icon={<CheckCircle2 />}
+            tone="green"
             label={t('adminPayments.kpiCompleted')}
-            value={kpis.completedCount.toString()}
-            color="text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30"
-            hint={t('adminPayments.kpiCurrentPage')}
+            value={summary.data.completed.toLocaleString('vi-VN')}
           />
-          <KpiCard
-            icon={<Clock className="h-4 w-4" />}
+          <StatTile
+            icon={<Clock />}
+            tone="amber"
             label={t('admin.stats.openCount')}
-            value={kpis.pendingCount.toString()}
-            color="text-amber-600 bg-amber-50 dark:bg-amber-950/30"
-            hint={t('adminPayments.kpiCurrentPage')}
+            value={summary.data.pending.toLocaleString('vi-VN')}
           />
-          <KpiCard
-            icon={<Wallet className="h-4 w-4" />}
-            label={t('adminPayments.kpiRevenue')}
-            value={formatCurrency(kpis.revenue, currency)}
-            color="text-violet-600 bg-violet-50 dark:bg-violet-950/30"
-            hint={t('adminPayments.kpiCurrentPage')}
+          <StatTile
+            icon={<Wallet />}
+            tone="violet"
+            label={t('adminPayments.kpiCollected')}
+            value={formatCurrency(summary.data.collected, currency)}
+            hint={t('adminPayments.kpiCollectedHint')}
           />
-        </div>
-      )}
+        </StatGrid>
+      ) : null}
 
-      {/* ── Filter bar ─────────────────────────────────────── */}
-      <Card>
-        <CardContent className="p-3 flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-            <Filter className="h-3.5 w-3.5" />
-            {t('adminPayments.filterLabel')}
-          </div>
-          <ComboboxField
-            value={statusFilter}
-            onValueChange={(v) => {
-              setStatusFilter(v)
-              setPage(0)
-            }}
-            items={STATUS_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))}
-            className="w-45 h-8 text-xs"
-            placeholder={t('common.status')}
-            searchPlaceholder={t('combobox.search')}
-            aria-label={t('adminPayments.filterByStatus')}
-            data-testid="payment-status-filter"
-          />
-          <ComboboxField
-            value={providerFilter}
-            onValueChange={(v) => {
-              setProviderFilter(v)
-              setPage(0)
-            }}
-            items={PROVIDER_OPTIONS.map((o) => ({
-              value: o.value,
-              label: o.labelKey ? t(o.labelKey) : (o.label ?? o.value),
-            }))}
-            className="w-40 h-8 text-xs"
-            placeholder={t('adminPayments.method')}
-            searchPlaceholder={t('combobox.search')}
-            aria-label={t('adminPayments.filterByMethod')}
-            data-testid="payment-provider-filter"
-          />
-          <div className="ml-auto text-xs text-muted-foreground font-medium">
-            {t('adminPayments.transactionCount', { count: total })}
-          </div>
-        </CardContent>
-      </Card>
+      <div className="flex flex-wrap items-center gap-2">
+        <ComboboxField
+          value={statusFilter}
+          onValueChange={(v) => {
+            setStatusFilter(v)
+            setPage(0)
+          }}
+          items={STATUS_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))}
+          className="min-w-0 flex-1 sm:w-48 sm:flex-none"
+          placeholder={t('common.status')}
+          searchPlaceholder={t('combobox.search')}
+          aria-label={t('adminPayments.filterByStatus')}
+          data-testid="payment-status-filter"
+        />
+        <ComboboxField
+          value={providerFilter}
+          onValueChange={(v) => {
+            setProviderFilter(v)
+            setPage(0)
+          }}
+          items={PROVIDER_OPTIONS.map((o) => ({
+            value: o.value,
+            label: o.labelKey ? t(o.labelKey) : (o.label ?? o.value),
+          }))}
+          className="min-w-0 flex-1 sm:w-44 sm:flex-none"
+          placeholder={t('adminPayments.method')}
+          searchPlaceholder={t('combobox.search')}
+          aria-label={t('adminPayments.filterByMethod')}
+          data-testid="payment-provider-filter"
+        />
+        <span className="ml-auto hidden text-xs text-muted-foreground sm:inline">
+          {t('adminPayments.transactionCount', { count: total })}
+        </span>
+      </div>
 
       {/* ── Table / Cards — the DataTable renders its own bordered surface. ─── */}
       <DataTable
@@ -268,7 +238,7 @@ export function AdminPaymentsPanel() {
         }
         emptyIcon={<CreditCard className="h-5 w-5" aria-hidden />}
         toolbar={(table) => (
-          <div className="flex items-center justify-end border-b bg-muted/20 px-4 py-2">
+          <div className="hidden items-center justify-end border-b bg-muted/20 px-4 py-2 md:flex">
             <DataTableViewOptions table={table} className="ml-auto h-8" />
           </div>
         )}
@@ -305,6 +275,6 @@ export function AdminPaymentsPanel() {
         updateStatus={updateStatus}
         handleSubmitAction={handleSubmitAction}
       />
-    </div>
+    </ConsolePage>
   )
 }

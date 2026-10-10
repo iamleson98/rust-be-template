@@ -1,11 +1,12 @@
 'use client'
 
+import { bookingsCancelMutation } from '@/api'
+import { useMutation } from '@tanstack/react-query'
+import { useUi } from '@/stores/ui'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useApp } from '@/lib/store'
 import { useT } from '@/lib/i18n'
-import { useCancelBooking } from '@/lib/queries'
 import {
   Dialog,
   DialogContent,
@@ -24,13 +25,11 @@ import { CancelPolicyStep } from './cancel-policy-step'
 import { CancelSuccessStep } from './cancel-success-step'
 
 export function CancelDialog() {
-  const { cancelDialogOpen, setCancelDialogOpen, cancelBookingId, setCancelBookingId } = useApp()
+  const cancelBookingId = useUi((s) => s.cancelBookingId)
+  const closeCancel = useUi((s) => s.closeCancel)
   const t = useT()
 
   const [step, setStep] = useState<Step>(1)
-  const [refundPercent, setRefundPercent] = useState(0)
-  const [refundAmount, setRefundAmount] = useState(0)
-  const [refCode, setRefCode] = useState('')
 
   const form = useForm<CancelValues>({
     resolver: zodResolver(cancelSchema),
@@ -46,54 +45,22 @@ export function CancelDialog() {
   const selectedReason = form.watch('selectedReason')
   const agreed = form.watch('agreed')
 
-  // Cancel booking mutation — uses the centralized useCancelBooking hook
-  // (POST /api/bookings/:id/cancel). The hook auto-invalidates the
-  // bookings query on success. The refund info (refundPercent,
-  // refundAmount, refCode) returned by the endpoint is captured in
-  // onSuccess to populate the success step.
-  /**
-   * Structural shape of the cancel-booking result the dialog consumes
-   * (the generated SDK models it as a union; only the success payload's
-   * fields are used here).
-   */
-  type CancelResult = {
-    success?: boolean
-    refundPercent?: number
-    refundAmount?: number
-    refCode?: string
-    error?: string
-  }
-
-  const cancelMutation = useCancelBooking({
-    onSuccess: (data) => {
-      const d =
-        ((data ?? {}) as { data?: CancelResult })?.data ?? (data as CancelResult | undefined)
-      if (d?.success) {
-        setRefundPercent(d.refundPercent ?? 0)
-        setRefundAmount(d.refundAmount ?? 0)
-        // Only show a refund reference when the SERVER provides one —
-        // fabricating `HX-{timestamp}` client-side presented an invented
-        // code as authoritative.
-        setRefCode(d.refCode ?? '')
-        setStep(3)
-        toast.success(t('cancel.successTitle'))
-      } else {
-        toast.error(d?.error || t('common.error'))
-      }
+  // POST /api/bookings/:id/cancel. The mutation cache refreshes the ticket
+  // lists; the response says what, if anything, is refunded.
+  const cancelMutation = useMutation({
+    ...bookingsCancelMutation(),
+    onSuccess: () => {
+      setStep(3)
+      toast.success(t('cancel.successTitle'))
     },
-    onError: (err) => {
-      // Surface the backend's reason — e.g. "booking already cancelled"
-      // (double-cancel is blocked server-side; the message tells the
-      // user instead of a generic failure).
-      toast.error(getErrorMessage(err, t('common.error')))
-    },
+    // The server says why, e.g. the trip has already left.
+    onError: (err) => toast.error(getErrorMessage(err, t('common.error'))),
   })
   const loading = cancelMutation.isPending
 
   const handleClose = (open: boolean) => {
     if (!open) {
-      setCancelDialogOpen(false)
-      setCancelBookingId(null)
+      closeCancel()
       setStep(1)
       cancelMutation.reset()
       form.reset({ selectedReason: '', otherReason: '', agreed: false })
@@ -139,10 +106,10 @@ export function CancelDialog() {
       cancelMutation.mutate({
         path: { id: cancelBookingId },
         body: {
-          reason: values.selectedReason,
-          otherReason: values.selectedReason === 'other' ? values.otherReason : undefined,
+          reason:
+            values.selectedReason === 'other' ? values.otherReason.trim() : values.selectedReason,
         },
-      } as unknown as Parameters<typeof cancelMutation.mutate>[0])
+      })
     }
   }
 
@@ -166,7 +133,7 @@ export function CancelDialog() {
   }
 
   return (
-    <Dialog open={cancelDialogOpen} onOpenChange={handleClose}>
+    <Dialog open={!!cancelBookingId} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-rose-700">
@@ -195,12 +162,8 @@ export function CancelDialog() {
               {step === 2 && <CancelPolicyStep form={form} />}
 
               {/* Step 3: Success */}
-              {step === 3 && (
-                <CancelSuccessStep
-                  refundPercent={refundPercent}
-                  refundAmount={refundAmount}
-                  refCode={refCode}
-                />
+              {step === 3 && cancelMutation.data && (
+                <CancelSuccessStep result={cancelMutation.data} />
               )}
             </div>
 
@@ -218,11 +181,8 @@ export function CancelDialog() {
                 <Button
                   type="submit"
                   disabled={!canProceed() || loading}
-                  className={`gap-1.5 ${
-                    step === 2
-                      ? 'bg-rose-600 hover:bg-rose-700 text-white'
-                      : 'bg-linear-to-r from-blue-600 to-blue-600 hover:from-blue-700 hover:to-blue-700 text-white'
-                  }`}
+                  variant={step === 2 ? 'destructive' : 'default'}
+                  className="gap-1.5"
                 >
                   {loading ? (
                     <>
@@ -246,11 +206,7 @@ export function CancelDialog() {
 
             {step === 3 && (
               <div className="flex justify-center pt-2">
-                <Button
-                  type="button"
-                  onClick={() => handleClose(false)}
-                  className="bg-linear-to-r from-blue-600 to-blue-600 hover:from-blue-700 hover:to-blue-700 text-white"
-                >
+                <Button type="button" onClick={() => handleClose(false)}>
                   {t('common.close')}
                 </Button>
               </div>

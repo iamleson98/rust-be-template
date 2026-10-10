@@ -92,6 +92,9 @@ pub trait UserStore: Send + Sync {
     async fn count_by_role(&self, role: &str) -> StoreResult<i64>;
     /// Update a user's role column. RBAC grants are managed separately.
     async fn set_user_role(&self, user_id: Uuid, role: &str) -> StoreResult<user::Model>;
+
+    /// Replace the user's password hash.
+    async fn set_password_hash(&self, user_id: Uuid, hash: &str) -> StoreResult<()>;
 }
 
 #[derive(Clone)]
@@ -413,6 +416,26 @@ impl UserStore for DbUserStore {
         active.updated_at = Set(Utc::now());
         Ok(active.update(self.db.as_ref()).await?)
     }
+
+    async fn set_password_hash(&self, user_id: Uuid, hash: &str) -> StoreResult<()> {
+        let changed = user::Entity::update_many()
+            .col_expr(
+                user::Column::PasswordHash,
+                sea_orm::sea_query::Expr::value(Some(hash.to_string())),
+            )
+            .col_expr(
+                user::Column::UpdatedAt,
+                sea_orm::sea_query::Expr::value(Utc::now()),
+            )
+            .filter(user::Column::Id.eq(user_id))
+            .exec(self.db.as_ref())
+            .await?
+            .rows_affected;
+        if changed == 0 {
+            return Err(StoreError::NotFound(format!("user {user_id}")));
+        }
+        Ok(())
+    }
 }
 
 pub struct CacheUserStore<S: UserStore> {
@@ -576,5 +599,11 @@ impl<S: UserStore> UserStore for CacheUserStore<S> {
         let _ = self.cache.delete(&user_key(user_id)).await;
         let _ = self.cache.delete(&perms_key(user_id)).await;
         Ok(updated)
+    }
+
+    async fn set_password_hash(&self, user_id: Uuid, hash: &str) -> StoreResult<()> {
+        self.inner.set_password_hash(user_id, hash).await?;
+        let _ = self.cache.delete(&user_key(user_id)).await;
+        Ok(())
     }
 }

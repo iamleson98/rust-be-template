@@ -6,6 +6,10 @@
 //!
 //! - create generates the concrete `seat` rows from the grid spec, and
 //!   the trip materializer picks the layout capacity up,
+//! - a seat plan (preset or hand-made) creates the seats, is served back
+//!   with seat ids, and reaches the trip detail as deck geometry,
+//! - replacing a plan keeps seat ids; once trips sell the layout only
+//!   moves/relabels are allowed,
 //! - update is a metadata patch,
 //! - delete is guarded (schedules referencing the layout block it with
 //!   a 409-shaped message; unreferenced layouts delete cleanly),
@@ -26,10 +30,21 @@ static ENGINE_LINK: fn() -> &'static str = sqlite3::engine_version;
 use backend::dto::admin::{
     SeatGridSpec, UpsertBusLayoutRequest, UpsertRouteRequest, UpsertScheduleRequest,
 };
+use backend::dto::seat_plan::{CellKind, SeatPlan};
+use backend::service::seat_plan_presets;
 
 /// Boot the AppState directly (see `api_smoke::boot_state` for the env
 /// contract — same values, duplicated so the two files stay
 /// independently runnable).
+/// Tomorrow in Vietnam: a 21:00 departure today has already left (and
+/// is no longer on sale) from 21:00 on, so the trips under test leave
+/// tomorrow.
+fn tomorrow() -> String {
+    let today = backend::service::trip_time::local_today();
+    let today = chrono::NaiveDate::parse_from_str(&today, "%Y-%m-%d").expect("YYYY-MM-DD");
+    (today + chrono::Duration::days(1)).to_string()
+}
+
 async fn boot_state() -> anyhow::Result<backend::state::AppState> {
     use std::sync::Once;
     static INIT: Once = Once::new();
@@ -112,6 +127,7 @@ async fn bus_layout_create_generates_seats_and_drives_trip_capacity() -> anyhow:
             vehicle_type: Some("sleeper".into()),
             total_seats: None,
             layout_data: None,
+            plan: None,
             seat_grid: Some(SeatGridSpec {
                 rows: Some(5),
                 cols: Some(4),
@@ -156,15 +172,16 @@ async fn bus_layout_create_generates_seats_and_drives_trip_capacity() -> anyhow:
             vehicle_type_id: Some(vt_id),
             base_price_adult: Some(180_000),
             base_price_child: None,
+            class_fares: None,
             amenities: None,
             points: None,
         })
         .await?;
 
-    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+    let day = tomorrow();
     let res = st
         .public
-        .search_trips("sài gòn", "cần thơ", &today, 20, 0, vec![], "departure", 1)
+        .search_trips("sài gòn", "cần thơ", &day, 20, 0, vec![], "departure", 1)
         .await?;
     let trip = res
         .items
@@ -203,6 +220,7 @@ async fn bus_layout_update_patches_metadata_and_unreferenced_delete_works() -> a
             vehicle_type: Some("limousine".into()),
             total_seats: None,
             layout_data: None,
+            plan: None,
             seat_grid: Some(SeatGridSpec {
                 rows: Some(3),
                 cols: Some(3),
@@ -222,6 +240,7 @@ async fn bus_layout_update_patches_metadata_and_unreferenced_delete_works() -> a
                 total_seats: None,
                 layout_data: None,
                 seat_grid: None,
+                plan: None,
             },
         )
         .await?;
@@ -249,6 +268,7 @@ async fn bus_layout_update_patches_metadata_and_unreferenced_delete_works() -> a
                 total_seats: None,
                 layout_data: None,
                 seat_grid: None,
+                plan: None,
             },
         )
         .await;
@@ -285,6 +305,7 @@ async fn bus_layout_create_requires_name_and_caps_the_grid() -> anyhow::Result<(
             vehicle_type: None,
             total_seats: None,
             layout_data: None,
+            plan: None,
             seat_grid: Some(SeatGridSpec {
                 rows: Some(20),
                 cols: Some(6),
@@ -349,5 +370,338 @@ async fn admin_routes_filter_by_start_and_end_location() -> anyhow::Result<()> {
         .list_routes(None, None, None, None, Some(50), 0)
         .await?;
     assert_eq!(all.items.len(), 3, "unfiltered list");
+    Ok(())
+}
+
+// ────────────────────────────────────────────────────────────────
+//  Seat plans
+// ────────────────────────────────────────────────────────────────
+
+fn plan_request(name: &str, plan: SeatPlan) -> UpsertBusLayoutRequest {
+    UpsertBusLayoutRequest {
+        name: Some(name.into()),
+        vehicle_type: Some("sleeper".into()),
+        plan: Some(plan),
+        ..Default::default()
+    }
+}
+
+fn preset_plan(id: &str) -> SeatPlan {
+    seat_plan_presets::find(id)
+        .unwrap_or_else(|| panic!("preset {id}"))
+        .plan
+}
+
+/// Route + schedule on `layout_id`, then materialize a trip through the
+/// public search. Returns the trip id.
+async fn trip_on_layout(
+    st: &backend::state::AppState,
+    layout_id: uuid::Uuid,
+) -> anyhow::Result<uuid::Uuid> {
+    let route = st
+        .admin
+        .create_route(&UpsertRouteRequest {
+            name: Some("Sài Gòn - Cần Thơ".into()),
+            brand_id: None,
+            start_location_id: Some("ho-chi-minh".into()),
+            end_location_id: Some("can-tho".into()),
+            status: None,
+        })
+        .await?;
+    st.admin
+        .create_schedule(&UpsertScheduleRequest {
+            route_id: Some(route.id),
+            departure_time: Some("21:00".into()),
+            effective_from: None,
+            effective_to: None,
+            days_of_week: Some("1111111".into()),
+            bus_layout_id: Some(layout_id),
+            vehicle_type_id: None,
+            base_price_adult: Some(180_000),
+            base_price_child: None,
+            class_fares: None,
+            amenities: None,
+            points: None,
+        })
+        .await?;
+    let day = tomorrow();
+    let res = st
+        .public
+        .search_trips("sài gòn", "cần thơ", &day, 20, 0, vec![], "departure", 1)
+        .await?;
+    Ok(res
+        .items
+        .first()
+        .ok_or_else(|| anyhow::anyhow!("trip not materialized"))?
+        .trip_id)
+}
+
+#[tokio::test]
+async fn bus_layout_created_from_a_plan_serves_geometry_to_the_trip_detail() -> anyhow::Result<()> {
+    let st = boot_state().await?;
+    let created = st
+        .admin
+        .create_bus_layout(&plan_request("Giường nằm 40", preset_plan("sleeper_40")))
+        .await?;
+
+    // The plan is stored, every bed has its own seat row.
+    let detail = st.admin.get_bus_layout(created.id).await?;
+    assert!(detail.planned && !detail.in_use);
+    assert_eq!(detail.total_seats, Some(40));
+    assert_eq!(detail.plan.decks.len(), 2);
+    let beds: Vec<_> = detail
+        .plan
+        .decks
+        .iter()
+        .flat_map(|d| &d.cells)
+        .filter(|c| c.kind.is_sellable())
+        .collect();
+    assert_eq!(beds.len(), 40);
+    assert!(
+        beds.iter().all(|c| c.seat_id.is_some()),
+        "every bed is backed by a seat row"
+    );
+    let list = st.admin.list_bus_layouts(None, Some(50), 0).await?;
+    assert!(list.items.iter().any(|l| l.id == created.id && l.planned));
+
+    // The trip detail carries the deck frame and the seat kinds.
+    let trip_id = trip_on_layout(&st, created.id).await?;
+    let trip = st.public.trip_detail(trip_id).await?;
+    assert_eq!(trip.seat_map.decks.len(), 2);
+    let lower = &trip.seat_map.decks[0];
+    let frame = lower.plan.as_ref().expect("lower deck frame");
+    assert_eq!((frame.rows, frame.cols), (7, 5));
+    assert!(frame.fixtures.iter().any(|f| f.kind == CellKind::Driver));
+    let upper_frame = trip.seat_map.decks[1]
+        .plan
+        .as_ref()
+        .expect("upper deck frame");
+    assert!(
+        upper_frame
+            .fixtures
+            .iter()
+            .all(|f| f.kind != CellKind::Driver),
+        "the driver is drawn on the lower deck only"
+    );
+    let seat = lower.rows[0].seats.first().expect("first seat");
+    assert_eq!(seat.kind, Some(CellKind::Bed));
+    assert_eq!(seat.seat_class.as_deref(), Some("bed_lower"));
+    assert_eq!(trip.trip.total_seats, 40);
+    Ok(())
+}
+
+#[tokio::test]
+async fn legacy_grid_layouts_have_no_plan_and_serve_the_old_trip_shape() -> anyhow::Result<()> {
+    let st = boot_state().await?;
+    let created = st
+        .admin
+        .create_bus_layout(&UpsertBusLayoutRequest {
+            name: Some("Ghế ngồi 12".into()),
+            seat_grid: Some(SeatGridSpec {
+                rows: Some(3),
+                cols: Some(4),
+                floors: Some(1),
+            }),
+            ..Default::default()
+        })
+        .await?;
+
+    let detail = st.admin.get_bus_layout(created.id).await?;
+    assert!(!detail.planned, "a generated grid has no saved plan");
+    assert_eq!(detail.plan.decks.len(), 1);
+    assert_eq!(
+        (detail.plan.decks[0].rows, detail.plan.decks[0].cols),
+        (3, 4)
+    );
+
+    let trip_id = trip_on_layout(&st, created.id).await?;
+    let trip = st.public.trip_detail(trip_id).await?;
+    assert!(trip.seat_map.decks[0].plan.is_none());
+    assert!(trip.seat_map.decks[0].rows[0].seats[0].kind.is_none());
+    Ok(())
+}
+
+#[tokio::test]
+async fn an_unused_layout_may_gain_and_lose_seats_with_its_plan() -> anyhow::Result<()> {
+    let st = boot_state().await?;
+    let created = st
+        .admin
+        .create_bus_layout(&plan_request("Xe 16", preset_plan("minibus_15")))
+        .await?;
+    let before = st.admin.get_bus_layout(created.id).await?;
+    let kept_id = before.plan.decks[0]
+        .cells
+        .iter()
+        .find(|c| c.kind.is_sellable())
+        .and_then(|c| c.seat_id)
+        .expect("a seat id");
+
+    // Swap to a bigger vehicle but keep the first seat's id.
+    let mut plan = preset_plan("seat_29");
+    let first = plan.decks[0]
+        .cells
+        .iter_mut()
+        .find(|c| c.kind.is_sellable())
+        .expect("a seat");
+    first.seat_id = Some(kept_id);
+    st.admin.replace_bus_layout_plan(created.id, &plan).await?;
+
+    let after = st.admin.get_bus_layout(created.id).await?;
+    assert!(after.planned);
+    assert_eq!(after.total_seats, Some(29));
+    let ids: Vec<_> = after.plan.decks[0]
+        .cells
+        .iter()
+        .filter_map(|c| c.seat_id)
+        .collect();
+    assert_eq!(ids.len(), 29);
+    assert!(ids.contains(&kept_id), "the matched seat keeps its row");
+
+    // An invalid plan is rejected and leaves the layout untouched.
+    let mut broken = preset_plan("seat_29");
+    broken.decks[0].cells[3].row = 99;
+    assert!(st
+        .admin
+        .replace_bus_layout_plan(created.id, &broken)
+        .await
+        .is_err());
+    assert_eq!(
+        st.admin.get_bus_layout(created.id).await?.total_seats,
+        Some(29)
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn an_in_use_layout_can_move_and_relabel_seats_but_not_add_or_remove() -> anyhow::Result<()> {
+    let st = boot_state().await?;
+    let created = st
+        .admin
+        .create_bus_layout(&plan_request("Giường nằm 40", preset_plan("sleeper_40")))
+        .await?;
+    trip_on_layout(&st, created.id).await?;
+    let detail = st.admin.get_bus_layout(created.id).await?;
+    assert!(detail.in_use, "a materialized trip freezes the seat set");
+
+    // Swapping two labels and moving a seat is fine — and the swap must
+    // not trip the per-layout UNIQUE(seat_label).
+    let mut plan = detail.plan.clone();
+    let (a, b) = {
+        let beds: Vec<usize> = plan.decks[0]
+            .cells
+            .iter()
+            .enumerate()
+            .filter(|(_, c)| c.kind.is_sellable())
+            .map(|(i, _)| i)
+            .collect();
+        (beds[0], beds[1])
+    };
+    let (la, lb) = (
+        plan.decks[0].cells[a].label.clone(),
+        plan.decks[0].cells[b].label.clone(),
+    );
+    plan.decks[0].cells[a].label = lb.clone();
+    plan.decks[0].cells[b].label = la.clone();
+    st.admin.replace_bus_layout_plan(created.id, &plan).await?;
+    let swapped = st.admin.get_bus_layout(created.id).await?;
+    let find = |label: &Option<String>| {
+        swapped.plan.decks[0]
+            .cells
+            .iter()
+            .find(|c| &c.label == label)
+            .and_then(|c| c.seat_id)
+    };
+    assert_eq!(
+        find(&la),
+        detail.plan.decks[0].cells[b].seat_id,
+        "ids follow the cells"
+    );
+    assert_eq!(find(&lb), detail.plan.decks[0].cells[a].seat_id);
+
+    // Dropping a bed is refused …
+    let mut fewer = swapped.plan.clone();
+    let victim = fewer.decks[1]
+        .cells
+        .iter()
+        .position(|c| c.kind.is_sellable())
+        .expect("a bed");
+    fewer.decks[1].cells.remove(victim);
+    let err = st
+        .admin
+        .replace_bus_layout_plan(created.id, &fewer)
+        .await
+        .expect_err("removing a sold-from seat must be refused");
+    assert!(err.to_string().contains("không thể"), "{err}");
+
+    // … and so is adding one.
+    let mut more = swapped.plan.clone();
+    more.decks[1].cells.push(backend::dto::seat_plan::PlanCell {
+        row: 1,
+        col: 1,
+        kind: CellKind::Bed,
+        label: Some("B99".into()),
+        seat_class: None,
+        seat_id: None,
+    });
+    assert!(st
+        .admin
+        .replace_bus_layout_plan(created.id, &more)
+        .await
+        .is_err());
+    Ok(())
+}
+
+#[tokio::test]
+async fn a_template_can_be_fitted_over_a_legacy_layout_keeping_its_labels() -> anyhow::Result<()> {
+    let st = boot_state().await?;
+    // The imported shape: a flat 2-deck 5×4 grid of A01…/B01… beds.
+    let created = st
+        .admin
+        .create_bus_layout(&UpsertBusLayoutRequest {
+            name: Some("Giường nằm 40".into()),
+            vehicle_type: Some("sleeper".into()),
+            seat_grid: Some(SeatGridSpec {
+                rows: Some(5),
+                cols: Some(4),
+                floors: Some(2),
+            }),
+            ..Default::default()
+        })
+        .await?;
+    let legacy = st.admin.get_bus_layout(created.id).await?;
+    assert!(!legacy.planned);
+
+    // The wrong-size template is refused with a reason.
+    let err = st
+        .admin
+        .fit_bus_layout_plan(created.id, "sleeper_42")
+        .await
+        .expect_err("42 beds cannot hold 40 seats");
+    assert!(err.to_string().contains("40"), "{err}");
+
+    // The right one keeps every id and label, changing only positions.
+    let fitted = st
+        .admin
+        .fit_bus_layout_plan(created.id, "sleeper_40")
+        .await?;
+    let ids = |p: &SeatPlan| {
+        let mut v: Vec<_> = p
+            .decks
+            .iter()
+            .flat_map(|d| &d.cells)
+            .filter_map(|c| c.seat_id.map(|id| (id, c.label.clone())))
+            .collect();
+        v.sort();
+        v
+    };
+    assert_eq!(ids(&fitted), ids(&legacy.plan));
+    st.admin
+        .replace_bus_layout_plan(created.id, &fitted)
+        .await?;
+
+    let after = st.admin.get_bus_layout(created.id).await?;
+    assert!(after.planned);
+    assert_eq!((after.plan.decks[0].rows, after.plan.decks[0].cols), (7, 5));
+    assert_eq!(ids(&after.plan), ids(&legacy.plan));
     Ok(())
 }

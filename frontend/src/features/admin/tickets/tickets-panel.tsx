@@ -10,7 +10,7 @@
  *   - `useAdminBookings(filter)`     — paginated list + inline stats
  *   - `useAdminBookingStats(filter)` — per-day + per-brand aggregates
  *   - `useAdminBookingExport({})`      — CSV export mutation
- *   - `useUpdateBookingStatus()`     — confirm / cancel / complete
+ *   - `useMutation(adminBookingsUpdateStatusMutation())`     — confirm / cancel / complete
  *   - `useAdminBookingDetail(id)`    — full detail (seats, trip, owner)
  *
  * Features:
@@ -22,30 +22,31 @@
  *   - Mobile-responsive (table → card list on small screens)
  */
 
+import { useQuery } from '@tanstack/react-query'
+import { adminBrandsListOptions } from '@/api'
 import { useMemo, useState, useCallback, useEffect } from 'react'
 import { createColumnHelper, type SortingState } from '@tanstack/react-table'
 import { DataTableColumnHeader, type DataTableFeatures } from '@/components/data-table'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { ConsolePage, PageHeader } from '@/components/console/page'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { AlertCircle, RefreshCw, Ticket as TicketIcon, TrendingUp } from 'lucide-react'
-import { toast } from 'sonner'
+import { AlertCircle, RefreshCw } from 'lucide-react'
 import {
+  rangeDays,
   useAdminBookings,
   useAdminBookingStats,
-  useAdminBookingExport,
-  useAdminBrands,
-} from '@/lib/queries'
-import type { AdminBookingFilter } from '@/lib/queries'
-import type { AdminBookingOut } from '@/lib/api/types.gen'
+  useBookingsCsvExport,
+  type AdminBookingFilter,
+} from './api'
+import type { BookingOut } from '@/api'
 
-import { BookingStatusBadge } from '@/features/admin/dashboard/booking-status-badge'
-import { downloadCSV } from '@/features/admin/dashboard/helpers'
+import { TicketStatusBadge } from '@/features/booking/history/ticket-status-badge'
 import { PAGE_SIZE, formatVND, timeAgo } from './tickets-helpers'
+import { TicketsDailyChart } from './tickets-daily-chart'
 import { TicketsKpiCards } from './tickets-kpi-cards'
 import { TicketsFilterBar } from './tickets-filter-bar'
 import { TicketsBookingsTable } from './tickets-bookings-table'
 import { BookingDetailDialog } from './booking-detail-dialog'
-import { getErrorMessage } from '@/lib/error-message'
 import { useT } from '@/lib/i18n'
 
 // ── Server-side sort mapping ─────────────────────────────────
@@ -60,7 +61,7 @@ const SORT_API_BY_COLUMN: Record<string, { asc: string; desc: string }> = {
   total: { asc: 'total_asc', desc: 'total_desc' },
 }
 
-const bookingColumnHelper = createColumnHelper<DataTableFeatures, AdminBookingOut>()
+const bookingColumnHelper = createColumnHelper<DataTableFeatures, BookingOut>()
 
 // ── Main panel ───────────────────────────────────────────────
 
@@ -93,8 +94,8 @@ export function TicketsPanel() {
 
   const bookingsQuery = useAdminBookings(filter)
   const statsQuery = useAdminBookingStats(filter)
-  const brandsQuery = useAdminBrands()
-  const exportMutation = useAdminBookingExport({})
+  const brandsQuery = useQuery(adminBrandsListOptions())
+  const csvExport = useBookingsCsvExport(filter)
 
   // Debounce search: commit to filter 400ms after the last keystroke.
   const [searchTimer, setSearchTimer] = useState<ReturnType<typeof setTimeout> | null>(null)
@@ -177,7 +178,12 @@ export function TicketsPanel() {
           header: t('adminTickets.route'),
           cell: ({ row }) => (
             <div className="text-xs">
-              {row.original.pickupName ?? '—'} → {row.original.dropoffName ?? '—'}
+              <div>
+                {row.original.trip?.fromName ?? '—'} → {row.original.trip?.toName ?? '—'}
+              </div>
+              <div className="text-[10px] text-muted-foreground">
+                {row.original.seats.map((s) => s.seatCode).join(', ')}
+              </div>
             </div>
           ),
           meta: { label: t('adminTickets.route'), cellClassName: 'hidden xl:table-cell' },
@@ -204,7 +210,7 @@ export function TicketsPanel() {
         }),
         bookingColumnHelper.accessor('status', {
           header: t('common.status'),
-          cell: ({ getValue }) => <BookingStatusBadge status={getValue()} />,
+          cell: ({ row }) => <TicketStatusBadge booking={row.original} className="text-[10px]" />,
           enableSorting: false,
           meta: { label: t('common.status') },
         }),
@@ -233,25 +239,6 @@ export function TicketsPanel() {
     setSearchInput('')
   }, [])
 
-  const handleExport = useCallback(async () => {
-    try {
-      const result = await exportMutation.refetch()
-      const data = result.data
-      if (!data) throw new Error('Export failed')
-      downloadCSV(data.filename, data.csv)
-      toast.success(t('adminTickets.exportSuccess'), {
-        description: t('adminTickets.exportSuccessDesc', {
-          count: data.count,
-          file: data.filename,
-        }),
-      })
-    } catch (e) {
-      toast.error(t('adminTickets.exportFailed'), {
-        description: getErrorMessage(e, t('adminTickets.pleaseRetry')),
-      })
-    }
-  }, [exportMutation, t])
-
   // KPI totals — come from the dedicated /stats endpoint
   // (`AdminBookingStatsResponse.totals`), not from the list response.
   const totals = statsQuery.data?.totals
@@ -268,17 +255,11 @@ export function TicketsPanel() {
   }, [filter])
 
   return (
-    <div className="p-4 md:p-6 space-y-4">
-      {/* ─── Page header (same pattern as every admin panel) ─── */}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold flex items-center gap-2">
-            <TicketIcon className="h-5 w-5 text-blue-600" />
-            {t('adminTickets.pageTitle')}
-          </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">{t('adminTickets.pageSubtitle')}</p>
-        </div>
-      </div>
+    <ConsolePage>
+      <PageHeader
+        title={t('adminTickets.pageTitle')}
+        description={t('adminTickets.pageSubtitle')}
+      />
 
       {/* ─── KPI cards row ─── */}
       <TicketsKpiCards totals={totals} />
@@ -291,9 +272,10 @@ export function TicketsPanel() {
         setSearchInput={setSearchInput}
         onSearchChange={onSearchChange}
         setRangeFilter={setRangeFilter}
+        showStats={showStats}
         setShowStats={setShowStats}
-        handleExport={handleExport}
-        exportMutation={exportMutation}
+        handleExport={csvExport.exportCsv}
+        exporting={csvExport.isPending}
         brandsQuery={brandsQuery}
         setBrandFilter={setBrandFilter}
         setStatusFilter={setStatusFilter}
@@ -302,61 +284,21 @@ export function TicketsPanel() {
         setDateRange={setDateRange}
       />
 
-      {/* ─── Optional stats drawer ─── */}
       {showStats && statsQuery.data && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-blue-600" />
-              {t('adminTickets.dailyStatsTitle')}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {/* Per-day mini chart */}
-            <div>
-              <div className="text-xs text-muted-foreground mb-2">
-                {t('adminTickets.ticketsPerDay')}
-              </div>
-              <div className="h-32 flex items-end gap-0.5">
-                {statsQuery.data.byDay.slice(-30).map((d) => {
-                  const max = Math.max(...statsQuery.data!.byDay.map((x) => x.count), 1)
-                  const h = (d.count / max) * 100
-                  return (
-                    <div
-                      key={d.date}
-                      title={t('adminTickets.dayTooltip', {
-                        date: d.date,
-                        count: d.count,
-                        revenue: formatVND(d.revenue),
-                      })}
-                      className="flex-1 min-w-1.5 rounded-t bg-blue-400 hover:bg-blue-600 transition-colors"
-                      style={{ height: `${Math.max(2, h)}%` }}
-                    />
-                  )
-                })}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <TicketsDailyChart byDay={statsQuery.data.byDay} {...rangeDays(filter)} />
       )}
 
-      {/* ─── Error banner ─── */}
       {bookingsQuery.isError && (
-        <div className="flex items-center justify-between gap-3 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-          <div className="flex items-center gap-2">
-            <AlertCircle className="h-4 w-4" />
+        <Alert variant="destructive">
+          <AlertCircle />
+          <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
             <span>{t('adminTickets.listLoadFailed')}</span>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => bookingsQuery.refetch()}
-            className="h-7 text-xs border-rose-300 text-rose-700 hover:bg-rose-100"
-          >
-            <RefreshCw className="h-3.5 w-3.5 mr-1" />
-            {t('payment.retry')}
-          </Button>
-        </div>
+            <Button variant="outline" size="sm" onClick={() => bookingsQuery.refetch()}>
+              <RefreshCw />
+              {t('payment.retry')}
+            </Button>
+          </AlertDescription>
+        </Alert>
       )}
 
       {/* ─── Bookings table (desktop) / cards (mobile) ───
@@ -378,6 +320,6 @@ export function TicketsPanel() {
         bookingId={selectedBookingId}
         onClose={() => setSelectedBookingId(null)}
       />
-    </div>
+    </ConsolePage>
   )
 }

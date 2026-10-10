@@ -25,8 +25,8 @@
  */
 
 import { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react'
-import { usePlaceSearch } from '@/lib/queries'
-import type { PlaceSearchHit } from '@/lib/api/types.gen'
+import { usePlaceSearch } from '@/features/map/api'
+import type { PlaceSearchHit } from '@/api'
 import { MapPin, Loader2, MapIcon, Building2, Navigation2 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import {
@@ -40,7 +40,7 @@ import { cn } from '@/lib/utils'
 import { useT } from '@/lib/i18n'
 import { toast } from 'sonner'
 import { VIETNAMESE_CITIES, type VietnameseCity } from '@/lib/vietnamese-cities'
-import { noTones } from '@/lib/types'
+import { noTones } from '@/lib/text'
 
 // Leaflet touches `window` at import time, so we must load the MapPicker
 // client-side only.

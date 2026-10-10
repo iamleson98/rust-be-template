@@ -1,54 +1,13 @@
-/**
- * Shared types, zod schemas and helpers for the BookingDialog module.
- *
- * Extracted from the original `booking-dialog.tsx` so the form section,
- * passenger list, seat selector, price summary, payment method and
- * success state can each live in their own file under `booking/`.
- */
-
 import { z } from 'zod'
+import { User, UserCheck } from 'lucide-react'
 import { fullNameSchema, phoneSchema, emailSchema } from '@/lib/forms'
 import { tSync } from '@/lib/i18n'
-import { User, UserCheck, Baby } from 'lucide-react'
-import type { TripSeat } from '@/lib/api/types.gen'
+import type { PassengerType, SeatPrices } from '../fares'
 
-// ── Trip detail shape (local — matches the actual backend response) ──
-// The centralized type in `@/lib/queries/types` lacks `seatMap.decks`,
-// `pricing.basePriceAdult`, etc. so we keep this local type that mirrors
-// the backend's `GET /api/trips/{id}` response shape.
-export type TripDetail = {
-  trip: {
-    id: string
-    departureAt: string
-    departureTime: string
-    arrivalTime: string
-    status: string
-  }
-  route: { name: string }
-  brand: { id: string; name: string; accentColor: string; logoUrl: string | null }
-  from: { name: string }
-  to: { name: string }
-  busLayout: { name: string; vehicleTypeLabel: string }
-  pricing: { basePriceAdult: number; basePriceChild: number }
-  pickupPoints: { id: string; name: string; stopOrder: number; etaOffsetMin?: number }[]
-  seatMap: {
-    decks: { deck: number; rows: { row: number; seats: TripSeat[] }[] }[]
-  }
-}
+// `age` is a plain number: the age input parses before calling `field.onChange`.
+// Messages are functions so they resolve in the current language at validation time.
 
-export type PassengerType = 'adult' | 'child' | 'infant'
-export type Gender = 'male' | 'female' | 'other'
-
-// ── Zod schema ──────────────────────────────────────────────
-// `age` uses `z.number()` (not `z.coerce.number()`) because the
-// `<Input type="number">` onChange converts via `parseInt(... ) || 0`
-// before calling `field.onChange`, so the form value is always a
-// real `number`.
-// Error messages use Zod's functional `{ error: () => ... }` form so the
-// string is resolved (in the store's current language) at validation
-// time, not at module load.
-
-export const passengerSchema = z.object({
+const passengerSchema = z.object({
   name: fullNameSchema,
   age: z
     .number()
@@ -69,15 +28,7 @@ export const bookingSchema = z.object({
 export type BookingValues = z.infer<typeof bookingSchema>
 export type PassengerFormValue = z.infer<typeof passengerSchema>
 
-// Auto-detect passenger type from age
-export function getPassengerType(age: number): PassengerType {
-  if (age < 2) return 'infant'
-  if (age < 12) return 'child'
-  return 'adult'
-}
-
-// `label` holds an i18n key (not display text) — render it with
-// `t(PASSENGER_TYPE_META[type].label)`.
+/** `label` is an i18n key. */
 export const PASSENGER_TYPE_META: Record<
   PassengerType,
   {
@@ -105,20 +56,11 @@ export const PASSENGER_TYPE_META: Record<
     text: 'text-amber-700',
     icon: <UserCheck className="h-3 w-3" />,
   },
-  infant: {
-    label: 'booking.passengerType.infant',
-    gradient: 'from-pink-50 to-rose-50',
-    border: 'border-rose-200',
-    pill: 'bg-pink-100 text-pink-700',
-    text: 'text-pink-700',
-    icon: <Baby className="h-3 w-3" />,
-  },
 }
 
-// Selected seat row shape — used by the seat selector + passenger list.
-export type SelectedSeat = {
+/** A picked seat with its prices, as the passenger step lists it. */
+export type SelectedSeat = SeatPrices & {
   id: string
   code: string
-  price: number
   class: string
 }

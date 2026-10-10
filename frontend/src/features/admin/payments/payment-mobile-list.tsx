@@ -9,9 +9,9 @@
 
 import { Button } from '@/components/ui/button'
 import { useT } from '@/lib/i18n'
-import { formatCurrency } from '@/lib/currency'
-import type { Currency } from '@/lib/currency'
-import type { AdminPaymentOut } from '@/lib/queries/payments'
+import { formatCurrency } from '@/lib/format'
+import type { Currency } from '@/lib/format'
+import type { AdminPaymentOut } from '@/api'
 import { ProviderBadge, StatusBadge } from './payment-badges'
 import type { PaymentAction, UpdatePaymentStatusMutation } from './types'
 

@@ -225,6 +225,7 @@
           {
             "name": "status",
             "in": "query",
+            "description": "A booking status, `awaiting` (pay on board, waiting for the phone\ncall) or `all`.",
             "required": false,
             "schema": {
               "type": "string"
@@ -251,6 +252,7 @@
           {
             "name": "dateFrom",
             "in": "query",
+            "description": "First day booked on (`YYYY-MM-DD`, Vietnam).",
             "required": false,
             "schema": {
               "type": "string"
@@ -259,6 +261,7 @@
           {
             "name": "dateTo",
             "in": "query",
+            "description": "Last day booked on (`YYYY-MM-DD`, Vietnam), inclusive.",
             "required": false,
             "schema": {
               "type": "string"
@@ -267,6 +270,7 @@
           {
             "name": "search",
             "in": "query",
+            "description": "Code, contact name or phone contains this.",
             "required": false,
             "schema": {
               "type": "string"
@@ -295,6 +299,7 @@
           {
             "name": "sort",
             "in": "query",
+            "description": "`created_desc` (default), `created_asc`, `total_desc` or `total_asc`.",
             "required": false,
             "schema": {
               "type": "string"
@@ -332,6 +337,7 @@
           {
             "name": "status",
             "in": "query",
+            "description": "A booking status, `awaiting` (pay on board, waiting for the phone\ncall) or `all`.",
             "required": false,
             "schema": {
               "type": "string"
@@ -358,6 +364,7 @@
           {
             "name": "dateFrom",
             "in": "query",
+            "description": "First day booked on (`YYYY-MM-DD`, Vietnam).",
             "required": false,
             "schema": {
               "type": "string"
@@ -366,6 +373,7 @@
           {
             "name": "dateTo",
             "in": "query",
+            "description": "Last day booked on (`YYYY-MM-DD`, Vietnam), inclusive.",
             "required": false,
             "schema": {
               "type": "string"
@@ -374,6 +382,7 @@
           {
             "name": "search",
             "in": "query",
+            "description": "Code, contact name or phone contains this.",
             "required": false,
             "schema": {
               "type": "string"
@@ -402,6 +411,7 @@
           {
             "name": "sort",
             "in": "query",
+            "description": "`created_desc` (default), `created_asc`, `total_desc` or `total_asc`.",
             "required": false,
             "schema": {
               "type": "string"
@@ -439,6 +449,7 @@
           {
             "name": "status",
             "in": "query",
+            "description": "A booking status, `awaiting` (pay on board, waiting for the phone\ncall) or `all`.",
             "required": false,
             "schema": {
               "type": "string"
@@ -465,6 +476,7 @@
           {
             "name": "dateFrom",
             "in": "query",
+            "description": "First day booked on (`YYYY-MM-DD`, Vietnam).",
             "required": false,
             "schema": {
               "type": "string"
@@ -473,6 +485,7 @@
           {
             "name": "dateTo",
             "in": "query",
+            "description": "Last day booked on (`YYYY-MM-DD`, Vietnam), inclusive.",
             "required": false,
             "schema": {
               "type": "string"
@@ -481,6 +494,7 @@
           {
             "name": "search",
             "in": "query",
+            "description": "Code, contact name or phone contains this.",
             "required": false,
             "schema": {
               "type": "string"
@@ -509,6 +523,7 @@
           {
             "name": "sort",
             "in": "query",
+            "description": "`created_desc` (default), `created_asc`, `total_desc` or `total_asc`.",
             "required": false,
             "schema": {
               "type": "string"
@@ -580,7 +595,7 @@
         "tags": [
           "admin"
         ],
-        "summary": "`PATCH /api/admin/bookings/{id}` — update booking status (admin override).",
+        "summary": "`PATCH /api/admin/bookings/{id}` — confirm (after phoning the customer),\ncomplete or cancel a ticket. Completed and cancelled tickets are final.",
         "operationId": "update_status",
         "parameters": [
           {
@@ -610,7 +625,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/UpdateBookingStatusResponse"
+                  "$ref": "#/components/schemas/AdminBookingDetailResponse"
                 }
               }
             }
@@ -623,6 +638,9 @@
           },
           "404": {
             "description": "Not found"
+          },
+          "409": {
+            "description": "The ticket is final or changed meanwhile"
           }
         }
       }
@@ -844,7 +862,7 @@
         "tags": [
           "admin"
         ],
-        "summary": "`POST /api/admin/bus-layouts` — create a bus layout (with generated\nseat rows when `seatGrid` is provided; defaults to 10×4×1 = 40).",
+        "summary": "`POST /api/admin/bus-layouts` — create a bus layout. A `plan` makes\nthe seat rows from the floor plan; else `seatGrid` (default 10×4×1 =\n40) generates a plain grid.",
         "operationId": "create",
         "requestBody": {
           "content": {
@@ -882,7 +900,74 @@
         }
       }
     },
+    "/api/admin/bus-layouts/presets": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "`GET /api/admin/bus-layouts/presets` — ready-made seat plans for\ncommon vehicles (limousine, sleeper, 29/45-seat coach, …).",
+        "operationId": "presets",
+        "responses": {
+          "200": {
+            "description": "Layout templates",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BusLayoutPresetListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        }
+      }
+    },
     "/api/admin/bus-layouts/{id}": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "`GET /api/admin/bus-layouts/{id}` — one layout with its seat plan.\nLayouts that predate plans come back with a plain derived grid\n(`planned = false`).",
+        "operationId": "detail",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Bus layout ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Layout with plan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBusLayoutDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        }
+      },
       "put": {
         "tags": [
           "admin"
@@ -977,6 +1062,120 @@
           },
           "409": {
             "description": "Conflict — schedules / trips / tickets reference the layout"
+          }
+        }
+      }
+    },
+    "/api/admin/bus-layouts/{id}/plan": {
+      "put": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "`PUT /api/admin/bus-layouts/{id}/plan` — replace the seat plan.",
+        "description": "Seats are matched to cells by `seatId`, then by label, and keep their\nidentity. Once trips or tickets use the layout, cells may only be\nmoved, relabelled or re-classed: adding or removing seats is a 409.",
+        "operationId": "replace_plan",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Bus layout ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertSeatPlanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminMutationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid plan"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Conflict — the layout is in use and the plan adds/removes seats"
+          }
+        }
+      }
+    },
+    "/api/admin/bus-layouts/{id}/plan/fit": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "`POST /api/admin/bus-layouts/{id}/plan/fit` — preview a catalog\ntemplate laid over this layout's existing seats (ids and labels\nkept). Nothing is saved; send the result to `PUT …/plan` to apply it.",
+        "operationId": "fit_plan",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Bus layout ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FitSeatPlanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The fitted plan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeatPlan"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The template cannot hold exactly these seats"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Layout or template not found"
           }
         }
       }
@@ -1279,6 +1478,33 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AdminPaymentListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        }
+      }
+    },
+    "/api/admin/payments/summary": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "`GET /api/admin/payments/summary` — payments per status and the money collected.",
+        "operationId": "admin_payment_summary",
+        "responses": {
+          "200": {
+            "description": "Payment totals",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPaymentSummary"
                 }
               }
             }
@@ -2955,6 +3181,43 @@
         }
       }
     },
+    "/api/auth/password": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "`POST /api/auth/password` — change the signed-in user's password. Other\ndevices are signed out; this one gets fresh cookies.",
+        "operationId": "change_password",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePasswordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Password changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Current password is incorrect"
+          },
+          "401": {
+            "description": "Not signed in"
+          }
+        }
+      }
+    },
     "/api/auth/refresh": {
       "post": {
         "tags": [
@@ -3027,20 +3290,9 @@
         "tags": [
           "bookings"
         ],
-        "summary": "`GET /api/bookings` — list the authenticated user's bookings.",
+        "summary": "`GET /api/bookings` — the authenticated customer's tickets, newest first.",
         "operationId": "list",
         "parameters": [
-          {
-            "name": "status",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": [
-                "string",
-                "null"
-              ]
-            }
-          },
           {
             "name": "limit",
             "in": "query",
@@ -3122,8 +3374,7 @@
         "tags": [
           "bookings"
         ],
-        "summary": "`GET /api/bookings/{id}` — get booking detail.",
-        "description": "`{id}` accepts EITHER the booking UUID (legacy/admin callers) or the\nhuman-facing booking code (frontend deep links like `/bookings/{code}`).",
+        "summary": "`GET /api/bookings/{id}` — one of the customer's bookings, by UUID or\nby its code.",
         "operationId": "detail",
         "parameters": [
           {
@@ -3142,7 +3393,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/BookingListItem"
+                  "$ref": "#/components/schemas/BookingOut"
                 }
               }
             }
@@ -3205,13 +3456,13 @@
         }
       }
     },
-    "/api/bookings/{id}/confirm": {
+    "/api/bookings/{id}/place": {
       "post": {
         "tags": [
           "bookings"
         ],
-        "summary": "`POST /api/bookings/{id}/confirm` — confirm a booking with payment.",
-        "operationId": "confirm",
+        "summary": "`POST /api/bookings/{id}/place` — pay on board: the booking is placed\nand its seats held until departure while the operator phones the\ncustomer to confirm it. Online payments go through `/api/payments`.",
+        "operationId": "place",
         "parameters": [
           {
             "name": "id",
@@ -3224,19 +3475,9 @@
             }
           }
         ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ConfirmReq"
-              }
-            }
-          },
-          "required": true
-        },
         "responses": {
           "200": {
-            "description": "Booking confirmed",
+            "description": "Booking placed, awaiting the operator",
             "content": {
               "application/json": {
                 "schema": {
@@ -3250,6 +3491,9 @@
           },
           "403": {
             "description": "Forbidden"
+          },
+          "410": {
+            "description": "The seat hold ran out"
           }
         }
       }
@@ -4159,6 +4403,27 @@
           },
           "404": {
             "description": "Payment not found"
+          }
+        }
+      }
+    },
+    "/api/payments/providers": {
+      "get": {
+        "tags": [
+          "payments"
+        ],
+        "summary": "`GET /api/payments/providers` — the providers checkout can offer.",
+        "operationId": "list_providers",
+        "responses": {
+          "200": {
+            "description": "Enabled payment providers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentProvidersResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -5089,6 +5354,50 @@
           },
           "401": {
             "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/reviews/stats": {
+      "get": {
+        "tags": [
+          "reviews"
+        ],
+        "summary": "`GET /api/reviews/stats` — count, average, stars and top tags of the\napproved reviews of a brand and/or route (at least one is required).",
+        "operationId": "stats",
+        "parameters": [
+          {
+            "name": "brand_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "route_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Review stats for the scope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewStats"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Neither brand_id nor route_id given"
           }
         }
       }
@@ -6199,117 +6508,15 @@
           }
         }
       },
-      "AdminBookingDetail": {
-        "type": "object",
-        "description": "Admin booking detail — full shape with seats.",
-        "required": [
-          "id",
-          "code",
-          "status",
-          "subtotal",
-          "discount",
-          "fees",
-          "total",
-          "currency",
-          "createdAt",
-          "updatedAt",
-          "seats"
-        ],
-        "properties": {
-          "code": {
-            "type": "string"
-          },
-          "contactEmail": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "contactName": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "contactPhone": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "createdAt": {
-            "type": "string"
-          },
-          "currency": {
-            "type": "string"
-          },
-          "discount": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "dropoffName": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "expiresAt": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "fees": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "paymentMethod": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "pickupName": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "seats": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/AdminBookingSeatOut"
-            }
-          },
-          "status": {
-            "type": "string"
-          },
-          "subtotal": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "total": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "updatedAt": {
-            "type": "string"
-          }
-        }
-      },
       "AdminBookingDetailResponse": {
         "type": "object",
-        "description": "Response of `GET /api/admin/bookings/{id}`.",
+        "description": "Response of `GET /api/admin/bookings/{id}` and of a status change.",
         "required": [
           "item"
         ],
         "properties": {
           "item": {
-            "$ref": "#/components/schemas/AdminBookingDetail"
+            "$ref": "#/components/schemas/BookingOut"
           }
         }
       },
@@ -6347,6 +6554,7 @@
         "description": "Response of `GET /api/admin/bookings`.",
         "required": [
           "items",
+          "total",
           "limit",
           "offset"
         ],
@@ -6354,7 +6562,7 @@
           "items": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/AdminBookingOut"
+              "$ref": "#/components/schemas/BookingOut"
             }
           },
           "limit": {
@@ -6368,130 +6576,10 @@
             "minimum": 0
           },
           "total": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": "integer",
             "format": "int64",
-            "description": "Total matching-row count (independent of pagination). Omitted when\nthe server didn't compute it (older callers may rely on this).",
+            "description": "Bookings matching the filter, across all pages.",
             "minimum": 0
-          }
-        }
-      },
-      "AdminBookingOut": {
-        "type": "object",
-        "description": "Admin booking list item — slim shape for the table view.",
-        "required": [
-          "id",
-          "code",
-          "status",
-          "total",
-          "currency",
-          "createdAt",
-          "updatedAt"
-        ],
-        "properties": {
-          "code": {
-            "type": "string"
-          },
-          "contactEmail": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "contactName": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "contactPhone": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "createdAt": {
-            "type": "string"
-          },
-          "currency": {
-            "type": "string"
-          },
-          "dropoffName": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "expiresAt": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "paymentMethod": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "pickupName": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "status": {
-            "type": "string"
-          },
-          "total": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "updatedAt": {
-            "type": "string"
-          }
-        }
-      },
-      "AdminBookingSeatOut": {
-        "type": "object",
-        "required": [
-          "price"
-        ],
-        "properties": {
-          "passengerAge": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int32"
-          },
-          "passengerName": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "passengerType": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "price": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "seatId": {
-            "type": [
-              "string",
-              "null"
-            ]
           }
         }
       },
@@ -6511,33 +6599,6 @@
           },
           "totals": {
             "$ref": "#/components/schemas/AdminBookingTotals"
-          }
-        }
-      },
-      "AdminBookingStatusUpdate": {
-        "type": "object",
-        "required": [
-          "id",
-          "status",
-          "updatedAt"
-        ],
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "previousStatus": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "The original requested status (before normalization). Useful\nwhen the caller sends `paid` and we store `confirmed`."
-          },
-          "status": {
-            "type": "string"
-          },
-          "updatedAt": {
-            "type": "string"
           }
         }
       },
@@ -6601,7 +6662,6 @@
           "slug",
           "name",
           "status",
-          "totalTrips",
           "createdAt",
           "updatedAt",
           "routeCount",
@@ -6612,6 +6672,17 @@
             "type": [
               "string",
               "null"
+            ]
+          },
+          "childFare": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ChildFarePolicy",
+                "description": "Child tickets; absent = children pay the adult fare."
+              }
             ]
           },
           "contactEmail": {
@@ -6657,7 +6728,8 @@
               "number",
               "null"
             ],
-            "format": "double"
+            "format": "double",
+            "description": "Mean of the approved reviews; absent while there are none."
           },
           "routeCount": {
             "type": "integer",
@@ -6669,12 +6741,70 @@
           "status": {
             "type": "string"
           },
-          "totalTrips": {
-            "type": "integer",
-            "format": "int64"
+          "updatedAt": {
+            "type": "string"
+          }
+        }
+      },
+      "AdminBusLayoutDetail": {
+        "type": "object",
+        "description": "Response of `GET /api/admin/bus-layouts/{id}`.",
+        "required": [
+          "id",
+          "plan",
+          "planned",
+          "inUse",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "brandId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "inUse": {
+            "type": "boolean",
+            "description": "Trips already sell these seats: seats can be moved/relabelled but\nnot added or removed."
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "plan": {
+            "$ref": "#/components/schemas/SeatPlan",
+            "description": "The saved plan, or — for layouts created before plans existed — a\nplain grid derived from the seat rows (`planned = false`)."
+          },
+          "planned": {
+            "type": "boolean",
+            "description": "`true` once a real plan has been saved for this layout."
+          },
+          "totalSeats": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
           },
           "updatedAt": {
             "type": "string"
+          },
+          "vehicleType": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -6706,6 +6836,8 @@
         "type": "object",
         "required": [
           "id",
+          "planned",
+          "seatClasses",
           "createdAt",
           "updatedAt"
         ],
@@ -6729,6 +6861,17 @@
               "string",
               "null"
             ]
+          },
+          "planned": {
+            "type": "boolean",
+            "description": "`true` once a real seat plan (not just a derived grid) is saved."
+          },
+          "seatClasses": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SeatClassCount"
+            },
+            "description": "Seats per class, so a schedule can price every class it sells."
           },
           "totalSeats": {
             "type": [
@@ -6889,6 +7032,57 @@
               "null"
             ],
             "format": "uuid"
+          }
+        }
+      },
+      "AdminPaymentSummary": {
+        "type": "object",
+        "description": "Response of `GET /api/admin/payments/summary`: totals over every payment.",
+        "required": [
+          "total",
+          "pending",
+          "completed",
+          "failed",
+          "cancelled",
+          "refunded",
+          "collected"
+        ],
+        "properties": {
+          "cancelled": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "collected": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Money actually received: the amounts of completed payments (VND)."
+          },
+          "completed": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "failed": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "pending": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "refunded": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Every payment started, whatever its status.",
+            "minimum": 0
           }
         }
       },
@@ -7270,6 +7464,7 @@
           "routeId",
           "departureTime",
           "basePriceAdult",
+          "classFares",
           "points",
           "createdAt"
         ],
@@ -7282,14 +7477,16 @@
           },
           "basePriceAdult": {
             "type": "integer",
-            "format": "int64"
+            "format": "int64",
+            "description": "Price of a standard seat, and of any class without its own fare."
           },
           "basePriceChild": {
             "type": [
               "integer",
               "null"
             ],
-            "format": "int64"
+            "format": "int64",
+            "description": "Child price of a standard seat; absent = the brand's discount."
           },
           "busLayoutId": {
             "type": [
@@ -7298,6 +7495,13 @@
             ],
             "format": "uuid",
             "description": "Bus layout id (string on the wire, `Uuid` in Rust — see the\nentity field comment about the old String/TEXT drift)."
+          },
+          "classFares": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SeatClassFare"
+            },
+            "description": "Fares of the other seat classes, cheapest first."
           },
           "createdAt": {
             "type": "string"
@@ -7556,48 +7760,6 @@
           }
         }
       },
-      "BookingBrandPreview": {
-        "type": "object",
-        "description": "Brand preview embedded in `BookingRoutePreview`.",
-        "properties": {
-          "accentColor": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "logoUrl": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "name": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        }
-      },
-      "BookingBusLayoutPreview": {
-        "type": "object",
-        "description": "Bus layout preview embedded in `BookingTripPreview`.",
-        "properties": {
-          "name": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "vehicleType": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        }
-      },
       "BookingCancelResponse": {
         "type": "object",
         "description": "Response of `POST /api/bookings/{id}/cancel`.",
@@ -7636,7 +7798,7 @@
       },
       "BookingConfirmResponse": {
         "type": "object",
-        "description": "Response of `POST /api/bookings/{id}/confirm`.",
+        "description": "A booking's state after it is placed (`POST /api/bookings/{id}/place`)\nor confirmed.",
         "required": [
           "bookingId",
           "status",
@@ -7713,41 +7875,51 @@
           }
         }
       },
-      "BookingListItem": {
+      "BookingListResponse": {
         "type": "object",
-        "description": "Response of `GET /api/bookings` (list item) and `GET /api/bookings/{id}`\n(detail — same shape, just with the full trip preview filled in).",
+        "description": "Response of `GET /api/bookings`.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BookingOut"
+            }
+          }
+        }
+      },
+      "BookingOut": {
+        "type": "object",
+        "description": "A booking (ticket) as customers and staff see it.\n\n`status`: `pending` (being paid for, or placed and awaiting the\noperator's phone confirmation when `paymentMethod` is `cod`) →\n`confirmed` → `completed`; or `cancelled`. Completed and cancelled are\nfinal.",
         "required": [
           "id",
           "code",
           "status",
+          "adultCount",
+          "childCount",
           "subtotal",
           "discount",
           "fees",
           "total",
           "currency",
+          "seats",
+          "canCancel",
           "createdAt",
-          "seats"
+          "updatedAt"
         ],
         "properties": {
           "adultCount": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": "integer",
             "format": "int64"
           },
-          "boardingPointId": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Present on the list-with-detail shape (`include_boarding_dropping_ids=true`)."
+          "canCancel": {
+            "type": "boolean",
+            "description": "The customer may still cancel (open, and the trip has not left)."
           },
           "childCount": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": "integer",
             "format": "int64"
           },
           "code": {
@@ -7781,18 +7953,22 @@
             "type": "integer",
             "format": "int64"
           },
-          "droppingPointId": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Present on the list-with-detail shape."
+          "dropoff": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/BookingStop"
+              }
+            ]
           },
           "expiresAt": {
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "When an unconfirmed booking lets its seats go."
           },
           "fees": {
             "type": "integer",
@@ -7802,17 +7978,31 @@
             "type": "string",
             "format": "uuid"
           },
-          "paidAt": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Timestamp when the booking was paid (`updated_at` snapshot at status=confirmed)."
-          },
           "paymentMethod": {
             "type": [
               "string",
               "null"
+            ],
+            "description": "`cod` (pay on board) or an online provider; absent while unpaid."
+          },
+          "pickup": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/BookingStop"
+              }
+            ]
+          },
+          "review": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/BookingReview"
+              }
             ]
           },
           "seats": {
@@ -7828,6 +8018,13 @@
             "type": "integer",
             "format": "int64"
           },
+          "ticketQr": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Boarding QR (an SVG data URI encoding the code) for an open ticket;\nonly on the single-booking views."
+          },
           "total": {
             "type": "integer",
             "format": "int64"
@@ -7838,63 +8035,56 @@
                 "type": "null"
               },
               {
-                "$ref": "#/components/schemas/BookingTripPreview"
+                "$ref": "#/components/schemas/BookingTrip"
               }
             ]
           },
           "updatedAt": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": "string"
           }
         }
       },
-      "BookingListResponse": {
+      "BookingReview": {
         "type": "object",
-        "description": "Response of `GET /api/bookings`.",
+        "description": "The customer's review of a trip they took.",
         "required": [
-          "items"
+          "id",
+          "rating",
+          "tags",
+          "photos",
+          "createdAt"
         ],
         "properties": {
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/BookingListItem"
-            }
-          },
-          "total": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64",
-            "description": "Total matching-row count (independent of pagination). Omitted from\nthe JSON when the server didn't compute it. Use `with_total(...)`\nto set it.",
-            "minimum": 0
-          }
-        }
-      },
-      "BookingRoutePreview": {
-        "type": "object",
-        "description": "Route preview embedded in `BookingTripPreview`.",
-        "required": [
-          "name",
-          "brand"
-        ],
-        "properties": {
-          "brand": {
-            "$ref": "#/components/schemas/BookingBrandPreview"
-          },
-          "from": {
+          "content": {
             "type": [
               "string",
               "null"
             ]
           },
-          "name": {
+          "createdAt": {
             "type": "string"
           },
-          "to": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "photos": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "rating": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "title": {
             "type": [
               "string",
               "null"
@@ -7904,7 +8094,7 @@
       },
       "BookingSeatOut": {
         "type": "object",
-        "description": "A held seat inside a booking response.",
+        "description": "One ticket of a booking: the seat and who sits in it.",
         "properties": {
           "passengerAge": {
             "type": [
@@ -7923,7 +8113,8 @@
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "`adult` | `child`."
           },
           "price": {
             "type": [
@@ -7942,7 +8133,8 @@
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "The seat number printed on the ticket (`A01`, `12`, ...)."
           },
           "seatId": {
             "type": [
@@ -7953,52 +8145,99 @@
           }
         }
       },
-      "BookingTripPreview": {
+      "BookingStop": {
         "type": "object",
-        "description": "Slim trip preview embedded in `BookingListItem`.",
+        "description": "Where a passenger gets on or off, as it was when the ticket was sold.",
         "required": [
-          "id"
+          "name"
+        ],
+        "properties": {
+          "address": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lat": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "lon": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "BookingTrip": {
+        "type": "object",
+        "description": "The trip a booking is for.",
+        "required": [
+          "id",
+          "departureDate",
+          "status",
+          "routeId",
+          "routeName"
         ],
         "properties": {
           "brandAccent": {
             "type": [
               "string",
               "null"
+            ]
+          },
+          "brandId": {
+            "type": [
+              "string",
+              "null"
             ],
-            "description": "Present on the booking-list payload (not the detail payload)."
+            "format": "uuid"
           },
           "brandLogo": {
             "type": [
               "string",
               "null"
-            ],
-            "description": "Present on the booking-list payload (not the detail payload)."
+            ]
           },
           "brandName": {
             "type": [
               "string",
               "null"
-            ],
-            "description": "Present on the booking-list payload (not the detail payload)."
+            ]
           },
-          "busLayout": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/BookingBusLayoutPreview",
-                "description": "Present on the detail payload (not the list payload)."
-              }
+          "busLayoutName": {
+            "type": [
+              "string",
+              "null"
             ]
           },
           "departureAt": {
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "The departure instant (UTC, RFC 3339)."
           },
           "departureDate": {
+            "type": "string",
+            "description": "`YYYY-MM-DD`, local (Vietnam) date."
+          },
+          "departureTime": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`HH:MM`, local time."
+          },
+          "fromName": {
             "type": [
               "string",
               "null"
@@ -8008,43 +8247,21 @@
             "type": "string",
             "format": "uuid"
           },
-          "pickupPoints": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/PickupPointOut"
-            },
-            "description": "Present on the detail payload (not the list payload)."
-          },
-          "route": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/BookingRoutePreview",
-                "description": "Present on the detail payload (not the list payload)."
-              }
-            ]
+          "routeId": {
+            "type": "string",
+            "format": "uuid"
           },
           "routeName": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Present on the booking-list payload (not the detail payload)."
+            "type": "string"
           },
           "status": {
+            "type": "string"
+          },
+          "toName": {
             "type": [
               "string",
               "null"
             ]
-          },
-          "vehicleType": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Present on the booking-list payload (not the detail payload)."
           }
         }
       },
@@ -8054,8 +8271,7 @@
         "required": [
           "id",
           "slug",
-          "name",
-          "totalTrips"
+          "name"
         ],
         "properties": {
           "accentColor": {
@@ -8100,14 +8316,11 @@
               "number",
               "null"
             ],
-            "format": "double"
+            "format": "double",
+            "description": "Mean of the approved reviews; absent while there are none."
           },
           "slug": {
             "type": "string"
-          },
-          "totalTrips": {
-            "type": "integer",
-            "format": "int64"
           }
         }
       },
@@ -8133,7 +8346,7 @@
           "id",
           "slug",
           "name",
-          "totalTrips"
+          "routeCount"
         ],
         "properties": {
           "accentColor": {
@@ -8160,14 +8373,66 @@
               "number",
               "null"
             ],
-            "format": "double"
+            "format": "double",
+            "description": "Mean of the approved reviews; absent while there are none."
+          },
+          "routeCount": {
+            "type": "integer",
+            "description": "Active routes the brand runs.",
+            "minimum": 0
           },
           "slug": {
             "type": "string"
-          },
-          "totalTrips": {
+          }
+        }
+      },
+      "BusLayoutPreset": {
+        "type": "object",
+        "description": "A ready-made plan for a common vehicle (admin \"create from template\").",
+        "required": [
+          "id",
+          "name",
+          "vehicleType",
+          "capacity",
+          "description",
+          "plan"
+        ],
+        "properties": {
+          "capacity": {
             "type": "integer",
-            "format": "int64"
+            "format": "int32",
+            "description": "Sellable units in the plan."
+          },
+          "description": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/SeatPlan"
+          },
+          "vehicleType": {
+            "type": "string",
+            "description": "Vehicle-type catalog code (`limousine`, `sleeper`, …)."
+          }
+        }
+      },
+      "BusLayoutPresetListResponse": {
+        "type": "object",
+        "description": "Response of `GET /api/admin/bus-layouts/presets`.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BusLayoutPreset"
+            }
           }
         }
       },
@@ -8337,6 +8602,39 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "CellKind": {
+        "type": "string",
+        "description": "What occupies a grid cell.",
+        "enum": [
+          "seat",
+          "bed",
+          "cabin",
+          "cabin_double",
+          "driver",
+          "door",
+          "stairs",
+          "wc"
+        ]
+      },
+      "ChangePasswordRequest": {
+        "type": "object",
+        "description": "Body of `POST /api/auth/password`.",
+        "required": [
+          "newPassword"
+        ],
+        "properties": {
+          "currentPassword": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Required unless the account has no password yet (social sign-in)."
+          },
+          "newPassword": {
+            "type": "string"
           }
         }
       },
@@ -8592,6 +8890,26 @@
           }
         }
       },
+      "ChildFarePolicy": {
+        "type": "object",
+        "description": "A brand's child tickets: passengers up to `maxAge` pay a child price.",
+        "required": [
+          "maxAge",
+          "discountPercent"
+        ],
+        "properties": {
+          "discountPercent": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Percent off the adult price, where the schedule sets no child price."
+          },
+          "maxAge": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Oldest age (inclusive) that travels on a child ticket."
+          }
+        }
+      },
       "ClickIds": {
         "type": "object",
         "description": "Google Ads click ids captured on landing (see\n`frontend/src/lib/analytics.ts` — `captureClickIds`). At most one\nis ever set per landing, but the beacon forwards whatever it has.",
@@ -8616,15 +8934,6 @@
               "null"
             ],
             "description": "Click id for Performance Max / App campaigns (web)."
-          }
-        }
-      },
-      "ConfirmReq": {
-        "type": "object",
-        "description": "Request body for `POST /api/bookings/:id/confirm`.",
-        "properties": {
-          "paymentMethod": {
-            "type": "string"
           }
         }
       },
@@ -9280,6 +9589,40 @@
           }
         }
       },
+      "DeckPlan": {
+        "type": "object",
+        "description": "One deck's grid.",
+        "required": [
+          "rows",
+          "cols",
+          "cells"
+        ],
+        "properties": {
+          "cells": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlanCell"
+            }
+          },
+          "cols": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Grid width in columns (driver's side → door side)."
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional display name (`Tầng dưới`); clients fall back to the index."
+          },
+          "rows": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Grid height in rows (front → rear)."
+          }
+        }
+      },
       "DirectionsResponse": {
         "type": "object",
         "description": "Turn-by-turn driving directions.\n\nReturned by `GET /api/routing/directions`. The `valhalla` field\ncarries the raw Valhalla `trip` object (kept opaque — different\nValhalla versions emit slightly different shapes; we expose the\ntop-level summary fields the UI cares about).",
@@ -9726,6 +10069,19 @@
           }
         }
       },
+      "FitSeatPlanRequest": {
+        "type": "object",
+        "description": "Body of `POST /api/admin/bus-layouts/{id}/plan/fit`.",
+        "required": [
+          "presetId"
+        ],
+        "properties": {
+          "presetId": {
+            "type": "string",
+            "description": "Catalog template id (`sleeper_42`, `cabin_24`, …)."
+          }
+        }
+      },
       "HealthResponse": {
         "type": "object",
         "required": [
@@ -9748,15 +10104,17 @@
           "tripId",
           "seatIds",
           "passengers",
-          "boardingPointId",
-          "droppingPointId",
           "contactName",
           "contactPhone"
         ],
         "properties": {
           "boardingPointId": {
-            "type": "string",
-            "format": "uuid"
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Required when the route has pickup points; must be one of them."
           },
           "campaignCode": {
             "type": [
@@ -9777,8 +10135,12 @@
             "type": "string"
           },
           "droppingPointId": {
-            "type": "string",
-            "format": "uuid"
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Required when the route has pickup points; must be one of them."
           },
           "passengers": {
             "type": "array",
@@ -10478,20 +10840,34 @@
         "type": "object",
         "description": "One passenger on a booking.",
         "required": [
-          "name",
-          "type"
+          "name"
         ],
         "properties": {
           "age": {
-            "type": "integer",
-            "format": "int64"
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Without an age the passenger pays the adult price."
           },
           "name": {
             "type": "string"
           },
+          "seatId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "The passenger's seat (one of `seatIds`). When every passenger names\none, seats are matched by it; otherwise by position."
+          },
           "type": {
-            "type": "string",
-            "description": "`adult` | `child` | `infant`. Serialized as `type` on the wire\n(matches the legacy field name the frontend sends)."
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Ignored: the server decides from `age` and the brand's child policy."
           }
         }
       },
@@ -10620,55 +10996,19 @@
           }
         }
       },
-      "PickupPointOut": {
+      "PaymentProvidersResponse": {
         "type": "object",
-        "description": "Pickup point embedded in `BookingTripPreview.pickup_points`.",
+        "description": "Response of `GET /api/payments/providers`.",
         "required": [
-          "id"
+          "providers"
         ],
         "properties": {
-          "address": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "kind": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "lat": {
-            "type": [
-              "number",
-              "null"
-            ],
-            "format": "double"
-          },
-          "lon": {
-            "type": [
-              "number",
-              "null"
-            ],
-            "format": "double"
-          },
-          "name": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "stopOrder": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64"
+          "providers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The providers this deployment takes payments with\n(`momo` | `vnpay` | `zalopay` | `cod` | `vietqr`)."
           }
         }
       },
@@ -10851,6 +11191,52 @@
             "items": {
               "$ref": "#/components/schemas/PlaceSearchHit"
             }
+          }
+        }
+      },
+      "PlanCell": {
+        "type": "object",
+        "description": "One occupied grid cell.",
+        "required": [
+          "row",
+          "col",
+          "kind"
+        ],
+        "properties": {
+          "col": {
+            "type": "integer",
+            "format": "int32",
+            "description": "1-based, counted from the driver's side."
+          },
+          "kind": {
+            "$ref": "#/components/schemas/CellKind"
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Customer-facing code of a sellable cell (`A01`, `12`, …), ≤ 10 chars."
+          },
+          "row": {
+            "type": "integer",
+            "format": "int32",
+            "description": "1-based, counted from the front."
+          },
+          "seatClass": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Pricing/colour class (`standard`, `vip`, `bed_lower`, …)."
+          },
+          "seatId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Existing `seat` row this cell stands for (admin round-trip only —\nnever persisted in `layout_data`)."
           }
         }
       },
@@ -11456,6 +11842,46 @@
           }
         }
       },
+      "ReviewStats": {
+        "type": "object",
+        "description": "What the approved reviews in a scope (a brand, a route) add up to —\n`GET /api/reviews/stats`.",
+        "required": [
+          "count",
+          "byRating",
+          "topTags"
+        ],
+        "properties": {
+          "average": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "Mean rating; absent while there are no reviews."
+          },
+          "byRating": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            },
+            "description": "Reviews per star rating, five entries: 1 star first, 5 stars last."
+          },
+          "count": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "topTags": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TagCount"
+            },
+            "description": "The most mentioned tags, most first (at most five)."
+          }
+        }
+      },
       "ReviewTagsResponse": {
         "type": "object",
         "description": "Response of `GET /api/reviews/tags`. Returns the distinct set of\ntags across all reviews (used by the frontend to render tag filters).",
@@ -11734,6 +12160,50 @@
           }
         }
       },
+      "SeatClassCount": {
+        "type": "object",
+        "description": "How many seats of one class a layout has.",
+        "required": [
+          "seatClass",
+          "seats"
+        ],
+        "properties": {
+          "seatClass": {
+            "type": "string",
+            "description": "`standard` for seats without a class."
+          },
+          "seats": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "SeatClassFare": {
+        "type": "object",
+        "description": "What one seat class costs on a schedule. Standard seats use the\nschedule's base prices instead.",
+        "required": [
+          "seatClass",
+          "priceAdult"
+        ],
+        "properties": {
+          "priceAdult": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "priceChild": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Overrides the brand's child discount for this class."
+          },
+          "seatClass": {
+            "type": "string",
+            "description": "`vip`, `premium`, `bed_lower`, `bed_upper`, …"
+          }
+        }
+      },
       "SeatGridSpec": {
         "type": "object",
         "description": "Rectangular seat-grid spec for bus-layout create — the backend\ngenerates the concrete `seat` rows (label / row / col / window /\nfloor) from it. `rows` × `cols` × `floors` seats in total.",
@@ -11761,6 +12231,21 @@
             ],
             "format": "int32",
             "description": "Seat rows per floor (1–20)."
+          }
+        }
+      },
+      "SeatPlan": {
+        "type": "object",
+        "description": "A vehicle's full seat plan: one grid per deck (1 or 2).",
+        "required": [
+          "decks"
+        ],
+        "properties": {
+          "decks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DeckPlan"
+            }
           }
         }
       },
@@ -11999,16 +12484,19 @@
           "brands": {
             "type": "integer",
             "format": "int64",
+            "description": "Active brands.",
             "minimum": 0
           },
           "routes": {
             "type": "integer",
             "format": "int64",
+            "description": "Active routes.",
             "minimum": 0
           },
           "trips": {
             "type": "integer",
             "format": "int64",
+            "description": "Scheduled trips departing today (Vietnam) or later.",
             "minimum": 0
           }
         }
@@ -12168,6 +12656,24 @@
           }
         }
       },
+      "TagCount": {
+        "type": "object",
+        "description": "One review tag and how many reviews mention it.",
+        "required": [
+          "tag",
+          "count"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "tag": {
+            "type": "string"
+          }
+        }
+      },
       "TripAmenity": {
         "type": "object",
         "required": [
@@ -12185,9 +12691,6 @@
       },
       "TripBrandDetail": {
         "type": "object",
-        "required": [
-          "rating"
-        ],
         "properties": {
           "accentColor": {
             "type": [
@@ -12214,8 +12717,12 @@
             ]
           },
           "rating": {
-            "type": "number",
-            "format": "double"
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "Mean of the brand's approved reviews; absent while there are none."
           },
           "slug": {
             "type": [
@@ -12316,6 +12823,7 @@
         "type": "object",
         "required": [
           "id",
+          "bookable",
           "departureDate",
           "status",
           "totalSeats",
@@ -12331,6 +12839,10 @@
           "availableSeats": {
             "type": "integer",
             "format": "int64"
+          },
+          "bookable": {
+            "type": "boolean",
+            "description": "Seats can still be sold: the trip is scheduled and has not left."
           },
           "departureAt": {
             "type": [
@@ -12363,6 +12875,37 @@
           "totalSeats": {
             "type": "integer",
             "format": "int64"
+          }
+        }
+      },
+      "TripDeckPlan": {
+        "type": "object",
+        "description": "The drawable frame of one deck: grid size plus the non-sellable\nfixtures (driver, door, stairs, WC). Seats are placed by their own\n`row`/`col`; every other cell is an aisle or gap.",
+        "required": [
+          "rows",
+          "cols",
+          "fixtures"
+        ],
+        "properties": {
+          "cols": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "fixtures": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlanCell"
+            }
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rows": {
+            "type": "integer",
+            "format": "int32"
           }
         }
       },
@@ -12459,6 +13002,44 @@
           }
         }
       },
+      "TripFare": {
+        "type": "object",
+        "description": "What a class of seats costs on this trip.",
+        "required": [
+          "seatClass",
+          "priceAdult",
+          "seats",
+          "available"
+        ],
+        "properties": {
+          "available": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Seats of the class still for sale."
+          },
+          "priceAdult": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Lowest adult price among the class's seats."
+          },
+          "priceChild": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Child price at `price_adult`; absent without child tickets."
+          },
+          "seatClass": {
+            "type": "string",
+            "description": "`standard` for seats without a class."
+          },
+          "seats": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
       "TripPickupPoint": {
         "type": "object",
         "required": [
@@ -12514,16 +13095,37 @@
         "type": "object",
         "required": [
           "basePriceAdult",
-          "basePriceChild"
+          "basePriceChild",
+          "fares"
         ],
         "properties": {
           "basePriceAdult": {
             "type": "integer",
-            "format": "int64"
+            "format": "int64",
+            "description": "Standard-seat price for an adult."
           },
           "basePriceChild": {
             "type": "integer",
-            "format": "int64"
+            "format": "int64",
+            "description": "Standard-seat price for a child; `0` when the brand has no child tickets."
+          },
+          "childFare": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ChildFarePolicy",
+                "description": "The brand's child tickets; absent = children pay the adult price."
+              }
+            ]
+          },
+          "fares": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TripFare"
+            },
+            "description": "One entry per seat class on this trip, cheapest first."
           }
         }
       },
@@ -12541,7 +13143,6 @@
           "routeName",
           "brandName",
           "brandSlug",
-          "brandRating",
           "brandAccent",
           "fromName",
           "fromLat",
@@ -12594,8 +13195,12 @@
             "type": "string"
           },
           "brandRating": {
-            "type": "number",
-            "format": "double"
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "Mean of the brand's approved reviews; absent while there are none."
           },
           "brandSlug": {
             "type": "string"
@@ -12642,20 +13247,22 @@
           "maxPrice": {
             "type": "integer",
             "format": "int64",
-            "description": "Same as `min_price` for now (backend doesn't have a max price per trip)."
+            "description": "Dearest seat still for sale (VND)."
           },
           "minPrice": {
             "type": "integer",
             "format": "int64",
-            "description": "Adult ticket price (VND)."
+            "description": "Cheapest seat still for sale (VND)."
           },
           "priceAdult": {
             "type": "integer",
-            "format": "int64"
+            "format": "int64",
+            "description": "Standard-seat price for an adult."
           },
           "priceChild": {
             "type": "integer",
-            "format": "int64"
+            "format": "int64",
+            "description": "Standard-seat price for a child; `0` when the brand has no child tickets."
           },
           "routeId": {
             "type": "string",
@@ -12827,6 +13434,14 @@
           "finalPrice"
         ],
         "properties": {
+          "childPrice": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Price for a child; absent when the brand has no child tickets."
+          },
           "code": {
             "type": "string"
           },
@@ -12840,11 +13455,23 @@
           },
           "finalPrice": {
             "type": "integer",
-            "format": "int64"
+            "format": "int64",
+            "description": "Adult price (VND)."
           },
           "id": {
             "type": "string",
             "format": "uuid"
+          },
+          "kind": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CellKind",
+                "description": "What the seat physically is (`seat`, `bed`, `cabin`, …). Absent\nfor layouts that predate seat plans."
+              }
+            ]
           },
           "row": {
             "type": "integer",
@@ -12874,6 +13501,17 @@
           "deck": {
             "type": "integer",
             "format": "int32"
+          },
+          "plan": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TripDeckPlan",
+                "description": "Physical grid of the deck. Absent for layouts that predate seat\nplans — clients then infer a grid from the seats' row/col."
+              }
+            ]
           },
           "rows": {
             "type": "array",
@@ -12937,42 +13575,20 @@
       },
       "UpdateBookingStatusRequest": {
         "type": "object",
-        "description": "Request body for `PATCH /api/admin/bookings/{id}`.",
+        "description": "Request body for `PATCH /api/admin/bookings/{id}`.\n\n`confirmed` (after phoning the customer, from `pending`), `completed`\n(from `confirmed`) or `cancelled` (from either). Completed and\ncancelled tickets are final.",
         "required": [
           "status"
         ],
         "properties": {
-          "force": {
-            "type": "boolean",
-            "description": "When `true`, skips the state-machine transition check (admin override)."
-          },
           "reason": {
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "Why, for the audit log (e.g. \"customer did not answer\")."
           },
           "status": {
-            "type": "string",
-            "description": "`pending` | `confirmed` | `paid` | `completed` | `cancelled` | `refunded`.\n`paid` is normalized to `confirmed`; `refunded` to `cancelled`."
-          }
-        }
-      },
-      "UpdateBookingStatusResponse": {
-        "type": "object",
-        "description": "Response of `PATCH /api/admin/bookings/{id}`.",
-        "required": [
-          "item"
-        ],
-        "properties": {
-          "item": {
-            "$ref": "#/components/schemas/AdminBookingStatusUpdate"
-          },
-          "reason": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": "string"
           }
         }
       },
@@ -13211,6 +13827,17 @@
               "null"
             ]
           },
+          "childFare": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ChildFarePolicy",
+                "description": "Child tickets: a policy turns them on, `null` turns them off, and\nleaving the field out keeps the current setting."
+              }
+            ]
+          },
           "contactEmail": {
             "type": [
               "string",
@@ -13240,13 +13867,6 @@
               "string",
               "null"
             ]
-          },
-          "rating": {
-            "type": [
-              "number",
-              "null"
-            ],
-            "format": "double"
           },
           "slug": {
             "type": [
@@ -13284,6 +13904,17 @@
             "type": [
               "string",
               "null"
+            ]
+          },
+          "plan": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SeatPlan",
+                "description": "Full floor plan — only honoured on CREATE, and wins over\n`seatGrid`. Edit an existing layout's plan with\n`PUT /api/admin/bus-layouts/{id}/plan`."
+              }
             ]
           },
           "seatGrid": {
@@ -13446,7 +14077,8 @@
               "integer",
               "null"
             ],
-            "format": "int64"
+            "format": "int64",
+            "description": "Child price of a standard seat; `0` = the brand's discount applies."
           },
           "busLayoutId": {
             "type": [
@@ -13455,6 +14087,16 @@
             ],
             "format": "uuid",
             "description": "Bus layout id (string on the wire, `Uuid` in Rust)."
+          },
+          "classFares": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/SeatClassFare"
+            },
+            "description": "When present, replaces the fares of every non-standard seat class."
           },
           "daysOfWeek": {
             "type": [
@@ -13504,6 +14146,18 @@
             ],
             "format": "uuid",
             "description": "Vehicle class from the admin-managed `vehicle_type` catalog.\nValidated in the service (404-style validation error when unknown)."
+          }
+        }
+      },
+      "UpsertSeatPlanRequest": {
+        "type": "object",
+        "description": "Body of `PUT /api/admin/bus-layouts/{id}/plan`.",
+        "required": [
+          "plan"
+        ],
+        "properties": {
+          "plan": {
+            "$ref": "#/components/schemas/SeatPlan"
           }
         }
       },

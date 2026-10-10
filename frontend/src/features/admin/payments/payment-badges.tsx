@@ -11,7 +11,7 @@
 import { Badge } from '@/components/ui/badge'
 import { Filter, Banknote, Clock, CheckCircle2, XCircle, Ban, ArrowLeftRight } from 'lucide-react'
 import { useT } from '@/lib/i18n'
-import type { PaymentProvider, PaymentStatus } from '@/lib/queries/payments'
+import type { PaymentProvider, PaymentStatus } from '@/lib/payment'
 
 // Brand names (VNPay, MoMo, …) stay untranslated; 'all' + COD use i18n keys
 // (`labelKey`) resolved at render time.

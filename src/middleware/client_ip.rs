@@ -72,10 +72,76 @@ fn parse_ip(s: &str) -> Option<IpAddr> {
     s.parse::<IpAddr>().ok()
 }
 
+/// Cloudflare's edge networks (<https://www.cloudflare.com/ips/>), as
+/// `(network, prefix length)`.
+const CLOUDFLARE_V4: [([u8; 4], u8); 15] = [
+    ([173, 245, 48, 0], 20),
+    ([103, 21, 244, 0], 22),
+    ([103, 22, 200, 0], 22),
+    ([103, 31, 4, 0], 22),
+    ([141, 101, 64, 0], 18),
+    ([108, 162, 192, 0], 18),
+    ([190, 93, 240, 0], 20),
+    ([188, 114, 96, 0], 20),
+    ([197, 234, 240, 0], 22),
+    ([198, 41, 128, 0], 17),
+    ([162, 158, 0, 0], 15),
+    ([104, 16, 0, 0], 13),
+    ([104, 24, 0, 0], 14),
+    ([172, 64, 0, 0], 13),
+    ([131, 0, 72, 0], 22),
+];
+const CLOUDFLARE_V6: [(u128, u8); 7] = [
+    (0x2400_cb00 << 96, 32),
+    (0x2606_4700 << 96, 32),
+    (0x2803_f800 << 96, 32),
+    (0x2405_b500 << 96, 32),
+    (0x2405_8100 << 96, 32),
+    (0x2a06_98c0 << 96, 29),
+    (0x2c0f_f248 << 96, 32),
+];
+
+/// Whether `ip` is one of Cloudflare's edge servers.
+fn is_cloudflare_edge(ip: IpAddr) -> bool {
+    match ip {
+        IpAddr::V4(a) => {
+            let a = u32::from(a);
+            CLOUDFLARE_V4
+                .iter()
+                .any(|&(net, len)| (a ^ u32::from_be_bytes(net)) >> (32 - len) == 0)
+        }
+        IpAddr::V6(a) => {
+            let a = u128::from(a);
+            CLOUDFLARE_V6
+                .iter()
+                .any(|&(net, len)| (a ^ net) >> (128 - len) == 0)
+        }
+    }
+}
+
 /// Real client IP from the proxy chain: right-anchored
 /// `X-Forwarded-For` (TRUSTED_PROXY_HOPS + 1 from the right), falling
 /// back to `CF-Connecting-IP`, then to the socket peer.
 pub fn real_client_ip(headers: &HeaderMap, socket_ip: IpAddr) -> IpAddr {
+    header_client_ip(headers).unwrap_or(socket_ip)
+}
+
+/// The client IP the proxy headers name, if any (see [`real_client_ip`]).
+///
+/// When the `X-Forwarded-For` entry is a Cloudflare edge server, the proxy
+/// in front of the app recorded Cloudflare rather than the visitor (it does
+/// not trust Cloudflare's own `X-Forwarded-For`); `CF-Connecting-IP` then
+/// names the visitor. Cloudflare overwrites that header itself, so it
+/// cannot be forged through Cloudflare, and a client that skips Cloudflare
+/// does not arrive from an edge address.
+pub fn header_client_ip(headers: &HeaderMap) -> Option<IpAddr> {
+    let cf_connecting = || {
+        headers
+            .get("cf-connecting-ip")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|s| s.trim().parse::<IpAddr>().ok())
+    };
+
     if let Some(xff) = headers.get("x-forwarded-for").and_then(|v| v.to_str().ok()) {
         let hops = trusted_proxy_hops();
         if hops > 0 {
@@ -84,7 +150,11 @@ pub fn real_client_ip(headers: &HeaderMap, socket_ip: IpAddr) -> IpAddr {
             // the proxy BEFORE the last `hops` trusted appends.
             let idx = ips.len().saturating_sub(hops + 1);
             if let Some(ip) = ips.get(idx).and_then(|s| parse_ip(s)) {
-                return ip;
+                return Some(if is_cloudflare_edge(ip) {
+                    cf_connecting().unwrap_or(ip)
+                } else {
+                    ip
+                });
             }
         }
     }
@@ -92,16 +162,7 @@ pub fn real_client_ip(headers: &HeaderMap, socket_ip: IpAddr) -> IpAddr {
     // Cloudflare sets the authoritative client IP here (cannot be
     // spoofed through the public chain; only reachable from inside the
     // private overlay network, which is already post-compromise).
-    if let Some(ip) = headers
-        .get("cf-connecting-ip")
-        .and_then(|v| v.to_str().ok())
-        .and_then(|s| s.trim().parse::<IpAddr>().ok())
-    {
-        return ip;
-    }
-
-    // Direct connection (dev, health checks): socket peer.
-    socket_ip
+    cf_connecting()
 }
 
 #[cfg(test)]
@@ -185,6 +246,29 @@ mod tests {
     fn xff_entry_with_port() {
         let h = headers(&[("x-forwarded-for", "203.0.113.7:54321, 198.51.100.99")]);
         assert_eq!(real_client_ip(&h, ip("10.0.0.9")), ip("203.0.113.7"));
+    }
+
+    /// The proxy recorded a Cloudflare edge (it doesn't trust Cloudflare's
+    /// own `X-Forwarded-For`): the visitor is in `CF-Connecting-IP`.
+    #[test]
+    fn a_cloudflare_edge_defers_to_cf_connecting_ip() {
+        for edge in ["172.70.1.2", "104.21.43.253", "2606:4700:10::ac43:c046"] {
+            let h = headers(&[
+                ("x-forwarded-for", edge),
+                ("cf-connecting-ip", "14.160.0.9"),
+            ]);
+            assert_eq!(
+                real_client_ip(&h, ip("10.0.0.9")),
+                ip("14.160.0.9"),
+                "{edge}"
+            );
+        }
+        // No header to defer to: the edge is all there is.
+        let h = headers(&[("x-forwarded-for", "172.70.1.2")]);
+        assert_eq!(real_client_ip(&h, ip("10.0.0.9")), ip("172.70.1.2"));
+        // Next to the edge ranges is not Cloudflare.
+        assert!(!is_cloudflare_edge(ip("172.72.0.1")));
+        assert!(!is_cloudflare_edge(ip("2606:4701::1")));
     }
 
     /// Garbage XFF entries fall through to the next source instead of

@@ -348,6 +348,14 @@ async fn root_serves_spa_index_when_built() -> anyhow::Result<()> {
 /// Boot the AppState DIRECTLY (not via the router — the router path is
 /// covered by the other smoke tests, and `/api/*` is rate-limited which
 /// needs ConnectInfo the oneshot harness can't provide).
+/// A day trips are searched on: far enough ahead that none has departed yet,
+/// whatever the time of day (Vietnam runs 7 hours ahead of UTC).
+fn travel_date() -> String {
+    (chrono::Utc::now() + chrono::Duration::days(2))
+        .format("%Y-%m-%d")
+        .to_string()
+}
+
 async fn boot_state() -> anyhow::Result<backend::state::AppState> {
     use std::sync::Once;
     static INIT: Once = Once::new();
@@ -407,7 +415,7 @@ async fn search_generates_trips_on_demand() -> anyhow::Result<()> {
         .await?;
 
     // A daily schedule with a vehicle type (layout-less capacity path).
-    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+    let date = travel_date();
     st.admin
         .create_schedule(&backend::dto::admin::UpsertScheduleRequest {
             route_id: Some(route.id),
@@ -419,6 +427,7 @@ async fn search_generates_trips_on_demand() -> anyhow::Result<()> {
             vehicle_type_id: Some(vt_id),
             base_price_adult: Some(350_000),
             base_price_child: None,
+            class_fares: None,
             amenities: None,
             points: None,
         })
@@ -428,7 +437,7 @@ async fn search_generates_trips_on_demand() -> anyhow::Result<()> {
     // the trip and the search must return it.
     let res = st
         .public
-        .search_trips("hà nội", "đà nẵng", &today, 20, 0, vec![], "departure", 1)
+        .search_trips("hà nội", "đà nẵng", &date, 20, 0, vec![], "departure", 1)
         .await?;
     assert_eq!(
         res.items.len(),
@@ -444,7 +453,7 @@ async fn search_generates_trips_on_demand() -> anyhow::Result<()> {
     // Idempotency: a SECOND search for the same date must not duplicate.
     let res2 = st
         .public
-        .search_trips("hà nội", "đà nẵng", &today, 20, 0, vec![], "departure", 1)
+        .search_trips("hà nội", "đà nẵng", &date, 20, 0, vec![], "departure", 1)
         .await?;
     assert_eq!(
         res2.items.len(),
@@ -513,6 +522,7 @@ async fn recommendations_self_heal_with_generated_trips() -> anyhow::Result<()> 
             vehicle_type_id: Some(vt_id),
             base_price_adult: Some(120_000),
             base_price_child: None,
+            class_fares: None,
             amenities: None,
             points: None,
         })
@@ -709,7 +719,7 @@ async fn search_matches_routes_by_city_slugs_not_just_name() -> anyhow::Result<(
         })
         .await?;
 
-    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+    let date = travel_date();
     st.admin
         .create_schedule(&backend::dto::admin::UpsertScheduleRequest {
             route_id: Some(route.id),
@@ -721,6 +731,7 @@ async fn search_matches_routes_by_city_slugs_not_just_name() -> anyhow::Result<(
             vehicle_type_id: Some(vt_id),
             base_price_adult: Some(400_000),
             base_price_child: None,
+            class_fares: None,
             amenities: None,
             points: None,
         })
@@ -729,7 +740,7 @@ async fn search_matches_routes_by_city_slugs_not_just_name() -> anyhow::Result<(
     // Official names (differ from the route name entirely).
     let res = st
         .public
-        .search_trips("Hà Nội", "Đà Nẵng", &today, 20, 0, vec![], "departure", 1)
+        .search_trips("Hà Nội", "Đà Nẵng", &date, 20, 0, vec![], "departure", 1)
         .await?;
     assert_eq!(
         res.items.len(),
@@ -771,13 +782,14 @@ async fn search_matches_routes_by_city_slugs_not_just_name() -> anyhow::Result<(
             vehicle_type_id: Some(vt_id),
             base_price_adult: Some(180_000),
             base_price_child: None,
+            class_fares: None,
             amenities: None,
             points: None,
         })
         .await?;
     let res = st
         .public
-        .search_trips("Sài Gòn", "Cần Thơ", &today, 20, 0, vec![], "departure", 1)
+        .search_trips("Sài Gòn", "Cần Thơ", &date, 20, 0, vec![], "departure", 1)
         .await?;
     assert_eq!(
         res.items.len(),
@@ -788,7 +800,7 @@ async fn search_matches_routes_by_city_slugs_not_just_name() -> anyhow::Result<(
     // Direction still matters: the reverse direction must NOT match.
     let res = st
         .public
-        .search_trips("Đà Nẵng", "Hà Nội", &today, 20, 0, vec![], "departure", 1)
+        .search_trips("Đà Nẵng", "Hà Nội", &date, 20, 0, vec![], "departure", 1)
         .await?;
     assert!(
         res.items.iter().all(|t| t.route_id != route.id),
@@ -823,7 +835,6 @@ async fn search_sorts_by_price_and_rating() -> anyhow::Result<()> {
         .create_brand(&backend::dto::admin::UpsertBrandRequest {
             name: Some("Sort Test A".into()),
             slug: Some("sort-test-a".into()),
-            rating: Some(3.0),
             ..Default::default()
         })
         .await?;
@@ -832,10 +843,22 @@ async fn search_sorts_by_price_and_rating() -> anyhow::Result<()> {
         .create_brand(&backend::dto::admin::UpsertBrandRequest {
             name: Some("Sort Test B".into()),
             slug: Some("sort-test-b".into()),
-            rating: Some(5.0),
             ..Default::default()
         })
         .await?;
+    // A brand's rating is the average of its approved reviews; stand in for
+    // those reviews by writing the averages directly.
+    {
+        use backend::entity::brand;
+        use sea_orm::{sea_query::Expr, ColumnTrait, EntityTrait, QueryFilter};
+        for (id, rating) in [(b1.id, 3.0), (b2.id, 5.0)] {
+            brand::Entity::update_many()
+                .col_expr(brand::Column::Rating, Expr::value(rating))
+                .filter(brand::Column::Id.eq(id))
+                .exec(st.db.as_ref())
+                .await?;
+        }
+    }
 
     let route = st
         .admin
@@ -860,7 +883,7 @@ async fn search_sorts_by_price_and_rating() -> anyhow::Result<()> {
         })
         .await?;
 
-    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+    let date = travel_date();
     // Route 1: expensive 08:00, cheap 21:00 — cheap must come FIRST
     // under sort=price even though it departs later.
     for (time, price) in [("08:00", 500_000i64), ("21:00", 200_000)] {
@@ -875,6 +898,7 @@ async fn search_sorts_by_price_and_rating() -> anyhow::Result<()> {
                 vehicle_type_id: Some(vt_id),
                 base_price_adult: Some(price),
                 base_price_child: None,
+                class_fares: None,
                 amenities: None,
                 points: None,
             })
@@ -892,6 +916,7 @@ async fn search_sorts_by_price_and_rating() -> anyhow::Result<()> {
             vehicle_type_id: Some(vt_id),
             base_price_adult: Some(300_000),
             base_price_child: None,
+            class_fares: None,
             amenities: None,
             points: None,
         })
@@ -900,7 +925,7 @@ async fn search_sorts_by_price_and_rating() -> anyhow::Result<()> {
     // sort=price → ascending min_price.
     let res = st
         .public
-        .search_trips("Hà Nội", "Đà Nẵng", &today, 20, 0, vec![], "price", 1)
+        .search_trips("Hà Nội", "Đà Nẵng", &date, 20, 0, vec![], "price", 1)
         .await?;
     let prices: Vec<i64> = res.items.iter().map(|t| t.min_price).collect();
     let mut sorted = prices.clone();
@@ -912,7 +937,7 @@ async fn search_sorts_by_price_and_rating() -> anyhow::Result<()> {
     // cities via name or slugs — Huế route only matches by name here).
     let res = st
         .public
-        .search_trips("Hà Nội", "Đà Nẵng", &today, 20, 0, vec![], "rating", 1)
+        .search_trips("Hà Nội", "Đà Nẵng", &date, 20, 0, vec![], "rating", 1)
         .await?;
     if let Some(first) = res.items.first() {
         assert_eq!(first.brand_slug, "sort-test-b", "highest rating first");
@@ -921,7 +946,7 @@ async fn search_sorts_by_price_and_rating() -> anyhow::Result<()> {
     // sort=departure (default) → 08:00 before 21:00 on the same route.
     let res = st
         .public
-        .search_trips("Hà Nội", "Đà Nẵng", &today, 20, 0, vec![], "departure", 1)
+        .search_trips("Hà Nội", "Đà Nẵng", &date, 20, 0, vec![], "departure", 1)
         .await?;
     let times: Vec<&str> = res
         .items
@@ -967,7 +992,7 @@ async fn search_paginates_with_offset_and_has_more() -> anyhow::Result<()> {
         .await?;
 
     // THREE schedules on the same route → three trips on the date.
-    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+    let date = travel_date();
     for time in ["07:00", "12:00", "18:00"] {
         st.admin
             .create_schedule(&backend::dto::admin::UpsertScheduleRequest {
@@ -980,6 +1005,7 @@ async fn search_paginates_with_offset_and_has_more() -> anyhow::Result<()> {
                 vehicle_type_id: Some(vt_id),
                 base_price_adult: Some(300_000),
                 base_price_child: None,
+                class_fares: None,
                 amenities: None,
                 points: None,
             })
@@ -989,7 +1015,7 @@ async fn search_paginates_with_offset_and_has_more() -> anyhow::Result<()> {
     // Page 1: two of three trips, hasMore true, total 3.
     let page1 = st
         .public
-        .search_trips("Hà Nội", "Đà Nẵng", &today, 2, 0, vec![], "departure", 1)
+        .search_trips("Hà Nội", "Đà Nẵng", &date, 2, 0, vec![], "departure", 1)
         .await?;
     assert_eq!(page1.items.len(), 2, "page 1 returns exactly limit items");
     assert_eq!(page1.total, Some(3), "total counts ALL matching trips");
@@ -1000,7 +1026,7 @@ async fn search_paginates_with_offset_and_has_more() -> anyhow::Result<()> {
     // Page 2: the remaining trip, hasMore false.
     let page2 = st
         .public
-        .search_trips("Hà Nội", "Đà Nẵng", &today, 2, 2, vec![], "departure", 1)
+        .search_trips("Hà Nội", "Đà Nẵng", &date, 2, 2, vec![], "departure", 1)
         .await?;
     assert_eq!(page2.items.len(), 1, "page 2 returns the last trip only");
     assert_eq!(page2.total, Some(3));
@@ -1027,7 +1053,7 @@ async fn search_paginates_with_offset_and_has_more() -> anyhow::Result<()> {
     // Offset past the end: empty page, hasMore false (not an error).
     let past = st
         .public
-        .search_trips("Hà Nội", "Đà Nẵng", &today, 2, 10, vec![], "departure", 1)
+        .search_trips("Hà Nội", "Đà Nẵng", &date, 2, 10, vec![], "departure", 1)
         .await?;
     assert!(past.items.is_empty());
     assert_eq!(past.has_more, Some(false));
@@ -1041,7 +1067,7 @@ async fn search_paginates_with_offset_and_has_more() -> anyhow::Result<()> {
     // hasMore:false instead of guessing from an empty array).
     let none = st
         .public
-        .search_trips("Hà Nội", "Cà Mau", &today, 2, 0, vec![], "departure", 1)
+        .search_trips("Hà Nội", "Cà Mau", &date, 2, 0, vec![], "departure", 1)
         .await?;
     assert!(none.items.is_empty());
     assert_eq!(none.has_more, Some(false));
@@ -1146,7 +1172,7 @@ async fn geo_search_ranks_by_proximity_and_paginates() -> anyhow::Result<()> {
 
     // Route A gets TWO departures, route B one — the ranked list must
     // interleave them as A, A, B (proximity dominates).
-    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+    let date = travel_date();
     let geo_departures: [(uuid::Uuid, &str); 3] = [
         (route_a.id, "08:00"),
         (route_a.id, "14:00"),
@@ -1164,6 +1190,7 @@ async fn geo_search_ranks_by_proximity_and_paginates() -> anyhow::Result<()> {
                 vehicle_type_id: Some(vt_id),
                 base_price_adult: Some(250_000),
                 base_price_child: None,
+                class_fares: None,
                 amenities: None,
                 points: None,
             })
@@ -1178,7 +1205,7 @@ async fn geo_search_ranks_by_proximity_and_paginates() -> anyhow::Result<()> {
             from_lon,
             to_lat,
             to_lon,
-            &today,
+            &date,
             10,
             0,
             1,
@@ -1204,7 +1231,7 @@ async fn geo_search_ranks_by_proximity_and_paginates() -> anyhow::Result<()> {
             from_lon,
             to_lat,
             to_lon,
-            &today,
+            &date,
             2,
             0,
             1,
@@ -1224,7 +1251,7 @@ async fn geo_search_ranks_by_proximity_and_paginates() -> anyhow::Result<()> {
             from_lon,
             to_lat,
             to_lon,
-            &today,
+            &date,
             2,
             2,
             1,

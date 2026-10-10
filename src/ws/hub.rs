@@ -113,6 +113,59 @@ pub fn hub() -> &'static ChatHub {
     })
 }
 
+/// Why [`admit`] turned a socket away.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Refusal {
+    /// `WS_MAX_CONNECTIONS` chat sockets are open.
+    Full,
+    /// `WS_MAX_PER_IP` chat sockets are open from this address.
+    IpFull,
+}
+
+/// The connection slots (global + per-IP) a chat socket holds until its
+/// session is registered — from then on `unregister` gives them back.
+/// Dropping an `Admission` that never became a session releases them, so
+/// an HTTP upgrade that fails (axum drops the callback holding this
+/// without running the socket task) no longer leaks its slots.
+#[must_use = "dropping an Admission gives its slots back"]
+#[derive(Debug)]
+pub struct Admission {
+    ip: Option<String>,
+}
+
+impl Admission {
+    /// Hand the slots to the session being registered for this socket;
+    /// returns the IP whose slot `unregister` will release.
+    pub(crate) fn into_session(mut self) -> String {
+        self.ip.take().unwrap_or_default()
+    }
+}
+
+impl Drop for Admission {
+    fn drop(&mut self) {
+        if let Some(ip) = self.ip.take() {
+            hub().release_ip(&ip);
+            hub().release_global();
+        }
+    }
+}
+
+/// Take a global and a per-IP slot for a socket from `ip` (global first:
+/// the cheapest refusal), or neither.
+pub fn admit(ip: &str, max_per_ip: usize) -> Result<Admission, Refusal> {
+    let hub = hub();
+    if !hub.try_acquire_global() {
+        return Err(Refusal::Full);
+    }
+    if !hub.try_acquire_ip(ip, max_per_ip) {
+        hub.release_global();
+        return Err(Refusal::IpFull);
+    }
+    Ok(Admission {
+        ip: Some(ip.to_string()),
+    })
+}
+
 /// Initialise the hub with config-derived limits. MUST be called before
 /// the first `hub()` call (which happens on the first WS upgrade). Safe
 /// to call multiple times — second call is a no-op (the config is locked
@@ -186,13 +239,10 @@ impl ChatHub {
 
     /// Release a global connection slot (called on disconnect).
     pub fn release_global(&self) {
-        // fetch_sub saturating at 0 (defensive — should never underflow if
-        // acquire/release are balanced, but a double-release must not panic).
-        let prev = self.global_conns.fetch_sub(1, Ordering::AcqRel);
-        if prev == 0 {
-            // Undo the underflow we just caused.
-            self.global_conns.store(0, Ordering::Release);
-        }
+        // Saturating at 0 in one atomic step (acquire/release are balanced,
+        // but a double release must neither wrap to usize::MAX for another
+        // thread to see nor, by "undoing" it, erase a concurrent acquire).
+        super::saturating_decrement(&self.global_conns);
     }
 
     /// Current live session count (O(1) atomic read).
@@ -237,7 +287,8 @@ impl ChatHub {
     pub fn release_ip(&self, ip: &str) {
         use std::sync::atomic::Ordering;
         if let Some(entry) = self.ip_conns.get(ip) {
-            let prev = entry.fetch_sub(1, Ordering::AcqRel);
+            // Saturating, like `release_global`: an extra release leaves 0.
+            let prev = super::saturating_decrement(&entry);
             let hit_zero = prev <= 1;
             drop(entry);
             if hit_zero {
@@ -974,6 +1025,33 @@ mod tests {
     use super::*;
     use crate::auth::SessionUser;
     use uuid::Uuid;
+
+    fn slots_of(ip: &str) -> usize {
+        hub()
+            .ip_conns
+            .get(ip)
+            .map(|n| n.load(std::sync::atomic::Ordering::Acquire))
+            .unwrap_or(0)
+    }
+
+    /// An upgrade that fails drops the callback holding the admission:
+    /// its slots must come back, leaving no stale per-IP entry.
+    #[test]
+    fn an_admission_that_never_became_a_session_gives_its_slots_back() {
+        let ip = "192.0.2.201";
+        let admission = admit(ip, 0).unwrap();
+        assert_eq!(slots_of(ip), 1);
+        drop(admission);
+        assert_eq!(slots_of(ip), 0);
+        assert!(hub().ip_conns.get(ip).is_none());
+
+        // Handed to a session, the slot stays until `unregister`.
+        let ip = "192.0.2.202";
+        let held = admit(ip, 0).unwrap().into_session();
+        assert_eq!((held.as_str(), slots_of(ip)), (ip, 1));
+        hub().release_ip(&held);
+        hub().release_global();
+    }
 
     /// Build a fresh (non-singleton) hub for testing. The global hub() is a
     /// `OnceLock`-cached singleton, so to test concurrent operations in

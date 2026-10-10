@@ -11,7 +11,7 @@
 import { Skeleton } from '@/components/ui/skeleton'
 import { CheckCircle2, Clock, EyeOff, LayoutGrid, Star, XCircle } from 'lucide-react'
 import { useT } from '@/lib/i18n'
-import type { AdminReviewBrandSummary } from '@/lib/api/types.gen'
+import type { AdminReviewBrandSummary } from '@/api'
 
 function BrandSummaryCard({
   summary,
@@ -40,7 +40,7 @@ function BrandSummaryCard({
       <div className="flex items-center gap-3">
         <div
           className="size-10 shrink-0 rounded-lg grid place-items-center text-white font-bold text-sm"
-          style={{ background: `linear-gradient(135deg, ${accent}, ${accent}bb)` }}
+          style={{ background: accent }}
           aria-hidden
         >
           {(summary.brandName ?? '?').slice(0, 2).toUpperCase()}

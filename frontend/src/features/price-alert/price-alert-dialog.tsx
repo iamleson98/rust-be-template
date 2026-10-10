@@ -1,13 +1,16 @@
 'use client'
 
+import { priceAlertsCreateMutation, priceAlertsRemoveMutation, priceAlertsListOptions } from '@/api'
+import { useMutation, useQuery } from '@tanstack/react-query'
+import { useUi } from '@/stores/ui'
+import { useGuest } from '@/stores/guest'
+import { useSearchForm } from '@/stores/search-form'
 import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useApp } from '@/lib/store'
 import { useT } from '@/lib/i18n'
-import { useCreatePriceAlert, usePriceAlerts, useRemovePriceAlert } from '@/lib/queries'
-import type { PriceAlertOut as PriceAlert } from '@/lib/api/types.gen'
+import type { PriceAlertOut as PriceAlert } from '@/api'
 import {
   Dialog,
   DialogContent,
@@ -29,7 +32,7 @@ import {
 } from '@/components/ui/form'
 import { toast } from 'sonner'
 import { Bell, ArrowRight, Phone, Mail, Loader2, CheckCircle2 } from 'lucide-react'
-import { formatVND } from '@/lib/types'
+import { formatVND } from '@/lib/format'
 import { priceAlertSchema, type PriceAlertFormValues } from './price-alert-schema'
 import { PriceAlertFrequencyField } from './price-alert-frequency-field'
 import { PriceAlertTargetField } from './price-alert-target-field'
@@ -39,15 +42,13 @@ import { getErrorMessage } from '@/lib/error-message'
 type ExistingAlert = PriceAlert
 
 export function PriceAlertDialog() {
-  const {
-    priceAlertOpen,
-    setPriceAlertOpen,
-    priceAlertContext,
-    guestPhone,
-    setGuestPhone,
-    guestName,
-    searchParams,
-  } = useApp()
+  const priceAlertContext = useUi((s) => s.priceAlert)
+  const closePriceAlert = useUi((s) => s.closePriceAlert)
+  const priceAlertOpen = !!priceAlertContext
+  const guestPhone = useGuest((s) => s.guestPhone)
+  const setGuestPhone = useGuest((s) => s.setGuestPhone)
+  const guestName = useGuest((s) => s.guestName)
+  const searchParams = useSearchForm((s) => s.searchParams)
   const t = useT()
 
   const [submitting, setSubmitting] = useState(false)
@@ -55,9 +56,9 @@ export function PriceAlertDialog() {
 
   // Create-alert mutation — wraps POST /api/price-alerts and invalidates
   // the price-alerts cache on success so the existing-alerts list refreshes.
-  const createAlertMut = useCreatePriceAlert()
+  const createAlertMut = useMutation(priceAlertsCreateMutation())
   // Cancel (soft-delete) an existing alert.
-  const removeAlertMut = useRemovePriceAlert()
+  const removeAlertMut = useMutation(priceAlertsRemoveMutation())
 
   // Resolve from/to + min price
   const fromName = priceAlertContext?.fromName || searchParams.from || ''
@@ -85,9 +86,10 @@ export function PriceAlertDialog() {
   const frequency = watch('frequency')
 
   // Guest lookup of existing alerts by phone (public endpoint).
-  // Declared after `phone` is available — `usePriceAlerts` passes it as a
-  // query param to `GET /api/price-alerts?phone=`.
-  const phoneQuery = usePriceAlerts(phone)
+  const phoneQuery = useQuery({
+    ...priceAlertsListOptions({ query: { phone } }),
+    enabled: priceAlertOpen && !!phone && phone.length >= 9,
+  })
 
   // Pre-fill phone from guest profile when it becomes available
   useEffect(() => {
@@ -109,12 +111,7 @@ export function PriceAlertDialog() {
     }
   }, [priceAlertOpen, minPrice, setValue])
 
-  // Existing alerts for the current phone — sourced from the
-  // centralized `usePriceAlerts(phone)` query (cached, deduped, and
-  // auto-invalidated by the create/remove mutations). Only fetched
-  // when the dialog is open and the phone is long enough.
-  const existingAlerts: ExistingAlert[] =
-    priceAlertOpen && phone && phone.length >= 9 ? (phoneQuery.data?.items ?? []) : []
+  const existingAlerts: ExistingAlert[] = phoneQuery.data?.items ?? []
 
   const handleDeleteAlert = async (id: string) => {
     try {
@@ -163,7 +160,7 @@ export function PriceAlertDialog() {
   }
 
   return (
-    <Dialog open={priceAlertOpen} onOpenChange={(o) => setPriceAlertOpen(o)}>
+    <Dialog open={priceAlertOpen} onOpenChange={(o) => !o && closePriceAlert()}>
       <DialogContent className="max-w-lg w-[95vw] max-h-[92dvh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-center gap-3">
@@ -205,7 +202,7 @@ export function PriceAlertDialog() {
               <Button
                 size="sm"
                 className="bg-blue-600 hover:bg-blue-700 text-white"
-                onClick={() => setPriceAlertOpen(false)}
+                onClick={closePriceAlert}
               >
                 {t('priceAlert.done')}
               </Button>
@@ -321,7 +318,7 @@ export function PriceAlertDialog() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setPriceAlertOpen(false)}
+                  onClick={closePriceAlert}
                   disabled={submitting}
                 >
                   {t('common.cancel')}

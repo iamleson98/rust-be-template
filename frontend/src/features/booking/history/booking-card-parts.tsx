@@ -2,7 +2,7 @@
 
 // Extracted from the original 'booking-card.tsx'.
 
-import { formatDateTimeVN } from '@/lib/types'
+import { formatDateTimeVN } from '@/lib/format'
 
 /* ───────────────────────────────────────────────────────────────────────
  * Small presentational helpers — kept in this file so the BookingCard is
@@ -18,7 +18,7 @@ export function InfoTile({
   value: string
 }) {
   return (
-    <div className="bg-white rounded-lg ring-1 ring-black/5 p-3">
+    <div className="rounded-lg border bg-card p-3">
       <div className="text-[10px] uppercase font-bold tracking-wide text-muted-foreground mb-0.5 flex items-center gap-1">
         {icon}
         {label}

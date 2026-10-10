@@ -20,7 +20,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Loader2 } from 'lucide-react'
 import { useT } from '@/lib/i18n'
-import type { CronJobOut, UpdateCronJobRequest } from '@/lib/api/types.gen'
+import type { CronJobOut, UpdateCronJobRequest } from '@/api'
 
 export function ScheduleEditDialog({
   job,

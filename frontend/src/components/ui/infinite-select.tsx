@@ -79,6 +79,16 @@ export type InfiniteFetchPage<T> = (
   signal?: AbortSignal,
 ) => Promise<InfinitePage<T>>
 
+/** Shape a `{ items, total }` list response into an `InfinitePage` for the page at `offset`. */
+export function toInfinitePage<T>(
+  body: { items?: T[]; total?: number } | undefined,
+  offset: number,
+): InfinitePage<T> {
+  const items = body?.items ?? []
+  const total = body?.total ?? 0
+  return { items, total, hasMore: offset + items.length < total }
+}
+
 /** Distance (px) before the list bottom that pre-triggers a page load. */
 const LOAD_MORE_MARGIN = 200
 

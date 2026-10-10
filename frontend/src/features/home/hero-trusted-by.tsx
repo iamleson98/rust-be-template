@@ -2,9 +2,10 @@
 
 // Extracted from the original 'hero.tsx'.
 
+import { useQuery } from '@tanstack/react-query'
+import { brandsOptions } from '@/api'
 import { useMemo } from 'react'
 import { Bus } from 'lucide-react'
-import { useBrands } from '@/lib/queries'
 import { useT } from '@/lib/i18n'
 
 /**
@@ -18,7 +19,7 @@ import { useT } from '@/lib/i18n'
  */
 export function HeroTrustedBy() {
   const t = useT()
-  const { data } = useBrands()
+  const { data } = useQuery(brandsOptions())
   // The public brands endpoint only returns ACTIVE brands — no extra
   // filtering needed here.
   const brands = useMemo(() => (data?.items ?? []).slice(0, 8), [data])

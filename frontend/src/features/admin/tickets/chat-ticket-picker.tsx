@@ -20,6 +20,12 @@
  * and accessible (every interactive element has an aria-label).
  */
 
+import {
+  adminBookingsUpdateStatusMutation,
+  bookingsHoldMutation,
+  bookingsPlaceMutation,
+} from '@/api'
+import { useMutation } from '@tanstack/react-query'
 import { useState, useMemo, useCallback, useEffect } from 'react'
 import {
   Dialog,
@@ -32,7 +38,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { SeatMapSkeleton } from '@/features/trips/seat-map-skeleton'
+import { SeatMapSkeleton } from '@/features/seat-plan'
 import { toast } from 'sonner'
 import {
   Search,
@@ -45,9 +51,11 @@ import {
   Ticket as TicketIcon,
 } from 'lucide-react'
 import { format } from 'date-fns'
-import { usePlaceSearch, useTripSearch, useTripDetail, useAdminCreateBooking } from '@/lib/queries'
-import type { TripResult } from '@/lib/api/types.gen'
-import type { AdminChannel as Channel } from '@/features/admin/dashboard/types'
+import { usePlaceSearch } from '@/features/map/api'
+import { useTripSearch } from '@/features/search/api'
+import { useTripDetail } from '@/features/trips/api'
+import type { TripResult } from '@/api'
+import type { ChatChannelOut as Channel } from '@/api'
 import type { Seat, Passenger, Step } from './chat-ticket-picker-types'
 import { SearchStep } from './ticket-picker-search-step'
 import { SeatsStep } from './ticket-picker-seats-step'
@@ -55,22 +63,10 @@ import { PassengerStep } from './ticket-picker-passenger-step'
 import { ConfirmStep } from './ticket-picker-confirm-step'
 import { getErrorMessage } from '@/lib/error-message'
 import { useT } from '@/lib/i18n'
-
-/**
- * Structural type of the booking object returned by the create-booking
- * mutation (union-typed in the generated SDK; the picker only reads
- * these fields).
- */
+import { ticketPrice } from '@/features/booking/fares'
 
 /** Stable empty default — keeps useMemo deps referentially stable when data is not loaded yet. */
 const EMPTY_POINTS: never[] = []
-type CreatedTicketItem = {
-  id?: string
-  code?: string
-  status?: string
-  total?: number
-  currency?: string | null
-}
 
 export type CreatedTicketPayload = {
   bookingId: string
@@ -165,7 +161,9 @@ export function ChatTicketPicker({
     fromPlace && toPlace && date ? { from: fromPlace.name, to: toPlace.name, date } : null,
   )
   const tripDetail = useTripDetail(selectedTrip?.tripId)
-  const createBooking = useAdminCreateBooking()
+  const createBooking = useMutation(bookingsHoldMutation())
+  const placeBooking = useMutation(bookingsPlaceMutation())
+  const confirmBooking = useMutation(adminBookingsUpdateStatusMutation())
 
   // ── Derived state ──
   const trip = tripDetail.data
@@ -223,7 +221,6 @@ export function ChatTicketPicker({
           seatCode: s.code,
           name: contactName || '',
           type: 'adult' as const,
-          age: 0,
         }
       })
       return next
@@ -231,8 +228,18 @@ export function ChatTicketPicker({
   }, [selectedSeats, contactName])
 
   const totalPrice = useMemo(
-    () => selectedSeats.reduce((sum, s) => sum + s.finalPrice, 0),
-    [selectedSeats],
+    () =>
+      selectedSeats.reduce((sum, seat) => {
+        const sitter = passengers.find((p) => p.seatId === seat.id)
+        return (
+          sum +
+          ticketPrice(
+            { price: seat.finalPrice, childPrice: seat.childPrice },
+            sitter?.type ?? 'adult',
+          )
+        )
+      }, 0),
+    [selectedSeats, passengers],
   )
 
   const canProceedSeats = selectedSeats.length > 0
@@ -246,36 +253,46 @@ export function ChatTicketPicker({
       toast.error(t('adminTickets.missingTripInfo'))
       return
     }
-    if (!boardingPointId || !droppingPointId) {
+    const hasStops = pickupPoints.length > 0
+    if (hasStops && (!boardingPointId || !droppingPointId)) {
       toast.error(t('adminTickets.chooseBoardingDropoff'))
       return
     }
+    // The server prices by age: a child is sent at the brand's age limit.
+    const childAge = trip.pricing.childFare?.maxAge
     try {
-      const result = await createBooking.mutateAsync({
+      const held = await createBooking.mutateAsync({
         body: {
           tripId: selectedTrip.tripId,
           seatIds: selectedSeats.map((s) => s.id),
           passengers: passengers.map((p) => ({
             name: p.name,
-            type: p.type,
-            age: p.age,
+            seatId: p.seatId,
+            age: p.type === 'child' ? childAge : undefined,
           })),
-          boardingPointId,
-          droppingPointId,
+          boardingPointId: hasStops ? boardingPointId : null,
+          droppingPointId: hasStops ? droppingPointId : null,
           contactName,
           contactPhone,
           contactEmail: contactEmail || undefined,
-          campaignCode: undefined,
         },
-      } as unknown as Parameters<typeof createBooking.mutate>[0])
-      const item = (((result ?? {}) as { item?: CreatedTicketItem }).item ?? result) as
-        CreatedTicketItem | undefined
+      })
+      // Paid on board; staff selling it at the counter can confirm it on the spot.
+      await placeBooking.mutateAsync({ path: { id: held.bookingId } })
+      const confirmed = autoConfirm
+        ? (
+            await confirmBooking.mutateAsync({
+              path: { id: held.bookingId },
+              body: { status: 'confirmed', reason: 'counter sale' },
+            })
+          ).item
+        : null
       const payload: CreatedTicketPayload = {
-        bookingId: item?.id ?? '',
-        bookingCode: item?.code ?? '',
-        status: item?.status ?? (autoConfirm ? 'confirmed' : 'pending'),
-        totalAmount: item?.total ?? totalPrice,
-        currency: item?.currency ?? null,
+        bookingId: held.bookingId,
+        bookingCode: held.code,
+        status: confirmed?.status ?? held.status,
+        totalAmount: held.total,
+        currency: 'VND',
         contactName,
         contactPhone,
         trip: {
@@ -288,10 +305,10 @@ export function ChatTicketPicker({
           brandAccent: selectedTrip.brandAccent,
           brandLogo: selectedTrip.brandLogo ?? null,
         },
-        seats: selectedSeats.map((s, i) => ({
-          code: s.code,
-          passengerName: passengers[i]?.name ?? '',
-          price: s.finalPrice,
+        seats: held.seats.map((s) => ({
+          code: s.seatCode ?? '',
+          passengerName: s.passengerName ?? '',
+          price: s.price ?? 0,
         })),
         createdAt: new Date().toISOString(),
       }
@@ -308,16 +325,18 @@ export function ChatTicketPicker({
   }, [
     selectedTrip,
     trip,
+    pickupPoints,
     boardingPointId,
     droppingPointId,
     createBooking,
+    placeBooking,
+    confirmBooking,
     selectedSeats,
     passengers,
     contactName,
     contactPhone,
     contactEmail,
     autoConfirm,
-    totalPrice,
     onCreated,
     onOpenChange,
     t,
@@ -392,6 +411,7 @@ export function ChatTicketPicker({
                 setContactEmail={setContactEmail}
                 autoConfirm={autoConfirm}
                 setAutoConfirm={setAutoConfirm}
+                childFare={trip?.pricing.childFare}
               />
             )}
 

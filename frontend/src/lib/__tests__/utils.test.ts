@@ -2,17 +2,10 @@
  * Tests for utility functions — currency, formatting, phone normalization.
  */
 import { describe, it, expect } from 'vitest'
-import { formatCurrency, EXCHANGE_RATE } from '@/lib/currency'
-import {
-  formatVND,
-  formatNum,
-  formatDuration,
-  normalizePhone,
-  noTones,
-  SEAT_CLASS_LABELS,
-  SEAT_CLASS_COLORS,
-  VEHICLE_TYPE_LABELS,
-} from '@/lib/types'
+import { formatCurrency, EXCHANGE_RATE } from '@/lib/format'
+import { formatVND, formatNum, formatDuration } from '@/lib/format'
+import { normalizePhone, noTones } from '@/lib/text'
+import { SEAT_CLASS_LABELS, SEAT_CLASS_COLORS, VEHICLE_TYPE_LABELS } from '@/lib/labels'
 import { cn } from '@/lib/utils'
 
 // ── Currency ──────────────────────────────────────────────────

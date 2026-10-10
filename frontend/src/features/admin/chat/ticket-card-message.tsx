@@ -4,33 +4,30 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Ticket as TicketIcon, Bus, MapPin, Armchair, User as UserIcon } from 'lucide-react'
 import { useT } from '@/lib/i18n'
-import type { AdminChatMessage as ChatMessage } from '@/features/admin/dashboard/types'
-import { BookingStatusBadge } from '@/features/admin/dashboard/booking-status-badge'
+import type { ChatMessageOut } from '@/api'
+import { TicketStatusBadge } from '@/features/booking/history/ticket-status-badge'
 import type { CreatedTicketPayload } from '@/features/admin/tickets/chat-ticket-picker'
 
-export function parseTicketPayload(m: ChatMessage): CreatedTicketPayload | null {
-  // Prefer the `attachments` field (canonical).
-  if (m.attachments) {
-    try {
-      const parsed = JSON.parse(m.attachments)
-      if (parsed && parsed.bookingCode) return parsed as CreatedTicketPayload
-    } catch {
-      /* fall through */
-    }
+const asPayload = (json: string | null | undefined): CreatedTicketPayload | null => {
+  try {
+    const parsed = json ? JSON.parse(json) : null
+    return parsed?.bookingCode ? (parsed as CreatedTicketPayload) : null
+  } catch {
+    return null
   }
-  // Fallback: `kind === 'ticket'` + content is JSON.
-  if (m.kind === 'ticket' && m.content.trim().startsWith('{')) {
-    try {
-      const parsed = JSON.parse(m.content)
-      if (parsed && parsed.bookingCode) return parsed as CreatedTicketPayload
-    } catch {
-      /* fall through */
-    }
-  }
-  return null
 }
 
-/** Render a beautiful booking-card message inside the chat scroll area. */
+/** The booking card carried by a message: in `attachments`, or as JSON content of a `ticket` message. */
+export function parseTicketPayload(message: ChatMessageOut): CreatedTicketPayload | null {
+  return (
+    asPayload(message.attachments) ??
+    (message.kind === 'ticket' && message.content?.trim().startsWith('{')
+      ? asPayload(message.content)
+      : null)
+  )
+}
+
+/** A booking rendered as a ticket card inside the conversation. */
 export function TicketCardMessage({
   payload,
   isEmployee,
@@ -60,7 +57,12 @@ export function TicketCardMessage({
             <TicketIcon className="h-3.5 w-3.5" />
             {t('adminChat.eTicket')}
           </div>
-          {payload.status && <BookingStatusBadge status={payload.status} />}
+          {payload.status && (
+            <TicketStatusBadge
+              booking={{ status: payload.status, paymentMethod: 'cod' }}
+              className="text-[10px]"
+            />
+          )}
         </div>
 
         {/* Body */}

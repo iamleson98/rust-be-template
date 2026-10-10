@@ -74,7 +74,7 @@ extension AppDelegate: PKPushRegistryDelegate {
     // id / nameCaller / handle / type / avatar / duration / extra
     // (built in src/push/mod.rs `notify_incoming_call`). Reporting it
     // to CallKit here satisfies Apple's iOS 13+ VoIP policy.
-    let data = flutter_callkit_incoming.Data(args: payload)
+    let data = flutter_callkit_incoming.Data(args: payload as NSDictionary)
     SwiftFlutterCallkitIncomingPlugin.sharedInstance?.showCallkitIncoming(
       data,
       fromPushKit: true)

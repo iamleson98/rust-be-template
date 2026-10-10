@@ -30,6 +30,7 @@ pub mod roles;
 pub mod route;
 pub mod route_picture;
 pub mod schedule;
+pub mod schedule_fare;
 pub mod schedule_point;
 pub mod scheduled_job;
 pub mod seat;

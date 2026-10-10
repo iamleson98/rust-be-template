@@ -14,7 +14,7 @@ export const SystemMetricsSkeleton = memo(function SystemMetricsSkeleton() {
   return (
     <div className="space-y-3" aria-hidden data-testid="system-metrics-skeleton">
       {/* CPU / Memory / This Process card row */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         {[0, 1, 2].map((i) => (
           <div key={i} className="rounded-xl border bg-card py-6">
             <div className="space-y-3 px-6">

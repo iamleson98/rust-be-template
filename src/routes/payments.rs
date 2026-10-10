@@ -24,9 +24,10 @@ use uuid::Uuid;
 use validator::Validate;
 
 use crate::dto::payment::{
-    AdminPaymentListResponse, AdminPaymentsQuery, CancelPaymentReq, CancelPaymentResponse,
-    CreatePaymentReq, CreatePaymentResponse, ListPaymentsResponse, MarkCodCollectedReq,
-    MarkCodCollectedResponse, PaymentOut, UpdatePaymentStatusReq, UpdatePaymentStatusResponse,
+    AdminPaymentListResponse, AdminPaymentSummary, AdminPaymentsQuery, CancelPaymentReq,
+    CancelPaymentResponse, CreatePaymentReq, CreatePaymentResponse, ListPaymentsResponse,
+    MarkCodCollectedReq, MarkCodCollectedResponse, PaymentOut, PaymentProvidersResponse,
+    UpdatePaymentStatusReq, UpdatePaymentStatusResponse,
 };
 use crate::error::AppError;
 use crate::middleware::{AdminUser, MaybeAuthUser};
@@ -68,6 +69,19 @@ pub async fn create_payment(
             .create_payment(&body, user_id.as_deref())
             .await?,
     ))
+}
+
+/// `GET /api/payments/providers` — the providers checkout can offer.
+#[utoipa::path(
+    get,
+    path = "/api/payments/providers",
+    tag = "payments",
+    responses(
+        (status = 200, description = "Enabled payment providers", body = PaymentProvidersResponse),
+    )
+)]
+pub async fn list_providers(State(st): State<AppState>) -> Json<PaymentProvidersResponse> {
+    Json(st.payments.enabled_providers())
 }
 
 /// `GET /api/payments/{id}` — get payment status (for polling).
@@ -378,6 +392,27 @@ pub async fn list_admin_payments(
     ))
 }
 
+/// `GET /api/admin/payments/summary` — payments per status and the money collected.
+#[utoipa::path(
+    get,
+    path = "/api/admin/payments/summary",
+    tag = "admin",
+    responses(
+        (status = 200, description = "Payment totals", body = AdminPaymentSummary),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Forbidden"),
+    )
+)]
+pub async fn admin_payment_summary(
+    State(st): State<AppState>,
+    admin: AdminUser,
+) -> Result<Json<AdminPaymentSummary>, AppError> {
+    st.rbac
+        .require(admin.user_id(), rbac::ADMIN_PAYMENTS_READ)
+        .await?;
+    Ok(Json(st.payments.admin_summary().await?))
+}
+
 /// `PATCH /api/admin/payments/{id}` — admin override of payment status.
 ///
 /// Used to manually mark a payment as `completed` (when the IPN failed
@@ -424,6 +459,7 @@ pub fn router() -> axum::Router<crate::state::AppState> {
     use axum::routing::{get, post};
     axum::Router::new()
         .route("/", post(create_payment))
+        .route("/providers", get(list_providers))
         .route("/booking/{bookingId}", get(list_booking_payments))
         .route("/{id}", get(get_payment))
         .route("/{id}/cancel", post(cancel_payment))
@@ -442,5 +478,6 @@ pub fn admin_router() -> axum::Router<crate::state::AppState> {
     use axum::routing::{get, patch};
     axum::Router::new()
         .route("/", get(list_admin_payments))
+        .route("/summary", get(admin_payment_summary))
         .route("/{id}", patch(update_payment_status))
 }

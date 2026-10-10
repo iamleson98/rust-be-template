@@ -5,8 +5,8 @@ use uuid::Uuid;
 use validator::Validate;
 
 use crate::dto::booking::{
-    BookingCancelResponse, BookingConfirmResponse, BookingDetailResponse, BookingHoldResponse,
-    BookingListItem, BookingListResponse, CancelReq, ConfirmReq, HoldReq,
+    BookingCancelResponse, BookingConfirmResponse, BookingHoldResponse, BookingListResponse,
+    BookingOut, CancelReq, HoldReq,
 };
 use crate::error::AppError;
 use crate::middleware::AuthUser;
@@ -14,12 +14,11 @@ use crate::state::AppState;
 
 #[derive(Deserialize, utoipa::IntoParams)]
 pub struct ListQuery {
-    pub status: Option<String>,
     pub limit: Option<u64>,
     pub offset: Option<u64>,
 }
 
-/// `GET /api/bookings` — list the authenticated user's bookings.
+/// `GET /api/bookings` — the authenticated customer's tickets, newest first.
 #[utoipa::path(
     get,
     path = "/api/bookings",
@@ -35,13 +34,9 @@ pub async fn list(
     AuthUser(uid): AuthUser,
     Query(q): Query<ListQuery>,
 ) -> Result<Json<BookingListResponse>, AppError> {
-    let status = q.status.unwrap_or_else(|| "all".into());
-    let limit = q.limit.unwrap_or(20).min(200);
-    let offset = q.offset.unwrap_or(0);
+    let limit = q.limit.unwrap_or(50);
     Ok(Json(
-        st.bookings
-            .list(&uid.to_string(), &status, limit, offset)
-            .await?,
+        st.bookings.list(uid, limit, q.offset.unwrap_or(0)).await?,
     ))
 }
 
@@ -68,17 +63,15 @@ pub async fn hold(
     Ok(Json(st.bookings.hold_with_user(uid, &body).await?))
 }
 
-/// `GET /api/bookings/{id}` — get booking detail.
-///
-/// `{id}` accepts EITHER the booking UUID (legacy/admin callers) or the
-/// human-facing booking code (frontend deep links like `/bookings/{code}`).
+/// `GET /api/bookings/{id}` — one of the customer's bookings, by UUID or
+/// by its code.
 #[utoipa::path(
     get,
     path = "/api/bookings/{id}",
     tag = "bookings",
     params(("id" = String, Path, description = "Booking ID (UUID) or booking code")),
     responses(
-        (status = 200, description = "Booking detail", body = BookingListItem),
+        (status = 200, description = "Booking detail", body = BookingOut),
         (status = 401, description = "Unauthorized"),
         (status = 404, description = "Not found"),
     )
@@ -87,12 +80,8 @@ pub async fn detail(
     State(st): State<AppState>,
     AuthUser(uid): AuthUser,
     Path(id): Path<String>,
-) -> Result<Json<BookingDetailResponse>, AppError> {
-    Ok(Json(
-        st.bookings
-            .detail_by_id_or_code(Some(&uid.to_string()), &id)
-            .await?,
-    ))
+) -> Result<Json<BookingOut>, AppError> {
+    Ok(Json(st.bookings.detail(uid, &id).await?))
 }
 
 /// `POST /api/bookings/{id}/cancel` — cancel a booking.
@@ -121,30 +110,27 @@ pub async fn cancel(
     ))
 }
 
-/// `POST /api/bookings/{id}/confirm` — confirm a booking with payment.
+/// `POST /api/bookings/{id}/place` — pay on board: the booking is placed
+/// and its seats held until departure while the operator phones the
+/// customer to confirm it. Online payments go through `/api/payments`.
 #[utoipa::path(
     post,
-    path = "/api/bookings/{id}/confirm",
+    path = "/api/bookings/{id}/place",
     tag = "bookings",
     params(("id" = Uuid, Path, description = "Booking ID")),
-    request_body = ConfirmReq,
     responses(
-        (status = 200, description = "Booking confirmed", body = BookingConfirmResponse),
+        (status = 200, description = "Booking placed, awaiting the operator", body = BookingConfirmResponse),
         (status = 401, description = "Unauthorized"),
         (status = 403, description = "Forbidden"),
+        (status = 410, description = "The seat hold ran out"),
     )
 )]
-pub async fn confirm(
+pub async fn place(
     State(st): State<AppState>,
     AuthUser(uid): AuthUser,
     Path(id): Path<Uuid>,
-    Json(body): Json<ConfirmReq>,
 ) -> Result<Json<BookingConfirmResponse>, AppError> {
-    body.validate()
-        .map_err(|e| AppError::Validation(e.to_string()))?;
-    Ok(Json(
-        st.bookings.confirm(uid, id, &body.payment_method).await?,
-    ))
+    Ok(Json(st.bookings.place_cash(uid, id).await?))
 }
 
 /// Build the bookings router.
@@ -165,5 +151,5 @@ pub fn router() -> axum::Router<crate::state::AppState> {
         .route("/hold", post(hold))
         .route("/{id}", get(detail))
         .route("/{id}/cancel", post(cancel))
-        .route("/{id}/confirm", post(confirm))
+        .route("/{id}/place", post(place))
 }

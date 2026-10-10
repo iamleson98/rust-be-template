@@ -14,6 +14,8 @@
  * group (schedule rows never interleave with route/brand rows).
  */
 
+import { useQuery, keepPreviousData } from '@tanstack/react-query'
+import { adminRoutesListOptions, adminSchedulesListOptions } from '@/api'
 import { useMemo } from 'react'
 import {
   ChevronRight,
@@ -39,9 +41,8 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { useT } from '@/lib/i18n'
-import { useAdminRoutes, useAdminSchedules } from '@/lib/queries'
-import { formatVND } from '@/lib/types'
-import type { AdminBrandOut, AdminRouteOut, AdminScheduleOut } from '@/lib/api/types.gen'
+import { formatVND } from '@/lib/format'
+import type { AdminBrandOut, AdminRouteOut, AdminScheduleOut } from '@/api'
 import { cn } from '@/lib/utils'
 import {
   dayChips,
@@ -49,6 +50,7 @@ import {
   effectiveWindow,
   routeDirection,
   schedulePointsSummary,
+  schedulePriceRange,
   scheduleStopTimes,
   sortSchedules,
   vehicleLabelFor,
@@ -151,8 +153,10 @@ export function BrandTreeTable({
 
   return (
     <div className="overflow-hidden rounded-lg border bg-card">
-      <div className="overflow-x-auto">
-        <Table className="min-w-210">
+      {/* Phones: no sideways table — the header hides and every row (brand,
+          route, schedule) becomes a wrapping line of its cells. */}
+      <div className="md:overflow-x-auto">
+        <Table className="md:min-w-210 max-md:block max-md:[&_tbody]:block max-md:[&_thead]:hidden max-md:[&_tr]:flex max-md:[&_tr]:flex-wrap max-md:[&_tr]:items-center max-md:[&_tr]:gap-x-1 max-md:[&_tr]:px-1 max-md:[&_tr]:py-1.5 max-md:[&_td]:block max-md:[&_td]:px-1.5 max-md:[&_td]:py-1 max-md:[&_td:empty]:hidden">
           <TableHeader>
             <TableRow className="border-border/60 bg-muted/50 hover:bg-muted/50">
               <TableHead
@@ -244,7 +248,11 @@ function BrandNode({
   // routes across brands (one query); slice this brand's share and
   // never fetch again. Otherwise fetch lazily on expansion.
   const shouldFetch = expanded && !filteredRoutes
-  const routesQuery = useAdminRoutes(shouldFetch ? { brandId: brand.id } : undefined)
+  const routesQuery = useQuery({
+    ...adminRoutesListOptions({ query: { brandId: brand.id } }),
+    enabled: shouldFetch,
+    placeholderData: keepPreviousData,
+  })
   const visibleRoutes = useMemo(
     () =>
       filteredRoutes
@@ -311,9 +319,8 @@ function BrandNode({
             )}
           </div>
         </TableCell>
-        <TableCell className="px-3 py-3 text-xs text-muted-foreground">
-          {t('brands.tripsCount', { count: brand.totalTrips })}
-        </TableCell>
+        {/* Routes load when the brand expands; each shows its own schedules. */}
+        <TableCell className="px-3 py-3" />
         <TableCell className="px-3 py-3" />
         <TableCell className="px-3 py-3" />
         <TableCell className="px-3 py-3">
@@ -407,7 +414,10 @@ function RouteNode({
   callbacks: BrandTreeCallbacks
 }) {
   const t = useT()
-  const schedulesQuery = useAdminSchedules(expanded ? route.id : undefined)
+  const schedulesQuery = useQuery({
+    ...adminSchedulesListOptions({ query: { routeId: route.id } }),
+    enabled: expanded,
+  })
   const sorted = useMemo(() => {
     const schedules = (schedulesQuery.data?.items ?? []) as unknown as AdminScheduleOut[]
     return scheduleSort ? sortSchedules(schedules, scheduleSort) : schedules
@@ -584,7 +594,12 @@ function ScheduleRow({
       </TableCell>
       <TableCell className="px-3 py-2 text-xs text-muted-foreground">—</TableCell>
       <TableCell className="px-3 py-2 text-right">
-        <div className="font-semibold tabular-nums">{formatVND(schedule.basePriceAdult)}</div>
+        <div className="font-semibold tabular-nums">
+          {(() => {
+            const [min, max] = schedulePriceRange(schedule)
+            return min === max ? formatVND(min) : `${formatVND(min)} – ${formatVND(max)}`
+          })()}
+        </div>
         {schedule.basePriceChild != null && schedule.basePriceChild > 0 && (
           <div className="text-[11px] text-muted-foreground">
             {t('adminBrands.childPrice', { price: formatVND(schedule.basePriceChild) })}

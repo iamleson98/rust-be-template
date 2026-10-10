@@ -1,41 +1,25 @@
-'use client'
-
-/**
- * LoginPage — the public `/login` page shell.
- *
- * Owns the page-level layout (background, header, tab switcher, trust
- * note) and delegates each form to its own file under `auth/`:
- *   - CustomerLogin   → `./customer-login` (customers and employees)
- *   - RegisterForm    → `./register-form`
- *
- * The shared zod schemas, the password-strength meter helper and the
- * `TabButton` presentational component live in `./_shared`.
- */
-
+import { isStaffUser, useSession } from '@/stores/session'
 import { useEffect, useState } from 'react'
-import { useApp } from '@/lib/store'
 import { useT } from '@/lib/i18n'
-import { useNavigate } from '@tanstack/react-router'
+import { useNavigate, useSearch } from '@tanstack/react-router'
 import { ShieldCheck, User, ArrowLeft, UserPlus } from 'lucide-react'
 import { TabButton, type Tab } from './_shared'
 import { CustomerLogin } from './customer-login'
 import { RegisterForm } from './register-form'
-import { isStaffUser } from '@/lib/store'
 
 export function LoginPage() {
-  const { user } = useApp()
+  const user = useSession((s) => s.user)
   const t = useT()
   const navigate = useNavigate()
+  const { redirect } = useSearch({ from: '/login' })
   const [tab, setTab] = useState<Tab>('customer')
 
-  // If already logged in, redirect to the right place.
-  // The user object comes from /api/auth/me (server-verified) — see store.tsx.
+  // Signed in (here, by registering, or already): back to where they came from.
   useEffect(() => {
-    if (user) {
-      if (isStaffUser(user)) navigate({ to: '/admin' })
-      else navigate({ to: '/account' })
-    }
-  }, [user, navigate])
+    if (!user) return
+    if (redirect) navigate({ href: redirect, replace: true })
+    else navigate({ to: isStaffUser(user) ? '/admin' : '/account', replace: true })
+  }, [user, redirect, navigate])
 
   return (
     <div className="relative min-h-[calc(100vh-4rem)] flex items-center justify-center px-4 py-10 overflow-hidden">
@@ -63,7 +47,7 @@ export function LoginPage() {
           {t('notFound.backHome')}
         </button>
 
-        <div className="rounded-2xl bg-white overflow-hidden ring-1 ring-black/5">
+        <div className="overflow-hidden rounded-2xl border bg-card">
           {/* Header */}
           <div className="relative bg-linear-to-br from-blue-600 via-blue-700 to-blue-800 px-6 pt-6 pb-7 text-white">
             <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_top_right,white,transparent_60%)]" />

@@ -1,9 +1,10 @@
 'use client'
 
-import { SearchWidget } from '@/features/home/search-widget'
+import { useQuery } from '@tanstack/react-query'
+import { statsOptions } from '@/api'
+import { SearchWidget } from '@/features/search/widget/search-widget'
 import { TrustBar } from '@/components/seo/trust-signals'
 import { useT } from '@/lib/i18n'
-import { useStats } from '@/lib/queries'
 import { ChevronDown } from 'lucide-react'
 import { HeroBackground } from './hero-background'
 import { WelcomeBar } from './welcome-bar'
@@ -23,7 +24,7 @@ export function Hero() {
   // Real platform stats (brands / routes / trips straight from
   // GET /api/stats). The previous version ALSO showed a made-up
   // "125.000+ passengers" badge and a "Places: 0" stat tile — both gone.
-  const { data: statsData } = useStats()
+  const { data: statsData } = useQuery(statsOptions())
 
   return (
     <section className="relative overflow-hidden isolate">
@@ -52,7 +53,7 @@ export function Hero() {
             picker popup) above later siblings like TrustBadges that
             also create their own stacking contexts via backdrop-blur. */}
         <div className="relative z-40 mt-8 md:mt-10">
-          <div className="rounded-3xl p-1.5 md:p-2 bg-white/15 ring-1 ring-white/25 backdrop-blur-md">
+          <div className="md:rounded-3xl md:bg-white/15 md:p-2 md:ring-1 md:ring-white/25 md:backdrop-blur-md">
             <SearchWidget />
           </div>
         </div>
@@ -62,7 +63,7 @@ export function Hero() {
 
         {/* Stats — real numbers from the platform */}
         {statsData && (
-          <div className="mt-10 grid grid-cols-3 gap-4 text-white">
+          <div className="mt-8 grid grid-cols-3 gap-2 text-white sm:gap-4 md:mt-10">
             <HeroStat value={Number(statsData.brands) || 0} label={t('home.statBrands')} />
             <HeroStat value={Number(statsData.routes) || 0} label={t('home.statRoutes')} />
             <HeroStat value={Number(statsData.trips) || 0} label={t('home.statTrips')} />

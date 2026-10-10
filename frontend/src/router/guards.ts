@@ -1,48 +1,26 @@
-/**
- * Route guards — auth gating for staff/admin/account areas.
- *
- * Extracted from the original 'src/router.tsx'.
- *
- * Three guard helpers:
- *
- *   requireAuth()   — must be logged in (any user type). If not,
- *                     redirect to /login.
- *   requireStaff()  — must be logged in as staff (employee or
- *                     admin). Otherwise redirect to /login.
- *   requireAdmin()  — must be an admin; employees land on the
- *                     dashboard instead.
- *
- * CRITICAL: the previous guards checked `if (user && user.type !== 'employee')`
- * which is FALSE when `user` is null (unauthenticated). This allowed
- * unauthenticated visitors to access admin pages — the bug we're fixing.
- * The checks use `!user || !isStaff(user)` which correctly
- * blocks both cases: no user at all, or a non-employee user.
- */
+import { redirect, type ParsedLocation } from '@tanstack/react-router'
+import { isAdminUser, isStaffUser, useSession } from '@/stores/session'
 
-import { redirect } from '@tanstack/react-router'
-import { useApp } from '@/lib/store'
+type Guard = { location: ParsedLocation }
 
-export function requireAuth() {
-  const { user } = useApp.getState()
-  if (!user) {
-    throw redirect({ to: '/login' })
-  }
+/** To the login page, coming back here afterwards. */
+const toLogin = (location: ParsedLocation) =>
+  redirect({ to: '/login', search: { redirect: location.href } })
+
+/** Signed-in customers, employees and admins. */
+export function requireAuth({ location }: Guard) {
+  if (!useSession.getState().user) throw toLogin(location)
 }
 
-export function requireStaff() {
-  const { user } = useApp.getState()
-  // Three-role model: employees AND admins are staff; customers are not.
-  if (!user || (user.type !== 'employee' && user.type !== 'admin')) {
-    throw redirect({ to: '/login' })
-  }
+/** Employees and admins; everyone else goes to the login page. */
+export function requireStaff({ location }: Guard) {
+  if (!isStaffUser(useSession.getState().user)) throw toLogin(location)
 }
 
-/** Admin-only guard — the Users page + other governance screens. */
-export function requireAdmin() {
-  const { user } = useApp.getState()
-  if (!user || user.type !== 'admin') {
-    // Staff without admin rights land on the dashboard instead.
-    if (user && user.type === 'employee') throw redirect({ to: '/admin' })
-    throw redirect({ to: '/login' })
-  }
+/** Admins only; an employee lands on the dashboard instead. */
+export function requireAdmin({ location }: Guard) {
+  const user = useSession.getState().user
+  if (isAdminUser(user)) return
+  if (isStaffUser(user)) throw redirect({ to: '/admin' })
+  throw toLogin(location)
 }

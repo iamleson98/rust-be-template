@@ -1,0 +1,40 @@
+//! What one seat class costs on one schedule.
+
+use sea_orm::entity::prelude::*;
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
+#[sea_orm(table_name = "schedule_fare")]
+pub struct Model {
+    #[sea_orm(primary_key, auto_increment = false)]
+    pub id: Uuid,
+    pub schedule_id: Uuid,
+    pub seat_class: String,
+    pub price_adult: i64,
+    /// Overrides the brand's child discount for this class.
+    pub price_child: Option<i64>,
+    #[sea_orm(column_type = "Text")]
+    pub created_at: String,
+    #[sea_orm(column_type = "Text")]
+    pub updated_at: String,
+}
+
+#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+pub enum Relation {
+    #[sea_orm(
+        belongs_to = "super::schedule::Entity",
+        from = "Column::ScheduleId",
+        to = "super::schedule::Column::Id",
+        on_update = "Cascade",
+        on_delete = "Cascade"
+    )]
+    Schedule,
+}
+
+impl Related<super::schedule::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Schedule.def()
+    }
+}
+
+impl ActiveModelBehavior for ActiveModel {}

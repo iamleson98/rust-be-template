@@ -20,12 +20,18 @@
  * orchestrator (state + data wiring + layout).
  */
 
+import { useQuery, useMutation, keepPreviousData } from '@tanstack/react-query'
+import {
+  adminReviewsSummaryOptions,
+  adminReviewsModerateMutation,
+  adminReviewsListOptions,
+} from '@/api'
 import { useState, useCallback } from 'react'
+import { ConsolePage, PageHeader } from '@/components/console/page'
 import { DataTable } from '@/components/data-table'
 import { Button } from '@/components/ui/button'
 import { MessageSquareHeart, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
-import { useAdminReviewBrandSummary, useAdminReviews, useModerateAdminReview } from '@/lib/queries'
 import { useDebouncedValue } from '@/hooks/use-debounced-value'
 import { useT } from '@/lib/i18n'
 import { BrandSummaryStrip } from './brand-summary-card'
@@ -61,15 +67,20 @@ export function FeedbackPanel() {
     setPage(0)
   }
 
-  const summaryQuery = useAdminReviewBrandSummary()
-  const listQuery = useAdminReviews({
-    brandId: brandId ?? undefined,
-    status: status === 'all' ? undefined : status,
-    search: debouncedSearch.trim() || undefined,
-    limit: PAGE_SIZE,
-    offset: page * PAGE_SIZE,
+  const summaryQuery = useQuery(adminReviewsSummaryOptions())
+  const listQuery = useQuery({
+    ...adminReviewsListOptions({
+      query: {
+        brandId: brandId ?? undefined,
+        status: status === 'all' ? undefined : status,
+        search: debouncedSearch.trim() || undefined,
+        limit: PAGE_SIZE,
+        offset: page * PAGE_SIZE,
+      },
+    }),
+    placeholderData: keepPreviousData,
   })
-  const moderateMut = useModerateAdminReview()
+  const moderateMut = useMutation(adminReviewsModerateMutation())
 
   const rows: FeedbackRow[] = listQuery.data?.items ?? []
   const total = listQuery.data?.total ?? 0
@@ -115,25 +126,21 @@ export function FeedbackPanel() {
   const activeSummary = summaries.find((s) => s.brandId === brandId) ?? null
 
   return (
-    <div className="p-4 md:p-6 space-y-4">
-      {/* Page header */}
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold flex items-center gap-2">
-            {t('adminFeedback.title')}
-          </h1>
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            summaryQuery.refetch()
-            listQuery.refetch()
-          }}
-        >
-          <RefreshCw className="size-3.5" /> {t('common.refresh')}
-        </Button>
-      </div>
+    <ConsolePage>
+      <PageHeader
+        title={t('adminFeedback.title')}
+        actions={
+          <Button
+            variant="outline"
+            onClick={() => {
+              void summaryQuery.refetch()
+              void listQuery.refetch()
+            }}
+          >
+            <RefreshCw /> {t('common.refresh')}
+          </Button>
+        }
+      />
 
       {/* ── Brand summary cards ── */}
       <BrandSummaryStrip
@@ -192,6 +199,6 @@ export function FeedbackPanel() {
         moderate={moderate}
         onClose={closeDetail}
       />
-    </div>
+    </ConsolePage>
   )
 }

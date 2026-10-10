@@ -866,6 +866,7 @@ dependencies = [
  "time",
  "tokio",
  "tokio-test",
+ "tokio-tungstenite",
  "tokio-util",
  "tower",
  "tower-http",

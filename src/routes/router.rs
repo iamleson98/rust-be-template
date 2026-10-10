@@ -35,15 +35,8 @@ use crate::middleware::anti_scraping;
 use crate::middleware::request_id::request_id_layer;
 use crate::state::AppState;
 
-/// Rate-limit key = the REAL client IP, derived right-anchored from
-/// X-Forwarded-For (SEC-2026-RL).
-///
-/// Deployment chain is Cloudflare -> Caddy -> app. Caddy (reverse_proxy)
-/// appends its immediate peer (a Cloudflare edge IP) to XFF, and
-/// Cloudflare appends the true client IP before that. The client's own
-/// XFF entries (spoofable padding) sit at the FRONT of the list. The
-/// true client IP is therefore `TRUSTED_PROXY_HOPS + 1` entries from
-/// the RIGHT — the same proven parse used by pdf-tts's limiter.
+/// Rate-limit key = the REAL client IP from the proxy chain
+/// (`middleware::header_client_ip`, SEC-2026-RL), else the socket peer.
 ///
 /// tower_governor's default `PeerIpKeyExtractor` keys on the socket
 /// peer, which behind Caddy is the PROXY's IP — one global bucket for
@@ -56,58 +49,40 @@ impl KeyExtractor for ClientIpKeyExtractor {
     type Key = std::net::IpAddr;
 
     fn extract<T>(&self, req: &axum::http::Request<T>) -> Result<Self::Key, GovernorError> {
-        fn parse_ip(s: &str) -> Option<std::net::IpAddr> {
-            s.trim().parse::<std::net::IpAddr>().ok()
-        }
-
-        if let Some(xff) = req
-            .headers()
-            .get("x-forwarded-for")
-            .and_then(|v| v.to_str().ok())
-        {
-            let hops = hops();
-            if hops > 0 {
-                let ips: Vec<&str> = xff.split(',').collect();
-                // Take the entry `hops` from the right (0-based:
-                // len - hops - 1 is the entry appended by the proxy
-                // BEFORE the last `hops` trusted appends).
-                let idx = ips.len().saturating_sub(hops + 1);
-                if let Some(ip) = ips.get(idx).and_then(|s| parse_ip(s)) {
-                    return Ok(ip);
-                }
-            }
-        }
-
-        // Cloudflare sets the authoritative client IP here (cannot be
-        // spoofed through the public chain; only reachable from inside
-        // the private overlay network, which is already post-compromise).
-        if let Some(ip) = req
-            .headers()
-            .get("cf-connecting-ip")
-            .and_then(|v| v.to_str().ok())
-            .and_then(parse_ip)
-        {
-            return Ok(ip);
-        }
-
-        // Direct connection (dev, health checks): socket peer.
         use axum::extract::ConnectInfo;
-        if let Some(ci) = req.extensions().get::<ConnectInfo<std::net::SocketAddr>>() {
-            return Ok(ci.0.ip());
-        }
-
-        Err(GovernorError::UnableToExtractKey)
+        crate::middleware::header_client_ip(req.headers())
+            .or_else(|| {
+                req.extensions()
+                    .get::<ConnectInfo<std::net::SocketAddr>>()
+                    .map(|ci| ci.0.ip())
+            })
+            .ok_or(GovernorError::UnableToExtractKey)
     }
 }
 
-fn hops() -> usize {
-    static HOPS: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
-    *HOPS.get_or_init(|| {
-        std::env::var("TRUSTED_PROXY_HOPS")
-            .ok()
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(1)
-    })
+async fn serve_service_worker(path: std::path::PathBuf) -> axum::response::Response {
+    use axum::http::{header, HeaderValue, StatusCode};
+    match tokio::fs::read(&path).await {
+        Ok(bytes) => (
+            [
+                (
+                    header::CONTENT_TYPE,
+                    HeaderValue::from_static("application/javascript; charset=utf-8"),
+                ),
+                (
+                    header::CACHE_CONTROL,
+                    HeaderValue::from_static("no-cache, must-revalidate"),
+                ),
+                (
+                    HeaderName::from_static("service-worker-allowed"),
+                    HeaderValue::from_static("/"),
+                ),
+            ],
+            bytes,
+        )
+            .into_response(),
+        Err(_) => StatusCode::NOT_FOUND.into_response(),
+    }
 }
 
 /// Build the complete app router.
@@ -202,6 +177,7 @@ pub fn build_router(state: AppState) -> Router<()> {
     let static_cache_age = state.config.static_files.cache_max_age;
     let static_root = std::path::Path::new(&static_dir).to_path_buf();
     let index_html_path = static_root.join("index.html");
+    let sw_path = static_root.join("sw.js");
 
     // Plain 404 for missing hashed assets — no HTML fallback, no caching.
     let asset_not_found = service_fn(|_req: axum::http::Request<axum::body::Body>| async {
@@ -345,32 +321,11 @@ pub fn build_router(state: AppState) -> Router<()> {
             axum::routing::get(crate::routes::seo::robots),
         )
         // PWA service worker — bypass the rate limiter (loaded on every page load).
+        // Served from the configured static dir, never cached: a stale worker
+        // would pin users to an old build.
         .route(
             "/sw.js",
-            axum::routing::get(|| async {
-                let path = std::path::Path::new("./frontend/dist/sw.js");
-                if path.exists() {
-                    let bytes = tokio::fs::read(path).await.unwrap_or_default();
-                    let mut resp = axum::response::Response::new(axum::body::Body::from(bytes));
-                    resp.headers_mut().insert(
-                        axum::http::header::CONTENT_TYPE,
-                        axum::http::HeaderValue::from_static(
-                            "application/javascript; charset=utf-8",
-                        ),
-                    );
-                    resp.headers_mut().insert(
-                        "Service-Worker-Allowed",
-                        axum::http::HeaderValue::from_static("/"),
-                    );
-                    resp.headers_mut().insert(
-                        axum::http::header::CACHE_CONTROL,
-                        axum::http::HeaderValue::from_static("no-cache, must-revalidate"),
-                    );
-                    resp
-                } else {
-                    axum::http::StatusCode::NOT_FOUND.into_response()
-                }
-            }),
+            axum::routing::get(move || serve_service_worker(sw_path.clone())),
         )
         .nest("/api", api_routes)
         // Media proxy (`/api/media/{key}`) — mounted at the root, NOT

@@ -1,5 +1,5 @@
 //! DTOs for the booking service (`/api/bookings`, `/api/bookings/hold`,
-//! `/api/bookings/{id}`, `/api/bookings/{id}/cancel`, `/api/bookings/{id}/confirm`).
+//! `/api/bookings/{id}`, `/api/bookings/{id}/cancel`, `/api/bookings/{id}/place`).
 //!
 //! All DTOs use `#[serde(rename_all = "camelCase")]` so Rust field names
 //! stay snake_case (Rust convention) while the JSON wire shape is
@@ -22,14 +22,18 @@ use crate::validation::validate_phone;
 pub struct PassengerReq {
     #[validate(length(min = 1, max = 255))]
     pub name: String,
-    /// `adult` | `child` | `infant`. Serialized as `type` on the wire
-    /// (matches the legacy field name the frontend sends).
-    #[serde(rename = "type")]
-    #[validate(length(min = 1, max = 10))]
-    pub passenger_type: String,
+    /// Ignored: the server decides from `age` and the brand's child policy.
+    #[serde(rename = "type", default, skip_serializing_if = "Option::is_none")]
+    #[validate(length(max = 10))]
+    pub passenger_type: Option<String>,
+    /// Without an age the passenger pays the adult price.
     #[serde(default)]
     #[validate(range(min = 0, max = 150))]
-    pub age: i64,
+    pub age: Option<i64>,
+    /// The passenger's seat (one of `seatIds`). When every passenger names
+    /// one, seats are matched by it; otherwise by position.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub seat_id: Option<Uuid>,
 }
 
 /// Request body for `POST /api/bookings` and `POST /api/bookings/hold`.
@@ -41,8 +45,12 @@ pub struct HoldReq {
     pub seat_ids: Vec<Uuid>,
     #[validate(length(min = 1, max = 50))]
     pub passengers: Vec<PassengerReq>,
-    pub boarding_point_id: Uuid,
-    pub dropping_point_id: Uuid,
+    /// Required when the route has pickup points; must be one of them.
+    #[serde(default)]
+    pub boarding_point_id: Option<Uuid>,
+    /// Required when the route has pickup points; must be one of them.
+    #[serde(default)]
+    pub dropping_point_id: Option<Uuid>,
     #[validate(length(min = 1, max = 255))]
     pub contact_name: String,
     #[validate(length(min = 1, max = 20), custom(function = "validate_phone"))]
@@ -53,19 +61,6 @@ pub struct HoldReq {
     #[serde(default)]
     #[validate(length(max = 50))]
     pub campaign_code: Option<String>,
-}
-
-/// Request body for `POST /api/bookings/:id/confirm`.
-#[derive(Debug, Deserialize, Clone, ToSchema, Validate)]
-#[serde(rename_all = "camelCase")]
-pub struct ConfirmReq {
-    #[serde(default = "default_payment")]
-    #[validate(length(max = 30))]
-    pub payment_method: String,
-}
-
-fn default_payment() -> String {
-    "momo".into()
 }
 
 /// Request body for `POST /api/bookings/:id/cancel`.
@@ -81,18 +76,20 @@ pub struct CancelReq {
 //  Response DTOs
 // ────────────────────────────────────────────────────────────────
 
-/// A held seat inside a booking response.
+/// One ticket of a booking: the seat and who sits in it.
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct BookingSeatOut {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub seat_id: Option<Uuid>,
+    /// The seat number printed on the ticket (`A01`, `12`, ...).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub seat_code: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub seat_class: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub passenger_name: Option<String>,
+    /// `adult` | `child`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub passenger_type: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -101,164 +98,122 @@ pub struct BookingSeatOut {
     pub price: Option<i64>,
 }
 
-/// Slim trip preview embedded in `BookingListItem`.
-#[derive(Debug, Serialize, ToSchema)]
+/// Where a passenger gets on or off, as it was when the ticket was sold.
+#[derive(Debug, Clone, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct BookingTripPreview {
-    pub id: Uuid,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub departure_at: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub departure_date: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub status: Option<String>,
-    /// Present on the booking-list payload (not the detail payload).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub route_name: Option<String>,
-    /// Present on the booking-list payload (not the detail payload).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub brand_name: Option<String>,
-    /// Present on the booking-list payload (not the detail payload).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub brand_accent: Option<String>,
-    /// Present on the booking-list payload (not the detail payload).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub brand_logo: Option<String>,
-    /// Present on the booking-list payload (not the detail payload).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub vehicle_type: Option<String>,
-    /// Present on the detail payload (not the list payload).
-    pub route: Option<BookingRoutePreview>,
-    /// Present on the detail payload (not the list payload).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub bus_layout: Option<BookingBusLayoutPreview>,
-    /// Present on the detail payload (not the list payload).
-    #[serde(skip_serializing_if = "Vec::is_empty", default)]
-    pub pickup_points: Vec<PickupPointOut>,
-}
-
-/// Route preview embedded in `BookingTripPreview`.
-#[derive(Debug, Serialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct BookingRoutePreview {
+pub struct BookingStop {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub from: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub to: Option<String>,
-    pub brand: BookingBrandPreview,
-}
-
-/// Brand preview embedded in `BookingRoutePreview`.
-#[derive(Debug, Serialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct BookingBrandPreview {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub accent_color: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub logo_url: Option<String>,
-}
-
-/// Bus layout preview embedded in `BookingTripPreview`.
-#[derive(Debug, Serialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct BookingBusLayoutPreview {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub vehicle_type: Option<String>,
-}
-
-/// Pickup point embedded in `BookingTripPreview.pickup_points`.
-#[derive(Debug, Serialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct PickupPointOut {
-    pub id: Uuid,
-    pub name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub stop_order: Option<i64>,
+    pub address: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub lat: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub lon: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub kind: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub address: Option<String>,
 }
 
-/// Response of `GET /api/bookings` (list item) and `GET /api/bookings/{id}`
-/// (detail — same shape, just with the full trip preview filled in).
+/// The trip a booking is for.
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct BookingListItem {
+pub struct BookingTrip {
+    pub id: Uuid,
+    /// `YYYY-MM-DD`, local (Vietnam) date.
+    pub departure_date: String,
+    /// `HH:MM`, local time.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub departure_time: Option<String>,
+    /// The departure instant (UTC, RFC 3339).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub departure_at: Option<String>,
+    pub status: String,
+    pub route_id: Uuid,
+    pub route_name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub from_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub to_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub brand_id: Option<Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub brand_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub brand_accent: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub brand_logo: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bus_layout_name: Option<String>,
+}
+
+/// The customer's review of a trip they took.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct BookingReview {
+    pub id: Uuid,
+    pub rating: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content: Option<String>,
+    pub tags: Vec<String>,
+    pub photos: Vec<String>,
+    pub created_at: String,
+}
+
+/// A booking (ticket) as customers and staff see it.
+///
+/// `status`: `pending` (being paid for, or placed and awaiting the
+/// operator's phone confirmation when `paymentMethod` is `cod`) →
+/// `confirmed` → `completed`; or `cancelled`. Completed and cancelled are
+/// final.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct BookingOut {
     pub id: Uuid,
     pub code: String,
     pub status: String,
+    /// `cod` (pay on board) or an online provider; absent while unpaid.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub adult_count: Option<i64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub child_count: Option<i64>,
+    pub payment_method: Option<String>,
+    pub adult_count: i64,
+    pub child_count: i64,
     pub subtotal: i64,
     pub discount: i64,
     pub fees: i64,
     pub total: i64,
     pub currency: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub expires_at: Option<String>,
-    pub created_at: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub updated_at: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub contact_name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub contact_phone: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub contact_email: Option<String>,
-    /// Present on the list-with-detail shape (`include_boarding_dropping_ids=true`).
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub boarding_point_id: Option<String>,
-    /// Present on the list-with-detail shape.
+    pub pickup: Option<BookingStop>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub dropping_point_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub payment_method: Option<String>,
-    /// Timestamp when the booking was paid (`updated_at` snapshot at status=confirmed).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub paid_at: Option<String>,
+    pub dropoff: Option<BookingStop>,
     pub seats: Vec<BookingSeatOut>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub trip: Option<BookingTripPreview>,
+    pub trip: Option<BookingTrip>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub review: Option<BookingReview>,
+    /// The customer may still cancel (open, and the trip has not left).
+    pub can_cancel: bool,
+    /// Boarding QR (an SVG data URI encoding the code) for an open ticket;
+    /// only on the single-booking views.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ticket_qr: Option<String>,
+    /// When an unconfirmed booking lets its seats go.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expires_at: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
 }
 
 /// Response of `GET /api/bookings`.
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct BookingListResponse {
-    pub items: Vec<BookingListItem>,
-    /// Total matching-row count (independent of pagination). Omitted from
-    /// the JSON when the server didn't compute it. Use `with_total(...)`
-    /// to set it.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub total: Option<u64>,
+    pub items: Vec<BookingOut>,
 }
-
-impl BookingListResponse {
-    pub fn new(items: Vec<BookingListItem>) -> Self {
-        Self { items, total: None }
-    }
-
-    pub fn with_total(mut self, total: u64) -> Self {
-        self.total = Some(total);
-        self
-    }
-}
-
-/// Response of `GET /api/bookings/{id}`. Carries the full enriched
-/// detail (seats + trip + route + brand + pickup points + bus layout).
-pub type BookingDetailResponse = BookingListItem;
 
 /// Response of `POST /api/bookings` and `POST /api/bookings/hold`.
 #[derive(Debug, Serialize, ToSchema)]
@@ -290,7 +245,8 @@ pub struct BookingCancelResponse {
     pub reason: Option<String>,
 }
 
-/// Response of `POST /api/bookings/{id}/confirm`.
+/// A booking's state after it is placed (`POST /api/bookings/{id}/place`)
+/// or confirmed.
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct BookingConfirmResponse {

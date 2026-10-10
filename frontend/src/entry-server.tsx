@@ -126,12 +126,12 @@ export async function render(url: string = '/'): Promise<string> {
   // load, but adding it is belt-and-suspenders and costs nothing at
   // runtime — the modules are needed anyway.)
   await Promise.all([
-    import('./routes/home'),
-    import('./components/layout/footer'),
-    import('./components/layout/mobile-nav'),
-    import('./components/layout/support-fab'),
+    import('./features/home/home-page'),
+    import('./app/layout/footer'),
+    import('./app/layout/mobile-nav'),
+    import('./app/layout/support-fab'),
     import('./features/notifications/notification-bell'),
-    import('./features/home/loyalty-widget'),
+    import('./features/loyalty/loyalty-widget'),
   ])
 
   // ── PASS 1: streaming render to warm React.lazy's cache ─────────

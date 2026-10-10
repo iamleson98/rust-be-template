@@ -32,7 +32,7 @@ export const CronJobCardsSkeleton = memo(function CronJobCardsSkeleton({
             </div>
           </div>
           {/* Next / last run boxes */}
-          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
             {[0, 1].map((j) => (
               <div key={j} className="rounded-lg border p-3 space-y-1.5">
                 <Shimmer className="h-3 w-24" />

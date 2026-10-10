@@ -1,9 +1,8 @@
 'use client'
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Headset, Activity, Clock } from 'lucide-react'
 import { useT } from '@/lib/i18n'
-import { AdminStatsCardsSkeleton } from '@/features/admin/dashboard/stats-cards-skeleton'
 
 export function ChatStatsCards({
   channelsLoading,
@@ -29,44 +28,25 @@ export function ChatStatsCards({
     return `${s}s`
   }
 
-  // Stat cards — skeleton while the channels load (never zero values)
+  // One slim strip: the conversation list is the page, the numbers are context.
+  const stat = (icon: React.ReactNode, label: string, value: React.ReactNode) => (
+    <div className="flex min-w-0 items-center gap-2 px-3 py-2">
+      <span className="shrink-0 text-muted-foreground [&_svg]:size-4" aria-hidden>
+        {icon}
+      </span>
+      <div className="min-w-0">
+        <div className="text-base leading-tight font-semibold tabular-nums">{value}</div>
+        <div className="truncate text-[11px] text-muted-foreground">{label}</div>
+      </div>
+    </div>
+  )
   return channelsLoading ? (
-    <AdminStatsCardsSkeleton count={3} />
+    <Skeleton className="h-14 w-full shrink-0 rounded-xl" />
   ) : (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm flex items-center gap-2">
-            <Headset className="h-4 w-4 text-blue-600" /> {t('chat.waiting')}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-3xl font-extrabold">{openCount}</div>
-          <div className="text-xs text-muted-foreground mt-1">{t('chat.unassigned')}</div>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm flex items-center gap-2">
-            <Activity className="h-4 w-4 text-amber-600" /> {t('chat.processing')}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-3xl font-extrabold">{assignedCount}</div>
-          <div className="text-xs text-muted-foreground mt-1">{t('chat.assigned')}</div>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm flex items-center gap-2">
-            <Clock className="h-4 w-4 text-rose-600" /> {t('chat.avgResponseTime')}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-3xl font-extrabold">{formatResponseTime(avgResponseSecs)}</div>
-          <div className="text-xs text-muted-foreground mt-1">{t('chat.avgResponseTimeDesc')}</div>
-        </CardContent>
-      </Card>
+    <div className="grid shrink-0 grid-cols-3 divide-x rounded-xl border bg-card">
+      {stat(<Headset />, t('chat.waiting'), openCount)}
+      {stat(<Activity />, t('chat.processing'), assignedCount)}
+      {stat(<Clock />, t('chat.avgResponseTime'), formatResponseTime(avgResponseSecs))}
     </div>
   )
 }

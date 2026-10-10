@@ -1,19 +1,18 @@
 'use client'
 
 /**
- * Filter toolbar of the admin feedback panel — status chips (with the
+ * Filter toolbar of the admin feedback panel — status tabs (with the
  * active brand's per-status counts), the debounced search input and
  * the "clear brand filter" escape hatch.
- *
- * Extracted from the original 'src/features/admin/feedback/feedback-panel.tsx'.
  */
 
+import { Search } from 'lucide-react'
+import type { AdminReviewBrandSummary } from '@/api'
+import { PillTab, PillTabs } from '@/components/console/pill-tabs'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Search } from 'lucide-react'
+import { Tabs } from '@/components/ui/tabs'
 import { useT } from '@/lib/i18n'
-import type { AdminReviewBrandSummary } from '@/lib/api/types.gen'
-import { ButtonGroup } from '@/components/ui/button-group'
 
 /** Real backend moderation statuses (NOT the legacy `published/flagged`). */
 const STATUS_FILTERS = [
@@ -43,53 +42,41 @@ export function FeedbackFilterToolbar({
 }) {
   const t = useT()
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <ButtonGroup>
-        {STATUS_FILTERS.map((s) => (
+    <div className="space-y-3">
+      {/* Scrolls sideways on phones instead of pushing the page wider. */}
+      <Tabs value={status} onValueChange={(v) => setStatus(String(v))}>
+        <PillTabs>
+          {STATUS_FILTERS.map((s) => (
+            <PillTab
+              key={s.value}
+              value={s.value}
+              label={t(s.labelKey)}
+              count={s.value === 'all' ? undefined : activeSummary?.[s.value]}
+            />
+          ))}
+        </PillTabs>
+      </Tabs>
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative w-full sm:max-w-xs">
+          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t('adminFeedback.searchPlaceholder')}
+            className="pl-9"
+          />
+        </div>
+        {brandId && (
           <Button
-            key={s.value}
-            onClick={() => setStatus(s.value)}
-            variant="outline"
-            className={`${
-              status === s.value
-                ? 'bg-background text-foreground'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
+            variant="ghost"
+            size="sm"
+            onClick={() => setBrandId(null)}
+            className="text-rose-600"
           >
-            {t(s.labelKey)}
-            {s.value !== 'all' && activeSummary && (
-              <span className="ml-1 text-[10px] text-muted-foreground">
-                {s.value === 'pending'
-                  ? activeSummary.pending
-                  : s.value === 'approved'
-                    ? activeSummary.approved
-                    : s.value === 'rejected'
-                      ? activeSummary.rejected
-                      : activeSummary.hidden}
-              </span>
-            )}
+            {t('adminFeedback.clearBrandFilter')}
           </Button>
-        ))}
-      </ButtonGroup>
-      <div className="relative min-w-56 flex-1 max-w-xs">
-        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
-        <Input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder={t('adminFeedback.searchPlaceholder')}
-          className="pl-8 h-9 text-sm"
-        />
+        )}
       </div>
-      {brandId && (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setBrandId(null)}
-          className="text-xs text-rose-600"
-        >
-          {t('adminFeedback.clearBrandFilter')}
-        </Button>
-      )}
     </div>
   )
 }

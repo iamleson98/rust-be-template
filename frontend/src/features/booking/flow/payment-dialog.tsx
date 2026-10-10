@@ -1,48 +1,25 @@
 'use client'
 
-/**
- * PaymentDialog — modal that displays the payment instructions for a booking.
- *
- * Two modes:
- *   1. **Resume mode** — `paymentId` is provided AND the payment is still
- *      `pending`. Shows the existing payment's provider-specific UI.
- *   2. **Choose provider mode** — no paymentId (or the prior payment was
- *      cancelled/failed). Shows a grid of provider buttons (VNPay / MoMo /
- *      ZaloPay / VietQR / COD); clicking one calls `createPayment` and
- *      switches to resume mode.
- *
- * Renders different UIs based on the payment `provider`:
- *   - `vnpay` / `momo` / `zalopay`: "Pay now" button that opens the gateway URL
- *     in a new tab. Polls `/api/payments/{id}` every 3s; auto-closes when the
- *     payment becomes `completed`.
- *   - `vietqr`: QR image (pre-rendered server-side) + bank-transfer
- *     instructions (account no, account name, memo, amount). Also polls.
- *   - `cod`: "Pay on the bus" notice + "Cash collected by driver" status pill
- *     once the driver confirms.
- *
- * Usage: parent opens the dialog with an optional `paymentId` (resumes an
- * in-flight payment) + the booking id (used to create a new payment).
- *
- * The provider-specific bodies live in sibling files: `ProviderPicker`
- * (payment-provider-picker.tsx), `GatewayRedirect` (gateway-redirect.tsx),
- * `VietQrDisplay` (vietqr-display.tsx); the small `StatusPill` and
- * `CodDisplay` stay here.
- */
-
+import { cancelPaymentMutation, createPaymentMutation } from '@/api'
+import { useMutation } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Banknote, CheckCircle2, Clock, Loader2, ShieldCheck, XCircle } from 'lucide-react'
 import { toast } from 'sonner'
-import { formatCurrency } from '@/lib/currency'
-import type { Currency } from '@/lib/currency'
+import { formatVND } from '@/lib/format'
 import { useT } from '@/lib/i18n'
-import { useCancelPayment, useCreatePayment, usePayment } from '@/lib/queries/payments'
-import type { PaymentOut, PaymentProvider } from '@/lib/queries/payments'
+import { usePayment } from '../api'
+import type { PaymentOut } from '@/api'
+import type { PaymentProvider } from '@/lib/payment'
 import { ProviderPicker } from './payment-provider-picker'
 import { GatewayRedirect } from './gateway-redirect'
 import { VietQrDisplay } from './vietqr-display'
 
+/**
+ * Pay for an existing booking from its detail page: resume the payment in
+ * progress, or pick a provider to start one. Polls until the payment settles.
+ */
 export function PaymentDialog({
   paymentId,
   bookingId,
@@ -74,9 +51,9 @@ export function PaymentDialog({
     setResumeId(paymentId)
   }, [paymentId])
 
-  const payment = usePayment(resumeId, { enabled: open && !!resumeId })
-  const cancelPayment = useCancelPayment()
-  const createPayment = useCreatePayment()
+  const payment = usePayment(resumeId, open)
+  const cancelPayment = useMutation(cancelPaymentMutation())
+  const createPayment = useMutation(createPaymentMutation())
 
   // When the payment becomes `completed`, fire onPaid + auto-close after 1.5s.
   useEffect(() => {
@@ -90,7 +67,6 @@ export function PaymentDialog({
   }, [payment.data, onPaid, onClose])
 
   const p = payment.data
-  const currency = (p?.currency as Currency) ?? 'VND'
 
   const handleCreate = async (provider: PaymentProvider) => {
     if (!bookingId) {
@@ -98,11 +74,8 @@ export function PaymentDialog({
       return
     }
     try {
-      const result = await createPayment.mutateAsync({
-        bookingId,
-        provider,
-      } as unknown as { bookingId: string; provider: PaymentProvider })
-      setResumeId((result as unknown as { payment: PaymentOut }).payment.id)
+      const result = await createPayment.mutateAsync({ body: { bookingId, provider } })
+      setResumeId(result.payment.id)
     } catch (e: unknown) {
       toast.error(t('payment.createFailed'), {
         description: e instanceof Error ? e.message : undefined,
@@ -127,7 +100,6 @@ export function PaymentDialog({
             onPick={handleCreate}
             creating={createPayment.isPending}
             amount={p?.amount ?? bookingTotal ?? 0}
-            currency={currency}
             priorFailureReason={p?.failureReason ?? undefined}
           />
         ) : p ? (
@@ -140,16 +112,14 @@ export function PaymentDialog({
               <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1">
                 {t('bookingFlow.amount')}
               </div>
-              <div className="text-2xl font-extrabold text-slate-900">
-                {formatCurrency(p.amount, currency)}
-              </div>
+              <div className="text-2xl font-extrabold text-slate-900">{formatVND(p.amount)}</div>
             </div>
 
             {/* Provider-specific body */}
             {p.provider === 'vnpay' || p.provider === 'momo' || p.provider === 'zalopay' ? (
               <GatewayRedirect provider={p.provider} gatewayUrl={p.gatewayUrl} status={p.status} />
             ) : p.provider === 'vietqr' ? (
-              <VietQrDisplay payment={p} currency={currency} />
+              <VietQrDisplay payment={p} />
             ) : p.provider === 'cod' ? (
               <CodDisplay payment={p} />
             ) : null}
@@ -167,7 +137,7 @@ export function PaymentDialog({
                   disabled={cancelPayment.isPending}
                   onClick={async () => {
                     try {
-                      await cancelPayment.mutateAsync({ id: p.id })
+                      await cancelPayment.mutateAsync({ path: { id: p.id }, body: {} })
                       toast.success(t('bookingFlow.paymentCancelled'))
                       // Reset to provider-picker for retry.
                       setResumeId(undefined)

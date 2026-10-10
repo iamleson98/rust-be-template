@@ -17,15 +17,19 @@ use uuid::Uuid;
 use crate::dto::public::{
     BrandDetailOut, BrandListResponse, BrandOut, CampaignListResponse, CampaignOut,
     CampaignValidateResponse, RouteBrandPreview, RouteEndpoint, RouteListResponse, RouteOut,
-    StatsResponse, TripAmenity, TripBrandDetail, TripBusLayout, TripCampaign, TripCore, TripDetail,
-    TripEndpoint, TripPickupPoint, TripPricing, TripResult, TripRouteDetail, TripSchedulePoint,
-    TripSearchResponse, TripSeat, TripSeatDeck, TripSeatMap, TripSeatRow,
+    StatsResponse, TripAmenity, TripBrandDetail, TripBusLayout, TripCampaign, TripCore,
+    TripDeckPlan, TripDetail, TripEndpoint, TripFare, TripPickupPoint, TripPricing, TripResult,
+    TripRouteDetail, TripSchedulePoint, TripSearchResponse, TripSeat, TripSeatDeck, TripSeatMap,
+    TripSeatRow,
 };
 use crate::entity::{
     brand, bus_layout, route, schedule, seat_inventory, trip_session, vehicle_type,
 };
 use crate::error::{AppError, AppResult};
+use crate::service::fares::{self, ChildPolicy, Fare, FareTable};
 use crate::service::place_service::haversine_km;
+use crate::service::seat_plan;
+use crate::service::{trip_stops, trip_time};
 use crate::store::CompositeStore;
 use crate::store::PickupPointWithRoute;
 
@@ -219,6 +223,16 @@ impl PublicService {
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
+        let route_counts = self
+            .store
+            .route_store()
+            .count_routes_by_brand_map(
+                brands.iter().map(|b| b.id.to_string()).collect(),
+                Some("active"),
+            )
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+
         let items: Vec<BrandOut> = brands
             .iter()
             .map(|b| BrandOut {
@@ -228,7 +242,7 @@ impl PublicService {
                 logo_url: b.logo_url.clone(),
                 accent_color: b.accent_color.clone(),
                 rating: b.rating,
-                total_trips: b.total_trips,
+                route_count: route_counts.get(&b.id.to_string()).copied().unwrap_or(0),
             })
             .collect();
         Ok(BrandListResponse { items })
@@ -244,7 +258,6 @@ impl PublicService {
             .map_err(|e| AppError::Internal(e.to_string()))?
             .filter(|b| b.status == "active")
             .ok_or_else(|| AppError::NotFound("brand not found".into()))?;
-
         Ok(BrandDetailOut {
             id: b.id,
             slug: b.slug,
@@ -255,7 +268,6 @@ impl PublicService {
             contact_email: b.contact_email,
             accent_color: b.accent_color,
             rating: b.rating,
-            total_trips: b.total_trips,
         })
     }
 
@@ -471,6 +483,14 @@ impl PublicService {
                 .collect()
         };
 
+        // Each seat is priced by its class (one query for every schedule).
+        let fare_rows = self
+            .store
+            .schedule_store()
+            .list_fares(schedules.iter().map(|s| s.id).collect())
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+
         let mut created = 0usize;
         let trip_store = self.store.trip_store();
         // Serialize concurrent searches: the check-then-insert pair is
@@ -537,21 +557,24 @@ impl PublicService {
             // Per-seat inventory (only when actual seat rows exist —
             // the vehicle-type fallback has no seat map).
             if !seats.is_empty() {
-                let price = s.base_price_adult;
+                let fare_table = FareTable::new(s, &fare_rows);
                 let inv: Vec<seat_inventory::ActiveModel> = seats
                     .iter()
-                    .map(|seat| seat_inventory::ActiveModel {
-                        id: sea_orm::Set(Uuid::new_v4()),
-                        trip_session_id: sea_orm::Set(trip_id),
-                        seat_id: sea_orm::Set(seat.id),
-                        status: sea_orm::Set("available".into()),
-                        base_price: sea_orm::Set(price),
-                        final_price: sea_orm::Set(price),
-                        currency: sea_orm::Set("VND".into()),
-                        held_until: sea_orm::Set(None),
-                        held_by_booking_id: sea_orm::Set(None),
-                        created_at: sea_orm::Set(crate::store::now_iso()),
-                        updated_at: sea_orm::Set(crate::store::now_iso()),
+                    .map(|seat| {
+                        let price = fare_table.fare(Some(&fares::class_of(seat))).adult;
+                        seat_inventory::ActiveModel {
+                            id: sea_orm::Set(Uuid::new_v4()),
+                            trip_session_id: sea_orm::Set(trip_id),
+                            seat_id: sea_orm::Set(seat.id),
+                            status: sea_orm::Set("available".into()),
+                            base_price: sea_orm::Set(price),
+                            final_price: sea_orm::Set(price),
+                            currency: sea_orm::Set("VND".into()),
+                            held_until: sea_orm::Set(None),
+                            held_by_booking_id: sea_orm::Set(None),
+                            created_at: sea_orm::Set(crate::store::now_iso()),
+                            updated_at: sea_orm::Set(crate::store::now_iso()),
+                        }
                     })
                     .collect();
                 trip_store
@@ -677,6 +700,7 @@ impl PublicService {
             .list_trips_by_schedule_ids(schedule_uuids, date, min_seats, fetch_cap)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
+        let price_ranges = self.price_ranges(&trips).await?;
 
         // Batch fetch related data
         let trip_sched_uuids: Vec<Uuid> = trips.iter().map(|t| t.schedule_id).collect();
@@ -793,11 +817,15 @@ impl PublicService {
             .filter_map(|t| {
                 let sched = sched_map.get(&t.schedule_id.to_string())?;
                 let route = route_map.get(&sched.route_id.to_string())?;
+                if !on_sale(t, sched) {
+                    return None;
+                }
                 let brand = route
                     .brand_id
                     .map(|id| id.to_string())
                     .as_deref()
                     .and_then(|bid| brand_map.get(bid));
+                let prices = CardPrices::of(&price_ranges, t.id, sched, brand);
                 let layout = sched
                     .bus_layout_id
                     .and_then(|lid| layout_map.get(&lid.to_string()));
@@ -839,7 +867,7 @@ impl PublicService {
                     brand_name: brand.map(|b| b.name.clone()).unwrap_or_default(),
                     brand_slug: brand.map(|b| b.slug.clone()).unwrap_or_default(),
                     brand_logo: brand.and_then(|b| b.logo_url.clone()),
-                    brand_rating: brand.and_then(|b| b.rating).unwrap_or(0.0),
+                    brand_rating: brand.and_then(|b| b.rating),
                     brand_accent: brand
                         .and_then(|b| b.accent_color.clone())
                         .unwrap_or_else(|| "#0d9488".into()),
@@ -853,10 +881,10 @@ impl PublicService {
                     departure_at: dep_iso,
                     arrival_at: arr_iso,
                     bus_layout_id: sched.bus_layout_id.map(|u| u.to_string()),
-                    min_price: sched.base_price_adult,
-                    max_price: sched.base_price_adult,
+                    min_price: prices.min,
+                    max_price: prices.max,
                     price_adult: sched.base_price_adult,
-                    price_child: sched.base_price_child.unwrap_or(0),
+                    price_child: prices.child,
                     vehicle_type,
                     vehicle_type_label: vt_label,
                     capacity: layout.and_then(|l| l.total_seats),
@@ -1217,12 +1245,16 @@ impl PublicService {
         // route's rank; the old code iterated the DB-ordered trip list,
         // so the response wasn't actually distance-sorted despite the
         // matches being sorted).
+        let price_ranges = self.price_ranges(&trips).await?;
         let mut scored: Vec<(TripResult, f64)> = Vec::new();
         for trip in &trips {
             let schedule = match schedule_map.get(&trip.schedule_id) {
                 Some(s) => *s,
                 None => continue,
             };
+            if !on_sale(trip, schedule) {
+                continue;
+            }
             let m = match match_map.get(&schedule.route_id) {
                 Some(m) => *m,
                 None => continue,
@@ -1240,6 +1272,7 @@ impl PublicService {
             }
 
             let brand = m.brand_id.and_then(|bid| brand_map.get(&bid)).cloned();
+            let prices = CardPrices::of(&price_ranges, trip.id, schedule, brand);
 
             // Route's own start/end cities (fall back to the raw
             // coordinates only when the slug doesn't resolve — data
@@ -1276,7 +1309,7 @@ impl PublicService {
                     .and_then(|b| b.logo_url.clone())
                     .unwrap_or_default()
                     .into(),
-                brand_rating: brand.and_then(|b| b.rating).unwrap_or_default(),
+                brand_rating: brand.and_then(|b| b.rating),
                 brand_accent: brand
                     .and_then(|b| b.accent_color.clone())
                     .unwrap_or_default(),
@@ -1302,10 +1335,10 @@ impl PublicService {
                         compute_arrival_iso(&trip.departure_date, &schedule.departure_time, hhmm)
                     }),
                 bus_layout_id: schedule.bus_layout_id.map(|u| u.to_string()),
-                min_price: schedule.base_price_adult,
-                max_price: schedule.base_price_adult,
+                min_price: prices.min,
+                max_price: prices.max,
                 price_adult: schedule.base_price_adult,
-                price_child: schedule.base_price_child.unwrap_or(0),
+                price_child: prices.child,
                 vehicle_type,
                 vehicle_type_label: vt_label,
                 capacity: None,
@@ -1338,6 +1371,18 @@ impl PublicService {
     }
 
     /// Trip detail by id — full enriched TripDetail shape.
+    /// Cheapest and dearest seat for sale on each trip.
+    async fn price_ranges(
+        &self,
+        trips: &[trip_session::Model],
+    ) -> AppResult<HashMap<Uuid, (i64, i64)>> {
+        self.store
+            .trip_store()
+            .available_price_ranges(trips.iter().map(|t| t.id).collect())
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))
+    }
+
     pub async fn trip_detail(&self, id: Uuid) -> AppResult<TripDetail> {
         let trip = self
             .store
@@ -1400,33 +1445,25 @@ impl PublicService {
                 Ok(None)
             }
         };
-        // Need let bindings so the temporary String + the temporary
-        // `&RouteStore` borrow live long enough for the future (which
-        // borrows them) to be polled.
-        let route_id_str = route.id.to_string();
-        let route_store = self.store.route_store();
-        let pickup_points_fut = route_store.list_pickup_points_by_route(&route_id_str);
+        let (brand, start_place, end_place, bus_layout) =
+            tokio::try_join!(brand_fut, start_place_fut, end_place_fut, bus_layout_fut)?;
 
-        let (brand, start_place, end_place, bus_layout, pickup_points) = tokio::try_join!(
-            brand_fut,
-            start_place_fut,
-            end_place_fut,
-            bus_layout_fut,
-            pickup_points_fut,
-        )?;
-
-        let pickup_items: Vec<TripPickupPoint> = pickup_points
-            .iter()
-            .map(|p| TripPickupPoint {
-                id: p.id,
-                name: p.name.clone(),
-                stop_order: Some(p.stop_order),
-                lat: p.lat,
-                lon: p.lon,
-                kind: p.kind.clone(),
-                address: p.address.clone(),
-            })
-            .collect();
+        // Where passengers can board and alight: the route's pickup points,
+        // else the stops of the schedule's timetable.
+        let pickup_items: Vec<TripPickupPoint> =
+            trip_stops::trip_stops(&self.store, route.id, schedule.id)
+                .await?
+                .into_iter()
+                .map(|s| TripPickupPoint {
+                    id: s.id,
+                    name: Some(s.name),
+                    stop_order: Some(s.order),
+                    lat: s.lat,
+                    lon: s.lon,
+                    kind: s.kind,
+                    address: s.address,
+                })
+                .collect();
 
         // Schedule points — the real per-stop timetable (with arrival
         // times) the admin configured for this trip's schedule. Joined
@@ -1493,12 +1530,37 @@ impl PublicService {
             .map(|si| (si.seat_id.to_string(), si))
             .collect();
 
+        // The saved floor plan (fixtures + what each seat physically is),
+        // trusted only while it still matches the seat rows.
+        let plan = bus_layout
+            .as_ref()
+            .and_then(|l| seat_plan::trusted_plan(l.layout_data.as_deref(), &seat_rows));
+        let kinds = plan
+            .as_ref()
+            .map(seat_plan::kinds_by_label)
+            .unwrap_or_default();
+
+        let fare_table = FareTable::load(&self.store, &schedule).await?;
+        let policy = brand.as_ref().and_then(ChildPolicy::of);
+        let child_price = standard_child_price(&schedule, policy);
+        let mut class_fares: BTreeMap<String, FareSummary> = BTreeMap::new();
+
         // Group seats by deck → row
         let mut decks_map: BTreeMap<i16, BTreeMap<i16, Vec<TripSeat>>> = BTreeMap::new();
         for s in &seat_rows {
             let deck = s.floor;
             let row_num = s.row_num.unwrap_or(0);
             let inv = inv_map.get(&s.id.to_string());
+            let class = fares::class_of(s);
+            let fare = fare_table.fare(Some(&class));
+            let status = inv
+                .map(|i| i.status.clone())
+                .unwrap_or_else(|| "available".into());
+            let price = inv.map_or(fare.adult, |i| i.final_price);
+            class_fares
+                .entry(class)
+                .or_insert_with(|| FareSummary::new(fare))
+                .add(price, status == "available");
             let seat = TripSeat {
                 id: s.id,
                 code: s.seat_label.clone(),
@@ -1507,10 +1569,12 @@ impl PublicService {
                 col: s.col_num.unwrap_or(0),
                 deck,
                 seat_class: s.seat_class.clone(),
-                status: inv
-                    .map(|i| i.status.clone())
-                    .unwrap_or_else(|| "available".into()),
-                final_price: inv.map(|i| i.final_price).unwrap_or(0),
+                kind: kinds
+                    .get(&(deck, s.seat_label.trim().to_lowercase()))
+                    .copied(),
+                status,
+                final_price: price,
+                child_price: fares::child_price(price, fare, policy),
             };
             decks_map
                 .entry(deck)
@@ -1530,7 +1594,25 @@ impl PublicService {
                         seats,
                     })
                     .collect();
-                TripSeatDeck { deck, rows }
+                let frame = plan
+                    .as_ref()
+                    .and_then(|p| p.decks.get(usize::try_from(deck - 1).ok()?))
+                    .map(|d| TripDeckPlan {
+                        name: d.name.clone(),
+                        rows: d.rows,
+                        cols: d.cols,
+                        fixtures: d
+                            .cells
+                            .iter()
+                            .filter(|c| !c.kind.is_sellable())
+                            .cloned()
+                            .collect(),
+                    });
+                TripSeatDeck {
+                    deck,
+                    plan: frame,
+                    rows,
+                }
             })
             .collect();
 
@@ -1600,9 +1682,11 @@ impl PublicService {
         let (vehicle_type, vt_label) =
             resolve_vehicle_type(&schedule, bus_layout.as_ref(), &vt_map);
 
+        let bookable = on_sale(&trip, &schedule);
         Ok(TripDetail {
             trip: TripCore {
                 id: trip.id,
+                bookable,
                 departure_date: trip.departure_date,
                 departure_at: dep_iso,
                 departure_time: Some(schedule.departure_time),
@@ -1621,7 +1705,7 @@ impl PublicService {
                 name: brand.as_ref().map(|b| b.name.clone()),
                 slug: brand.as_ref().map(|b| b.slug.clone()),
                 logo_url: brand.as_ref().and_then(|b| b.logo_url.clone()),
-                rating: brand.as_ref().and_then(|b| b.rating).unwrap_or(0.0),
+                rating: brand.as_ref().and_then(|b| b.rating),
                 accent_color: brand.as_ref().and_then(|b| b.accent_color.clone()),
             },
             from: TripEndpoint {
@@ -1643,7 +1727,9 @@ impl PublicService {
             },
             pricing: TripPricing {
                 base_price_adult: schedule.base_price_adult,
-                base_price_child: schedule.base_price_child.unwrap_or(0),
+                base_price_child: child_price,
+                fares: trip_fares(class_fares, policy),
+                child_fare: policy.map(Into::into),
             },
             amenities: amenities_vec,
             pickup_points: pickup_items,
@@ -1659,7 +1745,7 @@ impl PublicService {
         let mut trips = self
             .store
             .trip_store()
-            .list_upcoming_trips(&today, 4)
+            .list_upcoming_trips(&today, RECOMMENDATION_CANDIDATES)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
@@ -1684,12 +1770,13 @@ impl PublicService {
             trips = self
                 .store
                 .trip_store()
-                .list_upcoming_trips(&today, 4)
+                .list_upcoming_trips(&today, RECOMMENDATION_CANDIDATES)
                 .await
                 .map_err(|e| AppError::Internal(e.to_string()))?;
         }
 
         // Reuse search_trips serialization logic
+        let price_ranges = self.price_ranges(&trips).await?;
         let items: Vec<TripResult> = {
             let trip_sched_uuids: Vec<Uuid> = trips.iter().map(|t| t.schedule_id).collect();
             let sched_map: std::collections::HashMap<String, schedule::Model> = self
@@ -1752,11 +1839,15 @@ impl PublicService {
                 .filter_map(|t| {
                     let sched = sched_map.get(&t.schedule_id.to_string())?;
                     let route = route_map.get(&sched.route_id.to_string())?;
+                    if !on_sale(t, sched) {
+                        return None;
+                    }
                     let brand = route
                         .brand_id
                         .map(|id| id.to_string())
                         .as_deref()
                         .and_then(|bid| brand_map.get(bid));
+                    let prices = CardPrices::of(&price_ranges, t.id, sched, brand);
                     let amenities = parse_amenities(&sched.amenities);
                     let (dep_iso, _) = compute_iso_timestamps(
                         &Some(t.departure_date.clone()),
@@ -1786,7 +1877,7 @@ impl PublicService {
                         brand_name: brand.map(|b| b.name.clone()).unwrap_or_default(),
                         brand_slug: brand.map(|b| b.slug.clone()).unwrap_or_default(),
                         brand_logo: brand.and_then(|b| b.logo_url.clone()),
-                        brand_rating: brand.and_then(|b| b.rating).unwrap_or(0.0),
+                        brand_rating: brand.and_then(|b| b.rating),
                         brand_accent: brand
                             .and_then(|b| b.accent_color.clone())
                             .unwrap_or_else(|| "#0d9488".into()),
@@ -1800,16 +1891,17 @@ impl PublicService {
                         departure_at: dep_iso,
                         arrival_at: arr_iso,
                         bus_layout_id: sched.bus_layout_id.map(|u| u.to_string()),
-                        min_price: sched.base_price_adult,
-                        max_price: sched.base_price_adult,
+                        min_price: prices.min,
+                        max_price: prices.max,
                         price_adult: sched.base_price_adult,
-                        price_child: sched.base_price_child.unwrap_or(0),
+                        price_child: prices.child,
                         vehicle_type,
                         vehicle_type_label: vt_label.to_string(),
                         capacity: None,
                         amenities,
                     })
                 })
+                .take(RECOMMENDATIONS)
                 .collect()
         };
 
@@ -1881,7 +1973,8 @@ impl PublicService {
 
     // ── Stats ───────────────────────────────────────────────────
 
-    /// Public stats for the homepage.
+    /// Public stats for the homepage: active brands and routes, and the
+    /// scheduled trips departing today (Vietnam) or later.
     pub async fn stats(&self) -> AppResult<StatsResponse> {
         let brand_count = self
             .store
@@ -1898,7 +1991,7 @@ impl PublicService {
         let trip_count = self
             .store
             .trip_store()
-            .count_trips_by_status("scheduled")
+            .count_upcoming_trips(&trip_time::local_today())
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
@@ -1913,6 +2006,113 @@ impl PublicService {
 // ────────────────────────────────────────────────────────────────
 //  Unit tests
 // ────────────────────────────────────────────────────────────────
+
+/// Trips the homepage shows, and how many upcoming ones it looks at to find
+/// them (some may have left already today).
+const RECOMMENDATIONS: usize = 4;
+const RECOMMENDATION_CANDIDATES: u64 = 16;
+
+/// Still on sale: scheduled and not yet departed.
+fn on_sale(trip: &trip_session::Model, schedule: &schedule::Model) -> bool {
+    trip.status == "scheduled"
+        && !trip_time::departure_instant(
+            &trip.departure_date,
+            &schedule.departure_time,
+            trip.actual_departure_at.as_deref(),
+        )
+        .is_some_and(|departs| departs <= chrono::Utc::now())
+}
+
+/// Prices on a result card.
+struct CardPrices {
+    min: i64,
+    max: i64,
+    /// Standard-seat child price; 0 without child tickets.
+    child: i64,
+}
+
+impl CardPrices {
+    /// The range of seats still for sale; the base fare for trips without
+    /// seat inventory.
+    fn of(
+        ranges: &HashMap<Uuid, (i64, i64)>,
+        trip: Uuid,
+        schedule: &schedule::Model,
+        brand: Option<&brand::Model>,
+    ) -> Self {
+        let (min, max) = ranges
+            .get(&trip)
+            .copied()
+            .unwrap_or((schedule.base_price_adult, schedule.base_price_adult));
+        Self {
+            min,
+            max,
+            child: standard_child_price(schedule, brand.and_then(ChildPolicy::of)),
+        }
+    }
+}
+
+/// The seats of one class on a trip, for the fare legend.
+struct FareSummary {
+    fare: Fare,
+    /// Cheapest seat for sale, else cheapest seat.
+    cheapest_available: Option<i64>,
+    cheapest: i64,
+    seats: i64,
+    available: i64,
+}
+
+impl FareSummary {
+    fn new(fare: Fare) -> Self {
+        Self {
+            fare,
+            cheapest_available: None,
+            cheapest: i64::MAX,
+            seats: 0,
+            available: 0,
+        }
+    }
+
+    fn add(&mut self, price: i64, available: bool) {
+        self.seats += 1;
+        self.cheapest = self.cheapest.min(price);
+        if available {
+            self.available += 1;
+            self.cheapest_available = Some(self.cheapest_available.map_or(price, |c| c.min(price)));
+        }
+    }
+}
+
+/// One entry per seat class on the trip, cheapest first.
+fn trip_fares(
+    classes: BTreeMap<String, FareSummary>,
+    policy: Option<ChildPolicy>,
+) -> Vec<TripFare> {
+    let mut out: Vec<TripFare> = classes
+        .into_iter()
+        .map(|(seat_class, s)| {
+            let price_adult = s.cheapest_available.unwrap_or(s.cheapest);
+            TripFare {
+                seat_class,
+                price_adult,
+                price_child: fares::child_price(price_adult, s.fare, policy),
+                seats: s.seats,
+                available: s.available,
+            }
+        })
+        .collect();
+    out.sort_by_key(|f| f.price_adult);
+    out
+}
+
+/// What a child pays for a standard seat; 0 without child tickets.
+fn standard_child_price(schedule: &schedule::Model, policy: Option<ChildPolicy>) -> i64 {
+    let fare = Fare {
+        adult: schedule.base_price_adult,
+        child: schedule.base_price_child,
+    };
+    fares::child_price(fare.adult, fare, policy).unwrap_or(0)
+}
 
 #[cfg(test)]
 mod tests {
@@ -2074,5 +2274,28 @@ mod tests {
             None
         );
         assert_eq!(compute_arrival_iso("garbage", "08:30", "14:45"), None);
+    }
+
+    #[test]
+    fn only_scheduled_trips_that_have_not_left_are_on_sale() {
+        let schedule = sched(None, None, None);
+        let trip = |days: i64, status: &str| trip_session::Model {
+            id: Uuid::new_v4(),
+            schedule_id: schedule.id,
+            departure_date: (chrono::Utc::now() + chrono::Duration::days(days))
+                .format("%Y-%m-%d")
+                .to_string(),
+            actual_departure_at: None,
+            driver_name: None,
+            driver_phone: None,
+            status: status.into(),
+            total_seats: 9,
+            available_seats: 9,
+            created_at: String::new(),
+            updated_at: String::new(),
+        };
+        assert!(on_sale(&trip(2, "scheduled"), &schedule));
+        assert!(!on_sale(&trip(-1, "scheduled"), &schedule));
+        assert!(!on_sale(&trip(2, "cancelled"), &schedule));
     }
 }

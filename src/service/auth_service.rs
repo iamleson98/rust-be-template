@@ -209,6 +209,43 @@ impl AuthService {
         self.issue_session(user).await
     }
 
+    /// Change the signed-in user's password. The current one must match;
+    /// an account made through Google/Facebook has none and sets its first.
+    /// Every other device is signed out (their refresh tokens are revoked);
+    /// this one gets a fresh session.
+    pub async fn change_password(
+        &self,
+        user_id: Uuid,
+        current: Option<String>,
+        new: String,
+    ) -> AppResult<AuthSession> {
+        let user = self.store.user_store().get_user(user_id).await?;
+        if let Some(hash) = user.password_hash.clone() {
+            let matches = match current {
+                Some(current) => self.password.verify_async(current, hash).await,
+                None => false,
+            };
+            // 400, not 401: a wrong current password must not end the session.
+            if !matches {
+                return Err(AppError::BadRequest("current password is incorrect".into()));
+            }
+        }
+        let hash = self
+            .password
+            .hash_async(new)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        self.store
+            .user_store()
+            .set_password_hash(user_id, &hash)
+            .await?;
+        self.store
+            .refresh_token_store()
+            .revoke_all_refresh_tokens_for_user(user_id)
+            .await?;
+        self.issue_session(user).await
+    }
+
     /// Rotate a refresh token: revoke the old, issue a new one + new access.
     ///
     /// Uses `try_revoke_refresh_token` (atomic conditional UPDATE) so two

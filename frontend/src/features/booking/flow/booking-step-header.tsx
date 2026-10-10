@@ -1,54 +1,52 @@
 'use client'
 
-/**
- * BookingStepHeader — the dialog header of the BookingDialog: title +
- * description line, the 3-step progress stepper (passengers → contact →
- * payment) and the trip summary bar (route, departure time, selected
- * seat codes).
- *
- * Extracted from the original `booking-dialog.tsx`.
- */
-
 import { DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
-import { formatDateTimeVN } from '@/lib/types'
+import { formatDateTimeVN } from '@/lib/format'
 import { useT } from '@/lib/i18n'
 import { Check, Ticket, Calendar, Bus } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { type SelectedSeat, type TripDetail } from './booking-form'
+import type { TripDetail } from '@/api'
+import type { BookingStep } from '@/stores/booking-flow'
+import type { SelectedSeat } from './booking-form'
 
+/** Position of each step on the 3-dot stepper; paying online is still the payment step. */
+const STEP_INDEX: Record<BookingStep, number> = {
+  idle: 0,
+  passengers: 0,
+  contact: 1,
+  payment: 2,
+  pay: 2,
+  success: 3,
+}
+
+/** Title, progress stepper and a one-line trip summary above every checkout step. */
 export function BookingStepHeader({
-  bookingStep,
+  step,
   trip,
-  selectedSeatCodes,
+  seats,
 }: {
-  bookingStep: string
-  trip: TripDetail | null | undefined
-  selectedSeatCodes: SelectedSeat[]
+  step: BookingStep
+  trip: TripDetail | undefined
+  seats: SelectedSeat[]
 }) {
   const t = useT()
-  const stepIndex = ((bookingStep: string): number => {
-    if (bookingStep === 'contact') return 1
-    // 'pay' (online-payment processing) is still the payment step.
-    if (bookingStep === 'payment' || bookingStep === 'pay') return 2
-    if (bookingStep === 'success') return 3
-    return 0 // 'idle' or 'passengers'
-  })(bookingStep)
+  const stepIndex = STEP_INDEX[step]
   const steps = [t('booking.passengers'), t('bookingFlow.stepContact'), t('booking.payment')]
 
   return (
     <div className="px-5 py-4 border-b bg-white">
       <DialogTitle className="text-lg font-extrabold flex items-center gap-2">
         <Ticket className="h-5 w-5 text-primary" />
-        {bookingStep === 'success' ? t('booking.success') : t('bookingFlow.completeBooking')}
+        {step === 'success' ? t('booking.success') : t('bookingFlow.completeBooking')}
       </DialogTitle>
       <DialogDescription className="text-xs mt-1 pr-12">
-        {trip ? `${trip.brand.name} • ${trip.from.name} → ${trip.to.name}` : t('common.loading')}
+        {trip
+          ? `${trip.brand.name ?? ''} • ${trip.from.name ?? ''} → ${trip.to.name ?? ''}`
+          : t('common.loading')}
       </DialogDescription>
 
-      {/* Stepper — connected dots with filled track; the active step is
-          ringed so progress is obvious at a glance. */}
-      {bookingStep !== 'success' && (
+      {step !== 'success' && (
         <div className="flex items-center mt-3.5" aria-label={t('bookingFlow.stepProgress')}>
           {steps.map((s, i) => (
             <div key={s} className={cn('flex items-center', i > 0 && 'flex-1')}>
@@ -88,27 +86,25 @@ export function BookingStepHeader({
         </div>
       )}
 
-      {/* Trip summary bar */}
-      {trip && bookingStep !== 'success' && (
-        <div className="-mx-5 -mb-4 px-5 py-2.5 bg-slate-50 border-t flex items-center gap-3 text-xs mt-3">
+      {trip && step !== 'success' && (
+        <div className="-mx-5 -mb-4 mt-3 flex items-center gap-3 border-t bg-muted/50 px-5 py-2.5 text-xs">
           <Bus className="h-4 w-4 text-primary shrink-0" />
-          <span className="font-medium truncate">
+          <span className="min-w-0 flex-1 truncate font-medium">
             {trip.from.name} → {trip.to.name}
           </span>
           <span className="text-muted-foreground flex items-center gap-1 shrink-0">
             <Calendar className="h-3 w-3" />
             {formatDateTimeVN(trip.trip.departureAt)}
           </span>
-          <div className="ml-auto flex items-center gap-1 overflow-hidden">
-            {selectedSeatCodes.slice(0, 6).map((s) => (
+          {/* Phones: no room; every step lists the seats anyway. */}
+          <div className="hidden items-center gap-1 overflow-hidden sm:flex">
+            {seats.slice(0, 6).map((s) => (
               <Badge key={s.id} variant="outline" className="font-mono text-[10px]">
                 {s.code}
               </Badge>
             ))}
-            {selectedSeatCodes.length > 6 && (
-              <span className="text-[10px] text-muted-foreground">
-                +{selectedSeatCodes.length - 6}
-              </span>
+            {seats.length > 6 && (
+              <span className="text-[10px] text-muted-foreground">+{seats.length - 6}</span>
             )}
           </div>
         </div>

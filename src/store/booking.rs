@@ -6,14 +6,18 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use sea_orm::sea_query::{BinOper, Expr, Query, SelectStatement, SimpleExpr};
 use sea_orm::{
-    ColumnTrait, DatabaseConnection, EntityTrait, JoinType, PaginatorTrait, QueryFilter,
-    QueryOrder, QuerySelect, RelationTrait,
+    ColumnTrait, Condition, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    QueryOrder, QuerySelect, TransactionError, TransactionTrait,
 };
 use store_macros::retry;
 use uuid::Uuid;
 
-use crate::entity::{booking, booking_seat};
+use crate::entity::{
+    booking, booking_seat, campaign, payment, route, schedule, seat_inventory, trip_session,
+};
+use crate::payment::statuses as payment_status;
 
 use super::error::{StoreError, StoreResult};
 use super::retry::RetryPolicy;
@@ -23,6 +27,128 @@ use super::retry::RetryPolicy;
 /// `Uuid` (a BLOB parameter that does).
 fn parse_uuid(s: &str) -> StoreResult<uuid::Uuid> {
     uuid::Uuid::parse_str(s).map_err(|_| StoreError::Validation(format!("invalid uuid: {s}")))
+}
+
+/// What [`BookingStore::confirm_pending`] did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConfirmOutcome {
+    Confirmed,
+    /// The booking was not pending (already confirmed, cancelled or expired).
+    NotPending,
+    /// Still pending, but its seats are no longer all held by it. Nothing was changed.
+    SeatsLost,
+}
+
+/// What a cancelled booking gave back.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Released {
+    pub trip_session_id: Uuid,
+    pub seats: u64,
+}
+
+fn now_iso() -> String {
+    chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
+}
+
+/// Which bookings a listing returns, and in what order. Every field narrows
+/// it; the default matches all, newest first.
+#[derive(Debug, Clone, Default)]
+pub struct BookingFilter {
+    pub user_id: Option<Uuid>,
+    pub status: Option<String>,
+    pub payment_method: Option<String>,
+    /// Only tickets: bookings placed for payment or already confirmed, not
+    /// checkouts left unfinished.
+    pub placed: bool,
+    /// Code, contact name or contact phone contains this.
+    pub search: Option<String>,
+    /// On trips of this brand.
+    pub brand_id: Option<Uuid>,
+    /// On trips of this route.
+    pub route_id: Option<Uuid>,
+    /// Created at or after this instant (RFC 3339, UTC, whole seconds).
+    pub created_from: Option<String>,
+    /// Created before this instant (RFC 3339, UTC, whole seconds).
+    pub created_before: Option<String>,
+    pub order: BookingOrder,
+}
+
+/// The order of a booking listing.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum BookingOrder {
+    #[default]
+    NewestFirst,
+    OldestFirst,
+    TotalDesc,
+    TotalAsc,
+}
+
+/// `SELECT id FROM trip_session` on the schedules `schedules` selects.
+fn trips_on(schedules: SelectStatement) -> SelectStatement {
+    Query::select()
+        .column(trip_session::Column::Id)
+        .from(trip_session::Entity)
+        .and_where(trip_session::Column::ScheduleId.in_subquery(schedules))
+        .to_owned()
+}
+
+/// `SELECT id FROM schedule` on the routes matching `on_route`.
+fn schedules_on(on_route: SimpleExpr) -> SelectStatement {
+    Query::select()
+        .column(schedule::Column::Id)
+        .from(schedule::Entity)
+        .and_where(on_route)
+        .to_owned()
+}
+
+fn filtered(f: &BookingFilter) -> sea_orm::Select<booking::Entity> {
+    let mut q = booking::Entity::find();
+    if let Some(uid) = f.user_id {
+        q = q.filter(booking::Column::UserId.eq(uid));
+    }
+    if let Some(status) = &f.status {
+        q = q.filter(booking::Column::Status.eq(status.clone()));
+    }
+    if let Some(method) = &f.payment_method {
+        q = q.filter(booking::Column::PaymentMethod.eq(method.clone()));
+    }
+    if f.placed {
+        q = q.filter(
+            Condition::any()
+                .add(booking::Column::PaymentMethod.is_not_null())
+                .add(booking::Column::Status.is_in(["confirmed", "completed"])),
+        );
+    }
+    if let Some(term) = f.search.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        q = q.filter(
+            Condition::any()
+                .add(booking::Column::Code.contains(term.to_uppercase()))
+                .add(booking::Column::ContactName.contains(term))
+                .add(booking::Column::ContactPhone.contains(term)),
+        );
+    }
+    // Brand and route sit behind trip → schedule → route; nested `IN`s
+    // keep it to one statement without joins.
+    if let Some(route_id) = f.route_id {
+        let schedules = schedules_on(schedule::Column::RouteId.eq(route_id));
+        q = q.filter(booking::Column::TripSessionId.in_subquery(trips_on(schedules)));
+    }
+    if let Some(brand_id) = f.brand_id {
+        let routes = Query::select()
+            .column(route::Column::Id)
+            .from(route::Entity)
+            .and_where(route::Column::BrandId.eq(brand_id))
+            .to_owned();
+        let schedules = schedules_on(schedule::Column::RouteId.in_subquery(routes));
+        q = q.filter(booking::Column::TripSessionId.in_subquery(trips_on(schedules)));
+    }
+    if let Some(from) = &f.created_from {
+        q = q.filter(booking::Column::CreatedAt.gte(from.clone()));
+    }
+    if let Some(before) = &f.created_before {
+        q = q.filter(booking::Column::CreatedAt.lt(before.clone()));
+    }
+    q
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -43,32 +169,24 @@ pub trait BookingStore: Send + Sync {
     /// resolve booking codes without an N+1 round-trip per payment row.
     async fn find_bookings_by_ids(&self, ids: Vec<Uuid>) -> StoreResult<Vec<booking::Model>>;
 
-    async fn list_bookings_by_user(
+    /// A page of the bookings matching `filter`, in its order.
+    async fn list_bookings(
         &self,
-        user_id: &str,
-        status: &str,
-        trip_session_ids: Vec<String>,
+        filter: &BookingFilter,
         limit: u64,
         offset: u64,
     ) -> StoreResult<Vec<booking::Model>>;
 
-    /// List bookings for a user, filtered by status + an optional
-    /// trip-departure-date range (gte / lt). Replaces the previous
-    /// "load all trips departing today → filter bookings by trip_session_id IN(...)"
-    /// pattern that materialised ~18k trip rows on every authenticated
-    /// /bookings request after a year of operation.
-    ///
-    /// `date_gte` and `date_lt` are `YYYY-MM-DD` strings; either can be
-    /// `None` to skip that bound.
-    async fn list_bookings_by_user_with_date_filter(
+    /// How many bookings match `filter` (`COUNT(*)`, no rows loaded).
+    async fn count_bookings(&self, filter: &BookingFilter) -> StoreResult<u64>;
+
+    /// `(created_at, status, total)` of every booking matching `filter`:
+    /// what reports aggregate, without loading whole rows.
+    async fn booking_facts(
         &self,
-        user_id: &str,
-        status: &str,
-        date_gte: Option<&str>,
-        date_lt: Option<&str>,
-        limit: u64,
-        offset: u64,
-    ) -> StoreResult<Vec<booking::Model>>;
+        filter: &BookingFilter,
+    ) -> StoreResult<Vec<(String, String, i64)>>;
+
     async fn insert_booking(&self, model: booking::ActiveModel) -> StoreResult<()>;
     async fn update_booking(&self, model: booking::ActiveModel) -> StoreResult<booking::Model>;
 
@@ -80,29 +198,6 @@ pub trait BookingStore: Send + Sync {
     /// `seat_inventory.held_by_booking_id` carries an FK to this row.
     /// Returns the number of rows deleted (0 = already gone).
     async fn delete_booking(&self, id: Uuid) -> StoreResult<u64>;
-
-    /// Count bookings matching an optional status filter. Uses `COUNT(*)`
-    /// — does NOT load rows into memory.
-    async fn count_bookings_by_status(&self, status: Option<&str>) -> StoreResult<u64>;
-
-    /// List bookings matching an optional status filter, with pagination.
-    /// Ordered by `created_at DESC`.
-    async fn list_bookings_by_status(
-        &self,
-        status: Option<&str>,
-        limit: u64,
-        offset: u64,
-    ) -> StoreResult<Vec<booking::Model>>;
-
-    /// List ALL bookings matching an optional status filter (no pagination).
-    /// Used by stats / export which need to iterate every row. Avoid using
-    /// this for list endpoints — use `list_bookings_by_status` instead.
-    async fn list_all_bookings_by_status(
-        &self,
-        status: Option<&str>,
-    ) -> StoreResult<Vec<booking::Model>>;
-
-    // ── BookingSeat ─────────────────────────────────────────────
 
     async fn list_booking_seats(&self, booking_id: &str) -> StoreResult<Vec<booking_seat::Model>>;
     async fn insert_booking_seat(&self, model: booking_seat::ActiveModel) -> StoreResult<()>;
@@ -123,6 +218,52 @@ pub trait BookingStore: Send + Sync {
         &self,
         booking_ids: Vec<String>,
     ) -> StoreResult<Vec<booking_seat::Model>>;
+
+    // ── Lifecycle transitions ───────────────────────────────────
+    //
+    // Each is ONE transaction guarded by the booking's current state, so
+    // a confirm, a cancel and the expiry sweep can race safely: exactly
+    // one wins and the others change nothing.
+
+    /// `pending` → `confirmed` and the booking's held seats → `booked`.
+    /// Nothing changes unless the booking is pending AND still holds all
+    /// of its seats.
+    async fn confirm_pending(
+        &self,
+        booking_id: Uuid,
+        payment_method: &str,
+    ) -> StoreResult<ConfirmOutcome>;
+
+    /// Cancel a booking whose status is one of `from`: free its seats,
+    /// return them to the trip's counter, give a pending booking's promo
+    /// use back and cancel its pending payments. `None` = nothing to do.
+    async fn cancel_booking(
+        &self,
+        booking_id: Uuid,
+        from: &[&str],
+    ) -> StoreResult<Option<Released>>;
+
+    /// Pending bookings whose hold ran out before `now` (RFC 3339, UTC),
+    /// oldest first.
+    async fn list_expired_pending(&self, now: &str, limit: u64)
+        -> StoreResult<Vec<booking::Model>>;
+
+    /// Like [`cancel_booking`](Self::cancel_booking) for a pending booking,
+    /// but only if its hold is still expired at `now` (a payment may have
+    /// extended it since it was listed).
+    async fn expire_pending(&self, booking_id: Uuid, now: &str) -> StoreResult<Option<Released>>;
+
+    /// Record how a pending booking will be paid and hold its seats until
+    /// `hold_until` (RFC 3339, UTC). `false` when it is no longer pending.
+    async fn place_pending(
+        &self,
+        booking_id: Uuid,
+        payment_method: &str,
+        hold_until: &str,
+    ) -> StoreResult<bool>;
+
+    /// `confirmed` → `completed`. `false` when it was not confirmed.
+    async fn complete_booking(&self, booking_id: Uuid) -> StoreResult<bool>;
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -168,102 +309,36 @@ impl BookingStore for DbBookingStore {
             .await?)
     }
 
-    async fn list_bookings_by_user(
+    async fn list_bookings(
         &self,
-        user_id: &str,
-        status: &str,
-        trip_session_ids: Vec<String>,
+        filter: &BookingFilter,
         limit: u64,
         offset: u64,
     ) -> StoreResult<Vec<booking::Model>> {
-        // Bind the user id as a Uuid VALUE: the engine stores Uuid
-        // columns as 16-byte BLOBs and a TEXT bind never matches.
-        let uid = Uuid::parse_str(user_id)
-            .map_err(|_| StoreError::Validation(format!("invalid user id: {user_id}")))?;
-        let mut query = booking::Entity::find().filter(booking::Column::UserId.eq(uid));
-
-        // Bind trip ids as parsed Uuid VALUES (SQLite BLOB columns —
-        // TEXT binds never match; see entity/booking.rs).
-        let trip_uuids: Vec<Uuid> = trip_session_ids
-            .iter()
-            .map(|s| parse_uuid(s))
-            .collect::<StoreResult<Vec<_>>>()?;
-        match status {
-            "confirmed" | "upcoming" => {
-                query = query.filter(booking::Column::Status.eq("confirmed"));
-                if !trip_uuids.is_empty() {
-                    query = query.filter(booking::Column::TripSessionId.is_in(trip_uuids));
-                }
-            }
-            "completed" | "past" => {
-                query = query.filter(booking::Column::Status.eq("completed"));
-                if !trip_uuids.is_empty() {
-                    query = query.filter(booking::Column::TripSessionId.is_in(trip_uuids));
-                }
-            }
-            "cancelled" => {
-                query = query.filter(booking::Column::Status.eq("cancelled"));
-            }
-            "all" => {}
-            _ => {}
-        }
-
-        Ok(query
-            .order_by_desc(booking::Column::CreatedAt)
-            .limit(limit)
-            .offset(offset)
-            .all(self.db.as_ref())
-            .await?)
+        let q = filtered(filter);
+        let q = match filter.order {
+            BookingOrder::NewestFirst => q.order_by_desc(booking::Column::CreatedAt),
+            BookingOrder::OldestFirst => q.order_by_asc(booking::Column::CreatedAt),
+            BookingOrder::TotalDesc => q.order_by_desc(booking::Column::Total),
+            BookingOrder::TotalAsc => q.order_by_asc(booking::Column::Total),
+        };
+        Ok(q.limit(limit).offset(offset).all(self.db.as_ref()).await?)
     }
 
-    async fn list_bookings_by_user_with_date_filter(
+    async fn count_bookings(&self, filter: &BookingFilter) -> StoreResult<u64> {
+        Ok(filtered(filter).count(self.db.as_ref()).await?)
+    }
+
+    async fn booking_facts(
         &self,
-        user_id: &str,
-        status: &str,
-        date_gte: Option<&str>,
-        date_lt: Option<&str>,
-        limit: u64,
-        offset: u64,
-    ) -> StoreResult<Vec<booking::Model>> {
-        // JOIN on trip_session to filter by departure_date in a single SQL
-        // query — eliminates the previous "load all trips departing
-        // today → filter bookings by trip_session_id IN (...)" pattern.
-        use crate::entity::trip_session;
-        let uid = Uuid::parse_str(user_id)
-            .map_err(|_| StoreError::Validation(format!("invalid user id: {user_id}")))?;
-        let mut query = booking::Entity::find()
-            .filter(booking::Column::UserId.eq(uid))
-            .join(
-                JoinType::InnerJoin,
-                trip_session::Relation::Booking.def().rev(),
-            );
-
-        // Status filter
-        match status {
-            "confirmed" | "upcoming" => {
-                query = query.filter(booking::Column::Status.eq("confirmed"));
-            }
-            "completed" | "past" => {
-                query = query.filter(booking::Column::Status.eq("completed"));
-            }
-            "cancelled" => {
-                query = query.filter(booking::Column::Status.eq("cancelled"));
-            }
-            _ => {}
-        }
-
-        // Departure-date bucket filter (None = no filter)
-        if let Some(gte) = date_gte {
-            query = query.filter(trip_session::Column::DepartureDate.gte(gte.to_string()));
-        }
-        if let Some(lt) = date_lt {
-            query = query.filter(trip_session::Column::DepartureDate.lt(lt.to_string()));
-        }
-
-        Ok(query
-            .order_by_desc(booking::Column::CreatedAt)
-            .limit(limit)
-            .offset(offset)
+        filter: &BookingFilter,
+    ) -> StoreResult<Vec<(String, String, i64)>> {
+        Ok(filtered(filter)
+            .select_only()
+            .column(booking::Column::CreatedAt)
+            .column(booking::Column::Status)
+            .column(booking::Column::Total)
+            .into_tuple()
             .all(self.db.as_ref())
             .await?)
     }
@@ -288,43 +363,6 @@ impl BookingStore for DbBookingStore {
             .exec(self.db.as_ref())
             .await?;
         Ok(res.rows_affected)
-    }
-
-    async fn count_bookings_by_status(&self, status: Option<&str>) -> StoreResult<u64> {
-        let mut query = booking::Entity::find();
-        if let Some(s) = status {
-            query = query.filter(booking::Column::Status.eq(s.to_string()));
-        }
-        Ok(query.count(self.db.as_ref()).await?)
-    }
-
-    async fn list_bookings_by_status(
-        &self,
-        status: Option<&str>,
-        limit: u64,
-        offset: u64,
-    ) -> StoreResult<Vec<booking::Model>> {
-        let mut query = booking::Entity::find();
-        if let Some(s) = status {
-            query = query.filter(booking::Column::Status.eq(s.to_string()));
-        }
-        Ok(query
-            .order_by_desc(booking::Column::CreatedAt)
-            .limit(limit)
-            .offset(offset)
-            .all(self.db.as_ref())
-            .await?)
-    }
-
-    async fn list_all_bookings_by_status(
-        &self,
-        status: Option<&str>,
-    ) -> StoreResult<Vec<booking::Model>> {
-        let mut query = booking::Entity::find();
-        if let Some(s) = status {
-            query = query.filter(booking::Column::Status.eq(s.to_string()));
-        }
-        Ok(query.all(self.db.as_ref()).await?)
     }
 
     async fn list_booking_seats(&self, booking_id: &str) -> StoreResult<Vec<booking_seat::Model>> {
@@ -391,5 +429,259 @@ impl BookingStore for DbBookingStore {
             .filter(booking_seat::Column::BookingId.is_in(ids))
             .all(self.db.as_ref())
             .await?)
+    }
+
+    #[store_macros::no_retry]
+    async fn confirm_pending(
+        &self,
+        booking_id: Uuid,
+        payment_method: &str,
+    ) -> StoreResult<ConfirmOutcome> {
+        let method = payment_method.to_string();
+        let res = self
+            .db
+            .transaction::<_, ConfirmOutcome, StoreError>(|txn| {
+                Box::pin(async move {
+                    let Some(b) = booking::Entity::find_by_id(booking_id).one(txn).await? else {
+                        return Ok(ConfirmOutcome::NotPending);
+                    };
+                    if b.status != "pending" {
+                        return Ok(ConfirmOutcome::NotPending);
+                    }
+                    let wanted = booking_seat::Entity::find()
+                        .filter(booking_seat::Column::BookingId.eq(booking_id))
+                        .count(txn)
+                        .await?;
+                    let held = seat_inventory::Entity::find()
+                        .filter(seat_inventory::Column::HeldByBookingId.eq(booking_id))
+                        .filter(seat_inventory::Column::Status.eq("held"))
+                        .count(txn)
+                        .await?;
+                    if wanted == 0 || held != wanted {
+                        return Ok(ConfirmOutcome::SeatsLost);
+                    }
+
+                    let booked = seat_inventory::Entity::update_many()
+                        .col_expr(seat_inventory::Column::Status, Expr::value("booked"))
+                        .col_expr(
+                            seat_inventory::Column::HeldUntil,
+                            Expr::value(None::<String>),
+                        )
+                        .filter(seat_inventory::Column::HeldByBookingId.eq(booking_id))
+                        .filter(seat_inventory::Column::Status.eq("held"))
+                        .exec(txn)
+                        .await?
+                        .rows_affected;
+                    let confirmed = booking::Entity::update_many()
+                        .col_expr(booking::Column::Status, Expr::value("confirmed"))
+                        .col_expr(booking::Column::PaymentMethod, Expr::value(Some(method)))
+                        .col_expr(booking::Column::UpdatedAt, Expr::value(now_iso()))
+                        .filter(booking::Column::Id.eq(booking_id))
+                        .filter(booking::Column::Status.eq("pending"))
+                        .exec(txn)
+                        .await?
+                        .rows_affected;
+                    if booked != wanted || confirmed != 1 {
+                        // Lost a race between the checks and the writes: roll everything back.
+                        return Err(StoreError::Conflict(
+                            "booking changed during confirm".into(),
+                        ));
+                    }
+                    Ok(ConfirmOutcome::Confirmed)
+                })
+            })
+            .await;
+        match res {
+            Err(TransactionError::Transaction(StoreError::Conflict(_))) => {
+                Ok(ConfirmOutcome::SeatsLost)
+            }
+            other => other.map_err(StoreError::from),
+        }
+    }
+
+    #[store_macros::no_retry]
+    async fn cancel_booking(
+        &self,
+        booking_id: Uuid,
+        from: &[&str],
+    ) -> StoreResult<Option<Released>> {
+        let from: Vec<String> = from.iter().map(|s| s.to_string()).collect();
+        self.release_booking(booking_id, from, None).await
+    }
+
+    async fn list_expired_pending(
+        &self,
+        now: &str,
+        limit: u64,
+    ) -> StoreResult<Vec<booking::Model>> {
+        Ok(booking::Entity::find()
+            .filter(booking::Column::Status.eq("pending"))
+            .filter(booking::Column::ExpiresAt.lt(now.to_string()))
+            .order_by_asc(booking::Column::ExpiresAt)
+            .limit(limit)
+            .all(self.db.as_ref())
+            .await?)
+    }
+
+    #[store_macros::no_retry]
+    async fn expire_pending(&self, booking_id: Uuid, now: &str) -> StoreResult<Option<Released>> {
+        self.release_booking(booking_id, vec!["pending".into()], Some(now.to_string()))
+            .await
+    }
+
+    #[store_macros::no_retry]
+    async fn place_pending(
+        &self,
+        booking_id: Uuid,
+        payment_method: &str,
+        hold_until: &str,
+    ) -> StoreResult<bool> {
+        let (method, until) = (payment_method.to_string(), hold_until.to_string());
+        self.db
+            .transaction::<_, bool, StoreError>(|txn| {
+                Box::pin(async move {
+                    let placed = booking::Entity::update_many()
+                        .col_expr(booking::Column::PaymentMethod, Expr::value(Some(method)))
+                        .col_expr(booking::Column::ExpiresAt, Expr::value(Some(until.clone())))
+                        .col_expr(booking::Column::UpdatedAt, Expr::value(now_iso()))
+                        .filter(booking::Column::Id.eq(booking_id))
+                        .filter(booking::Column::Status.eq("pending"))
+                        .exec(txn)
+                        .await?
+                        .rows_affected;
+                    if placed == 0 {
+                        return Ok(false);
+                    }
+                    seat_inventory::Entity::update_many()
+                        .col_expr(seat_inventory::Column::HeldUntil, Expr::value(Some(until)))
+                        .filter(seat_inventory::Column::HeldByBookingId.eq(booking_id))
+                        .filter(seat_inventory::Column::Status.eq("held"))
+                        .exec(txn)
+                        .await?;
+                    Ok(true)
+                })
+            })
+            .await
+            .map_err(StoreError::from)
+    }
+
+    #[store_macros::no_retry]
+    async fn complete_booking(&self, booking_id: Uuid) -> StoreResult<bool> {
+        let done = booking::Entity::update_many()
+            .col_expr(booking::Column::Status, Expr::value("completed"))
+            .col_expr(booking::Column::UpdatedAt, Expr::value(now_iso()))
+            .filter(booking::Column::Id.eq(booking_id))
+            .filter(booking::Column::Status.eq("confirmed"))
+            .exec(self.db.as_ref())
+            .await?
+            .rows_affected;
+        Ok(done == 1)
+    }
+}
+
+impl DbBookingStore {
+    /// Shared body of cancel and expiry: flip the booking to `cancelled`
+    /// and undo everything the hold did, in one transaction.
+    async fn release_booking(
+        &self,
+        booking_id: Uuid,
+        from: Vec<String>,
+        expired_before: Option<String>,
+    ) -> StoreResult<Option<Released>> {
+        self.db
+            .transaction::<_, Option<Released>, StoreError>(|txn| {
+                Box::pin(async move {
+                    let Some(b) = booking::Entity::find_by_id(booking_id).one(txn).await? else {
+                        return Ok(None);
+                    };
+                    if !from.contains(&b.status) {
+                        return Ok(None);
+                    }
+                    if let Some(now) = &expired_before {
+                        if b.expires_at.as_deref().is_none_or(|e| e >= now.as_str()) {
+                            return Ok(None);
+                        }
+                    }
+
+                    // Claim the transition; losing the race means someone else moved it.
+                    let claimed = booking::Entity::update_many()
+                        .col_expr(booking::Column::Status, Expr::value("cancelled"))
+                        .col_expr(booking::Column::UpdatedAt, Expr::value(now_iso()))
+                        .filter(booking::Column::Id.eq(booking_id))
+                        .filter(booking::Column::Status.eq(b.status.clone()))
+                        .exec(txn)
+                        .await?
+                        .rows_affected;
+                    if claimed == 0 {
+                        return Ok(None);
+                    }
+
+                    let seats = seat_inventory::Entity::update_many()
+                        .col_expr(seat_inventory::Column::Status, Expr::value("available"))
+                        .col_expr(
+                            seat_inventory::Column::HeldUntil,
+                            Expr::value(None::<String>),
+                        )
+                        .col_expr(
+                            seat_inventory::Column::HeldByBookingId,
+                            Expr::value(None::<Uuid>),
+                        )
+                        .filter(seat_inventory::Column::HeldByBookingId.eq(booking_id))
+                        .exec(txn)
+                        .await?
+                        .rows_affected;
+                    if seats > 0 {
+                        // Counter arithmetic is done by the engine: a read-modify-write here
+                        // would lose a concurrent hold's decrement.
+                        trip_session::Entity::update_many()
+                            .col_expr(
+                                trip_session::Column::AvailableSeats,
+                                Expr::col(trip_session::Column::AvailableSeats)
+                                    .binary(BinOper::Add, Expr::value(seats as i64)),
+                            )
+                            .filter(trip_session::Column::Id.eq(b.trip_session_id))
+                            .exec(txn)
+                            .await?;
+                    }
+
+                    if let (true, Some(campaign_id)) =
+                        (b.status == "pending", b.campaign_applied_id)
+                    {
+                        // The promo use was reserved by the hold and the sale never happened.
+                        campaign::Entity::update_many()
+                            .col_expr(
+                                campaign::Column::UsedCount,
+                                Expr::col(campaign::Column::UsedCount)
+                                    .binary(BinOper::Sub, Expr::value(1)),
+                            )
+                            .filter(campaign::Column::Id.eq(campaign_id))
+                            .filter(campaign::Column::UsedCount.gt(0))
+                            .exec(txn)
+                            .await?;
+                    }
+
+                    payment::Entity::update_many()
+                        .col_expr(
+                            payment::Column::Status,
+                            Expr::value(payment_status::CANCELLED),
+                        )
+                        .col_expr(payment::Column::UpdatedAt, Expr::value(now_iso()))
+                        .col_expr(
+                            payment::Column::FailureReason,
+                            Expr::value(Some("booking cancelled".to_string())),
+                        )
+                        .filter(payment::Column::BookingId.eq(booking_id))
+                        .filter(payment::Column::Status.eq(payment_status::PENDING))
+                        .exec(txn)
+                        .await?;
+
+                    Ok(Some(Released {
+                        trip_session_id: b.trip_session_id,
+                        seats,
+                    }))
+                })
+            })
+            .await
+            .map_err(StoreError::from)
     }
 }

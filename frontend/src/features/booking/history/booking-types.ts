@@ -1,83 +1,10 @@
-/**
- * Shared types for the Trip History / My Bookings surface.
- *
- * These match the shape returned by:
- *   - GET /api/bookings              (authenticated, status-filtered)
- *   - GET /api/bookings/lookup       (guest lookup by code/phone)
- *   - GET /api/users/me/bookings     (legacy phone-based lookup)
- *
- * The booking row carries an optional `review` summary — present iff the
- * authenticated user has already left feedback for this booking. This lets
- * the UI render the "Đánh giá" tab + the per-card feedback form's
- * "already reviewed" state without a second network round-trip.
- */
+import type { BookingOut } from '@/api'
 
-export type BookingSeat = {
-  code: string
-  seatClass: string
-  price: number
-  passengerName: string | null
-  passengerType: string
-  passengerAge: number
-}
+/** A ticket as the API returns it (`GET /api/bookings`, `GET /api/bookings/{id}`). */
+export type BookingItem = BookingOut
 
-export type BookingTrip = {
-  id?: string
-  departureAt: string
-  departureDate: string
-  status: string
-  routeId?: string
-  routeName: string
-  fromName: string
-  toName: string
-  brandId?: string
-  brandName: string
-  brandAccent: string
-  brandLogo: string | null
-  busLayoutName: string
-  vehicleType: string
-}
-
-export type ReviewSummary = {
-  id: string
-  rating: number
-  title: string
-  content: string
-  tags: string[]
-  photos: string[]
-  createdAt: string
-}
-
-export type BookingItem = {
-  id: string
-  code: string
-  status: string
-  subtotal: number
-  discount: number
-  fees: number
-  total: number
-  currency: string
-  contactName: string
-  contactPhone: string
-  contactEmail: string | null
-  boardingPointId?: string
-  droppingPointId?: string
-  pickupPointName: string | null
-  pickupPointLat?: number | null
-  pickupPointLon?: number | null
-  pickupPointAddress?: string | null
-  droppingPointName: string | null
-  paymentMethod: string | null
-  createdAt: string
-  updatedAt: string
-  paidAt: string | null
-  cancelledAt: string | null
-  expiresAt: string | null
-  seats: BookingSeat[]
-  trip: BookingTrip | null
-  /** Present iff the user has already submitted a review for this booking. */
-  review?: ReviewSummary | null
-}
+/** The customer's review of a ticket's trip. */
+export type ReviewSummary = NonNullable<BookingOut['review']>
 
 /**
  * Shape returned by the review list endpoints (`GET /api/reviews`,
@@ -111,10 +38,11 @@ export type ReviewItem = {
 // pattern for module-level label maps.
 
 export const PAYMENT_LABELS: Record<string, string> = {
+  cod: 'bookingHistory.payOnBoard',
   momo: 'payment.momo',
   vnpay: 'payment.vnpay',
-  bank: 'payment.vietqr',
-  cash: 'bookingHistory.cash',
+  vietqr: 'payment.vietqr',
+  zalopay: 'payment.zalopay',
 }
 
 // `labelKey` is the i18n key — every consumer resolves it at render time
@@ -131,88 +59,77 @@ export const REVIEW_TAG_LABELS: Record<string, { labelKey: string; emoji: string
   easy_booking: { labelKey: 'bookingHistory.tagEasyBooking', emoji: '🎟️' },
 }
 
-export const STATUS_CONFIG: Record<
-  string,
-  { labelKey: string; cls: string; icon: 'check' | 'clock' | 'xcircle' | 'alert' | 'landmark' }
+/** Where a ticket stands, as the customer reads it. */
+export type TicketStage = 'awaiting' | 'paying' | 'confirmed' | 'completed' | 'cancelled'
+
+/** A placed pay-on-board ticket waits for the operator's call; an online one for its payment. */
+export function ticketStage(b: Pick<BookingItem, 'status' | 'paymentMethod'>): TicketStage {
+  if (b.status === 'pending') return b.paymentMethod === 'cod' ? 'awaiting' : 'paying'
+  if (b.status === 'confirmed' || b.status === 'completed' || b.status === 'cancelled') {
+    return b.status
+  }
+  return 'cancelled'
+}
+
+export const STAGE_CONFIG: Record<
+  TicketStage,
+  { labelKey: string; cls: string; icon: 'check' | 'clock' | 'xcircle' | 'phone' }
 > = {
+  awaiting: {
+    labelKey: 'bookingHistory.statusAwaiting',
+    cls: 'bg-amber-100 text-amber-700',
+    icon: 'phone',
+  },
+  paying: {
+    labelKey: 'bookingHistory.statusPaying',
+    cls: 'bg-amber-100 text-amber-700',
+    icon: 'clock',
+  },
   confirmed: {
     labelKey: 'bookingHistory.statusConfirmed',
     cls: 'bg-blue-100 text-blue-700',
     icon: 'check',
   },
-  paid: { labelKey: 'bookingHistory.statusPaid', cls: 'bg-blue-100 text-blue-700', icon: 'check' },
   completed: {
     labelKey: 'bookingHistory.statusCompleted',
-    cls: 'bg-blue-100 text-blue-700',
+    cls: 'bg-emerald-100 text-emerald-700',
     icon: 'check',
-  },
-  pending: {
-    labelKey: 'bookingHistory.statusPending',
-    cls: 'bg-amber-100 text-amber-700',
-    icon: 'clock',
-  },
-  held: {
-    labelKey: 'bookingHistory.statusHeld',
-    cls: 'bg-amber-100 text-amber-700',
-    icon: 'clock',
   },
   cancelled: {
     labelKey: 'bookingHistory.statusCancelled',
     cls: 'bg-rose-100 text-rose-700',
     icon: 'xcircle',
   },
-  refunded: {
-    labelKey: 'bookingHistory.statusRefunded',
-    cls: 'bg-slate-100 text-slate-600',
-    icon: 'landmark',
-  },
-  expired: {
-    labelKey: 'bookingHistory.statusExpired',
-    cls: 'bg-slate-100 text-slate-600',
-    icon: 'alert',
-  },
 }
 
-/**
- * Effective departure time for bucketing/reviewability. The API's
- * `departureAt` is the ACTUAL departure (set when the driver checks
- * in — usually absent for past trips); `departureDate` (YYYY-MM-DD)
- * is always present. Fall back so "already departed" detection works.
- */
+/** When the trip leaves (ms since epoch); 0 when unknown. */
 export function effectiveDeparture(b: BookingItem): number {
-  if (!b.trip) return 0
-  const t = new Date(b.trip.departureAt || b.trip.departureDate || '').getTime()
-  return Number.isNaN(t) ? 0 : t
+  const at = b.trip?.departureAt ?? b.trip?.departureDate
+  const ms = at ? new Date(at).getTime() : NaN
+  return Number.isNaN(ms) ? 0 : ms
 }
 
-/** Whether the booking is "reviewable" — i.e. the trip has finished. */
+/** The trip has left (known departure in the past). */
+export function hasDeparted(b: BookingItem): boolean {
+  const departs = effectiveDeparture(b)
+  return departs > 0 && departs <= Date.now()
+}
+
+/** The trip is over and the customer may review it. */
 export function isBookingReviewable(b: BookingItem): boolean {
   if (!b.trip) return false
-  if (b.status === 'cancelled' || b.status === 'refunded') return false
-  if (b.status === 'completed') return true
-  // confirmed/paid → reviewable only if departure date is in the past.
-  const depTime = effectiveDeparture(b)
-  return depTime > 0 && depTime < Date.now()
+  return b.status === 'completed' || (b.status === 'confirmed' && hasDeparted(b))
 }
 
-/** Whether the booking belongs to the "Sắp đi" (Upcoming) tab. */
+/** "Sắp đi": open and not yet departed. */
 export function isBookingUpcoming(b: BookingItem): boolean {
-  if (!b.trip) return false
-  if (b.status === 'cancelled' || b.status === 'refunded' || b.status === 'completed') return false
-  const depTime = effectiveDeparture(b)
-  return depTime > Date.now()
+  if (b.status !== 'pending' && b.status !== 'confirmed') return false
+  return effectiveDeparture(b) > Date.now()
 }
 
-/** Whether the booking belongs to the "Đã đi" (Past) tab. */
+/** "Đã đi": completed, or confirmed and departed. */
 export function isBookingPast(b: BookingItem): boolean {
-  if (!b.trip) return false
-  if (b.status === 'cancelled' || b.status === 'refunded') return false
-  if (b.status === 'completed') return true
-  const depTime = effectiveDeparture(b)
-  return depTime > 0 && depTime <= Date.now()
+  return b.status === 'completed' || (b.status === 'confirmed' && hasDeparted(b))
 }
 
-/** Whether the booking belongs to the "Đã hủy" (Cancelled) tab. */
-export function isBookingCancelled(b: BookingItem): boolean {
-  return b.status === 'cancelled' || b.status === 'refunded'
-}
+export const isBookingCancelled = (b: BookingItem) => b.status === 'cancelled'

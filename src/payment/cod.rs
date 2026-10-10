@@ -7,10 +7,10 @@
 //! - `create_payment` returns immediately with status `pending` (no
 //!   `gateway_url`, no `qr_payload`). The payment remains pending until
 //!   the driver marks it as collected via the admin route.
-//! - The booking is NOT auto-confirmed on payment creation — it stays
-//!   `pending` (held seats). The COD payment transitions to `completed`
-//!   when the driver collects the cash, at which point the booking is
-//!   also marked `confirmed`.
+//! - The booking is confirmed as soon as the COD payment is created (the
+//!   seats are the customer's; the cash comes at boarding, long after any
+//!   hold would have lapsed). The payment itself stays `pending` until the
+//!   driver collects the cash and marks it `completed`.
 //!
 //! ## What this provider does NOT do
 //!

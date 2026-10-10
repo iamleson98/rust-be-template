@@ -2,7 +2,7 @@
 
 import { memo } from 'react'
 import { Button } from '@/components/ui/button'
-import { EmptyState } from '@/components/layout/empty-state'
+import { EmptyState } from '@/components/empty-state'
 import { useT } from '@/lib/i18n'
 
 /* ─── SVG Illustrations (line-art style with teal accents) ─── */
@@ -109,11 +109,7 @@ export const NoBookingsYet = memo(function NoBookingsYet({
       size="lg"
     >
       {onSearch && (
-        <Button
-          size="sm"
-          className="gap-1.5 bg-linear-to-r from-blue-600 to-blue-600 hover:from-blue-700 hover:to-blue-700 text-white"
-          onClick={onSearch}
-        >
+        <Button size="sm" className="gap-1.5" onClick={onSearch}>
           {t('bookingHistory.bookFirstTrip')}
         </Button>
       )}

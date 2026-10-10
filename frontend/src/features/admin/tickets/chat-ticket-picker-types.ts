@@ -7,17 +7,17 @@ export type Seat = {
   col: number
   deck: number
   seatClass: string
-  priceMultiplier: number
   status: string
   finalPrice: number
+  /** Absent when the brand has no child tickets. */
+  childPrice?: number | null
 }
 
 export type Passenger = {
   seatId: string
   seatCode: string
   name: string
-  type: 'adult' | 'child' | 'infant'
-  age: number
+  type: 'adult' | 'child'
 }
 
 export type Step = 'search' | 'seats' | 'passenger' | 'confirm'

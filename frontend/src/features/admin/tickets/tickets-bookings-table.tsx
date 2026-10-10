@@ -6,9 +6,9 @@ import { DataTable, DataTableViewOptions, type DataTableFeatures } from '@/compo
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Ticket as TicketIcon, RefreshCw } from 'lucide-react'
-import { useAdminBookings, type AdminBookingFilter } from '@/lib/queries'
-import type { AdminBookingOut } from '@/lib/api/types.gen'
-import { BookingStatusBadge } from '@/features/admin/dashboard/booking-status-badge'
+import type { useAdminBookings, AdminBookingFilter } from './api'
+import type { BookingOut } from '@/api'
+import { TicketStatusBadge } from '@/features/booking/history/ticket-status-badge'
 import { useT } from '@/lib/i18n'
 import { PAGE_SIZE, formatVND } from './tickets-helpers'
 
@@ -22,7 +22,7 @@ export function TicketsBookingsTable({
   handleSortingChange,
   setSelectedBookingId,
 }: {
-  columns: ColumnDef<DataTableFeatures, AdminBookingOut, CellData>[]
+  columns: ColumnDef<DataTableFeatures, BookingOut, CellData>[]
   bookingsQuery: ReturnType<typeof useAdminBookings>
   total: number
   offset: number
@@ -95,13 +95,14 @@ export function TicketsBookingsTable({
                       <span className="font-mono text-xs font-bold text-blue-700 dark:text-blue-400">
                         {b.code}
                       </span>
-                      <BookingStatusBadge status={b.status} />
+                      <TicketStatusBadge booking={b} className="text-[10px]" />
                     </div>
                     <div className="text-xs font-medium mt-1 truncate">
                       {b.contactName ?? '—'} · {b.contactPhone ?? ''}
                     </div>
                     <div className="text-[11px] text-muted-foreground mt-0.5">
-                      {b.pickupName ?? '—'} → {b.dropoffName ?? '—'}
+                      {b.trip?.fromName ?? '—'} → {b.trip?.toName ?? '—'} ·{' '}
+                      {b.seats.map((s) => s.seatCode).join(', ')}
                     </div>
                   </div>
                   <div className="text-right shrink-0">

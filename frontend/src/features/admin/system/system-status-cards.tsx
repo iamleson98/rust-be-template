@@ -12,12 +12,12 @@
  * Extracted from the original 'src/routes/admin/system.tsx'.
  */
 
+import type { SystemStatusResponse } from '@/api'
 import { Clock, Database, PhoneCall, Wifi } from 'lucide-react'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { useSystemStatus } from '@/lib/queries'
 
-type StatusData = ReturnType<typeof useSystemStatus>['data']
+type StatusData = SystemStatusResponse
 
 export function UptimeCard({ data }: { data: NonNullable<StatusData> }) {
   return (

@@ -1,18 +1,5 @@
 'use client'
 
-/**
- * BookingContactStep — step 2 (contact info) of the booking flow:
- * the privacy trust signal and the contact-info form (name / phone /
- * email) plus the back / continue CTAs.
- *
- * The campaign (promo code) box moved to the CHECKOUT step
- * (PaymentMethodStep) — a coupon belongs next to the price it
- * discounts, not on the contact form.
- *
- * Extracted from the original `booking-dialog.tsx` — the parent owns the
- * RHF form (`form` is passed down).
- */
-
 import type { UseFormReturn } from 'react-hook-form'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -21,22 +8,23 @@ import { PrivacyNotice } from '@/components/seo/trust-signals'
 import { useT } from '@/lib/i18n'
 import { ChevronLeft, ChevronRight, User, Phone, Mail } from 'lucide-react'
 import { type BookingValues } from './booking-form'
+import { StepActions } from './step-actions'
 
+/** Step 2: who to send the ticket to. */
 export function BookingContactStep({
   form,
-  setBookingStep,
   error,
-  gotoPayment,
+  onBack,
+  onContinue,
 }: {
   form: UseFormReturn<BookingValues>
-  setBookingStep: (step: 'idle' | 'passengers' | 'contact' | 'payment' | 'pay' | 'success') => void
   error: string
-  gotoPayment: () => void
+  onBack: () => void
+  onContinue: () => void
 }) {
   const t = useT()
   return (
     <div className="p-5 space-y-5">
-      {/* Privacy trust signal — affirms data protection */}
       <PrivacyNotice />
 
       <div>
@@ -125,14 +113,14 @@ export function BookingContactStep({
         </div>
       )}
 
-      <div className="flex justify-between">
-        <Button variant="outline" onClick={() => setBookingStep('passengers')} className="gap-1">
+      <StepActions>
+        <Button variant="outline" onClick={onBack} className="gap-1 max-sm:h-11">
           <ChevronLeft className="h-4 w-4" /> {t('common.back')}
         </Button>
-        <Button onClick={gotoPayment} className="gap-1 bg-primary hover:bg-primary/90">
+        <Button onClick={onContinue} className="gap-1 max-sm:h-11 max-sm:flex-1">
           {t('bookingFlow.continue')} <ChevronRight className="h-4 w-4" />
         </Button>
-      </div>
+      </StepActions>
     </div>
   )
 }

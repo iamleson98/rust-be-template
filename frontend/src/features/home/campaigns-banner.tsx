@@ -1,10 +1,12 @@
 'use client'
 
+import { useQuery } from '@tanstack/react-query'
+import { campaignsOptions } from '@/api'
 import { memo, useEffect, useState } from 'react'
-import { useCampaigns, type Campaign } from '@/lib/queries'
+import type { CampaignOut } from '@/api'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { ErrorState } from '@/components/layout/error-state'
+import { ErrorState } from '@/components/error-state'
 import { Tag, Copy, Check, Zap, Timer } from 'lucide-react'
 import { toast } from 'sonner'
 import { useT } from '@/lib/i18n'
@@ -44,8 +46,8 @@ function CampaignCountdown({ endTime }: { endTime: number }) {
 
 export const CampaignsBanner = memo(function CampaignsBanner() {
   const t = useT()
-  const { data, isLoading, isError, refetch } = useCampaigns()
-  const items: Campaign[] = data?.items ?? []
+  const { data, isLoading, isError, refetch } = useQuery(campaignsOptions())
+  const items: CampaignOut[] = data?.items ?? []
   const [copied, setCopied] = useState<string | null>(null)
 
   /* Copy a campaign code — guarded: navigator.clipboard is undefined on
@@ -104,31 +106,11 @@ export const CampaignsBanner = memo(function CampaignsBanner() {
                 // an end date simply don't render a countdown.
                 const endsAtMs = c.endsAt ? Date.parse(c.endsAt) : NaN
                 return (
-                  <Card key={c.id} className="relative overflow-hidden border-0 h-full">
-                    {/* Shimmer sweep overlay */}
-                    <div className="absolute inset-0 -translate-x-full hover:translate-x-full transition-transform duration-1500 bg-linear-to-r from-transparent via-white/40 to-transparent skew-x-12 pointer-events-none z-10" />
-
-                    {/* Gradient overlay on the card top */}
-                    <div
-                      className="absolute inset-x-0 top-0 h-20 opacity-10 hover:opacity-20 transition-opacity"
-                      style={{ background: `linear-gradient(180deg, ${bannerColor}, transparent)` }}
-                    />
-                    {/* Banner stripe */}
-                    <div
-                      className="absolute left-0 top-0 bottom-0 w-1.5 transition-all hover:w-2 duration-300"
-                      style={{ background: bannerColor }}
-                    />
-
-                    {/* Decorative circles */}
-                    <div
-                      className="absolute -right-8 -top-8 h-24 w-24 rounded-full opacity-10 hover:opacity-20 transition-opacity"
-                      style={{ background: bannerColor }}
-                    />
-
+                  <Card key={c.id} className="relative h-full overflow-hidden">
                     {/* "Hot" badge removed — a fabricated "every 3rd card is
                           featured" rule presented invented urgency. */}
 
-                    <div className="p-5 pl-6 relative">
+                    <div className="relative p-5">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <Badge

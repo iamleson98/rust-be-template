@@ -34,6 +34,4 @@ interface Window {
   firebug?: { isEnabled: boolean }
   /** Safari's legacy prefixed AudioContext (sound-effects). */
   webkitAudioContext?: typeof AudioContext
-  /** Debug channel: last trip-search results (search-results ↔ trip-compare). */
-  __lastSearchResults?: unknown[]
 }

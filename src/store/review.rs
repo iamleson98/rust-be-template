@@ -84,6 +84,18 @@ pub trait ReviewStore: Send + Sync {
         brand_id: &str,
         status: &str,
     ) -> StoreResult<Vec<review::Model>>;
+    /// Approved reviews of a brand and/or route as `(rating, tags JSON)`:
+    /// what the public review stats are counted from, without the text.
+    async fn approved_ratings_and_tags(
+        &self,
+        brand_id: Option<Uuid>,
+        route_id: Option<Uuid>,
+    ) -> StoreResult<Vec<(i64, Option<String>)>>;
+    /// Reviews written for these bookings (at most one each).
+    async fn list_reviews_by_bookings(
+        &self,
+        booking_ids: Vec<Uuid>,
+    ) -> StoreResult<Vec<review::Model>>;
     async fn insert_review(&self, model: review::ActiveModel) -> StoreResult<()>;
     async fn update_review(&self, model: review::ActiveModel) -> StoreResult<review::Model>;
     async fn delete_review(&self, id: Uuid) -> StoreResult<()>;
@@ -277,6 +289,38 @@ impl ReviewStore for DbReviewStore {
         Ok(review::Entity::find()
             .filter(review::Column::BrandId.eq(bid))
             .filter(review::Column::Status.eq(status.to_string()))
+            .all(self.db.as_ref())
+            .await?)
+    }
+
+    async fn approved_ratings_and_tags(
+        &self,
+        brand_id: Option<Uuid>,
+        route_id: Option<Uuid>,
+    ) -> StoreResult<Vec<(i64, Option<String>)>> {
+        let mut query = review::Entity::find()
+            .select_only()
+            .column(review::Column::Rating)
+            .column(review::Column::Tags)
+            .filter(review::Column::Status.eq("approved"));
+        if let Some(brand_id) = brand_id {
+            query = query.filter(review::Column::BrandId.eq(brand_id));
+        }
+        if let Some(route_id) = route_id {
+            query = query.filter(review::Column::RouteId.eq(route_id));
+        }
+        Ok(query.into_tuple().all(self.db.as_ref()).await?)
+    }
+
+    async fn list_reviews_by_bookings(
+        &self,
+        booking_ids: Vec<Uuid>,
+    ) -> StoreResult<Vec<review::Model>> {
+        if booking_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        Ok(review::Entity::find()
+            .filter(review::Column::BookingId.is_in(booking_ids))
             .all(self.db.as_ref())
             .await?)
     }

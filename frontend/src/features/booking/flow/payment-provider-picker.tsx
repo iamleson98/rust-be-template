@@ -1,63 +1,43 @@
 'use client'
 
-/**
- * ProviderPicker — the "choose provider" grid shown by the PaymentDialog
- * when no payment exists yet (or the prior one failed / was cancelled):
- * amount box, optional prior-failure notice, the VNPay / MoMo / ZaloPay /
- * VietQR / COD buttons, the SSL trust note and the creating spinner.
- *
- * Extracted from the original `payment-dialog.tsx`.
- */
-
 import { Loader2, ShieldCheck } from 'lucide-react'
-import { formatCurrency } from '@/lib/currency'
-import type { Currency } from '@/lib/currency'
+import { formatVND } from '@/lib/format'
 import { useT } from '@/lib/i18n'
-import type { PaymentProvider } from '@/lib/queries/payments'
-
-// ─────────────────────────────────────────────────────────────
-//  Provider picker
-// ─────────────────────────────────────────────────────────────
+import { useEnabledProviders, type PaymentProvider } from '@/lib/payment'
+import { ProviderTile } from './provider-tile'
 
 const getProviderOptions = (
   t: ReturnType<typeof useT>,
-): {
-  key: PaymentProvider
-  label: string
-  icon: string
-  sub: string
-}[] => [
-  { key: 'vnpay', label: t('payment.vnpay'), icon: '🔵', sub: t('bookingFlow.subBankQr') },
-  { key: 'momo', label: t('payment.momo'), icon: '🟣', sub: t('payment.momoDesc') },
-  { key: 'zalopay', label: t('payment.zalopay'), icon: '🟢', sub: t('bookingFlow.subZaloWallet') },
-  { key: 'vietqr', label: t('bookingFlow.providerVietqr'), icon: '🏦', sub: t('payment.vietqr') },
-  { key: 'cod', label: t('bookingFlow.cash'), icon: '💵', sub: t('bookingFlow.subOnBus') },
+): { key: PaymentProvider; label: string; sub: string }[] => [
+  { key: 'vnpay', label: t('payment.vnpay'), sub: t('bookingFlow.subBankQr') },
+  { key: 'momo', label: t('payment.momo'), sub: t('payment.momoDesc') },
+  { key: 'zalopay', label: t('payment.zalopay'), sub: t('bookingFlow.subZaloWallet') },
+  { key: 'vietqr', label: t('bookingFlow.providerVietqr'), sub: t('payment.vietqr') },
+  { key: 'cod', label: t('bookingFlow.cash'), sub: t('bookingFlow.subOnBus') },
 ]
 
+/** Pick how to pay an existing booking (amounts are VND); shows why the last attempt failed. */
 export function ProviderPicker({
   onPick,
   creating,
   amount,
-  currency,
   priorFailureReason,
 }: {
   onPick: (p: PaymentProvider) => void
   creating: boolean
   amount: number
-  currency: Currency
   priorFailureReason?: string
 }) {
   const t = useT()
-  const providerOptions = getProviderOptions(t)
+  const enabled = useEnabledProviders()
+  const providerOptions = getProviderOptions(t).filter((o) => !enabled || enabled.includes(o.key))
   return (
     <div className="space-y-4">
       <div className="rounded-lg bg-slate-50 border border-slate-200 p-4 text-center">
         <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1">
           {t('bookingFlow.amount')}
         </div>
-        <div className="text-2xl font-extrabold text-slate-900">
-          {formatCurrency(amount, currency)}
-        </div>
+        <div className="text-2xl font-extrabold text-slate-900">{formatVND(amount)}</div>
       </div>
 
       {priorFailureReason && (
@@ -77,8 +57,8 @@ export function ProviderPicker({
               onClick={() => onPick(m.key)}
               className="rounded-lg border p-3 text-left transition-colors disabled:opacity-50 disabled:cursor-not-allowed border-slate-200 hover:border-primary/40"
             >
-              <div className="flex items-center gap-2">
-                <span className="text-xl">{m.icon}</span>
+              <div className="flex items-center gap-2.5">
+                <ProviderTile provider={m.key} className="h-9 w-9" />
                 <div>
                   <div className="font-medium text-sm">{m.label}</div>
                   <div className="text-[11px] text-muted-foreground">{m.sub}</div>

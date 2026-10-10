@@ -67,6 +67,16 @@ pub enum Command {
         limit: u64,
     },
 
+    /// Give legacy bus layouts a real seat plan by laying a matching
+    /// catalog template over their existing seats (ids and labels are
+    /// kept). Dry run unless `--apply` is passed.
+    /// Usage: `layouts-normalize [--apply]`
+    LayoutsNormalize {
+        /// Write the changes (default: only print what would change).
+        #[arg(long)]
+        apply: bool,
+    },
+
     /// Build the Tantivy place-search index from an OSM PBF file.
     /// Usage: `import-osm <path-to-vietnam.osm.pbf> [--index-dir <dir>]`
     ImportOsm {

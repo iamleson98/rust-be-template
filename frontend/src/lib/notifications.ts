@@ -43,8 +43,7 @@
  * ```
  */
 
-import { translate } from '@/lib/i18n'
-import { useApp } from '@/lib/store'
+import { tSync } from '@/lib/i18n'
 
 const LS_PERMISSION_KEY = 'datxevui:notif-permission'
 const LS_ASKED_AT_KEY = 'datxevui:notif-asked-at'
@@ -223,8 +222,8 @@ export function notifyChatMessage(senderName: string, body: string, channelId?: 
  */
 export function notifyIncomingCall(fromName: string): void {
   showNotification(
-    translate(useApp.getState().lang, 'notifications.incomingCall', { name: fromName }),
-    translate(useApp.getState().lang, 'notifications.tapToAnswer'),
+    tSync('notifications.incomingCall', { name: fromName }),
+    tSync('notifications.tapToAnswer'),
     {
       tag: 'audio-call',
       onClick: () => {

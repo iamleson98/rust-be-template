@@ -1,23 +1,6 @@
-/**
- * Top-level React error boundary.
- *
- * Without this, a single thrown render (malformed API payload, undefined
- * access in a lazy island, a bad query-key) blanks the entire SPA — the user
- * sees a white page with no recovery path short of a hard reload.
- *
- * The boundary catches render-time errors anywhere in the subtree, logs them,
- * and shows a localized fallback with a "Thử lại" (retry) button that remounts
- * the tree from scratch. It is intentionally framework-light: no external
- * error-boundary lib, just the React class API (the only way to catch render
- * errors).
- *
- * Per-island boundaries can be added later by wrapping each `<Suspense>`
- * island in its own `<ErrorBoundary>`; this top-level one is the safety net.
- */
+import { usePrefs } from '@/stores/prefs'
 import { Component, type ErrorInfo, type ReactNode } from 'react'
-
-import { translate } from '@/lib/i18n'
-import { useApp } from '@/lib/store'
+import { translate, tSync } from '@/lib/i18n'
 
 interface Props {
   children: ReactNode
@@ -36,7 +19,7 @@ export class ErrorBoundary extends Component<Props, State> {
   static getDerivedStateFromError(error: Error): Partial<State> {
     return {
       hasError: true,
-      message: error?.message ?? translate(useApp.getState().lang, 'errorBoundary.unknownError'),
+      message: error?.message ?? tSync('errorBoundary.unknownError'),
     }
   }
 
@@ -58,7 +41,7 @@ export class ErrorBoundary extends Component<Props, State> {
     if (this.state.hasError) {
       // Class component — hooks are unavailable, so resolve strings via
       // the store's current language (guide's non-React `translate` pattern).
-      const lang = useApp.getState().lang
+      const lang = usePrefs.getState().lang
       return (
         <div
           role="alert"

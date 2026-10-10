@@ -8,6 +8,8 @@
  * brand-form structure (react-hook-form + zod + generated mutation).
  */
 
+import { adminVehicleTypesCreateMutation, adminVehicleTypesUpdateMutation } from '@/api'
+import { useMutation } from '@tanstack/react-query'
 import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -35,9 +37,8 @@ import {
 } from '@/components/ui/form'
 import { ComboboxField } from '@/components/ui/combobox'
 import { Bus, Loader2 } from 'lucide-react'
-import { useCreateAdminVehicleType, useUpdateAdminVehicleType } from '@/lib/queries'
-import { slugify } from '@/lib/slug'
-import type { AdminVehicleTypeOut } from '@/lib/api/types.gen'
+import { slugify } from '@/lib/text'
+import type { AdminVehicleTypeOut } from '@/api'
 import { getErrorMessage } from '@/lib/error-message'
 import { useT } from '@/lib/i18n'
 
@@ -93,8 +94,8 @@ export function VehicleTypeFormDialog({
 }) {
   const t = useT()
   const isEdit = !!vehicleType
-  const createMutation = useCreateAdminVehicleType()
-  const updateMutation = useUpdateAdminVehicleType()
+  const createMutation = useMutation(adminVehicleTypesCreateMutation())
+  const updateMutation = useMutation(adminVehicleTypesUpdateMutation())
   const saving = createMutation.isPending || updateMutation.isPending
 
   const form = useForm<VehicleTypeFormValues, unknown, VehicleTypeFormValues>({
@@ -190,7 +191,7 @@ export function VehicleTypeFormDialog({
                         {...field}
                         value={field.value ?? ''}
                         placeholder="limousine"
-                        className="font-mono text-sm"
+                        className="font-mono text-base md:text-sm"
                       />
                     </FormControl>
                     <FormMessage />

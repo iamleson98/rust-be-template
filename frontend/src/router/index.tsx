@@ -1,306 +1,269 @@
 /**
- * TanStack Router — type-safe, URL-driven routing for the DatXeVui SPA.
- *
- * WHY TANSTACK ROUTER (not React Router / not Zustand view-state)
- * ───────────────────────────────────────────────────────────────
- *   1. Real URL paths + browser history — every view has its own URL
- *      (`/search`, `/trips/c0msahvl69zv29elx`, `/brands/phuong-trang`).
- *      Back/forward buttons work, deep links are shareable, crawlers see
- *      distinct pages (SEO).
- *   2. Typed search params — `validateSearch` gives us a typed object for
- *      `/search?from=...&to=...&date=...` instead of hand-parsed strings.
- *   3. Native TanStack Query integration — route loaders can prefetch
- *      queries so the page renders with data on first paint.
- *   4. Code-splitting — each route is a lazy island; only the active
- *      route's chunk downloads.
- *
- * ROUTE TREE
- * ──────────
- *   /                       Home (hero + marketing sections)
- *   /search                 Search results (typed search params)
- *   /trips/$tripId          Trip detail + seat selection (deep-linkable)
- *   /brands/$slug           Brand detail (deep-linkable)
- *   /bookings/$code         Single booking detail (deep-linkable; the
- *                          list lives on the account console instead)
- *   /compare                Trip comparison
- *   /admin                  Admin dashboard (employee-guarded)
- *   /login                  Login page
- *
- * Dialogs (chat, booking flow, share, cancel, price-alert, loyalty)
- * remain in Zustand — they are transient overlays, not destinations.
- *
- * Module map (split from the original single router.tsx):
- *   ./lazy-pages     — lazy() page + overlay components, eager shells
- *   ./route-meta     — per-route SEO <title>/<meta> + noindex + GA4
- *   ./guards         — requireAuth / requireStaff / requireAdmin
- *   ./root-route     — root shell (header/footer/overlays) + bootstrap
- *   ./admin-routes   — /admin layout + children
- *   ./account-routes — /account layout + children
- *   ./index (here)   — public routes + tree assembly + router factory
+ * The route tree. Every page is a code-split chunk loaded by
+ * `lazyRouteComponent`; layouts (customer chrome, admin and account
+ * shells) are eager so they never remount between pages. `staticData`
+ * carries what the document head needs (see `app/route-meta.tsx`).
  */
-
 import {
-  createRouter,
-  createRoute,
   createBrowserHistory,
+  createRootRoute,
+  createRoute,
+  createRouter,
+  lazyRouteComponent as lazy,
+  redirect,
+  stripSearchParams,
   type RouterHistory,
+  type SearchSchemaInput,
 } from '@tanstack/react-router'
-import { Suspense } from 'react'
-import { IslandFallback } from '@/routes/_fallback'
-import { rootRoute } from './root-route'
-import {
-  adminLayoutRoute,
-  adminIndexRoute,
-  adminBrandsRoute,
-  adminRoutesRedirectRoute,
-  adminSchedulesRedirectRoute,
-  adminVehicleTypesRoute,
-  adminCronJobsRoute,
-  adminTicketsRoute,
-  adminChatRoute,
-  adminFeedbackRoute,
-  adminBusLayoutsRoute,
-  adminSystemRoute,
-  adminUsersRoute,
-  adminPaymentsRoute,
-} from './admin-routes'
-import {
-  accountLayoutRoute,
-  accountIndexRoute,
-  accountLoyaltyRoute,
-  accountNotificationsRoute,
-  accountSecurityRoute,
-  accountTripsRoute,
-  accountFeedbackRoute,
-} from './account-routes'
-import {
-  HomePage,
-  SearchPage,
-  TripDetailPage,
-  BrandDetailPage,
-  BookingDetailPage,
-  ComparePage,
-  LoginPage,
-} from './lazy-pages'
+import { AccountLayout } from '@/app/layout/account-layout'
+import { AdminLayout } from '@/app/layout/admin-layout'
+import { NotFoundPage } from '@/app/not-found'
+import { RootLayout } from '@/app/root-layout'
+import { parseSearch, SEARCH_DEFAULTS, toQuery, type SearchInput } from '@/lib/search-params'
+import { requireAdmin, requireAuth, requireStaff } from './guards'
+import { loginSearch } from './login-redirect'
 
-// ── Public routes ──────────────────────────────────────────────
+const rootRoute = createRootRoute({ component: RootLayout, notFoundComponent: NotFoundPage })
 
-const indexRoute = createRoute({
+// ── Customer pages ────────────────────────────────────────────
+
+const home = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
-  component: () => (
-    <Suspense fallback={<IslandFallback minHeight={600} />}>
-      <HomePage />
-    </Suspense>
-  ),
+  component: lazy(() => import('@/features/home/home-page'), 'HomePage'),
+  staticData: { seo: 'home' },
 })
 
-// Typed search params for /search
-const searchRoute = createRoute({
+const search = createRoute({
   getParentRoute: () => rootRoute,
   path: '/search',
-  validateSearch: (
-    search: Record<string, unknown>,
-  ): {
-    from?: string
-    to?: string
-    date?: string
-    adults?: number
-    children?: number
-    sort?: 'departure' | 'price' | 'rating'
-    vt?: string
-    roundTrip?: boolean
-    returnDate?: string
-    fromLat?: number
-    fromLon?: number
-    toLat?: number
-    toLon?: number
-    fromCity?: string
-    toCity?: string
-  } => {
-    // Return ONLY keys that have meaningful values — this keeps the URL
-    // clean (no `vehicleTypes=%5B%5D&roundTrip=false&returnDate=` noise).
-    // TanStack Router serializes the validated output to the URL, so
-    // omitting empty/falsy defaults here keeps them out of the address bar.
-    // Components read these via `useSearch({ from: '/search' })` and apply
-    // defaults (adults=1, children=0, sort='departure', etc.) at read time.
-    //
-    // `vt` is the CANONICAL vehicle-type filter param ("limousine,sleeper")
-    // — the reader (routes/search.tsx) splits it into an array. Accept a
-    // `vehicleTypes` ARRAY too (programmatic navigate() callers may pass
-    // one), normalizing both into the single `vt` string so the URL never
-    // carries a JSON-encoded array param.
-    const out: Record<string, unknown> = {}
-    if (typeof search.from === 'string' && search.from) out.from = search.from
-    if (typeof search.to === 'string' && search.to) out.to = search.to
-    if (typeof search.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(search.date))
-      out.date = search.date
-    if (typeof search.adults === 'string') {
-      const n = Math.max(1, parseInt(search.adults, 10) || 1)
-      if (n !== 1) out.adults = n
-    } else if (typeof search.adults === 'number' && search.adults > 1) {
-      out.adults = search.adults
-    }
-    if (typeof search.children === 'string') {
-      const n = Math.max(0, parseInt(search.children, 10) || 0)
-      if (n !== 0) out.children = n
-    } else if (typeof search.children === 'number' && search.children > 0) {
-      out.children = search.children
-    }
-    if (typeof search.sort === 'string') {
-      const s = search.sort
-      if (s === 'price' || s === 'rating') out.sort = s
-    }
-    // Vehicle types: canonical `vt` string OR an array passed by a
-    // navigate() caller — both normalize to the `vt` string.
-    const vtList: string[] = []
-    if (typeof search.vt === 'string') {
-      vtList.push(
-        ...search.vt
-          .split(',')
-          .map((s) => s.trim())
-          .filter(Boolean),
-      )
-    } else if (Array.isArray(search.vehicleTypes)) {
-      vtList.push(...search.vehicleTypes.filter((v): v is string => typeof v === 'string' && !!v))
-    }
-    if (vtList.length) out.vt = vtList.join(',')
-    if (search.roundTrip === '1' || search.roundTrip === 'true' || search.roundTrip === true)
-      out.roundTrip = true
-    if (typeof search.returnDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(search.returnDate))
-      out.returnDate = search.returnDate
-    // Smart-search coordinates: accept numbers (navigate() calls) and
-    // numeric strings (URL). All four must be present + finite together,
-    // otherwise they're dropped (city-to-city search).
-    const coord = (v: unknown): number | undefined => {
-      const n = typeof v === 'number' ? v : typeof v === 'string' ? parseFloat(v) : NaN
-      return Number.isFinite(n) ? n : undefined
-    }
-    const fromLat = coord(search.fromLat)
-    const fromLon = coord(search.fromLon)
-    const toLat = coord(search.toLat)
-    const toLon = coord(search.toLon)
-    if (fromLat != null && fromLon != null && toLat != null && toLon != null) {
-      out.fromLat = fromLat
-      out.fromLon = fromLon
-      out.toLat = toLat
-      out.toLon = toLon
-    }
-    // City-level fallback names for mixed picks (place on one end, city
-    // on the other) — kept in the URL so refreshes keep the same search.
-    if (typeof search.fromCity === 'string' && search.fromCity) out.fromCity = search.fromCity
-    if (typeof search.toCity === 'string' && search.toCity) out.toCity = search.toCity
-    return out
-  },
-  component: () => (
-    <Suspense fallback={<IslandFallback minHeight={500} />}>
-      <SearchPage />
-    </Suspense>
-  ),
+  // Typed input for links; the output is the URL form with every default
+  // applied, and the URL only carries what differs from them.
+  validateSearch: (raw: SearchInput & SearchSchemaInput) =>
+    toQuery(parseSearch(raw as Record<string, unknown>)),
+  search: { middlewares: [stripSearchParams(SEARCH_DEFAULTS)] },
+  component: lazy(() => import('@/features/search/search-page'), 'SearchPage'),
+  staticData: { seo: 'search' },
 })
 
-const tripDetailRoute = createRoute({
+const trip = createRoute({
   getParentRoute: () => rootRoute,
   path: '/trips/$tripId',
-  component: () => (
-    <Suspense fallback={<IslandFallback minHeight={600} />}>
-      <TripDetailPage />
-    </Suspense>
-  ),
+  component: lazy(() => import('@/features/trips/trip-page'), 'TripPage'),
+  staticData: { seo: 'tripDetail' },
 })
 
-const brandDetailRoute = createRoute({
+const brand = createRoute({
   getParentRoute: () => rootRoute,
   path: '/brands/$slug',
-  component: () => (
-    <Suspense fallback={<IslandFallback minHeight={500} />}>
-      <BrandDetailPage />
-    </Suspense>
-  ),
+  component: lazy(() => import('@/features/brand/brand-page'), 'BrandPage'),
+  staticData: { seo: 'brandDetail' },
 })
 
-const bookingDetailRoute = createRoute({
+// Old ticket links (emails, bookmarks) open the ticket in the console.
+const booking = createRoute({
   getParentRoute: () => rootRoute,
   path: '/bookings/$code',
-  component: () => (
-    <Suspense fallback={<IslandFallback minHeight={500} />}>
-      <BookingDetailPage />
-    </Suspense>
-  ),
+  beforeLoad: ({ params }) => {
+    throw redirect({ to: '/account/trips/$code', params, replace: true })
+  },
 })
 
-const compareRoute = createRoute({
+const compare = createRoute({
   getParentRoute: () => rootRoute,
   path: '/compare',
-  component: () => (
-    <Suspense fallback={<IslandFallback minHeight={400} />}>
-      <ComparePage />
-    </Suspense>
-  ),
+  component: lazy(() => import('@/features/search/compare-page'), 'ComparePage'),
+  staticData: { seo: 'compare' },
 })
 
-const loginRoute = createRoute({
+const login = createRoute({
   getParentRoute: () => rootRoute,
   path: '/login',
-  component: () => (
-    <Suspense fallback={<IslandFallback minHeight={500} />}>
-      <LoginPage />
-    </Suspense>
-  ),
+  validateSearch: loginSearch,
+  component: lazy(() => import('@/features/auth/login-page'), 'LoginPage'),
+  staticData: { seo: 'login', private: true },
 })
 
-// ── Route tree ──────────────────────────────────────────────────
+// ── Admin (staff only) ────────────────────────────────────────
 
-export const routeTree = rootRoute.addChildren([
-  adminLayoutRoute.addChildren([
-    adminIndexRoute,
-    adminBrandsRoute,
-    adminRoutesRedirectRoute,
-    adminSchedulesRedirectRoute,
-    adminVehicleTypesRoute,
-    adminCronJobsRoute,
-    adminTicketsRoute,
-    adminChatRoute,
-    adminFeedbackRoute,
-    adminBusLayoutsRoute,
-    adminSystemRoute,
-    adminUsersRoute,
-    adminPaymentsRoute,
-  ]),
-  accountLayoutRoute.addChildren([
-    accountIndexRoute,
-    accountLoyaltyRoute,
-    accountNotificationsRoute,
-    accountSecurityRoute,
-    accountTripsRoute,
-    accountFeedbackRoute,
-  ]),
-  indexRoute,
-  searchRoute,
-  tripDetailRoute,
-  brandDetailRoute,
-  bookingDetailRoute,
-  compareRoute,
-  loginRoute,
-])
+const admin = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/admin',
+  beforeLoad: requireStaff,
+  component: AdminLayout,
+  staticData: { private: true },
+})
 
-// ── Router factory + singleton ─────────────────────────────────
-// `createAppRouter(history?)` accepts an optional history. On the
-// client we pass nothing → defaults to browser history. For SSR /
-// prerender, pass `createMemoryHistory({ initialEntries: [url] })`.
+const adminPages = {
+  index: createRoute({
+    getParentRoute: () => admin,
+    path: '/',
+    component: lazy(() => import('@/features/admin/dashboard'), 'AdminDashboard'),
+    staticData: { seo: 'admin' },
+  }),
+  brands: createRoute({
+    getParentRoute: () => admin,
+    path: '/brands',
+    component: lazy(() => import('@/features/admin/brands'), 'AdminBrandManagement'),
+    staticData: { seo: 'adminBrands' },
+  }),
+  vehicleTypes: createRoute({
+    getParentRoute: () => admin,
+    path: '/vehicle-types',
+    component: lazy(
+      () => import('@/features/admin/vehicle-types/vehicle-types-panel'),
+      'VehicleTypesPanel',
+    ),
+    staticData: { seo: 'adminVehicleTypes' },
+  }),
+  busLayouts: createRoute({
+    getParentRoute: () => admin,
+    path: '/bus-layouts',
+    component: lazy(
+      () => import('@/features/admin/bus-layouts/bus-layouts-page'),
+      'AdminBusLayoutsPage',
+    ),
+    staticData: { seo: 'adminBusLayouts' },
+  }),
+  tickets: createRoute({
+    getParentRoute: () => admin,
+    path: '/tickets',
+    component: lazy(() => import('@/features/admin/tickets/tickets-panel'), 'TicketsPanel'),
+    staticData: { seo: 'adminTickets' },
+  }),
+  chat: createRoute({
+    getParentRoute: () => admin,
+    path: '/chat',
+    component: lazy(() => import('@/features/admin/chat/chat-page'), 'AdminChatPage'),
+    staticData: { seo: 'adminChat' },
+  }),
+  feedback: createRoute({
+    getParentRoute: () => admin,
+    path: '/feedback',
+    component: lazy(() => import('@/features/admin/feedback/feedback-panel'), 'FeedbackPanel'),
+    staticData: { seo: 'adminFeedback' },
+  }),
+  payments: createRoute({
+    getParentRoute: () => admin,
+    path: '/payments',
+    component: lazy(() => import('@/features/admin/payments/payments-panel'), 'AdminPaymentsPanel'),
+    staticData: { seo: 'adminPayments' },
+  }),
+  cronJobs: createRoute({
+    getParentRoute: () => admin,
+    path: '/cron-jobs',
+    component: lazy(() => import('@/features/admin/cron-jobs/cron-jobs-panel'), 'CronJobsPanel'),
+    staticData: { seo: 'adminCronJobs' },
+  }),
+  system: createRoute({
+    getParentRoute: () => admin,
+    path: '/system',
+    component: lazy(() => import('@/features/admin/system/system-page'), 'AdminSystemPage'),
+    staticData: { seo: 'adminSystem' },
+  }),
+  users: createRoute({
+    getParentRoute: () => admin,
+    path: '/users',
+    beforeLoad: requireAdmin,
+    component: lazy(() => import('@/features/admin/users/users-panel'), 'UsersPanel'),
+    staticData: { seo: 'adminUsers' },
+  }),
+}
+
+// Routes and schedules now live in the brands tree; old bookmarks still work.
+const toBrands = () => {
+  throw redirect({ to: '/admin/brands', replace: true })
+}
+const oldRoutes = createRoute({
+  getParentRoute: () => admin,
+  path: '/routes',
+  beforeLoad: toBrands,
+})
+const oldSchedules = createRoute({
+  getParentRoute: () => admin,
+  path: '/schedules',
+  beforeLoad: toBrands,
+})
+
+// ── Account (signed-in customers) ─────────────────────────────
+
+const account = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/account',
+  beforeLoad: requireAuth,
+  component: AccountLayout,
+  staticData: { private: true },
+})
+
+const accountPages = {
+  index: createRoute({
+    getParentRoute: () => account,
+    path: '/',
+    component: lazy(() => import('@/features/account/console/user-console'), 'UserConsole'),
+    staticData: { seo: 'account' },
+  }),
+  trips: createRoute({
+    getParentRoute: () => account,
+    path: '/trips',
+    component: lazy(() => import('@/features/booking/history/my-bookings'), 'MyBookings'),
+    staticData: { seo: 'accountTrips' },
+  }),
+  ticket: createRoute({
+    getParentRoute: () => account,
+    path: '/trips/$code',
+    component: lazy(
+      () => import('@/features/booking/history/ticket-detail-page'),
+      'TicketDetailPage',
+    ),
+    staticData: { seo: 'accountTicket' },
+  }),
+  loyalty: createRoute({
+    getParentRoute: () => account,
+    path: '/loyalty',
+    component: lazy(() => import('@/features/loyalty/loyalty-page'), 'AccountLoyaltyPage'),
+    staticData: { seo: 'accountLoyalty' },
+  }),
+  password: createRoute({
+    getParentRoute: () => account,
+    path: '/password',
+    component: lazy(() => import('@/features/account/password-page'), 'AccountPasswordPage'),
+    staticData: { seo: 'accountPassword' },
+  }),
+  feedback: createRoute({
+    getParentRoute: () => account,
+    path: '/feedback',
+    component: lazy(
+      () => import('@/features/account/feedback/feedback-content'),
+      'AccountFeedbackContent',
+    ),
+    staticData: { seo: 'accountFeedback' },
+  }),
+}
+
+export const routeTree = rootRoute.addChildren({
+  home,
+  search,
+  trip,
+  brand,
+  booking,
+  compare,
+  login,
+  admin: admin.addChildren({ ...adminPages, oldRoutes, oldSchedules }),
+  account: account.addChildren(accountPages),
+})
+
+/** Browser history on the client; prerender passes a memory history. */
 export function createAppRouter(history?: RouterHistory) {
   return createRouter({
     routeTree,
     history,
-    defaultPreload: 'intent', // prefetch route on hover/focus
+    defaultPreload: 'intent',
     defaultPreloadDelay: 50,
     defaultStaleTime: 5 * 60 * 1000,
     scrollRestoration: true,
   })
 }
 
-// Client singleton — browser history. We export the router type for
-// type-safe `useNavigate` / `Link`.
 export const router = createAppRouter(
   typeof window !== 'undefined' ? createBrowserHistory() : undefined,
 )
@@ -310,9 +273,3 @@ declare module '@tanstack/react-router' {
     router: typeof router
   }
 }
-
-// NOTE: navigation helpers (useNavigate, useRouterState, Link) used to be
-// re-exported here, but that pulled the whole route-tree singleton into every
-// leaf component and created import cycles (router -> lazy-pages -> header
-// -> @/router). Components now import them from '@tanstack/react-router'
-// directly; import THIS module only for the router singleton itself.

@@ -1,16 +1,3 @@
-/**
- * Shared TanStack Table v9 feature set for every data table in the app.
- *
- * Follows the official shadcn data-table guide
- * (https://ui.shadcn.com/docs/components/base/data-table): declare the
- * features each table uses so anything unlisted is tree-shaken out of the
- * bundle, and export the resulting type so `ColumnDef`, `Column`, `Table`
- * and `Row` know which feature APIs are available.
- *
- * `columnMeta` is a type-only slot — the value is ignored at runtime, only
- * its type is used wherever `TFeatures` flows (per-column align/labels).
- */
-
 import {
   columnFilteringFeature,
   columnVisibilityFeature,
@@ -38,6 +25,8 @@ export interface DataTableColumnMeta {
   cellClassName?: string
   /** Human-friendly column name for the column-visibility menu. */
   label?: string
+  /** Title of the row's phone card (default: the first labelled column). */
+  cardTitle?: boolean
 }
 
 export const dataTableFeatures = tableFeatures({

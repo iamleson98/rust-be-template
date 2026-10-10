@@ -7,7 +7,7 @@
  * mock arrays, no hardcoded revenue series, no client-side forecasts.
  *
  * Data sources (TanStack Query hooks from `@/lib/queries`):
- *   - `useStats()`                       → `/api/stats` (public)
+ *   - `useQuery(statsOptions())`                       → `/api/stats` (public)
  *       { brands, routes, trips } — KPI cards row
  *   - `useAdminBookingStats(filter)`     → `/api/admin/bookings/stats`
  *       { totals: { total, confirmed, pending, cancelled, completed, revenue },
@@ -22,25 +22,30 @@
  * selected period.
  */
 
+import { useQuery } from '@tanstack/react-query'
+import { statsOptions } from '@/api'
 import { useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { DollarSign, Bus, Ticket, Route as RouteIcon, Activity } from 'lucide-react'
-import { formatNum } from '@/lib/types'
+import { formatNum } from '@/lib/format'
 import { useT } from '@/lib/i18n'
 import {
-  useStats,
+  rangeDays,
   useAdminBookingStats,
   useAdminBookings,
   type AdminBookingFilter,
-} from '@/lib/queries'
-import type {
-  AdminBookingOut,
-  AdminBookingDayBucket,
-  AdminBookingTotals,
-} from '@/lib/api/types.gen'
+} from '@/features/admin/tickets/api'
+import type { BookingOut, AdminBookingDayBucket, AdminBookingTotals } from '@/api'
 import type { DateRange } from './types'
-import { formatVNDShort } from './helpers'
-import { KpiCard } from './kpi-card'
+import {
+  formatVNDShort,
+  percentChange,
+  periodDays,
+  previousPeriod,
+  dayBars,
+  type Period,
+} from './helpers'
+import { StatGrid, StatTile } from '@/components/console/stat-tile'
 import type { DonutSegment } from './segmentation-donut'
 import { RevenueBarChartCard } from './revenue-bar-chart-card'
 import { BookingStatusDonutCard } from './booking-status-donut-card'
@@ -65,78 +70,54 @@ const BOOKING_STATUS_LABELS: Record<string, string> = {
   completed: 'adminDash.statusCompleted',
 }
 
-export function StatsOverview({
-  dateRange,
-  onExportCSV,
-}: {
-  dateRange: DateRange
-  onExportCSV: () => void
-}) {
+export function StatsOverview({ dateRange }: { dateRange: DateRange }) {
   const t = useT()
   const [hoveredBar, setHoveredBar] = useState<number | null>(null)
 
   // Public stats (brands, routes, trips)
-  const { data: rawStats, isError: statsErr, refetch: refetchStats } = useStats()
+  const { data: rawStats, isError: statsErr, refetch: refetchStats } = useQuery(statsOptions())
 
-  // Admin booking stats — drives revenue chart + status donut
+  // This period and the one before it (same length), for the revenue trend.
+  const period = useMemo(() => rangeDays({ range: dateRange }) as Period, [dateRange])
   const filter: AdminBookingFilter = useMemo(
-    () => ({
-      range: dateRange,
-      status: 'all',
-      sort: 'created_desc',
-      limit: 5,
-      offset: 0,
-    }),
+    () => ({ range: dateRange, status: 'all', sort: 'created_desc', limit: 5, offset: 0 }),
     [dateRange],
   )
+  const previous = useMemo(
+    () => ({ range: 'custom', status: 'all', ...previousPeriod(period) }),
+    [period],
+  )
   const { data: bookingStats } = useAdminBookingStats(filter)
+  const { data: previousStats } = useAdminBookingStats(previous)
   const totals: AdminBookingTotals | undefined = bookingStats?.totals
   const byDay: AdminBookingDayBucket[] = bookingStats?.byDay ?? EMPTY_ITEMS
+  const revenueDelta =
+    totals && previousStats ? percentChange(totals.revenue, previousStats.totals.revenue) : null
 
   // Recent bookings table (5 latest)
   const { data: recentBookingsResp } = useAdminBookings(filter)
-  const recentBookings: AdminBookingOut[] = recentBookingsResp?.items ?? []
+  const recentBookings: BookingOut[] = recentBookingsResp?.items ?? []
 
-  // Revenue series (in VND) — derived from real byDay buckets
-  const revenueSeries = useMemo(() => byDay.map((b) => b.revenue ?? 0), [byDay])
+  // Revenue per day over the WHOLE period (quiet days are 0), at most 10 bars.
+  const aggregatedRevenue = useMemo(() => {
+    const revenueByDay = new Map(byDay.map((b) => [b.date, b.revenue ?? 0]))
+    const weekdays = [
+      t('adminDash.weekday.sun'),
+      t('adminDash.weekday.mon'),
+      t('adminDash.weekday.tue'),
+      t('adminDash.weekday.wed'),
+      t('adminDash.weekday.thu'),
+      t('adminDash.weekday.fri'),
+      t('adminDash.weekday.sat'),
+    ]
+    const label =
+      dateRange === '7d'
+        ? (day: string) => weekdays[new Date(`${day}T00:00:00`).getDay()]
+        : (day: string) => `${day.slice(8, 10)}/${day.slice(5, 7)}`
+    return dayBars(periodDays(period), revenueByDay, 10, label)
+  }, [byDay, dateRange, period, t])
 
-  // Bar chart data — bucket into ~10 max so 30d/90d remain readable
-  const aggregatedRevenue = useMemo<{ label: string; value: number; date?: string }[]>(() => {
-    if (byDay.length === 0) return []
-    if (dateRange === '7d') {
-      // Show every day with weekday labels
-      const weekdayLabels = [
-        t('adminDash.weekday.mon'),
-        t('adminDash.weekday.tue'),
-        t('adminDash.weekday.wed'),
-        t('adminDash.weekday.thu'),
-        t('adminDash.weekday.fri'),
-        t('adminDash.weekday.sat'),
-        t('adminDash.weekday.sun'),
-      ]
-      return byDay.map((b) => {
-        const d = new Date(b.date)
-        const label = isNaN(d.getTime()) ? b.date : weekdayLabels[(d.getDay() + 6) % 7]
-        return { label, value: b.revenue ?? 0, date: b.date }
-      })
-    }
-    // 30d/90d → aggregate into 10 buckets averaged
-    const buckets = 10
-    const size = Math.max(1, Math.ceil(byDay.length / buckets))
-    const out: { label: string; value: number; date?: string }[] = []
-    for (let i = 0; i < byDay.length; i += size) {
-      const slice = byDay.slice(i, i + size)
-      const avgRevenue = slice.reduce((a, b) => a + (b.revenue ?? 0), 0) / slice.length
-      out.push({
-        label: `${i + 1}`,
-        value: Number(avgRevenue.toFixed(0)),
-        date: slice[0]?.date,
-      })
-    }
-    return out
-  }, [byDay, dateRange, t])
-
-  const totalRangeRevenue = useMemo(() => revenueSeries.reduce((a, b) => a + b, 0), [revenueSeries])
+  const totalRangeRevenue = totals?.revenue ?? 0
   const maxBarValue = aggregatedRevenue.length
     ? Math.max(...aggregatedRevenue.map((b) => b.value))
     : 1
@@ -153,17 +134,6 @@ export function StatsOverview({
       .filter((s) => s.count > 0)
   }, [totals, t])
   const statusSegmentTotal = statusSegments.reduce((a, b) => a + b.count, 0)
-
-  // Live "current vs prev" trend — we don't have a `previous period` field
-  // from the backend, so we compare the last bucket vs the previous one
-  // (real byDay series, no mock).
-  const lastVsPrev = useMemo(() => {
-    if (revenueSeries.length < 2) return null
-    const last = revenueSeries[revenueSeries.length - 1] ?? 0
-    const prev = revenueSeries[revenueSeries.length - 2] ?? 0
-    const delta = prev === 0 ? null : ((last - prev) / prev) * 100
-    return { last, prev, delta }
-  }, [revenueSeries])
 
   return (
     <>
@@ -185,46 +155,40 @@ export function StatsOverview({
         </div>
       )}
 
-      {/* ─── KPI Cards (real backend numbers) ─── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-        <KpiCard
-          icon={<DollarSign className="h-5 w-5" />}
+      {/* ─── KPI tiles (real backend numbers) ─── */}
+      <StatGrid>
+        <StatTile
+          icon={<DollarSign />}
+          tone="green"
           label={t('adminDash.revenue')}
           value={totals ? formatVNDShort(totals.revenue) : '—'}
-          change={lastVsPrev?.delta == null ? '—' : `${Math.abs(lastVsPrev.delta).toFixed(1)}%`}
-          up={(lastVsPrev?.delta ?? 0) >= 0}
-          color="#16a34a"
+          trend={{ delta: revenueDelta, label: t('adminDash.vsPreviousPeriod') }}
         />
-        <KpiCard
-          icon={<Ticket className="h-5 w-5" />}
+        <StatTile
+          icon={<Ticket />}
+          tone="blue"
           label={t('admin.ticketsSold')}
           value={totals ? formatNum(totals.total) : '—'}
-          change={
-            totals ? t('adminDash.confirmedCount', { count: formatNum(totals.confirmed) }) : '—'
-          }
-          up
-          color="#2563eb"
+          hint={totals && t('adminDash.confirmedCount', { count: formatNum(totals.confirmed) })}
         />
-        <KpiCard
-          icon={<Bus className="h-5 w-5" />}
+        <StatTile
+          icon={<Bus />}
+          tone="violet"
           label={t('adminDash.tripsRunning')}
           value={rawStats ? formatNum(rawStats.trips) : '—'}
-          change={t('adminDash.currentlyActive')}
-          up
-          color="#7c3aed"
+          hint={t('adminDash.currentlyActive')}
         />
-        <KpiCard
-          icon={<RouteIcon className="h-5 w-5" />}
+        <StatTile
+          icon={<RouteIcon />}
+          tone="sky"
           label={t('adminDash.routesPerBrand')}
           value={rawStats ? `${formatNum(rawStats.routes)} / ${formatNum(rawStats.brands)}` : '—'}
-          change={t('adminDash.tracking')}
-          up
-          color="#0ea5e9"
+          hint={t('adminDash.tracking')}
         />
-      </div>
+      </StatGrid>
 
       {/* ─── Row 1: Revenue Bar Chart + Booking-status Donut (real byDay + totals) ─── */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 mb-4">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
         <div className="lg:col-span-3">
           <RevenueBarChartCard
             aggregatedRevenue={aggregatedRevenue}
@@ -244,9 +208,9 @@ export function StatsOverview({
       </div>
 
       {/* ─── Row 2: Recent Bookings + live Campaigns (both real) ─── */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 mb-4">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
         <div className="lg:col-span-3">
-          <RecentBookingsCard recentBookings={recentBookings} onExportCSV={onExportCSV} />
+          <RecentBookingsCard recentBookings={recentBookings} />
         </div>
         <div className="lg:col-span-2">
           <CampaignsSummaryCard />

@@ -1,95 +1,105 @@
 'use client'
 
-/**
- * PriceSummary — sticky CTA bar at the bottom of the TripDetailDialog.
- *
- * Shows the running total of selected seats + the proceed-to-booking
- * button (disabled until the user has selected the required number of
- * seats AND both pickup/dropoff points).
- *
- * Extracted verbatim from the original `trip-detail-dialog.tsx`
- * (lines 606-659). Pure refactor.
- */
-
+import { Armchair, ChevronRight, LogIn, X } from 'lucide-react'
+import type { TripSeat } from '@/api'
 import { Button } from '@/components/ui/button'
-import { Armchair, AlertTriangle, CheckCircle2, ChevronRight } from 'lucide-react'
-import { formatCurrency, type Currency } from '@/lib/currency'
+import { SEAT_CLASS_COLORS } from '@/lib/labels'
+import { useMoney } from '@/lib/format'
 import { useT } from '@/lib/i18n'
 
+/**
+ * The trip dialog's sticky footer: every picked seat with its price (tap to drop
+ * it), the running total and the button on to checkout.
+ */
 export function PriceSummary({
-  selectedSeatsCount,
+  seats,
   maxSeats,
-  total,
+  closed,
+  signedIn,
   canProceed,
+  onRemove,
   onProceed,
-  currency,
 }: {
-  selectedSeatsCount: number
+  seats: TripSeat[]
   maxSeats: number
-  total: number
+  /** The trip is no longer on sale. */
+  closed: boolean
+  /** Signed-out customers sign in on the way to checkout. */
+  signedIn: boolean
   canProceed: boolean
+  onRemove: (seat: TripSeat) => void
   onProceed: () => void
-  currency: Currency
 }) {
   const t = useT()
+  const money = useMoney()
+  const total = seats.reduce((sum, seat) => sum + seat.finalPrice, 0)
   return (
-    <div className="border-t border-slate-200 bg-white/95 backdrop-blur supports-backdrop-filter:bg-white/80 px-4 md:px-6 py-3 md:py-3.5 flex items-center justify-between gap-3 md:gap-4 shrink-0">
-      <div className="flex-1 min-w-0">
-        {selectedSeatsCount === 0 ? (
+    <div className="flex shrink-0 items-center gap-3 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur supports-backdrop-filter:bg-white/80 md:gap-4 md:px-6">
+      <div className="min-w-0 flex-1">
+        {seats.length === 0 ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <div className="h-7 w-7 rounded-full bg-slate-100 text-slate-500 inline-flex items-center justify-center">
+            <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-slate-500">
               <Armchair className="h-3.5 w-3.5" />
-            </div>
-            <span>
-              {t('tripDetail.selectSeatsPrefix')}{' '}
-              <span className="font-semibold text-foreground">{maxSeats}</span>{' '}
-              {t('tripDetail.selectSeatsSuffix')}
             </span>
+            {closed
+              ? t('tripDetail.notBookable')
+              : t('tripDetail.pickSeatsHint', { max: maxSeats })}
           </div>
         ) : (
-          <div className="flex items-center gap-3 md:gap-4">
-            <div className="flex items-center gap-2 text-sm">
-              <div className="h-9 w-9 rounded-xl bg-linear-to-br from-blue-500 to-blue-600 text-white inline-flex items-center justify-center font-bold text-xs ">
-                {selectedSeatsCount}
-              </div>
-              <div>
-                <div className="font-semibold leading-tight text-slate-800">
-                  {t('tripDetail.seatsRatio', { selected: selectedSeatsCount, max: maxSeats })}
-                </div>
-                {selectedSeatsCount !== maxSeats ? (
-                  <div className="text-[11px] text-amber-600 leading-tight flex items-center gap-1 mt-0.5">
-                    <AlertTriangle className="h-3 w-3" />
-                    {t('tripDetail.needMoreSeats', { count: maxSeats - selectedSeatsCount })}
-                  </div>
-                ) : (
-                  <div className="text-[11px] text-blue-600 leading-tight flex items-center gap-1 mt-0.5">
-                    <CheckCircle2 className="h-3 w-3" />
-                    {t('tripDetail.enoughSeats')}
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="h-9 w-px bg-slate-200" />
-            <div>
-              <div className="text-[10px] uppercase tracking-wide text-muted-foreground leading-tight">
-                {t('booking.totalAmount')}
-              </div>
-              <div className="font-extrabold text-blue-800 text-lg md:text-xl leading-tight">
-                {formatCurrency(total, currency)}
-              </div>
-            </div>
-          </div>
+          <ul
+            className="flex gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none]"
+            aria-label={t('tripDetail.selectedSeats')}
+          >
+            {seats.map((seat) => (
+              <li key={seat.id} className="shrink-0">
+                <button
+                  type="button"
+                  onClick={() => onRemove(seat)}
+                  className="group flex items-center gap-1.5 rounded-full border border-slate-200 bg-white py-1 pr-1.5 pl-2 text-xs transition-colors hover:border-rose-300 hover:bg-rose-50"
+                  aria-label={t('tripDetail.removeSeat', { code: seat.code })}
+                >
+                  <span
+                    className="h-2 w-2 rounded-full"
+                    style={{ background: SEAT_CLASS_COLORS[seat.seatClass ?? 'standard'] }}
+                  />
+                  <span className="font-mono font-bold">{seat.code}</span>
+                  <span className="tabular-nums text-muted-foreground">
+                    {money(seat.finalPrice)}
+                  </span>
+                  <X className="h-3 w-3 text-slate-400 group-hover:text-rose-600" />
+                </button>
+              </li>
+            ))}
+          </ul>
         )}
       </div>
+      {seats.length > 0 && (
+        <div className="shrink-0 text-right">
+          <div className="text-[10px] uppercase leading-tight tracking-wide text-muted-foreground">
+            {t('tripDetail.seatsTotal', { count: seats.length })}
+          </div>
+          <div className="text-lg font-extrabold leading-tight text-blue-800 tabular-nums md:text-xl">
+            {money(total)}
+          </div>
+        </div>
+      )}
       <Button
         onClick={onProceed}
         disabled={!canProceed}
-        className="bg-primary hover:bg-primary/90 disabled:opacity-50 gap-2 shrink-0 h-11 md:h-12 px-5 md:px-7 text-sm md:text-base font-semibold"
         size="lg"
+        className="h-11 shrink-0 gap-1.5 px-5 text-sm font-semibold md:h-12 md:px-7 md:text-base"
       >
-        <CheckCircle2 className="h-4 w-4" />
-        {t('nav.bookTicket')}
-        <ChevronRight className="h-4 w-4 -mr-1" />
+        {signedIn ? (
+          <>
+            {t('nav.bookTicket')}
+            <ChevronRight className="-mr-1 h-4 w-4" />
+          </>
+        ) : (
+          <>
+            <LogIn className="h-4 w-4" />
+            {t('tripDetail.signInToBook')}
+          </>
+        )}
       </Button>
     </div>
   )

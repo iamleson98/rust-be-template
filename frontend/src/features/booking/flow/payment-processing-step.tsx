@@ -1,36 +1,21 @@
 'use client'
 
-/**
- * PaymentProcessingStep — the in-dialog ONLINE payment step of the
- * booking flow (single-dialog checkout — no second dialog stacked on
- * the trip dialog).
- *
- * Renders the live payment state for an already-created payment intent:
- *   - provider-specific body: GatewayRedirect (vnpay / momo / zalopay)
- *     or VietQrDisplay (bank transfer via VietQR),
- *   - a status pill (pending / completed / failed / cancelled),
- *   - the amount + booking code,
- *   - a Cancel action while pending (back to the method picker),
- *   - a Retry action after failure.
- *
- * The parent (BookingFlow) owns the payment mutations + polling; this
- * component is purely presentational.
- */
-
 import { Button } from '@/components/ui/button'
 import { Loader2, RefreshCw, ChevronLeft, Ban, Ticket } from 'lucide-react'
-import { formatCurrency } from '@/lib/currency'
-import type { Currency } from '@/lib/currency'
+import { formatVND } from '@/lib/format'
 import { useT } from '@/lib/i18n'
-import type { PaymentOut } from '@/lib/queries/payments'
+import type { PaymentOut } from '@/api'
 import { StatusPill } from './payment-dialog'
 import { GatewayRedirect } from './gateway-redirect'
 import { VietQrDisplay } from './vietqr-display'
 
+/**
+ * Paying online inside the trip dialog: the gateway link or bank-transfer QR,
+ * the live status, and cancel / retry. The parent owns the mutations and polling.
+ */
 export function PaymentProcessingStep({
   payment,
   bookingCode,
-  currency,
   cancelling,
   onCancelPayment,
   onRetry,
@@ -38,7 +23,6 @@ export function PaymentProcessingStep({
 }: {
   payment: PaymentOut
   bookingCode: string
-  currency: Currency
   cancelling: boolean
   /** Cancel the pending payment + return to the method picker. */
   onCancelPayment: () => void
@@ -72,9 +56,7 @@ export function PaymentProcessingStep({
         <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1">
           {t('bookingFlow.amount')}
         </div>
-        <div className="text-2xl font-extrabold text-slate-900">
-          {formatCurrency(payment.amount, (payment.currency as Currency) ?? currency)}
-        </div>
+        <div className="text-2xl font-extrabold text-slate-900">{formatVND(payment.amount)}</div>
       </div>
 
       {/* Provider-specific body */}
@@ -87,7 +69,7 @@ export function PaymentProcessingStep({
           status={payment.status}
         />
       ) : payment.provider === 'vietqr' ? (
-        <VietQrDisplay payment={payment} currency={(payment.currency as Currency) ?? currency} />
+        <VietQrDisplay payment={payment} />
       ) : null}
 
       {/* Failure recovery */}

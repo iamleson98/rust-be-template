@@ -12,8 +12,7 @@
  *  - plain objects with a `message` field
  *  - strings / numbers                   → String(value)
  */
-import { translate } from '@/lib/i18n'
-import { useApp } from '@/lib/store'
+import { tSync } from '@/lib/i18n'
 
 export function getErrorMessage(e: unknown, fallback?: string): string {
   if (e instanceof Error && e.message) return e.message
@@ -27,5 +26,5 @@ export function getErrorMessage(e: unknown, fallback?: string): string {
   if (typeof e === 'number' && Number.isFinite(e)) return String(e)
   // Fallback follows the app language (vi default) — same string in
   // VI mode, English when the user switched.
-  return fallback ?? translate(useApp.getState().lang, 'common.errorOccurred')
+  return fallback ?? tSync('common.errorOccurred')
 }

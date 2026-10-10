@@ -27,11 +27,13 @@
  * `<input type="time">`, HH:MM value); dates use `DatePicker`
  * (Popover + Calendar, Vietnamese locale).
  *
- * Migrated from manual `fetch` POST/PUT to the `useUpsertAdminSchedule()`
+ * Migrated from manual `fetch` POST/PUT to the `useMutation(adminSchedulesCreateMutation())`
  * TanStack Query mutation. The mutation auto-invalidates the schedules list
  * query on success.
  */
 
+import { adminSchedulesCreateMutation, adminSchedulesUpdateMutation } from '@/api'
+import { useMutation } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -48,20 +50,21 @@ import { Button } from '@/components/ui/button'
 import { Form } from '@/components/ui/form'
 import { Clock, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { useUpsertAdminSchedule, useUpdateAdminSchedule } from '@/lib/queries'
 import { useT } from '@/lib/i18n'
 import type {
   AdminAddressOut,
   AdminBusLayoutOut,
   AdminRouteOut,
   AdminScheduleOut,
-} from '@/lib/api/types.gen'
+  ChildFarePolicy,
+} from '@/api'
 import { AddressMapDialog } from '@/features/admin/addresses/address-map-dialog'
 import { scheduleSchema, type ScheduleFormValues } from './schedule-schema'
 import { ScheduleRouteSection } from './schedule-route-section'
 import { ScheduleBasicsFields } from './schedule-basics-fields'
 import { ScheduleDaysField } from './schedule-days-field'
-import { SchedulePricingFields } from './schedule-pricing-fields'
+import { ScheduleAmenitiesField } from './schedule-amenities-field'
+import { ScheduleFares } from './schedule-fares'
 import { getErrorMessage } from '@/lib/error-message'
 
 export function ScheduleFormDialog({
@@ -71,6 +74,7 @@ export function ScheduleFormDialog({
   busLayouts,
   brandId,
   brandName,
+  childFare = null,
   onOpenChange,
   onSaved,
 }: {
@@ -80,13 +84,15 @@ export function ScheduleFormDialog({
   busLayouts: AdminBusLayoutOut[]
   brandId?: string
   brandName?: string
+  /** The brand's child tickets, if it sells them. */
+  childFare?: ChildFarePolicy | null
   onOpenChange: (open: boolean) => void
   onSaved: () => void
 }) {
   const t = useT()
   const isEdit = !!schedule
-  const createMutation = useUpsertAdminSchedule()
-  const updateMutation = useUpdateAdminSchedule()
+  const createMutation = useMutation(adminSchedulesCreateMutation())
+  const updateMutation = useMutation(adminSchedulesUpdateMutation())
   const saving = createMutation.isPending || updateMutation.isPending
 
   // Addresses created inside this dialog session — merged as extras so
@@ -119,6 +125,7 @@ export function ScheduleFormDialog({
       busLayoutId: '',
       basePriceAdult: 0,
       basePriceChild: 0,
+      classFares: {},
       amenities: [],
       startPointId: '',
       startPointTime: null,
@@ -144,8 +151,14 @@ export function ScheduleFormDialog({
         days: [0, 1, 2, 3, 4, 5, 6].map((i) => ds[i] === '1'),
         vehicleTypeId: schedule?.vehicleTypeId ?? '',
         busLayoutId: schedule?.busLayoutId ?? '',
-        basePriceAdult: schedule ? schedule.basePriceAdult : 0,
-        basePriceChild: schedule ? schedule.basePriceChild : 0,
+        basePriceAdult: schedule?.basePriceAdult ?? 0,
+        basePriceChild: schedule?.basePriceChild ?? 0,
+        classFares: Object.fromEntries(
+          (schedule?.classFares ?? []).map((f) => [
+            f.seatClass,
+            { priceAdult: f.priceAdult, priceChild: f.priceChild ?? 0 },
+          ]),
+        ),
         amenities: schedule?.amenities ? schedule.amenities.split(',').filter(Boolean) : [],
         startPointId: startPoint?.addressId ?? '',
         startPointTime: startPoint?.arrivalTime ?? null,
@@ -159,6 +172,7 @@ export function ScheduleFormDialog({
   }, [open, schedule, form])
 
   const days = form.watch('days')
+  const busLayoutId = form.watch('busLayoutId')
   const effectiveFrom = form.watch('effectiveFrom')
   const amenitiesValue = form.watch('amenities')
   const startPointId = form.watch('startPointId')
@@ -264,6 +278,14 @@ export function ScheduleFormDialog({
         busLayoutId: values.busLayoutId || null,
         basePriceAdult: values.basePriceAdult,
         basePriceChild: values.basePriceChild,
+        // A class left empty costs what a standard seat costs.
+        classFares: Object.entries(values.classFares)
+          .filter(([, fare]) => fare.priceAdult > 0)
+          .map(([seatClass, fare]) => ({
+            seatClass,
+            priceAdult: fare.priceAdult,
+            priceChild: fare.priceChild || null,
+          })),
         // Backend stores `amenities` as `Option<String>` (comma-separated).
         // The form edits them as an array — join before sending. The
         // previous version sent the array directly → serde 422.
@@ -344,7 +366,7 @@ export function ScheduleFormDialog({
 
               {/* Compact fields pair up on the widened (max-w-4xl)
                   dialog so everything stays visible without scrolling. */}
-              <div className="grid gap-4 lg:grid-cols-2">
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                 <ScheduleBasicsFields
                   form={form}
                   busLayouts={busLayouts}
@@ -356,7 +378,13 @@ export function ScheduleFormDialog({
                 </div>
               </div>
 
-              <SchedulePricingFields form={form} toggleAmenity={toggleAmenity} />
+              <ScheduleFares
+                form={form}
+                layout={busLayouts.find((l) => l.id === busLayoutId)}
+                childFare={childFare}
+              />
+
+              <ScheduleAmenitiesField form={form} toggleAmenity={toggleAmenity} />
 
               <DialogFooter>
                 <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>

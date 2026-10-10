@@ -5,7 +5,7 @@
  * into the rustqlite engine's own resource usage.
  *
  * Renders `database.engine` from `GET /api/admin/system` (polled every
- * 5 s by `useSystemStatus`):
+ * 5 s by the system-status query):
  *   • Memory — page-cache footprint vs. capacity (+ WAL, DB size).
  *   • Performance Capacity — cache hit rate, live connections,
  *     write-slot contention (busy waits / timeouts).
@@ -19,13 +19,13 @@
  * path, so this observability is always-on, not sampled.
  */
 
+import type { EngineStatsOut } from '@/api'
 import { Activity, Database, Gauge, MemoryStick } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { useT } from '@/lib/i18n'
-import type { SystemEngineStats } from '@/lib/queries'
 
 /** Compact number: 12_400 → "12.4K", 3_500_000 → "3.5M". */
 function compact(n: number): string {
@@ -58,7 +58,7 @@ function hitRateBarTone(pct: number): string {
   return 'bg-red-500'
 }
 
-export function DatabaseEngineSection({ engine }: { engine: SystemEngineStats }) {
+export function DatabaseEngineSection({ engine }: { engine: EngineStatsOut }) {
   const t = useT()
   const util = Math.min(Math.max(engine.memory.utilizationPct, 0), 100)
   const hitRate = Math.min(Math.max(engine.cache.hitRatePct, 0), 100)
@@ -74,7 +74,7 @@ export function DatabaseEngineSection({ engine }: { engine: SystemEngineStats })
       </h2>
 
       {/* ── Memory / Capacity / Throughput summary row ───────────── */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         {/* Memory */}
         <Card data-testid="engine-memory-card">
           <CardHeader className="pb-2">
@@ -243,7 +243,7 @@ export function DatabaseEngineSection({ engine }: { engine: SystemEngineStats })
 
       {/* ── Per-file engine detail ─────────────────────────────────── */}
       {engine.files.length > 0 && (
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {engine.files.map((f) => {
             const fHit = Math.min(Math.max(f.hitRatePct, 0), 100)
             return (

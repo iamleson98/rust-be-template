@@ -13,7 +13,7 @@ import { DataTableColumnHeader, type DataTableFeatures } from '@/components/data
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { useT } from '@/lib/i18n'
-import { StarRating } from '@/features/feedback/star-rating'
+import { StarRating } from '@/features/account/feedback/star-rating'
 import { StatusBadge } from './feedback-status-badge'
 import { formatDate, type FeedbackRow } from './helpers'
 
@@ -53,7 +53,7 @@ export function useFeedbackColumns() {
           header: ({ column }) => (
             <DataTableColumnHeader column={column} title={t('adminFeedback.rating')} />
           ),
-          cell: ({ getValue }) => <StarRating value={getValue() as number} size="sm" />,
+          cell: ({ getValue }) => <StarRating value={getValue()} size="sm" />,
           meta: { label: t('adminFeedback.rating') },
         }),
         feedbackColumnHelper.accessor('title', {
