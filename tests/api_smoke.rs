@@ -78,7 +78,6 @@ async fn boot_test_state() -> anyhow::Result<backend::state::AppState> {
         // Don't hit real OAuth providers during tests.
         std::env::set_var("OAUTH_GOOGLE_ENABLED", "false");
         std::env::set_var("OAUTH_FACEBOOK_ENABLED", "false");
-        std::env::set_var("OAUTH_TWITTER_ENABLED", "false");
         // Route-media tests: local storage backend rooted at a fresh
         // tempdir (never `./storage` in the repo working tree).
         std::env::set_var("STORAGE_BACKEND", "local");
@@ -377,7 +376,6 @@ async fn boot_state() -> anyhow::Result<backend::state::AppState> {
         std::env::set_var("VIETQR_ENABLED", "false");
         std::env::set_var("OAUTH_GOOGLE_ENABLED", "false");
         std::env::set_var("OAUTH_FACEBOOK_ENABLED", "false");
-        std::env::set_var("OAUTH_TWITTER_ENABLED", "false");
     });
     backend::server::bootstrap().await
 }

@@ -3100,7 +3100,7 @@
           {
             "name": "provider",
             "in": "path",
-            "description": "OAuth provider name — one of `facebook`, `google`, `twitter`",
+            "description": "OAuth provider name: `facebook` or `google`",
             "required": true,
             "schema": {
               "type": "string"
@@ -3182,7 +3182,7 @@
           {
             "name": "provider",
             "in": "path",
-            "description": "OAuth provider name — one of `facebook`, `google`, `twitter`",
+            "description": "OAuth provider name: `facebook` or `google`",
             "required": true,
             "schema": {
               "type": "string"
@@ -10869,7 +10869,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Providers the sign-in page should offer (`google` | `facebook` | `twitter`)."
+            "description": "Providers the sign-in page should offer (`google` | `facebook`)."
           }
         }
       },

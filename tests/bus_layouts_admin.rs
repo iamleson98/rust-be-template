@@ -66,7 +66,6 @@ async fn boot_state() -> anyhow::Result<backend::state::AppState> {
         std::env::set_var("VIETQR_ENABLED", "false");
         std::env::set_var("OAUTH_GOOGLE_ENABLED", "false");
         std::env::set_var("OAUTH_FACEBOOK_ENABLED", "false");
-        std::env::set_var("OAUTH_TWITTER_ENABLED", "false");
     });
     backend::server::bootstrap().await
 }

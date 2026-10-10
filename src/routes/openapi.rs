@@ -11,7 +11,7 @@ use utoipa::OpenApi;
         crate::routes::auth::refresh,
         crate::routes::auth::logout,
         crate::routes::auth::me,
-        // oauth (social login — Facebook / Google / X-Twitter)
+        // oauth (social login — Facebook / Google)
         crate::routes::oauth::oauth_providers,
         crate::routes::oauth::oauth_start,
         crate::routes::oauth::oauth_callback,

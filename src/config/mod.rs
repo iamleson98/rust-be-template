@@ -1199,7 +1199,6 @@ pub struct OAuthConfig {
     pub frontend_url: String,
     pub facebook: OAuthProviderConfig,
     pub google: OAuthProviderConfig,
-    pub twitter: OAuthProviderConfig,
 }
 
 impl OAuthConfig {
@@ -1209,12 +1208,11 @@ impl OAuthConfig {
             frontend_url: env_var("OAUTH_FRONTEND_URL").unwrap_or_default(),
             facebook: OAuthProviderConfig::from_env("FACEBOOK"),
             google: OAuthProviderConfig::from_env("GOOGLE"),
-            twitter: OAuthProviderConfig::from_env("TWITTER"),
         }
     }
 
     pub fn any_enabled(&self) -> bool {
-        self.facebook.is_active() || self.google.is_active() || self.twitter.is_active()
+        self.facebook.is_active() || self.google.is_active()
     }
 }
 

@@ -61,7 +61,7 @@ pub trait UserStore: Send + Sync {
     ///   an existing user; if found, their `oauth_provider` + `oauth_subject`
     ///   are set (so future OAuth logins find them by id).
     /// `name` — the display name from the OAuth provider.
-    /// `provider` — `"facebook"` / `"google"` / `"twitter"`.
+    /// `provider` — `"facebook"` / `"google"`.
     /// `subject` — the provider's stable user id.
     /// `avatar_url` — optional avatar URL from the provider.
     async fn upsert_oauth_user(

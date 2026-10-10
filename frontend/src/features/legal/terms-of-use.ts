@@ -25,7 +25,7 @@ export const termsOfUse: Record<Lang, LegalDoc> = {
             list: [
               'Bạn cần từ 16 tuổi trở lên để tạo tài khoản.',
               'Cung cấp thông tin chính xác và cập nhật; giữ bí mật mật khẩu và chịu trách nhiệm về hoạt động trên tài khoản của mình.',
-              'Bạn có thể đăng nhập bằng Google, Facebook hoặc X; khi đó tài khoản DatXeVui được liên kết với tài khoản đó.',
+              'Bạn có thể đăng nhập bằng Google hoặc Facebook; khi đó tài khoản DatXeVui được liên kết với tài khoản đó.',
             ],
           },
         ],
@@ -112,7 +112,7 @@ export const termsOfUse: Record<Lang, LegalDoc> = {
             list: [
               'You must be 16 or older to create an account.',
               'Give accurate, up-to-date information; keep your password secret; you are responsible for activity on your account.',
-              'You can sign in with Google, Facebook or X; your DatXeVui account is then linked to that account.',
+              'You can sign in with Google or Facebook; your DatXeVui account is then linked to that account.',
             ],
           },
         ],

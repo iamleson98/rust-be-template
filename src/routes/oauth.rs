@@ -1,5 +1,5 @@
 //! OAuth 2.0 social-auth routes — start + callback handlers for
-//! Facebook / Google / X (Twitter).
+//! Facebook / Google.
 //!
 //! ## Routes
 //!
@@ -30,10 +30,6 @@
 //!   * SameSite=Lax (allowed on cross-site redirects).
 //!   * Secure in production (when `COOKIE__SECURE=true`).
 //!   * Short-lived (10 minutes).
-//!
-//! For Twitter specifically, the cookie also carries the PKCE
-//! `code_verifier` (since Twitter requires PKCE). The cookie value is
-//! `{state}|{code_verifier}`.
 
 use axum::extract::{Path, Query, State};
 use axum::response::{IntoResponse, Redirect, Response};
@@ -78,7 +74,7 @@ pub struct CallbackQuery {
     path = "/api/auth/oauth/{provider}/start",
     tag = "auth",
     params(
-        ("provider" = String, Path, description = "OAuth provider name — one of `facebook`, `google`, `twitter`")
+        ("provider" = String, Path, description = "OAuth provider name: `facebook` or `google`")
     ),
     responses(
         (status = 302, description = "Redirect to the OAuth provider's authorization URL"),
@@ -94,15 +90,7 @@ pub async fn oauth_start(
     let provider_cfg = enabled_provider(&st.config.oauth, &provider)
         .ok_or_else(|| AppError::NotFound(format!("oauth provider '{provider}' not configured")))?;
 
-    let state = oauth::generate_state();
-    // Twitter needs PKCE — generate a code_verifier and bundle it
-    // with the state.
-    let state_value = if provider == "twitter" {
-        let verifier = oauth::twitter::TwitterProvider::generate_code_verifier();
-        format!("{state}|{verifier}")
-    } else {
-        state.clone()
-    };
+    let state_value = oauth::generate_state();
 
     let redirect_base = st.config.oauth.redirect_base_url.clone();
     if redirect_base.is_empty() {
@@ -141,7 +129,7 @@ pub async fn oauth_start(
     path = "/api/auth/oauth/{provider}/callback",
     tag = "auth",
     params(
-        ("provider" = String, Path, description = "OAuth provider name — one of `facebook`, `google`, `twitter`"),
+        ("provider" = String, Path, description = "OAuth provider name: `facebook` or `google`"),
         CallbackQuery
     ),
     responses(
@@ -208,21 +196,8 @@ pub async fn oauth_callback(
         }
     };
 
-    // 4. Verify state — extract the original state from cookie (for
-    //    Twitter, the cookie is `{state}|{verifier}`).
-    let (cookie_state, code_verifier) = if provider == "twitter" {
-        if let Some(idx) = cookie_value.find('|') {
-            (
-                cookie_value[..idx].to_string(),
-                cookie_value[idx + 1..].to_string(),
-            )
-        } else {
-            (cookie_value, String::new())
-        }
-    } else {
-        (cookie_value, String::new())
-    };
-
+    // 4. Verify state against the cookie set by `start`.
+    let cookie_state = cookie_value;
     if cookie_state != state_param {
         tracing::warn!(
             provider = %provider,
@@ -250,12 +225,7 @@ pub async fn oauth_callback(
     };
 
     let redirect_base = st.config.oauth.redirect_base_url.clone();
-    let mut cb_url = oauth::callback_url(&redirect_base, &provider);
-    // Twitter: encode the code_verifier into the redirect_uri fragment
-    // so the provider's exchange_code() can extract it.
-    if provider == "twitter" && !code_verifier.is_empty() {
-        cb_url = format!("{cb_url}#verifier={code_verifier}");
-    }
+    let cb_url = oauth::callback_url(&redirect_base, &provider);
 
     let span = tracing::Span::current();
     let exchange_result = provider_impl
@@ -321,7 +291,7 @@ pub async fn oauth_callback(
 // ── Helpers ───────────────────────────────────────────────────────
 
 /// Every provider this backend can sign people in with.
-const PROVIDERS: [&str; 3] = ["google", "facebook", "twitter"];
+const PROVIDERS: [&str; 2] = ["google", "facebook"];
 
 /// The provider behind `name` when it is switched on (`OAUTH_<P>_ENABLED`)
 /// and has both its client id and secret.
@@ -332,7 +302,6 @@ fn enabled_provider(
     let cfg = match name {
         "facebook" => &oauth_cfg.facebook,
         "google" => &oauth_cfg.google,
-        "twitter" => &oauth_cfg.twitter,
         _ => return None,
     };
     if !cfg.enabled {
@@ -344,7 +313,7 @@ fn enabled_provider(
 /// Response of `GET /api/auth/oauth/providers`.
 #[derive(Debug, Serialize, ToSchema)]
 pub struct OAuthProvidersResponse {
-    /// Providers the sign-in page should offer (`google` | `facebook` | `twitter`).
+    /// Providers the sign-in page should offer (`google` | `facebook`).
     pub providers: Vec<String>,
 }
 
@@ -391,15 +360,21 @@ mod tests {
         let cfg = OAuthConfig {
             google: creds(true),
             facebook: creds(false),
-            twitter: OAuthProviderConfig {
+            ..Default::default()
+        };
+        assert!(enabled_provider(&cfg, "google").is_some());
+        assert!(enabled_provider(&cfg, "facebook").is_none(), "switched off");
+        let no_secret = OAuthConfig {
+            google: OAuthProviderConfig {
                 client_secret: String::new(),
                 ..creds(true)
             },
             ..Default::default()
         };
-        assert!(enabled_provider(&cfg, "google").is_some());
-        assert!(enabled_provider(&cfg, "facebook").is_none(), "switched off");
-        assert!(enabled_provider(&cfg, "twitter").is_none(), "no secret");
+        assert!(
+            enabled_provider(&no_secret, "google").is_none(),
+            "no secret"
+        );
         assert!(enabled_provider(&cfg, "github").is_none());
     }
 }

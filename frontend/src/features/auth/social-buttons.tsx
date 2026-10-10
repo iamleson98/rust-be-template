@@ -5,7 +5,7 @@ import { oauthProvidersOptions } from '@/api'
 import { useT } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 
-type Provider = 'google' | 'facebook' | 'twitter'
+type Provider = 'google' | 'facebook'
 
 const BUTTONS: Record<
   Provider,
@@ -46,20 +46,10 @@ const BUTTONS: Record<
       </svg>
     ),
   },
-  twitter: {
-    name: 'X',
-    labelKey: 'authPage.loginWithX',
-    className: 'bg-black text-white hover:bg-neutral-800',
-    icon: (
-      <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current" aria-hidden="true">
-        <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-      </svg>
-    ),
-  },
 }
 
 /**
- * Sign in with Google / Facebook / X — only the providers the server has
+ * Sign in with Google / Facebook — only the providers the server has
  * set up, so no button ends in an error; nothing at all when none are.
  */
 export function SocialAuthButtons() {
@@ -81,8 +71,6 @@ export function SocialAuthButtons() {
   }, [])
 
   if (providers.length === 0) return null
-  // Three buttons on a phone: icons only; fewer have room for the name.
-  const compact = providers.length === 3
 
   return (
     <div className="space-y-3">
@@ -117,7 +105,7 @@ export function SocialAuthButtons() {
               aria-label={t(b.labelKey)}
             >
               {b.icon}
-              <span className={cn(compact && 'hidden sm:inline')}>{b.name}</span>
+              <span>{b.name}</span>
             </a>
           )
         })}

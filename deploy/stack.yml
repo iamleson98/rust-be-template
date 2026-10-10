@@ -90,10 +90,10 @@ services:
       # ── Payments / contact ──────────────────────────────────────
       - PAYMENT_PUBLIC_BASE_URL=${PAYMENT_PUBLIC_BASE_URL:-https://datxevui.com}
 
-      # ── Social sign-in (Google / Facebook / X) ──────────────────
+      # ── Social sign-in (Google / Facebook) ──────────────────────
       # A provider is offered only when its *_ENABLED=true and both its
       # client id and secret are set in /opt/vexevn/.env. Register this
-      # callback with each provider (provider = google|facebook|twitter):
+      # callback with each provider (provider = google|facebook):
       #   https://datxevui.com/api/auth/oauth/<provider>/callback
       - OAUTH_REDIRECT_BASE_URL=${OAUTH_REDIRECT_BASE_URL:-https://datxevui.com}
       - OAUTH_FRONTEND_URL=${OAUTH_FRONTEND_URL:-https://datxevui.com}
@@ -103,9 +103,6 @@ services:
       - OAUTH_FACEBOOK_ENABLED=${OAUTH_FACEBOOK_ENABLED:-false}
       - OAUTH_FACEBOOK_CLIENT_ID=${OAUTH_FACEBOOK_CLIENT_ID:-}
       - OAUTH_FACEBOOK_CLIENT_SECRET=${OAUTH_FACEBOOK_CLIENT_SECRET:-}
-      - OAUTH_TWITTER_ENABLED=${OAUTH_TWITTER_ENABLED:-false}
-      - OAUTH_TWITTER_CLIENT_ID=${OAUTH_TWITTER_CLIENT_ID:-}
-      - OAUTH_TWITTER_CLIENT_SECRET=${OAUTH_TWITTER_CLIENT_SECRET:-}
 
       # ── Cache / worker: single-node production uses in-process cache
       #    and the DB-backed queue. Redis is intentionally not required.
