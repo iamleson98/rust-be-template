@@ -129,10 +129,6 @@ bytes = "1"
 mime_guess = "2"
 tokio-util = { version = "0.7", features = ["io"] }
 
-# Worker — rdkafka is optional because librdkafka requires system libs.
-# Enable via `--features kafka` when you actually need the Kafka broker.
-rdkafka = { version = "0.36", features = ["tokio"], default-features = false, optional = true }
-
 # HTTP client (for Valhalla routing proxy)
 reqwest = { version = "0.12", features = ["json", "rustls-tls", "stream", "http2"], default-features = false }
 
@@ -198,9 +194,6 @@ default = []
 # the rust-sql (rustqlite) engine via the sqlx-sqlite C-ABI compat
 # layer (see the engine block at the top of this file). The former
 # `sqlite` / `postgres` backend features were removed 2026-09.
-
-# Worker — Kafka broker is optional because librdkafka requires system libs.
-kafka = ["rdkafka"]
 
 # ── cargo-machete (unused-dependency detector) false positives ──
 #

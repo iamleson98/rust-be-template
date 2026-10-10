@@ -4652,6 +4652,10 @@ export type AdminCronJobsCancelErrors = {
      * No queued/running run for that job type
      */
     404: unknown;
+    /**
+     * Worker not running in this process
+     */
+    503: unknown;
 };
 
 export type AdminCronJobsCancelResponses = {
@@ -4685,7 +4689,7 @@ export type AdminCronJobsTriggerErrors = {
      */
     403: unknown;
     /**
-     * No schedule for that job type
+     * No such job
      */
     404: unknown;
     /**

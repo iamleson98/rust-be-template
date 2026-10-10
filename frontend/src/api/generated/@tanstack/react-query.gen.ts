@@ -700,10 +700,11 @@ export const adminCronJobsUpdateMutation = (options?: Partial<Options<AdminCronJ
 };
 
 /**
- * `POST /api/admin/cron-jobs/{jobType}/cancel` — kill the queued or
- * running run of a job (the admin "Dừng" button). Cancellation is
- * cooperative: the handler observes the token at its phase boundaries
- * and finalizes its own history row; the runner ACKs (no retry).
+ * `POST /api/admin/cron-jobs/{jobType}/cancel` — stop the queued or
+ * running run of a job (the admin "Dừng" button). A queued run (or a
+ * pending retry) is removed; a running one is told to stop — at once in
+ * this process, at its next lease renewal in another — and is never
+ * retried.
  */
 export const adminCronJobsCancelMutation = (options?: Partial<Options<AdminCronJobsCancelData>>): UseMutationOptions<AdminCronJobsCancelResponse, DefaultError, Options<AdminCronJobsCancelData>> => {
     const mutationOptions: UseMutationOptions<AdminCronJobsCancelResponse, DefaultError, Options<AdminCronJobsCancelData>> = {
@@ -721,7 +722,7 @@ export const adminCronJobsCancelMutation = (options?: Partial<Options<AdminCronJ
 };
 
 /**
- * `POST /api/admin/cron-jobs/{jobType}/trigger` — enqueue a run now.
+ * `POST /api/admin/cron-jobs/{jobType}/trigger` — queue a run now.
  */
 export const adminCronJobsTriggerMutation = (options?: Partial<Options<AdminCronJobsTriggerData>>): UseMutationOptions<AdminCronJobsTriggerResponse, DefaultError, Options<AdminCronJobsTriggerData>> => {
     const mutationOptions: UseMutationOptions<AdminCronJobsTriggerResponse, DefaultError, Options<AdminCronJobsTriggerData>> = {

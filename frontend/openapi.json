@@ -1343,7 +1343,7 @@
         "tags": [
           "admin"
         ],
-        "summary": "`POST /api/admin/cron-jobs/{jobType}/cancel` — kill the queued or\nrunning run of a job (the admin \"Dừng\" button). Cancellation is\ncooperative: the handler observes the token at its phase boundaries\nand finalizes its own history row; the runner ACKs (no retry).",
+        "summary": "`POST /api/admin/cron-jobs/{jobType}/cancel` — stop the queued or\nrunning run of a job (the admin \"Dừng\" button). A queued run (or a\npending retry) is removed; a running one is told to stop — at once in\nthis process, at its next lease renewal in another — and is never\nretried.",
         "operationId": "cancel",
         "parameters": [
           {
@@ -1375,6 +1375,9 @@
           },
           "404": {
             "description": "No queued/running run for that job type"
+          },
+          "503": {
+            "description": "Worker not running in this process"
           }
         }
       }
@@ -1384,7 +1387,7 @@
         "tags": [
           "admin"
         ],
-        "summary": "`POST /api/admin/cron-jobs/{jobType}/trigger` — enqueue a run now.",
+        "summary": "`POST /api/admin/cron-jobs/{jobType}/trigger` — queue a run now.",
         "operationId": "trigger",
         "parameters": [
           {
@@ -1415,7 +1418,7 @@
             "description": "Forbidden"
           },
           "404": {
-            "description": "No schedule for that job type"
+            "description": "No such job"
           },
           "409": {
             "description": "Conflict — a run is already queued/running"

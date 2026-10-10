@@ -242,15 +242,16 @@ export const adminCronJobsUpdate = <ThrowOnError extends boolean = false>(option
 });
 
 /**
- * `POST /api/admin/cron-jobs/{jobType}/cancel` — kill the queued or
- * running run of a job (the admin "Dừng" button). Cancellation is
- * cooperative: the handler observes the token at its phase boundaries
- * and finalizes its own history row; the runner ACKs (no retry).
+ * `POST /api/admin/cron-jobs/{jobType}/cancel` — stop the queued or
+ * running run of a job (the admin "Dừng" button). A queued run (or a
+ * pending retry) is removed; a running one is told to stop — at once in
+ * this process, at its next lease renewal in another — and is never
+ * retried.
  */
 export const adminCronJobsCancel = <ThrowOnError extends boolean = false>(options: Options<AdminCronJobsCancelData, ThrowOnError>): RequestResult<AdminCronJobsCancelResponses, AdminCronJobsCancelErrors, ThrowOnError> => (options.client ?? client).post<AdminCronJobsCancelResponses, AdminCronJobsCancelErrors, ThrowOnError>({ url: '/api/admin/cron-jobs/{jobType}/cancel', ...options });
 
 /**
- * `POST /api/admin/cron-jobs/{jobType}/trigger` — enqueue a run now.
+ * `POST /api/admin/cron-jobs/{jobType}/trigger` — queue a run now.
  */
 export const adminCronJobsTrigger = <ThrowOnError extends boolean = false>(options: Options<AdminCronJobsTriggerData, ThrowOnError>): RequestResult<AdminCronJobsTriggerResponses, AdminCronJobsTriggerErrors, ThrowOnError> => (options.client ?? client).post<AdminCronJobsTriggerResponses, AdminCronJobsTriggerErrors, ThrowOnError>({ url: '/api/admin/cron-jobs/{jobType}/trigger', ...options });
 

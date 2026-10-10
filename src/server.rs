@@ -29,13 +29,13 @@ use crate::state::AppState;
 use crate::store::{
     BrandStore, CacheBrandStore, CacheChatStore, CachePostStore, CacheRbacStore,
     CacheRefreshTokenStore, CacheUserStore, ChatStore, CompositeStore, DbAddressStore,
-    DbAuditStore, DbBookingStore, DbBrandStore, DbChatStore, DbJobStore, DbNotificationStore,
-    DbPaymentStore, DbPlaceStore, DbPostStore, DbPriceAlertStore, DbRbacStore, DbRefreshTokenStore,
-    DbReviewStore, DbRoutePictureStore, DbRouteStore, DbScheduleStore, DbStaffPresenceStore,
-    DbTripStore, DbUserStore, DbVehicleTypeStore, JobStore, PostStore, RbacStore,
-    RefreshTokenStore, RoutePictureStore, StaffPresenceStore, UserStore,
+    DbAuditStore, DbBookingStore, DbBrandStore, DbChatStore, DbJobQueueStore, DbJobStore,
+    DbNotificationStore, DbPaymentStore, DbPlaceStore, DbPostStore, DbPriceAlertStore, DbRbacStore,
+    DbRefreshTokenStore, DbReviewStore, DbRoutePictureStore, DbRouteStore, DbScheduleStore,
+    DbStaffPresenceStore, DbTripStore, DbUserStore, DbVehicleTypeStore, JobStore, PostStore,
+    RbacStore, RefreshTokenStore, RoutePictureStore, StaffPresenceStore, UserStore,
 };
-use crate::worker::WorkerRunner;
+use crate::worker::{JobQueue, WorkerRunner};
 use crate::ws;
 
 pub async fn bootstrap() -> anyhow::Result<AppState> {
@@ -403,9 +403,8 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
 
     // ---- Background jobs: worker runner + recurring scheduler ──────
     // The admin cron-jobs page reads schedule rows through
-    // `job_service` regardless; the runner + tick loop only start when
-    // the subsystem is enabled AND the broker connects (Redis/Kafka
-    // deployments whose broker is down keep serving the API).
+    // `job_service` regardless; the runner + tick loop start only when
+    // the subsystem is enabled.
     let job_store: Arc<dyn JobStore> = Arc::new(DbJobStore::new(db.clone()));
     let mut job_service = Arc::new(JobService::new(job_store.clone(), config_arc.clone()));
 
@@ -425,52 +424,40 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
         config.storage.s3_bucket.clone(),
     ));
     if config.scheduler.enabled {
-        match crate::worker::build_shared(&config.worker, db.clone()).await {
-            Ok(broker) => {
-                Arc::get_mut(&mut job_service)
-                    .expect("job service is uniquely owned at bootstrap")
-                    .attach_broker(broker.clone());
+        let queue = Arc::new(JobQueue::new(Arc::new(DbJobQueueStore::new(db.clone()))));
+        Arc::get_mut(&mut job_service)
+            .expect("job service is uniquely owned at bootstrap")
+            .attach_queue(queue.clone());
 
-                // Seed default schedules (idempotent; needs the migration
-                // to have run — a failure here degrades to a warning so
-                // an unmigrated DB still boots the API).
-                if let Err(e) = job_service.ensure_default_jobs().await {
-                    tracing::warn!(
-                        error = %e,
-                        "could not seed default job schedules — scheduler will retry on next boot"
-                    );
-                }
-
-                let registry = jobs::register_all(jobs::JobDeps {
-                    job_store: job_store.clone(),
-                    places: place_service.clone(),
-                    config: config_arc.clone(),
-                });
-                let runner = WorkerRunner::new(
-                    broker,
-                    registry,
-                    config.worker.concurrency,
-                    job_service.run_cancels(),
-                );
-                let shutdown_token = runner.shutdown_handle();
-                crate::worker::set_shutdown_handle(shutdown_token.clone());
-                crate::worker::set_supervisor(runner.spawn());
-                // The tick loop exits when the runner's shutdown token
-                // fires (Ctrl+C / SIGTERM), same as the workers.
-                job_service.spawn_scheduler(shutdown_token);
-                tracing::info!(
-                    backend = ?config.worker.backend,
-                    concurrency = config.worker.concurrency,
-                    "background worker + scheduler started"
-                );
-            }
-            Err(e) => {
-                tracing::error!(
-                    error = %e,
-                    "background jobs disabled: worker broker unavailable"
-                );
-            }
+        // Seed default schedules (idempotent). A failure degrades to a
+        // warning so the API still boots.
+        if let Err(e) = job_service.ensure_default_jobs().await {
+            tracing::warn!(error = %e, "could not seed default job schedules — retried on next boot");
         }
+
+        let registry = jobs::register_all(&jobs::JobDeps {
+            places: place_service.clone(),
+            config: config_arc.clone(),
+        });
+        let kinds = registry.kinds();
+        let runner = WorkerRunner::new(
+            queue,
+            Arc::new(registry),
+            job_service.clone(),
+            job_service.run_cancels(),
+        )
+        .concurrency(config.worker.concurrency)
+        .polling(config.worker.poll_interval(), config.worker.idle_poll_max());
+        let shutdown_token = runner.shutdown_handle();
+        crate::worker::set_shutdown_handle(shutdown_token.clone());
+        crate::worker::set_supervisor(runner.spawn());
+        // The tick loop stops with the workers (Ctrl+C / SIGTERM).
+        job_service.spawn_scheduler(shutdown_token);
+        tracing::info!(
+            concurrency = config.worker.concurrency,
+            ?kinds,
+            "background worker + scheduler started"
+        );
     } else {
         tracing::info!("background jobs disabled (SCHEDULER_ENABLED=false)");
     }

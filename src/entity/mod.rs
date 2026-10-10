@@ -3,6 +3,7 @@
 pub mod ad_conversion;
 pub mod address;
 pub mod audit_log;
+pub mod background_job;
 pub mod booking;
 pub mod booking_seat;
 pub mod brand;

@@ -8,7 +8,7 @@
 //! - `cache`: pluggable cache (`MokaBackend` | `RedisBackend`)
 //! - `store`: per-entity DB+retry+cache stores composed into one `Store`
 //! - `storage`: pluggable file storage (`Local` | `S3` | `MinIO`)
-//! - `worker`: pluggable async job broker (`Redis` | `Db` | `Kafka`)
+//! - `worker`: background jobs — typed `Job`s on a durable queue in the app database
 //! - `ws`: in-process WebSocket chat hub (extensible to Redis fan-out)
 //! - `audio_call`: WebRTC signaling relay (`/ws-call`)
 //! - `geo`: country of an IP address (the Vietnam-only call gate)

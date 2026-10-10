@@ -55,7 +55,6 @@ services:
       SEARCH_OSM_PBF_PATH: ${SEARCH_OSM_PBF_PATH:-/app/data/vietnam-latest.osm.pbf}
       # Single-node production defaults: no Redis sidecar required.
       CACHE_BACKEND: ${CACHE_BACKEND:-moka}
-      WORKER_BACKEND: ${WORKER_BACKEND:-db}
       # ── Route media (RustFS object storage) ────────────────────
       # Pictures for routes: validated/thumbnail'd by the backend,
       # stored in RustFS, served from the CDN origin. Until

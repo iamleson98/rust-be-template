@@ -358,52 +358,33 @@ impl Default for StorageConfig {
     }
 }
 
-#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
-#[serde(rename_all = "lowercase")]
-pub enum WorkerBackend {
-    Redis,
-    Db,
-    Kafka,
-}
-
+/// Background worker settings. The queue lives in the app database
+/// (`background_job`); these tune how this process consumes it.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct WorkerConfig {
-    pub backend: WorkerBackend,
+    /// Jobs run at once in this process (`WORKER_CONCURRENCY`, default 4).
     pub concurrency: usize,
+    /// Poll interval while jobs keep arriving (`WORKER_POLL_INTERVAL_MS`,
+    /// default 1000).
     pub poll_interval_ms: u64,
-    /// Upper bound (`WORKER_IDLE_POLL_MAX_MS`, default 30_000) for the
-    /// DbBroker's exponential idle-backoff: the n-th consecutive empty
-    /// poll waits `poll_interval * 2^(n-1)`, clamped here. `0` disables
-    /// the backoff (constant `poll_interval` — the pre-backoff shape).
-    /// Job latency is unaffected either way: `enqueue` wakes sleeping
-    /// workers through the broker's `Notify` immediately (PERF-005).
+    /// Cap of the idle backoff (`WORKER_IDLE_POLL_MAX_MS`, default 30000):
+    /// the n-th empty poll in a row waits `poll_interval × 2^(n-1)`, up
+    /// to this. `0` keeps polling at `poll_interval`. Jobs queued by this
+    /// process wake its workers at once either way.
     pub idle_poll_max_ms: u64,
-    pub kafka_brokers: String,
-    pub kafka_group_id: String,
-    pub kafka_topic: String,
 }
 
 impl Default for WorkerConfig {
     fn default() -> Self {
-        // Default `db`: the queue lives in the rust-sql DB the
-        // app already uses — zero new infrastructure for a single-binary
-        // deployment. Set `redis`/`kafka` to scale workers out instead.
-        let backend = match env_var("WORKER_BACKEND").as_deref() {
-            Some("redis") => WorkerBackend::Redis,
-            Some("kafka") => WorkerBackend::Kafka,
-            _ => WorkerBackend::Db,
-        };
-
+        if let Some(backend) = env_var("WORKER_BACKEND").filter(|b| b != "db") {
+            eprintln!(
+                "WORKER_BACKEND={backend} is no longer supported: jobs always use the database queue"
+            );
+        }
         Self {
-            backend,
             concurrency: env_parse("WORKER_CONCURRENCY").unwrap_or(4),
             poll_interval_ms: env_parse("WORKER_POLL_INTERVAL_MS").unwrap_or(1000),
             idle_poll_max_ms: env_parse("WORKER_IDLE_POLL_MAX_MS").unwrap_or(30_000),
-            kafka_brokers: env_var("WORKER_KAFKA_BROKERS")
-                .unwrap_or_else(|| "127.0.0.1:9092".into()),
-            kafka_group_id: env_var("WORKER_KAFKA_GROUP_ID")
-                .unwrap_or_else(|| "backend-workers".into()),
-            kafka_topic: env_var("WORKER_KAFKA_TOPIC").unwrap_or_else(|| "jobs".into()),
         }
     }
 }
@@ -1344,7 +1325,7 @@ impl Config {
             mask_secret(&self.payment.zalopay.key2)
         );
         tracing::info!("  storage backend: {:?}", self.storage.backend);
-        tracing::info!("  worker backend: {:?}", self.worker.backend);
+        tracing::info!("  worker concurrency: {}", self.worker.concurrency);
         tracing::info!(
             "  scheduler enabled: {}, tz_offset_minutes: {}",
             self.scheduler.enabled,
