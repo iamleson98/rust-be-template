@@ -11,7 +11,7 @@
 //! ## Adding a job
 //!
 //! 1. Write `src/jobs/<name>.rs` with a struct implementing
-//!    [`Job`](crate::worker::Job): a stable `KIND` (`<domain>.<verb>`),
+//!    [`Job`]: a stable `KIND` (`<domain>.<verb>`),
 //!    its `Args`, a [`JobPolicy`](crate::worker::JobPolicy) if the
 //!    defaults (5 min timeout, 5 attempts) don't fit, and `perform`.
 //!    Report progress with `ctx.progress(...)`; the runner records
