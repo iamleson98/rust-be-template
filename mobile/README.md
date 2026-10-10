@@ -55,8 +55,8 @@ lib/
 ├── main.dart                  # bootstrap (ProviderScope)
 ├── app.dart                   # theme plumbing, call-screen nav, notification taps
 ├── core/
-│   ├── design.dart            # "đặt xe vui" purple design system (brand tokens,
-│   │                          #   custom Forui FColors/FThemeData, motion curves)
+│   ├── design.dart            # the website's design system (brand blue, slate
+│   │                          #   neutrals, soft shadow, Forui themes, motion)
 │   ├── env.dart               # AppConfig (server URL: dart-define / persisted / dev default)
 │   ├── router.dart            # go_router: splash, login, 3-branch shell, /call overlay;
 │   │                          #   custom fade-through + slide-from-right transitions
@@ -69,28 +69,29 @@ lib/
 │   │   └── ws_client.dart     # JSON-envelope WS with jittered backoff reconnect
 │   └── models/ (chat DTOs)
 ├── features/
-│   ├── splash/                # branded gradient cold-start splash (session restore)
-│   ├── login/                 # staff login screen (gradient hero + gradient CTA)
+│   ├── splash/                # cold-start splash on the canvas (session restore)
+│   ├── login/                 # staff login screen (logo, one card, server toggle)
 │   ├── chat/                  # queue (conversations_*) + room (rooms_*, room_screen)
 │   ├── call/                  # state machine, WebRTC engine, /ws-call signaling, screen
 │   ├── notifications/         # local notifications + agent alert wiring
-│   ├── team/                  # presence board (gradient stat cards)
+│   ├── team/                  # presence board (stat tiles + staff rows)
 │   └── settings/
-└── shared/                    # HomeShell (floating glass bottom bar), shared widgets
+└── shared/                    # HomeShell (tab bar with unread badge), shared widgets
 ```
 
 ## Design language
 
-Purple-first identity (`lib/core/design.dart`): violet-600 primary with a
-violet→fuchsia hero gradient and violet→purple bubble gradient,
-purple-tinted neutrals in light mode and a deep purple-black surface
-stack in dark mode. Both Forui and the Material widgets share the same
-tokens (`vexevnTheme(dark:)` → `toApproximateMaterialTheme()`), so the
-whole app — buttons, cards, toasts, avatars, chips — follows one purple
-system. Motion: `easeOutCubic` page transitions (fade-through between
-tabs, iOS-style slide-from-right into a chat room), a sliding selection
-pill in the bottom bar and filter tabs, and scale/overshoot
-micro-animations (send button, FAB, new-messages pill).
+The same look as the website and its consoles (`lib/core/design.dart`):
+the brand blue (`#0063C4`) on a soft slate canvas, white cards with a
+hairline border and a whisper of shadow (`AppShadow.soft`), calm tinted
+avatars and chips instead of gradients, and a deep slate stack in dark
+mode. Both Forui and the Material widgets share the same tokens
+(`vexevnTheme(dark:)` → `toApproximateMaterialTheme()`), so buttons,
+cards, toasts, avatars and chips all follow one system. Motion:
+`easeOutCubic` page transitions (fade-through between tabs, iOS-style
+slide-from-right into a chat room), a white segment sliding on the queue
+filter, and small pops on the send button. The app icon ships light,
+dark and tinted variants (iOS 18+ home-screen appearances).
 
 Key behaviors:
 

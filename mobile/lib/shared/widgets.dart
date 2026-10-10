@@ -79,13 +79,13 @@ String formatCallDuration(Duration d) {
 }
 
 /// Circular avatar: network image when available, otherwise initials on
-/// a deterministic purple-family gradient (stable per name).
+/// a calm tinted circle (stable per name, like the website's avatars).
 class AgentAvatar extends StatelessWidget {
   const AgentAvatar({
     required this.name,
     this.imageUrl,
     this.size = 40,
-    this.foregroundColor = Colors.white,
+    this.foregroundColor,
     super.key,
   });
 
@@ -93,7 +93,7 @@ class AgentAvatar extends StatelessWidget {
   final String? imageUrl;
   final double size;
 
-  /// Initials/text color on the gradient fallback.
+  /// Initials color; defaults to the name's tone.
   final Color? foregroundColor;
 
   String get _initials {
@@ -117,23 +117,17 @@ class AgentAvatar extends StatelessWidget {
         onBackgroundImageError: (_, __) {},
       );
     }
+    final (bg, fg) = AppBrand.avatarTone(name);
     return Container(
       width: size,
       height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: AppBrand.avatarColors(name),
-        ),
-      ),
+      decoration: BoxDecoration(shape: BoxShape.circle, color: bg),
       alignment: Alignment.center,
       child: Text(
         _initials,
         style: TextStyle(
-          color: foregroundColor,
-          fontSize: size * 0.34,
+          color: foregroundColor ?? fg,
+          fontSize: size * 0.36,
           fontWeight: FontWeight.w700,
           letterSpacing: -0.3,
         ),
@@ -142,7 +136,7 @@ class AgentAvatar extends StatelessWidget {
   }
 }
 
-/// Green/gray presence dot with a background ring (for avatar stacks).
+/// Green/gray presence dot with a ring in the card color (sits on avatars).
 class PresenceDot extends StatelessWidget {
   const PresenceDot({required this.online, this.size = 10, super.key});
 
@@ -157,16 +151,10 @@ class PresenceDot extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: online ? AppBrand.success : theme.colors.mutedForeground,
-        border: Border.all(color: theme.colors.background, width: size * 0.18),
-        boxShadow: [
-          BoxShadow(
-            color: online
-                ? AppBrand.success.withValues(alpha: 0.45)
-                : Colors.transparent,
-            blurRadius: size * 0.6,
-          ),
-        ],
+        color: online
+            ? AppBrand.success
+            : theme.colors.mutedForeground.withValues(alpha: 0.6),
+        border: Border.all(color: theme.colors.card, width: size * 0.2),
       ),
     );
   }
@@ -227,7 +215,7 @@ class _TypingIndicatorState extends State<TypingIndicator>
   }
 }
 
-/// Friendly empty/error placeholder for lists — brand-tinted glyph.
+/// Friendly empty/error placeholder for lists — a quiet tinted glyph.
 class EmptyState extends StatelessWidget {
   const EmptyState({
     required this.icon,
@@ -252,23 +240,22 @@ class EmptyState extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 84,
-              height: 84,
+              width: 64,
+              height: 64,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: theme.colors.primary.withValues(alpha: 0.10),
+                color: theme.colors.muted,
               ),
               alignment: Alignment.center,
-              child: Icon(icon, size: 38, color: theme.colors.primary),
+              child: Icon(icon, size: 28, color: theme.colors.mutedForeground),
             ),
             const SizedBox(height: 16),
             Text(
               title,
               textAlign: TextAlign.center,
-              style: theme.typography.display.lg.copyWith(
-                fontWeight: FontWeight.w700,
+              style: theme.typography.body.lg.copyWith(
+                fontWeight: FontWeight.w600,
                 color: theme.colors.foreground,
-                letterSpacing: -0.3,
               ),
             ),
             const SizedBox(height: 6),
@@ -359,7 +346,7 @@ class _PulsingAvatarState extends State<PulsingAvatar>
                   height: 116,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: AppBrand.violet.withValues(alpha: 0.35),
+                    color: AppBrand.primary.withValues(alpha: 0.25),
                   ),
                 ),
               ),

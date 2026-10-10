@@ -36,7 +36,7 @@ void main() {
     // Session restore completes (no tokens) → login screen.
     await tester.pump(const Duration(milliseconds: 50));
     await tester.pumpAndSettle();
-    expect(find.text('Đăng nhập nhân viên hỗ trợ'), findsOneWidget);
+    expect(find.text('Đăng nhập dành cho nhân viên hỗ trợ'), findsOneWidget);
     expect(find.text('Đăng nhập'), findsWidgets);
   });
 }

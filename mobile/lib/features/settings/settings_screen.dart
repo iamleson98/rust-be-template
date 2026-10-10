@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/audio/sound_service.dart';
 import '../../core/auth/auth_controller.dart';
+import '../../core/design.dart';
 import '../../core/duty_mode.dart';
 import '../../core/env.dart';
 import '../../core/router.dart';
@@ -129,211 +130,188 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
     return Scaffold(
       backgroundColor: theme.colors.background,
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(12, 0, 12, 110),
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(8, 10, 8, 6),
-            child: Align(
-              alignment: Alignment.centerLeft,
+      body: SafeArea(
+        bottom: false,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(4, 12, 4, 12),
               child: Text(
                 'Cài đặt',
-                style: theme.typography.display.xl3.copyWith(
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.8,
+                style: theme.typography.display.xl2.copyWith(
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.6,
                   color: theme.colors.foreground,
                 ),
               ),
             ),
-          ),
 
-          // ── Profile ────────────────────────────────────────────────
-          Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  theme.colors.primary.withValues(alpha: 0.14),
-                  theme.colors.card,
-                ],
-                stops: const [0, 0.45],
-              ),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: theme.colors.primary.withValues(alpha: 0.25),
-              ),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  AgentAvatar(
-                    name: user?.name ?? '?',
-                    imageUrl: user?.avatarUrl,
-                    size: 56,
+            // ── Profile ──────────────────────────────────────────────
+            _Group(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      AgentAvatar(
+                        name: user?.name ?? '?',
+                        imageUrl: user?.avatarUrl,
+                        size: 52,
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              user?.name ?? '—',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.typography.body.lg.copyWith(
+                                fontWeight: FontWeight.w700,
+                                color: theme.colors.foreground,
+                              ),
+                            ),
+                            const SizedBox(height: 1),
+                            Text(
+                              [
+                                user?.isAdmin == true
+                                    ? 'Quản trị viên'
+                                    : 'Nhân viên hỗ trợ',
+                                if ((user?.email ?? '').isNotEmpty) user!.email,
+                              ].join(' · '),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.typography.body.sm.copyWith(
+                                color: theme.colors.mutedForeground,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          user?.name ?? '—',
-                          style: theme.typography.display.lg.copyWith(
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -0.3,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          user?.email ?? '',
-                          style: theme.typography.body.sm.copyWith(
-                            color: theme.colors.mutedForeground,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        FBadge(
-                          variant: user?.isAdmin == true
-                              ? FBadgeVariant.primary
-                              : FBadgeVariant.secondary,
-                          child: Text(
-                            user?.isAdmin == true
-                                ? 'Quản trị viên'
-                                : 'Nhân viên hỗ trợ',
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ),
-          const SizedBox(height: 12),
 
-          // ── Connection ─────────────────────────────────────────────
-          _sectionLabel(theme, 'Kết nối'),
-          _tile(
-            icon: FLucideIcons.wifi,
-            title: 'Máy chủ',
-            details: cfg.baseUrl,
-            onTap: _editServer,
-          ),
-          _tile(
-            icon: FLucideIcons.activity,
-            title: 'Kiểm tra mạng cuộc gọi',
-            details: 'Thử DNS, TCP/TLS 443, STUN — chẩn đoán mạng công ty',
-            onTap: () => context.push('/settings/call-doctor'),
-          ),
-          _tile(
-            icon: FLucideIcons.settings,
-            title: 'Giao diện',
-            details: modeLabel,
-            onTap: _pickTheme,
-          ),
+            // ── Connection ───────────────────────────────────────────
+            _sectionLabel(theme, 'Kết nối'),
+            _Group(
+              children: [
+                _tile(
+                  icon: FLucideIcons.server,
+                  title: 'Máy chủ',
+                  details: cfg.baseUrl,
+                  onTap: _editServer,
+                ),
+                _tile(
+                  icon: FLucideIcons.activity,
+                  title: 'Kiểm tra mạng cuộc gọi',
+                  details: 'DNS, TCP/TLS 443, STUN — chẩn đoán mạng công ty',
+                  onTap: () => context.push('/settings/call-doctor'),
+                ),
+                _tile(
+                  icon: FLucideIcons.sunMoon,
+                  title: 'Giao diện',
+                  details: modeLabel,
+                  onTap: _pickTheme,
+                ),
+              ],
+            ),
 
-          // ── Alerts ────────────────────────────────────────────────
-          _sectionLabel(theme, 'Thông báo'),
-          FCard(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Column(
-                children: [
+            // ── Alerts ───────────────────────────────────────────────
+            _sectionLabel(theme, 'Thông báo'),
+            _Group(
+              children: [
+                _switchTile(
+                  theme: theme,
+                  icon: FLucideIcons.bell,
+                  value: alerts,
+                  onChange: (v) =>
+                      ref.read(alertsEnabledProvider.notifier).set(v),
+                  label: 'Thông báo',
+                  description: 'Khi có tin nhắn hoặc cuộc gọi mới',
+                ),
+                _switchTile(
+                  theme: theme,
+                  icon: FLucideIcons.volume2,
+                  value: sound,
+                  onChange: (v) =>
+                      ref.read(soundEnabledProvider.notifier).set(v),
+                  label: 'Âm thanh',
+                  description: 'Phát âm báo khi có tin nhắn và cuộc gọi',
+                ),
+                _switchTile(
+                  theme: theme,
+                  icon: FLucideIcons.smartphone,
+                  value: vibrate,
+                  onChange: (v) =>
+                      ref.read(vibrateEnabledProvider.notifier).set(v),
+                  label: 'Rung',
+                  description: 'Rung khi nhận tin nhắn và cuộc gọi',
+                ),
+                if (dutySupported)
                   _switchTile(
                     theme: theme,
-                    icon: FLucideIcons.bell,
-                    value: alerts,
-                    onChange: (v) =>
-                        ref.read(alertsEnabledProvider.notifier).set(v),
-                    label: 'Thông báo',
-                    description:
-                        'Hiện thông báo khi có tin nhắn hoặc cuộc gọi mới',
+                    icon: FLucideIcons.phoneCall,
+                    value: duty,
+                    onChange: (v) => ref.read(dutyModeProvider.notifier).set(v),
+                    label: 'Chế độ trực',
+                    description: 'Giữ kết nối khi đóng app — điện thoại vẫn reng khi có cuộc gọi mới',
                   ),
-                  const FDivider(),
-                  _switchTile(
-                    theme: theme,
-                    icon: FLucideIcons.volume2,
-                    value: sound,
-                    onChange: (v) =>
-                        ref.read(soundEnabledProvider.notifier).set(v),
-                    label: 'Âm thanh',
-                    description:
-                        'Phát nhạc chuông và âm báo thật (Google AOSP + Jitsi)',
-                  ),
-                  const FDivider(),
-                  _switchTile(
-                    theme: theme,
-                    icon: FLucideIcons.smartphone,
-                    value: vibrate,
-                    onChange: (v) =>
-                        ref.read(vibrateEnabledProvider.notifier).set(v),
-                    label: 'Rung',
-                    description: 'Rung thiết bị khi nhận tin nhắn và cuộc gọi',
-                  ),
-                  if (dutySupported) ...[
-                    const FDivider(),
-                    _switchTile(
-                      theme: theme,
-                      icon: FLucideIcons.phoneCall,
-                      value: duty,
-                      onChange: (v) =>
-                          ref.read(dutyModeProvider.notifier).set(v),
-                      label: 'Chế độ trực',
-                      description: 'Giữ kết nối khi đóng app — điện thoại vẫn reng khi có cuộc gọi mới',
-                    ),
-                  ],
-                ],
+                _tile(
+                  icon: FLucideIcons.play,
+                  title: 'Nghe thử âm báo',
+                  onTap: () =>
+                      unawaited(ref.read(soundServiceProvider).preview()),
+                ),
+              ],
+            ),
+
+            // ── Sign out ─────────────────────────────────────────────
+            const SizedBox(height: 24),
+            _Group(
+              children: [
+                _tile(
+                  icon: FLucideIcons.logOut,
+                  title: 'Đăng xuất',
+                  onTap: _logout,
+                  destructive: true,
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'DatXeVui · v0.1.0',
+              textAlign: TextAlign.center,
+              style: theme.typography.body.xs.copyWith(
+                color: theme.colors.mutedForeground,
               ),
             ),
-          ),
-          const SizedBox(height: 8),
-          FButton(
-            variant: FButtonVariant.outline,
-            prefix: const Icon(FLucideIcons.volume2),
-            onPress: () => unawaited(ref.read(soundServiceProvider).preview()),
-            child: const Text('Nghe thử âm báo'),
-          ),
-          const SizedBox(height: 24),
-
-          // ── Sign out ───────────────────────────────────────────────
-          FButton(
-            variant: FButtonVariant.destructive,
-            prefix: const Icon(FLucideIcons.logOut),
-            onPress: _logout,
-            child: const Text('Đăng xuất'),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'đặt xe vui • v0.1.0',
-            textAlign: TextAlign.center,
-            style: theme.typography.body.sm.copyWith(
-              color: theme.colors.mutedForeground,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Small uppercase group label above a settings section.
-  Widget _sectionLabel(FThemeData theme, String text) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(10, 14, 10, 8),
-      child: Text(
-        text.toUpperCase(),
-        style: theme.typography.body.xs.copyWith(
-          color: theme.colors.mutedForeground,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0.6,
+          ],
         ),
       ),
     );
   }
 
-  /// One switch row: icon, title + description, and the toggle — evenly
-  /// padded so the group reads as an organized list rather than a
-  /// cramped stack of controls.
+  /// Quiet group label above a settings section.
+  Widget _sectionLabel(FThemeData theme, String text) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 20, 4, 8),
+      child: Text(
+        text,
+        style: theme.typography.body.sm.copyWith(
+          color: theme.colors.mutedForeground,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  /// One switch row: icon, title + a line of explanation, the toggle at
+  /// the end (where the thumb expects it).
   Widget _switchTile({
     required FThemeData theme,
     required IconData icon,
@@ -343,72 +321,152 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     required String description,
   }) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-      child: FSwitch(
-        value: value,
-        onChange: onChange,
-        label: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 16, color: theme.colors.primary),
-            const SizedBox(width: 8),
-            Text(label),
-          ],
-        ),
-        description: Padding(
-          padding: const EdgeInsets.only(top: 2, left: 24),
-          child: Text(description),
-        ),
-      ),
-    );
-  }
-
-  Widget _tile({
-    required IconData icon,
-    required String title,
-    required String details,
-    required VoidCallback onTap,
-  }) {
-    final theme = context.theme;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: FCard(
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(12),
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Row(
+      padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+      child: Row(
+        children: [
+          _RowIcon(icon: icon),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(icon, size: 18, color: theme.colors.primary),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(title, style: theme.typography.body.md),
-                      const SizedBox(height: 2),
-                      Text(
-                        details,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.typography.body.sm.copyWith(
-                          color: theme.colors.mutedForeground,
-                        ),
-                      ),
-                    ],
+                Text(
+                  label,
+                  style: theme.typography.body.md.copyWith(
+                    color: theme.colors.foreground,
                   ),
                 ),
-                Icon(
-                  FLucideIcons.chevronRight,
-                  size: 16,
-                  color: theme.colors.mutedForeground,
+                const SizedBox(height: 1),
+                Text(
+                  description,
+                  style: theme.typography.body.xs.copyWith(
+                    color: theme.colors.mutedForeground,
+                    height: 1.35,
+                  ),
                 ),
               ],
             ),
           ),
+          const SizedBox(width: 12),
+          FSwitch(value: value, onChange: onChange, semanticsLabel: label),
+        ],
+      ),
+    );
+  }
+
+  /// One tappable row: icon, title (and an optional detail line), chevron.
+  Widget _tile({
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
+    String? details,
+    bool destructive = false,
+  }) {
+    final theme = context.theme;
+    final color = destructive
+        ? theme.colors.destructive
+        : theme.colors.foreground;
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+        child: Row(
+          children: [
+            _RowIcon(icon: icon, destructive: destructive),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: theme.typography.body.md.copyWith(color: color),
+                  ),
+                  if (details != null) ...[
+                    const SizedBox(height: 1),
+                    Text(
+                      details,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.typography.body.xs.copyWith(
+                        color: theme.colors.mutedForeground,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            if (!destructive)
+              Icon(
+                FLucideIcons.chevronRight,
+                size: 16,
+                color: theme.colors.mutedForeground,
+              ),
+          ],
         ),
       ),
+    );
+  }
+}
+
+/// A white card holding a run of rows, hairlines between them (iOS
+/// grouped-list style).
+class _Group extends StatelessWidget {
+  const _Group({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.theme;
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.colors.card,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: theme.colors.border),
+        boxShadow: AppShadow.soft,
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Material(
+        type: MaterialType.transparency,
+        child: Column(
+          children: [
+            for (final (i, child) in children.indexed) ...[
+              if (i > 0)
+                Divider(
+                  height: 1,
+                  thickness: 1,
+                  indent: 58,
+                  color: theme.colors.border,
+                ),
+              child,
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The small tinted square that leads a settings row.
+class _RowIcon extends StatelessWidget {
+  const _RowIcon({required this.icon, this.destructive = false});
+
+  final IconData icon;
+  final bool destructive;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.theme;
+    final color = destructive ? theme.colors.destructive : theme.colors.primary;
+    return Container(
+      width: 32,
+      height: 32,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(9),
+      ),
+      child: Icon(icon, size: 17, color: color),
     );
   }
 }
