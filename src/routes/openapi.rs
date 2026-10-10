@@ -11,7 +11,8 @@ use utoipa::OpenApi;
         crate::routes::auth::refresh,
         crate::routes::auth::logout,
         crate::routes::auth::me,
-        // oauth (social login — Facebook / Google / X-Twitter)
+        // oauth (social login — Facebook / Google)
+        crate::routes::oauth::oauth_providers,
         crate::routes::oauth::oauth_start,
         crate::routes::oauth::oauth_callback,
         // users
@@ -260,6 +261,7 @@ use utoipa::OpenApi;
         crate::dto::payment::AdminPaymentListResponse,
         crate::dto::payment::AdminPaymentSummary,
         crate::dto::payment::PaymentProvidersResponse,
+        crate::routes::oauth::OAuthProvidersResponse,
         crate::dto::payment::AdminPaymentsQuery,
         crate::dto::payment::UpdatePaymentStatusReq,
         crate::dto::payment::UpdatePaymentStatusResponse,

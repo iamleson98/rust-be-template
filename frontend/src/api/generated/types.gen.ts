@@ -2030,6 +2030,16 @@ export type NullclawStatusResponse = {
 };
 
 /**
+ * Response of `GET /api/auth/oauth/providers`.
+ */
+export type OAuthProvidersResponse = {
+    /**
+     * Providers the sign-in page should offer (`google` | `facebook`).
+     */
+    providers: Array<string>;
+};
+
+/**
  * One passenger on a booking.
  */
 export type PassengerReq = {
@@ -5914,11 +5924,27 @@ export type AuthMeResponses = {
 
 export type AuthMeResponse = AuthMeResponses[keyof AuthMeResponses];
 
+export type OauthProvidersData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/auth/oauth/providers';
+};
+
+export type OauthProvidersResponses = {
+    /**
+     * Enabled providers
+     */
+    200: OAuthProvidersResponse;
+};
+
+export type OauthProvidersResponse = OauthProvidersResponses[keyof OauthProvidersResponses];
+
 export type OauthCallbackData = {
     body?: never;
     path: {
         /**
-         * OAuth provider name — one of `facebook`, `google`, `twitter`
+         * OAuth provider name: `facebook` or `google`
          */
         provider: string;
     };
@@ -5947,7 +5973,7 @@ export type OauthStartData = {
     body?: never;
     path: {
         /**
-         * OAuth provider name — one of `facebook`, `google`, `twitter`
+         * OAuth provider name: `facebook` or `google`
          */
         provider: string;
     };

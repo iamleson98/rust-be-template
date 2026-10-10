@@ -380,7 +380,7 @@ impl AuthService {
 
     /// Register (or link) a user via OAuth 2.0. Mirrors `register()` but
     /// skips password hashing — the user authenticated via an external
-    /// provider (Facebook / Google / X-Twitter), so there's no password
+    /// provider (Facebook / Google), so there's no password
     /// to verify. Instead, the `(provider, subject)` pair becomes the
     /// user's authentication credential.
     ///

@@ -5,7 +5,7 @@ import { memo, useCallback } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useNavigate } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { useT } from '@/lib/i18n'
 import {
   Phone,
@@ -288,13 +288,7 @@ export const Footer = memo(function Footer() {
             <h4 className="font-semibold text-white text-sm mb-3">{t('layout.footer.company')}</h4>
             <ul className="space-y-2 text-sm">
               {(
-                [
-                  'footer.about',
-                  'layout.footer.careers',
-                  'layout.footer.brandPartners',
-                  'cancel.refundPolicy',
-                  'layout.footer.termsOfUse',
-                ] as const
+                ['footer.about', 'layout.footer.careers', 'layout.footer.brandPartners'] as const
               ).map((key) => (
                 <li key={key}>
                   <a
@@ -305,6 +299,23 @@ export const Footer = memo(function Footer() {
                   </a>
                 </li>
               ))}
+              <li>
+                <Link
+                  to="/terms"
+                  hash="cancellation"
+                  className="relative text-slate-400 hover:text-blue-400 transition-colors after:content-[''] after:absolute after:-bottom-0.5 after:left-0 after:w-0 after:h-[1.5px] after:bg-blue-400 after:transition-all after:duration-300 hover:after:w-full"
+                >
+                  {t('cancel.refundPolicy')}
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/terms"
+                  className="relative text-slate-400 hover:text-blue-400 transition-colors after:content-[''] after:absolute after:-bottom-0.5 after:left-0 after:w-0 after:h-[1.5px] after:bg-blue-400 after:transition-all after:duration-300 hover:after:w-full"
+                >
+                  {t('layout.footer.termsOfUse')}
+                </Link>
+              </li>
             </ul>
           </div>
 
@@ -361,24 +372,25 @@ export const Footer = memo(function Footer() {
           </div>
           <div className="flex flex-col items-center md:items-end gap-2">
             <div className="flex items-center gap-4 text-xs text-slate-500">
-              <a
-                href="#"
+              <Link
+                to="/terms"
                 className="relative hover:text-blue-400 transition-colors after:content-[''] after:absolute after:-bottom-0.5 after:left-0 after:w-0 after:h-px after:bg-blue-400 after:transition-all after:duration-300 hover:after:w-full"
               >
                 {t('layout.footer.termsOfUse')}
-              </a>
-              <a
-                href="#"
+              </Link>
+              <Link
+                to="/privacy"
                 className="relative hover:text-blue-400 transition-colors after:content-[''] after:absolute after:-bottom-0.5 after:left-0 after:w-0 after:h-px after:bg-blue-400 after:transition-all after:duration-300 hover:after:w-full"
               >
                 {t('layout.footer.privacyPolicy')}
-              </a>
-              <a
-                href="#"
+              </Link>
+              <Link
+                to="/privacy"
+                hash="data-deletion"
                 className="relative hover:text-blue-400 transition-colors after:content-[''] after:absolute after:-bottom-0.5 after:left-0 after:w-0 after:h-px after:bg-blue-400 after:transition-all after:duration-300 hover:after:w-full"
               >
-                {t('layout.footer.dataRights')}
-              </a>
+                {t('layout.footer.dataDeletion')}
+              </Link>
             </div>
           </div>
         </div>
