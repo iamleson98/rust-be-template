@@ -11,13 +11,17 @@ import {
   MessageSquare,
   MessageSquareWarning,
   Ticket,
+  TicketPercent,
   Users,
 } from 'lucide-react'
 import { ConsoleShell, type ConsoleNavGroup } from '@/components/console/console-shell'
 import { useT } from '@/lib/i18n'
 import { useSession } from '@/stores/session'
 
-/** The admin console: operations, catalog, finance and system; user management for admins only. */
+/**
+ * The admin console: operations, catalog, finance and system; discount
+ * campaigns and user management for admins only.
+ */
 export function AdminShell({ children }: { children: ReactNode }) {
   const t = useT()
   const isAdmin = useSession((s) => s.user?.type === 'admin')
@@ -44,6 +48,14 @@ export function AdminShell({ children }: { children: ReactNode }) {
       label: t('admin.group.finance'),
       items: [{ title: t('admin.payments'), icon: CreditCard, url: '/admin/payments' }],
     },
+    ...(isAdmin
+      ? [
+          {
+            label: t('admin.group.marketing'),
+            items: [{ title: t('admin.campaigns'), icon: TicketPercent, url: '/admin/campaigns' }],
+          },
+        ]
+      : []),
     {
       label: t('admin.group.system'),
       items: [

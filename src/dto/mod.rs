@@ -26,6 +26,7 @@
 pub mod ad_conversion;
 pub mod admin;
 pub mod booking;
+pub mod campaign;
 pub mod chat;
 pub mod fares;
 pub mod job;

@@ -55,4 +55,7 @@ pub mod consts {
     /// Admin-only — the whole point of the three-role split is that only
     /// admins can mint new staff accounts.
     pub const ADMIN_USERS_MANAGE_ROLES: &str = "admin:users:manage-roles";
+    /// Discount campaigns and coupon payouts. Admin-only: campaigns spend
+    /// the platform's money.
+    pub const ADMIN_CAMPAIGNS_MANAGE: &str = "admin:campaigns:manage";
 }

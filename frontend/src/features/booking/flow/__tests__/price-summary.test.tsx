@@ -27,8 +27,11 @@ describe('PriceSummary', () => {
     expect(screen.queryByText(/^-/)).toBeNull()
   })
 
-  it('shows the promo discount', () => {
-    render(<PriceSummary tickets={tickets} promoCode="TET" discount={30_000} total={670_000} />)
+  it('shows the coupon discount with its code', () => {
+    render(
+      <PriceSummary tickets={tickets} couponCode="DXV7K2M9PQ" discount={30_000} total={670_000} />,
+    )
+    expect(screen.getByText('Giảm giá (DXV7K2M9PQ)')).toBeInTheDocument()
     expect(screen.getByText(/30\.000/)).toBeInTheDocument()
   })
 })

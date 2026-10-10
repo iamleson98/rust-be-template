@@ -61,7 +61,7 @@ export function listBookings(status, limit = 20, offset = 0) {
  *   optional:
  *   - boardingPointId, droppingPointId: UUIDs
  *   - contactEmail: string
- *   - campaignCode: string
+ *   - couponId: UUID of a coupon the account holds
  *   - passengers: array of { name, type, age }
  * @returns {object} the k6 response — `res.json()` has the booking
  *   with `id`, `code`, `status: 'pending'`, `expiresAt`.
@@ -78,7 +78,7 @@ export function holdBooking(params) {
     contactName: params.contactName,
     contactPhone: params.contactPhone,
     contactEmail: params.contactEmail,
-    campaignCode: params.campaignCode,
+    couponId: params.couponId,
   };
   const res = http.post(
     `${BASE_URL}/api/bookings`,

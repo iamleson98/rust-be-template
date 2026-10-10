@@ -177,6 +177,70 @@ export type AdminBusLayoutOut = {
     vehicleType?: string | null;
 };
 
+export type AdminCampaignListResponse = {
+    items: Array<AdminCampaignOut>;
+};
+
+/**
+ * A campaign in the admin console.
+ */
+export type AdminCampaignOut = {
+    allBrands: boolean;
+    brands: Array<CampaignBrandOut>;
+    couponValidity: string;
+    createdAt: string;
+    description?: string | null;
+    endsAt: string;
+    id: string;
+    name: string;
+    paused: boolean;
+    startsAt: string;
+    /**
+     * `upcoming`, `running`, `paused` or `ended`.
+     */
+    state: string;
+    tiers: Array<AdminTierOut>;
+    totals: CampaignTotalsOut;
+    updatedAt: string;
+};
+
+export type AdminCouponListResponse = {
+    items: Array<AdminCouponOut>;
+    total: number;
+};
+
+/**
+ * A coupon in the admin console, with what an admin should look at
+ * before paying it out.
+ */
+export type AdminCouponOut = {
+    amount: number;
+    booking?: null | CouponBookingOut;
+    brand?: null | CampaignBrandOut;
+    campaignId: string;
+    campaignName: string;
+    claimedAt: string;
+    code: string;
+    id: string;
+    /**
+     * The account was created less than a day before it claimed.
+     */
+    newAccount: boolean;
+    owner?: null | CouponOwnerOut;
+    redeemedAt?: string | null;
+    settledAt?: string | null;
+    settlementNote?: string | null;
+    /**
+     * Other coupons of this campaign claimed from the same network.
+     */
+    sharedIp: number;
+    /**
+     * Other coupons of this campaign used with the same contact phone.
+     */
+    sharedPhone: number;
+    status: string;
+};
+
 /**
  * Response of `POST /api/admin/brands` + `PUT /api/admin/brands/{id}` + `DELETE`.
  */
@@ -444,6 +508,13 @@ export type AdminSchedulePointOut = {
     stopOrder: number;
 };
 
+export type AdminTierOut = {
+    amount: number;
+    claimedSlots: number;
+    id: string;
+    totalSlots: number;
+};
+
 /**
  * Response of `GET /api/admin/vehicle-types`.
  */
@@ -540,8 +611,11 @@ export type BookingConfirmResponse = {
  */
 export type BookingHoldResponse = {
     bookingId: string;
-    campaignId?: string | null;
     code: string;
+    /**
+     * The coupon this booking uses (reserved until the trip).
+     */
+    couponId?: string | null;
     discount: number;
     expiresAt: string;
     fees: number;
@@ -787,32 +861,89 @@ export type CallSystemStats = {
 };
 
 /**
- * Response of `GET /api/campaigns`.
+ * An operator a campaign covers.
  */
-export type CampaignListResponse = {
-    items: Array<CampaignOut>;
-};
-
-/**
- * Campaign list item returned by `GET /api/campaigns`.
- */
-export type CampaignOut = {
-    code: string;
-    discountType: string;
-    discountValue: number;
-    endsAt?: string | null;
+export type CampaignBrandOut = {
     id: string;
+    logoUrl?: string | null;
+    name: string;
+    slug: string;
 };
 
 /**
- * Response of `GET /api/campaigns/validate?code=&subtotal=`.
+ * The whole campaign as the admin wants it (create, or replace on
+ * update). Tiers missing from an update are removed (allowed only while
+ * nobody claimed them).
  */
-export type CampaignValidateResponse = {
+export type CampaignInput = {
+    allBrands: boolean;
     /**
-     * Discount amount (VND) applied to the subtotal. 0 when invalid.
+     * Required (non-empty) when `allBrands` is false.
      */
-    discount: number;
-    valid: boolean;
+    brandIds?: Array<string>;
+    /**
+     * `campaign` or `permanent`.
+     */
+    couponValidity: string;
+    description?: string | null;
+    /**
+     * ISO-8601 (any offset; stored in UTC).
+     */
+    endsAt: string;
+    name: string;
+    paused?: boolean;
+    /**
+     * ISO-8601 (any offset; stored in UTC).
+     */
+    startsAt: string;
+    tiers: Array<TierInput>;
+};
+
+/**
+ * One "amount × slots" voucher of a campaign.
+ */
+export type CampaignTierOut = {
+    /**
+     * The discount, in VND.
+     */
+    amount: number;
+    id: string;
+    /**
+     * Slots still free (from the cache: claims keep it current, claiming
+     * itself is exact).
+     */
+    remaining: number;
+    totalSlots: number;
+};
+
+/**
+ * Where a campaign's money stands.
+ */
+export type CampaignTotalsOut = {
+    /**
+     * Σ amount × slots over its tiers (VND): the most it can cost.
+     */
+    budget: number;
+    /**
+     * Coupons handed out (not given back).
+     */
+    claimed: number;
+    expiredCount: number;
+    /**
+     * Coupons on bookings that have not travelled yet.
+     */
+    inUse: number;
+    owedAmount: number;
+    /**
+     * Trips taken: payouts awaiting an admin (count and VND).
+     */
+    owedCount: number;
+    paidAmount: number;
+    /**
+     * Payouts made (count and VND).
+     */
+    paidCount: number;
+    rejectedCount: number;
 };
 
 /**
@@ -983,6 +1114,49 @@ export type ClickIds = {
      * Click id for Performance Max / App campaigns (web).
      */
     wbraid?: string | null;
+};
+
+export type CouponBookingOut = {
+    code: string;
+    contactPhone?: string | null;
+    id: string;
+    status: string;
+};
+
+/**
+ * A customer's coupon.
+ */
+export type CouponOut = {
+    allBrands: boolean;
+    /**
+     * The discount, in VND.
+     */
+    amount: number;
+    /**
+     * The booking it is on, while `reserved`.
+     */
+    bookingCode?: string | null;
+    brands: Array<CampaignBrandOut>;
+    campaignId: string;
+    campaignName: string;
+    claimedAt: string;
+    code: string;
+    id: string;
+    /**
+     * `held` (ready to use) or `reserved` (on a booking that has not
+     * travelled yet).
+     */
+    status: string;
+    /**
+     * Book before this (ISO-8601 UTC); absent = no end.
+     */
+    validUntil?: string | null;
+};
+
+export type CouponOwnerOut = {
+    email: string;
+    id: string;
+    name: string;
 };
 
 /**
@@ -1663,10 +1837,13 @@ export type HoldReq = {
      * Required when the route has pickup points; must be one of them.
      */
     boardingPointId?: string | null;
-    campaignCode?: string | null;
     contactEmail?: string | null;
     contactName: string;
     contactPhone: string;
+    /**
+     * The customer's held coupon to use (`GET /api/coupons/mine`).
+     */
+    couponId?: string | null;
     /**
      * Required when the route has pickup points; must be one of them.
      */
@@ -1963,6 +2140,17 @@ export type ModerateReviewResponse = {
 };
 
 /**
+ * Response of `GET /api/coupons/mine`.
+ */
+export type MyCouponsResponse = {
+    active?: null | CouponOut;
+    /**
+     * Campaigns this account already claimed from (one coupon each).
+     */
+    claimedCampaignIds: Array<string>;
+};
+
+/**
  * Response of `GET /api/notifications`.
  */
 export type NotificationListResponse = {
@@ -2146,6 +2334,26 @@ export type PaymentProvidersResponse = {
      * (`momo` | `vnpay` | `zalopay` | `cod` | `vietqr`).
      */
     providers: Array<string>;
+};
+
+export type PayoutListResponse = {
+    /**
+     * Most owed first.
+     */
+    items: Array<PayoutOut>;
+    totalOwed: number;
+    totalPaid: number;
+};
+
+/**
+ * What the platform owes and paid one operator.
+ */
+export type PayoutOut = {
+    brand?: null | CampaignBrandOut;
+    owedAmount: number;
+    owedCount: number;
+    paidAmount: number;
+    paidCount: number;
 };
 
 /**
@@ -2357,6 +2565,48 @@ export type ProcessStats = {
     virtualMemoryMb: number;
 };
 
+/**
+ * Response of `GET /api/campaigns`: running and upcoming campaigns.
+ */
+export type PublicCampaignListResponse = {
+    items: Array<PublicCampaignOut>;
+    /**
+     * The server's clock (ISO-8601 UTC), for countdowns that do not
+     * trust the device clock.
+     */
+    serverTime: string;
+};
+
+/**
+ * A campaign as the home page shows it.
+ */
+export type PublicCampaignOut = {
+    allBrands: boolean;
+    /**
+     * The covered operators (empty when `allBrands`).
+     */
+    brands: Array<CampaignBrandOut>;
+    /**
+     * `campaign` (book before `endsAt`) or `permanent`.
+     */
+    couponValidity: string;
+    description?: string | null;
+    /**
+     * ISO-8601 UTC.
+     */
+    endsAt: string;
+    id: string;
+    name: string;
+    /**
+     * ISO-8601 UTC.
+     */
+    startsAt: string;
+    /**
+     * Biggest discount first.
+     */
+    tiers: Array<CampaignTierOut>;
+};
+
 export type RefreshRequest = {
     /**
      * Optional refresh token in the body. If absent, the token is read
@@ -2399,6 +2649,13 @@ export type RegisterRequest = {
     fullName: string;
     password: string;
     phone?: string | null;
+};
+
+/**
+ * Body of `POST /api/admin/coupons/{id}/reject`.
+ */
+export type RejectCouponRequest = {
+    reason: string;
 };
 
 /**
@@ -2812,6 +3069,24 @@ export type SetUserRoleResponse = {
 };
 
 /**
+ * Body of `POST /api/admin/coupons/settle`.
+ */
+export type SettleCouponsRequest = {
+    couponIds: Array<string>;
+    /**
+     * Payment reference or note.
+     */
+    note?: string | null;
+};
+
+export type SettleCouponsResponse = {
+    /**
+     * How many were redeemed and are now paid (others were skipped).
+     */
+    settled: number;
+};
+
+/**
  * One OFFLINE entry of the team roster — a staff member who was
  * recently active (durable `last seen` from the DB backstop) but has
  * no live socket right now. Rendered dimmed below the online roster
@@ -3001,6 +3276,18 @@ export type TagCount = {
     tag: string;
 };
 
+/**
+ * A tier in a create/update request. `id` names an existing tier.
+ */
+export type TierInput = {
+    /**
+     * VND, a positive multiple of 1 000.
+     */
+    amount: number;
+    id?: string | null;
+    totalSlots: number;
+};
+
 export type TripAmenity = {
     key: string;
     label: string;
@@ -3024,18 +3311,6 @@ export type TripBusLayout = {
     name?: string | null;
     vehicleType: string;
     vehicleTypeLabel: string;
-};
-
-export type TripCampaign = {
-    code: string;
-    discountType: string;
-    discountValue: number;
-    endsAt?: string | null;
-    id: string;
-    maxUses?: number | null;
-    startsAt?: string | null;
-    status: string;
-    usedCount: number;
 };
 
 export type TripCore = {
@@ -3073,7 +3348,6 @@ export type TripDetail = {
     amenities: Array<TripAmenity>;
     brand: TripBrandDetail;
     busLayout: TripBusLayout;
-    campaigns: Array<TripCampaign>;
     from: TripEndpoint;
     pickupPoints: Array<TripPickupPoint>;
     pricing: TripPricing;
@@ -4497,6 +4771,184 @@ export type AdminBusLayoutsFitPlanResponses = {
 
 export type AdminBusLayoutsFitPlanResponse = AdminBusLayoutsFitPlanResponses[keyof AdminBusLayoutsFitPlanResponses];
 
+export type AdminCampaignsListData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/admin/campaigns';
+};
+
+export type AdminCampaignsListErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+};
+
+export type AdminCampaignsListResponses = {
+    /**
+     * Campaigns
+     */
+    200: AdminCampaignListResponse;
+};
+
+export type AdminCampaignsListResponse = AdminCampaignsListResponses[keyof AdminCampaignsListResponses];
+
+export type AdminCampaignsCreateData = {
+    body: CampaignInput;
+    path?: never;
+    query?: never;
+    url: '/api/admin/campaigns';
+};
+
+export type AdminCampaignsCreateErrors = {
+    /**
+     * Invalid campaign
+     */
+    400: unknown;
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+};
+
+export type AdminCampaignsCreateResponses = {
+    /**
+     * Created
+     */
+    201: AdminCampaignOut;
+};
+
+export type AdminCampaignsCreateResponse = AdminCampaignsCreateResponses[keyof AdminCampaignsCreateResponses];
+
+export type AdminCampaignsDeleteData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign ID
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/admin/campaigns/{id}';
+};
+
+export type AdminCampaignsDeleteErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Coupons were claimed; pause or end it instead
+     */
+    409: unknown;
+};
+
+export type AdminCampaignsDeleteResponses = {
+    /**
+     * Deleted
+     */
+    204: void;
+};
+
+export type AdminCampaignsDeleteResponse = AdminCampaignsDeleteResponses[keyof AdminCampaignsDeleteResponses];
+
+export type AdminCampaignsGetData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign ID
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/admin/campaigns/{id}';
+};
+
+export type AdminCampaignsGetErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Not found
+     */
+    404: unknown;
+};
+
+export type AdminCampaignsGetResponses = {
+    /**
+     * Campaign
+     */
+    200: AdminCampaignOut;
+};
+
+export type AdminCampaignsGetResponse = AdminCampaignsGetResponses[keyof AdminCampaignsGetResponses];
+
+export type AdminCampaignsUpdateData = {
+    body: CampaignInput;
+    path: {
+        /**
+         * Campaign ID
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/admin/campaigns/{id}';
+};
+
+export type AdminCampaignsUpdateErrors = {
+    /**
+     * Invalid change
+     */
+    400: unknown;
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Coupons were claimed meanwhile
+     */
+    409: unknown;
+};
+
+export type AdminCampaignsUpdateResponses = {
+    /**
+     * Updated
+     */
+    200: AdminCampaignOut;
+};
+
+export type AdminCampaignsUpdateResponse = AdminCampaignsUpdateResponses[keyof AdminCampaignsUpdateResponses];
+
 export type ChatStatsData = {
     body?: never;
     path?: never;
@@ -4523,6 +4975,144 @@ export type ChatStatsResponses = {
 };
 
 export type ChatStatsResponse2 = ChatStatsResponses[keyof ChatStatsResponses];
+
+export type AdminCouponsListData = {
+    body?: never;
+    path?: never;
+    query?: {
+        campaignId?: string;
+        brandId?: string;
+        /**
+         * Comma-separated statuses (e.g. `redeemed` for payouts to review).
+         */
+        status?: string;
+        limit?: number;
+        offset?: number;
+    };
+    url: '/api/admin/coupons';
+};
+
+export type AdminCouponsListErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+};
+
+export type AdminCouponsListResponses = {
+    /**
+     * Coupons
+     */
+    200: AdminCouponListResponse;
+};
+
+export type AdminCouponsListResponse = AdminCouponsListResponses[keyof AdminCouponsListResponses];
+
+export type AdminCouponsPayoutsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/admin/coupons/payouts';
+};
+
+export type AdminCouponsPayoutsErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+};
+
+export type AdminCouponsPayoutsResponses = {
+    /**
+     * Payouts
+     */
+    200: PayoutListResponse;
+};
+
+export type AdminCouponsPayoutsResponse = AdminCouponsPayoutsResponses[keyof AdminCouponsPayoutsResponses];
+
+export type AdminCouponsSettleData = {
+    body: SettleCouponsRequest;
+    path?: never;
+    query?: never;
+    url: '/api/admin/coupons/settle';
+};
+
+export type AdminCouponsSettleErrors = {
+    /**
+     * Invalid request
+     */
+    400: unknown;
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+};
+
+export type AdminCouponsSettleResponses = {
+    /**
+     * Settled
+     */
+    200: SettleCouponsResponse;
+};
+
+export type AdminCouponsSettleResponse = AdminCouponsSettleResponses[keyof AdminCouponsSettleResponses];
+
+export type AdminCouponsRejectData = {
+    body: RejectCouponRequest;
+    path: {
+        /**
+         * Coupon ID
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/admin/coupons/{id}/reject';
+};
+
+export type AdminCouponsRejectErrors = {
+    /**
+     * Missing reason
+     */
+    400: unknown;
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Not redeemed
+     */
+    409: unknown;
+};
+
+export type AdminCouponsRejectResponses = {
+    /**
+     * Rejected
+     */
+    204: void;
+};
+
+export type AdminCouponsRejectResponse = AdminCouponsRejectResponses[keyof AdminCouponsRejectResponses];
 
 export type AdminCronJobsListData = {
     body?: never;
@@ -6277,47 +6867,69 @@ export type BrandDetailResponses = {
 
 export type BrandDetailResponse = BrandDetailResponses[keyof BrandDetailResponses];
 
-export type CampaignsData = {
+export type CampaignsListData = {
     body?: never;
     path?: never;
     query?: never;
     url: '/api/campaigns';
 };
 
-export type CampaignsResponses = {
+export type CampaignsListResponses = {
     /**
-     * Campaign list
+     * Running and upcoming campaigns
      */
-    200: CampaignListResponse;
+    200: PublicCampaignListResponse;
 };
 
-export type CampaignsResponse = CampaignsResponses[keyof CampaignsResponses];
+export type CampaignsListResponse = CampaignsListResponses[keyof CampaignsListResponses];
 
-export type ValidateCampaignData = {
+export type CampaignsClaimData = {
     body?: never;
-    path?: never;
-    query: {
-        code: string;
-        subtotal: number;
+    path: {
+        /**
+         * Campaign ID
+         */
+        id: string;
+        /**
+         * Tier ID
+         */
+        tier_id: string;
     };
-    url: '/api/campaigns/validate';
+    query?: never;
+    url: '/api/campaigns/{id}/tiers/{tier_id}/claim';
 };
 
-export type ValidateCampaignErrors = {
+export type CampaignsClaimErrors = {
     /**
-     * Invalid campaign
+     * campaign_not_running
      */
     400: unknown;
-};
-
-export type ValidateCampaignResponses = {
     /**
-     * Validation result
+     * Unauthorized
      */
-    200: CampaignValidateResponse;
+    401: unknown;
+    /**
+     * customers_only
+     */
+    403: unknown;
+    /**
+     * coupon_already_held, campaign_already_claimed or try_again
+     */
+    409: unknown;
+    /**
+     * tier_sold_out
+     */
+    410: unknown;
 };
 
-export type ValidateCampaignResponse = ValidateCampaignResponses[keyof ValidateCampaignResponses];
+export type CampaignsClaimResponses = {
+    /**
+     * Coupon claimed
+     */
+    201: CouponOut;
+};
+
+export type CampaignsClaimResponse = CampaignsClaimResponses[keyof CampaignsClaimResponses];
 
 export type ListChannelsData = {
     body?: never;
@@ -6602,6 +7214,56 @@ export type ReleaseChannelResponses = {
 };
 
 export type ReleaseChannelResponse = ReleaseChannelResponses[keyof ReleaseChannelResponses];
+
+export type CouponsGiveUpData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/coupons/mine';
+};
+
+export type CouponsGiveUpErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * No unused coupon
+     */
+    404: unknown;
+};
+
+export type CouponsGiveUpResponses = {
+    /**
+     * Coupon given up
+     */
+    204: void;
+};
+
+export type CouponsGiveUpResponse = CouponsGiveUpResponses[keyof CouponsGiveUpResponses];
+
+export type CouponsMineData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/coupons/mine';
+};
+
+export type CouponsMineErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+};
+
+export type CouponsMineResponses = {
+    /**
+     * My coupon
+     */
+    200: MyCouponsResponse;
+};
+
+export type CouponsMineResponse = CouponsMineResponses[keyof CouponsMineResponses];
 
 export type LoyaltySummaryData = {
     body?: never;

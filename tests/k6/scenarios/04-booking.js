@@ -108,7 +108,7 @@ export default function () {
     contactName: `K6 Customer ${__VU}-${__ITER}`,
     contactPhone: uniquePhone(),
     contactEmail: undefined,
-    campaignCode: undefined,
+    couponId: undefined,
     boardingPointId: undefined,
     droppingPointId: undefined,
   };

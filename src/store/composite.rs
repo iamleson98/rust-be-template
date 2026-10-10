@@ -3,9 +3,10 @@ use std::sync::Arc;
 use sea_orm::DatabaseConnection;
 
 use super::{
-    AddressStore, AuditStore, BookingStore, BrandStore, ChatStore, NotificationStore, PaymentStore,
-    PlaceStore, PostStore, PriceAlertStore, RbacStore, RefreshTokenStore, ReviewStore, RouteStore,
-    ScheduleStore, StaffPresenceStore, TripStore, UserStore, VehicleTypeStore,
+    AddressStore, AuditStore, BookingStore, BrandStore, CampaignStore, ChatStore, DbCampaignStore,
+    NotificationStore, PaymentStore, PlaceStore, PostStore, PriceAlertStore, RbacStore,
+    RefreshTokenStore, ReviewStore, RouteStore, ScheduleStore, StaffPresenceStore, TripStore,
+    UserStore, VehicleTypeStore,
 };
 
 #[derive(Clone)]
@@ -30,6 +31,7 @@ pub struct CompositeStore {
     payments: Arc<dyn PaymentStore>,
     addresses: Arc<dyn AddressStore>,
     vehicle_types: Arc<dyn VehicleTypeStore>,
+    campaigns: Arc<dyn CampaignStore>,
 }
 
 impl CompositeStore {
@@ -57,7 +59,6 @@ impl CompositeStore {
         vehicle_types: Arc<dyn VehicleTypeStore>,
     ) -> Self {
         Self {
-            db,
             users,
             posts,
             rbac,
@@ -77,6 +78,10 @@ impl CompositeStore {
             payments,
             addresses,
             vehicle_types,
+            // No cache layer: the campaign service caches the composed
+            // public view itself.
+            campaigns: Arc::new(DbCampaignStore::new(db.clone())),
+            db,
         }
     }
 
@@ -160,6 +165,10 @@ impl CompositeStore {
 
     pub fn address_store(&self) -> Arc<dyn AddressStore> {
         self.addresses.clone()
+    }
+
+    pub fn campaign_store(&self) -> Arc<dyn CampaignStore> {
+        self.campaigns.clone()
     }
 
     pub fn vehicle_type_store(&self) -> Arc<dyn VehicleTypeStore> {

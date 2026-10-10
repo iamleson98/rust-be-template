@@ -13,10 +13,16 @@ declare module '@tanstack/react-query' {
 
 /** Resources that also hold stale data after a mutation on the key resource. */
 const ALSO_REFRESH: Record<string, string[]> = {
-  bookings: ['trips', 'loyalty'], // seats return to the pool; points derive from bookings
+  // Seats return to the pool; points derive from bookings; a booking takes or returns the coupon.
+  bookings: ['trips', 'loyalty', 'coupons'],
   payments: ['bookings'], // payment state drives booking state
   adminPayments: ['payments', 'bookings', 'adminBookings'],
-  adminBookings: ['bookings', 'trips'], // a staff cancel frees seats
+  // A staff cancel frees seats; completing a trip makes its coupon payable.
+  adminBookings: ['bookings', 'trips', 'adminCoupons', 'adminCampaigns'],
+  campaigns: ['coupons'], // a claim hands the customer a coupon
+  coupons: ['campaigns'], // giving one up returns its slot
+  adminCampaigns: ['campaigns', 'adminCoupons'],
+  adminCoupons: ['adminCampaigns'], // payouts move the campaign totals
   adminReviews: ['reviews'],
   users: ['auth'], // a role change alters the session user
 }

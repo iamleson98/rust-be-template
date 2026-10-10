@@ -58,9 +58,9 @@ pub struct HoldReq {
     #[serde(default)]
     #[validate(email, length(max = 255))]
     pub contact_email: Option<String>,
+    /// The customer's held coupon to use (`GET /api/coupons/mine`).
     #[serde(default)]
-    #[validate(length(max = 50))]
-    pub campaign_code: Option<String>,
+    pub coupon_id: Option<Uuid>,
 }
 
 /// Request body for `POST /api/bookings/:id/cancel`.
@@ -228,8 +228,9 @@ pub struct BookingHoldResponse {
     pub total: i64,
     pub expires_at: String,
     pub seats: Vec<BookingSeatOut>,
+    /// The coupon this booking uses (reserved until the trip).
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub campaign_id: Option<String>,
+    pub coupon_id: Option<Uuid>,
 }
 
 /// Response of `POST /api/bookings/{id}/cancel`.

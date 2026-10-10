@@ -188,7 +188,7 @@ pub(crate) fn hold_req(trip_id: Uuid, seat_ids: Vec<Uuid>, stops: (Uuid, Uuid)) 
         contact_name: "Nguyễn Văn A".into(),
         contact_phone: "0912345678".into(),
         contact_email: None,
-        campaign_code: None,
+        coupon_id: None,
     }
 }
 

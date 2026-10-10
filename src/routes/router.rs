@@ -143,7 +143,8 @@ pub fn build_router(state: AppState) -> Router<()> {
             "/recommendations",
             crate::routes::public::recommendations_router(),
         )
-        .nest("/campaigns", crate::routes::public::campaigns_router())
+        .nest("/campaigns", crate::routes::campaigns::router())
+        .nest("/coupons", crate::routes::campaigns::coupons_router())
         .nest("/stats", crate::routes::public::stats_router())
         .nest("/places", crate::routes::places::router())
         .nest("/routing", crate::routes::routing::router())

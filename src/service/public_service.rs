@@ -15,12 +15,11 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::dto::public::{
-    BrandDetailOut, BrandListResponse, BrandOut, CampaignListResponse, CampaignOut,
-    CampaignValidateResponse, RouteBrandPreview, RouteEndpoint, RouteListResponse, RouteOut,
-    StatsResponse, TripAmenity, TripBrandDetail, TripBusLayout, TripCampaign, TripCore,
-    TripDeckPlan, TripDetail, TripEndpoint, TripFare, TripPickupPoint, TripPricing, TripResult,
-    TripRouteDetail, TripSchedulePoint, TripSearchResponse, TripSeat, TripSeatDeck, TripSeatMap,
-    TripSeatRow,
+    BrandDetailOut, BrandListResponse, BrandOut, RouteBrandPreview, RouteEndpoint,
+    RouteListResponse, RouteOut, StatsResponse, TripAmenity, TripBrandDetail, TripBusLayout,
+    TripCore, TripDeckPlan, TripDetail, TripEndpoint, TripFare, TripPickupPoint, TripPricing,
+    TripResult, TripRouteDetail, TripSchedulePoint, TripSearchResponse, TripSeat, TripSeatDeck,
+    TripSeatMap, TripSeatRow,
 };
 use crate::entity::{
     brand, bus_layout, route, schedule, seat_inventory, trip_session, vehicle_type,
@@ -1616,29 +1615,6 @@ impl PublicService {
             })
             .collect();
 
-        // Active campaigns
-        let campaigns = self
-            .store
-            .trip_store()
-            .list_active_campaigns(10)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-
-        let campaigns_vec: Vec<TripCampaign> = campaigns
-            .iter()
-            .map(|c| TripCampaign {
-                id: c.id,
-                code: c.code.clone(),
-                discount_type: c.discount_type.clone(),
-                discount_value: c.discount_value,
-                max_uses: c.max_uses,
-                used_count: c.used_count,
-                starts_at: c.starts_at.clone(),
-                ends_at: c.ends_at.clone(),
-                status: c.status.clone(),
-            })
-            .collect();
-
         // Assemble
         let amenities = parse_amenities(&schedule.amenities);
         let amenities_vec: Vec<TripAmenity> = amenities
@@ -1735,7 +1711,6 @@ impl PublicService {
             pickup_points: pickup_items,
             schedule_points: schedule_items,
             seat_map: TripSeatMap { decks },
-            campaigns: campaigns_vec,
         })
     }
 
@@ -1906,69 +1881,6 @@ impl PublicService {
         };
 
         Ok(TripSearchResponse::unpaginated(items))
-    }
-
-    // ── Campaigns ───────────────────────────────────────────────
-
-    /// List active campaigns.
-    pub async fn list_campaigns(&self) -> AppResult<CampaignListResponse> {
-        let campaigns = self
-            .store
-            .trip_store()
-            .list_active_campaigns(100)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-
-        let items: Vec<CampaignOut> = campaigns
-            .iter()
-            .map(|c| CampaignOut {
-                id: c.id,
-                code: c.code.clone(),
-                discount_type: c.discount_type.clone(),
-                discount_value: c.discount_value,
-                ends_at: c.ends_at.clone(),
-            })
-            .collect();
-        Ok(CampaignListResponse { items })
-    }
-
-    /// Validate a campaign code against a subtotal.
-    pub async fn validate_campaign(
-        &self,
-        code: &str,
-        subtotal: i64,
-    ) -> AppResult<CampaignValidateResponse> {
-        let code = code.trim();
-        if code.is_empty() {
-            return Err(AppError::BadRequest("missing campaign code".into()));
-        }
-        let now = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
-        let c = self
-            .store
-            .trip_store()
-            .find_active_campaign(&code.to_uppercase(), &now)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-
-        match c {
-            Some(c) => {
-                let discount = match c.discount_type.as_str() {
-                    "percent" => {
-                        ((subtotal as f64) * c.discount_value as f64 / 100.0).round() as i64
-                    }
-                    "fixed_amount" => c.discount_value,
-                    _ => 0,
-                };
-                Ok(CampaignValidateResponse {
-                    valid: true,
-                    discount,
-                })
-            }
-            None => Ok(CampaignValidateResponse {
-                valid: false,
-                discount: 0,
-            }),
-        }
     }
 
     // ── Stats ───────────────────────────────────────────────────

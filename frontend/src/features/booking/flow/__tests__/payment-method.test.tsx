@@ -4,25 +4,46 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { offeredMethods, PaymentMethodStep } from '@/features/booking/flow/payment-method'
-import type { PromoCode } from '@/features/booking/flow/use-promo-code'
+import type { CouponOut } from '@/api'
+import type { CheckoutCoupon } from '@/features/booking/flow/use-checkout-coupon'
 
 describe('PaymentMethodStep', () => {
-  const promo = (over: Partial<PromoCode> = {}): PromoCode => ({
-    code: '',
-    setCode: vi.fn(),
-    result: null,
-    checking: false,
-    apply: vi.fn(),
+  const held: CouponOut = {
+    id: 'k1',
+    code: 'DXV7K2M9PQ',
+    campaignId: 'c1',
+    campaignName: 'Ưu đãi Tết',
+    amount: 30000,
+    status: 'held',
+    allBrands: true,
+    brands: [],
+    claimedAt: '2026-10-01T03:00:00Z',
+    validUntil: '2026-10-31T16:00:00Z',
+  }
+  const coupon = (over: Partial<CheckoutCoupon> = {}): CheckoutCoupon => ({
+    coupon: null,
+    usable: false,
+    applied: false,
+    setApplied: vi.fn(),
+    worth: 0,
     discount: 0,
-    appliedCode: undefined,
+    couponId: undefined,
     ...over,
+  })
+  const applied = coupon({
+    coupon: held,
+    usable: true,
+    applied: true,
+    worth: 30000,
+    discount: 30000,
+    couponId: 'k1',
   })
 
   const baseProps = {
     methods: offeredMethods(undefined),
     method: 'momo' as const,
     onMethodChange: vi.fn(),
-    promo: promo(),
+    coupon: coupon(),
     tickets: [],
     total: 300000,
     error: '',
@@ -50,30 +71,39 @@ describe('PaymentMethodStep', () => {
     expect(screen.queryByText('Ví MoMo')).not.toBeInTheDocument()
   })
 
-  it('shows the coupon box on the checkout step', () => {
-    // Coupons live on the PAYMENT step now (moved off the contact step).
+  it('shows no coupon row when the customer holds none', () => {
     render(<PaymentMethodStep {...baseProps} />)
-    expect(screen.getByText('Mã khuyến mãi')).toBeInTheDocument()
-    expect(screen.getByPlaceholderText(/Nhập mã khuyến mãi/)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Áp dụng' })).toBeDisabled()
+    expect(screen.queryByRole('switch')).toBeNull()
   })
 
-  it('shows an applied coupon with its discount', () => {
-    render(
+  it('applies the held coupon by default and takes it off the total', () => {
+    render(<PaymentMethodStep {...baseProps} coupon={applied} total={270000} />)
+    const row = screen.getByRole('switch', { name: /Dùng mã DXV7K2M9PQ/ })
+    expect(row).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByText('Giảm giá (DXV7K2M9PQ)')).toBeInTheDocument()
+    // In the coupon row and in the price summary.
+    expect(screen.getAllByText(/-30\.000/)).toHaveLength(2)
+  })
+
+  it('lets the customer keep the coupon for later', () => {
+    render(<PaymentMethodStep {...baseProps} coupon={applied} />)
+    fireEvent.click(screen.getByRole('switch'))
+    expect(applied.setApplied).toHaveBeenCalledWith(false)
+  })
+
+  it('says why the coupon does not apply to this trip', () => {
+    const { rerender } = render(
+      <PaymentMethodStep {...baseProps} coupon={coupon({ coupon: held, worth: 30000 })} />,
+    )
+    expect(screen.getByText('Mã của bạn không áp dụng cho nhà xe này.')).toBeInTheDocument()
+    rerender(
       <PaymentMethodStep
         {...baseProps}
-        promo={promo({
-          code: 'summer2024',
-          result: { valid: true, discount: 30000 },
-          discount: 30000,
-          appliedCode: 'SUMMER2024',
-        })}
-        total={270000}
+        coupon={coupon({ coupon: { ...held, status: 'reserved', bookingCode: 'VX-OLD123' } })}
       />,
     )
-    expect(screen.getByText('Đã áp dụng mã SUMMER2024')).toBeInTheDocument()
-    // The discount appears in the coupon box AND the price summary.
-    expect(screen.getAllByText(/-30\.000/).length).toBeGreaterThan(0)
+    expect(screen.getByText('Mã của bạn đang dùng cho vé VX-OLD123.')).toBeInTheDocument()
+    expect(screen.queryByRole('switch')).toBeNull()
   })
 
   it('exposes the method picker as a radio group with per-option state', () => {
@@ -115,17 +145,6 @@ describe('PaymentMethodStep', () => {
     render(<PaymentMethodStep {...baseProps} onBack={onBack} />)
     fireEvent.click(screen.getByText('Quay lại'))
     expect(onBack).toHaveBeenCalled()
-  })
-
-  it('edits and applies the promo code through the promo state', () => {
-    const p = promo({ code: 'TET' })
-    render(<PaymentMethodStep {...baseProps} promo={p} />)
-    fireEvent.change(screen.getByPlaceholderText(/Nhập mã khuyến mãi/), {
-      target: { value: 'TET2026' },
-    })
-    expect(p.setCode).toHaveBeenCalledWith('TET2026')
-    fireEvent.click(screen.getByRole('button', { name: 'Áp dụng' }))
-    expect(p.apply).toHaveBeenCalled()
   })
 
   it('calls onSubmit when pay button is clicked', () => {

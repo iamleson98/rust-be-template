@@ -29,18 +29,21 @@
 //! row is removed; queued rows of the old kind end up in the dead set
 //! (visible, not silently dropped).
 
+pub mod coupon_expiry;
 pub mod osm_import;
 
 use std::sync::Arc;
 
 use crate::config::Config;
 use crate::service::PlaceService;
+use crate::store::CampaignStore;
 use crate::worker::{Job, JobRegistry};
 
 /// What the built-in jobs are built from. Cheap to clone.
 #[derive(Clone)]
 pub struct JobDeps {
     pub places: Arc<PlaceService>,
+    pub campaigns: Arc<dyn CampaignStore>,
     pub config: Arc<Config>,
 }
 
@@ -68,20 +71,34 @@ pub struct JobDefinition {
 
 /// Every built-in job. See the module docs for adding one.
 pub fn catalog() -> &'static [JobDefinition] {
-    &[JobDefinition {
-        kind: osm_import::OsmImport::KIND,
-        description: "Vietnam OSM extract → Tantivy place-index refresh \
+    &[
+        JobDefinition {
+            kind: osm_import::OsmImport::KIND,
+            description: "Vietnam OSM extract → Tantivy place-index refresh \
                       (download, staged low-resource rebuild, atomic swap, \
                       hot reload, cleanup).",
-        schedule: Some(JobSchedule {
-            // Biweekly at 02:00 local (UTC+7 default): the site's quiet
-            // night hours.
-            interval_days: 14,
-            at_hour: 2,
-            at_minute: 0,
-        }),
-        register: |registry, deps| registry.add(osm_import::OsmImport::new(deps)),
-    }]
+            schedule: Some(JobSchedule {
+                // Biweekly at 02:00 local (UTC+7 default): the site's quiet
+                // night hours.
+                interval_days: 14,
+                at_hour: 2,
+                at_minute: 0,
+            }),
+            register: |registry, deps| registry.add(osm_import::OsmImport::new(deps)),
+        },
+        JobDefinition {
+            kind: coupon_expiry::CouponExpiry::KIND,
+            description: "Expire unused discount coupons whose campaign window passed \
+                      (also enforced on every read; this tidies the rest).",
+            schedule: Some(JobSchedule {
+                // Daily, just after midnight local.
+                interval_days: 1,
+                at_hour: 0,
+                at_minute: 10,
+            }),
+            register: |registry, deps| registry.add(coupon_expiry::CouponExpiry::new(deps)),
+        },
+    ]
 }
 
 /// The catalog entry for `kind`.
@@ -135,10 +152,10 @@ mod tests {
     /// own policy (the 5-minute default would kill them).
     #[tokio::test]
     async fn every_catalog_entry_registers_its_job() {
+        let store = crate::store::CompositeStore::in_memory().await;
         let deps = JobDeps {
-            places: Arc::new(crate::service::PlaceService::new(
-                crate::store::CompositeStore::in_memory().await,
-            )),
+            places: Arc::new(crate::service::PlaceService::new(store.clone())),
+            campaigns: store.campaign_store(),
             config: Arc::new(Config::default()),
         };
         let registry = register_all(&deps);

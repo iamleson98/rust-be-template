@@ -21,9 +21,10 @@ use crate::payment::zalopay::ZalopayProvider;
 use crate::rbac::RbacChecker;
 use crate::routes::build_router;
 use crate::service::{
-    AdminService, AuthService, BookingService, ChatService, JobService, LoyaltyService,
-    NotificationService, PaymentService, PlaceService, PostService, PriceAlertService,
-    PublicService, ReviewService, RouteMediaService, RoutingService, UserService,
+    AdminService, AuthService, BookingService, CampaignService, ChatService, JobService,
+    LoyaltyService, NotificationService, PaymentService, PlaceService, PostService,
+    PriceAlertService, PublicService, ReviewService, RouteMediaService, RoutingService,
+    UserService,
 };
 use crate::state::AppState;
 use crate::store::{
@@ -373,6 +374,7 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
     let booking_service = Arc::new(BookingService::new(store.clone()));
     crate::service::booking_service::spawn_hold_sweeper(booking_service.clone());
     let loyalty_service = Arc::new(LoyaltyService::new(store.clone()));
+    let campaign_service = Arc::new(CampaignService::new(store.clone(), cache.clone()));
     let public_service = Arc::new(PublicService::new(store.clone()));
     let routing_service = Arc::new(RoutingService::new(&config));
     let place_service = Arc::new(PlaceService::with_searcher(store.clone(), place_searcher));
@@ -437,6 +439,7 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
 
         let registry = jobs::register_all(&jobs::JobDeps {
             places: place_service.clone(),
+            campaigns: store.campaign_store(),
             config: config_arc.clone(),
         });
         let kinds = registry.kinds();
@@ -482,6 +485,7 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
         chat_service,
         job_service,
         media_service,
+        campaign_service,
     );
 
     Ok(state)

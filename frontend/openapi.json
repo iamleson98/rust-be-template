@@ -1180,6 +1180,205 @@
         }
       }
     },
+    "/api/admin/campaigns": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "`GET /api/admin/campaigns` — every campaign with its money position.",
+        "operationId": "list",
+        "responses": {
+          "200": {
+            "description": "Campaigns",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminCampaignListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "`POST /api/admin/campaigns` — create a campaign.",
+        "operationId": "create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CampaignInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminCampaignOut"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid campaign"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        }
+      }
+    },
+    "/api/admin/campaigns/{id}": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "`GET /api/admin/campaigns/{id}`.",
+        "operationId": "get",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Campaign ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Campaign",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminCampaignOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "`DELETE /api/admin/campaigns/{id}` — only while nobody claimed from it.",
+        "operationId": "delete",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Campaign ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Coupons were claimed; pause or end it instead"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "`PATCH /api/admin/campaigns/{id}` — replace the campaign with the\ngiven state (within the editing rules of a running campaign).",
+        "operationId": "update",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Campaign ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CampaignInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminCampaignOut"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid change"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Coupons were claimed meanwhile"
+          }
+        }
+      }
+    },
     "/api/admin/chat/stats": {
       "get": {
         "tags": [
@@ -1204,6 +1403,200 @@
           },
           "403": {
             "description": "Forbidden"
+          }
+        }
+      }
+    },
+    "/api/admin/coupons": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "`GET /api/admin/coupons` — coupons with review signals (shared phone,\nshared network, new account).",
+        "operationId": "admin_coupons_list",
+        "parameters": [
+          {
+            "name": "campaignId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "brandId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "Comma-separated statuses (e.g. `redeemed` for payouts to review).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Coupons",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminCouponListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        }
+      }
+    },
+    "/api/admin/coupons/payouts": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "`GET /api/admin/coupons/payouts` — owed and paid per operator.",
+        "operationId": "payouts",
+        "responses": {
+          "200": {
+            "description": "Payouts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayoutListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        }
+      }
+    },
+    "/api/admin/coupons/settle": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "`POST /api/admin/coupons/settle` — record that these redeemed coupons\nwere paid to their operators.",
+        "operationId": "settle",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SettleCouponsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Settled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettleCouponsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        }
+      }
+    },
+    "/api/admin/coupons/{id}/reject": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "`POST /api/admin/coupons/{id}/reject` — refuse a redeemed coupon's\npayout after review.",
+        "operationId": "reject",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Coupon ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectCouponRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Rejected"
+          },
+          "400": {
+            "description": "Missing reason"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Not redeemed"
           }
         }
       }
@@ -3596,17 +3989,17 @@
     "/api/campaigns": {
       "get": {
         "tags": [
-          "public"
+          "campaigns"
         ],
-        "summary": "`GET /api/campaigns` — list campaigns.",
-        "operationId": "campaigns",
+        "summary": "`GET /api/campaigns` — running and upcoming campaigns with their tiers\nand slots left (served from the cache, which claims keep current;\nclaiming itself is exact).",
+        "operationId": "list",
         "responses": {
           "200": {
-            "description": "Campaign list",
+            "description": "Running and upcoming campaigns",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CampaignListResponse"
+                  "$ref": "#/components/schemas/PublicCampaignListResponse"
                 }
               }
             }
@@ -3614,45 +4007,60 @@
         }
       }
     },
-    "/api/campaigns/validate": {
-      "get": {
+    "/api/campaigns/{id}/tiers/{tier_id}/claim": {
+      "post": {
         "tags": [
-          "public"
+          "campaigns"
         ],
-        "summary": "`GET /api/campaigns/validate` — validate a campaign code.",
-        "operationId": "validate_campaign",
+        "summary": "`POST /api/campaigns/{id}/tiers/{tier_id}/claim` — claim a coupon of\nthis tier. One held coupon per account at a time, one per campaign.",
+        "operationId": "claim",
         "parameters": [
           {
-            "name": "code",
-            "in": "query",
+            "name": "id",
+            "in": "path",
+            "description": "Campaign ID",
             "required": true,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "format": "uuid"
             }
           },
           {
-            "name": "subtotal",
-            "in": "query",
+            "name": "tier_id",
+            "in": "path",
+            "description": "Tier ID",
             "required": true,
             "schema": {
-              "type": "integer",
-              "format": "int64"
+              "type": "string",
+              "format": "uuid"
             }
           }
         ],
         "responses": {
-          "200": {
-            "description": "Validation result",
+          "201": {
+            "description": "Coupon claimed",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CampaignValidateResponse"
+                  "$ref": "#/components/schemas/CouponOut"
                 }
               }
             }
           },
           "400": {
-            "description": "Invalid campaign"
+            "description": "campaign_not_running"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "customers_only"
+          },
+          "409": {
+            "description": "coupon_already_held, campaign_already_claimed or try_again"
+          },
+          "410": {
+            "description": "tier_sold_out"
           }
         }
       }
@@ -4030,6 +4438,48 @@
           },
           "404": {
             "description": "Channel not found"
+          }
+        }
+      }
+    },
+    "/api/coupons/mine": {
+      "get": {
+        "tags": [
+          "campaigns"
+        ],
+        "summary": "`GET /api/coupons/mine` — the coupon this account holds (if any) and\nthe campaigns it already claimed from.",
+        "operationId": "mine",
+        "responses": {
+          "200": {
+            "description": "My coupon",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyCouponsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "campaigns"
+        ],
+        "summary": "`DELETE /api/coupons/mine` — give up the unused coupon (to claim from\nanother campaign). A coupon on a booking cannot be given up.",
+        "operationId": "coupons_give_up",
+        "responses": {
+          "204": {
+            "description": "Coupon given up"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "No unused coupon"
           }
         }
       }
@@ -6942,6 +7392,219 @@
           }
         }
       },
+      "AdminCampaignListResponse": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminCampaignOut"
+            }
+          }
+        }
+      },
+      "AdminCampaignOut": {
+        "type": "object",
+        "description": "A campaign in the admin console.",
+        "required": [
+          "id",
+          "name",
+          "startsAt",
+          "endsAt",
+          "couponValidity",
+          "allBrands",
+          "brands",
+          "paused",
+          "state",
+          "tiers",
+          "totals",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "allBrands": {
+            "type": "boolean"
+          },
+          "brands": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CampaignBrandOut"
+            }
+          },
+          "couponValidity": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "endsAt": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "paused": {
+            "type": "boolean"
+          },
+          "startsAt": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "description": "`upcoming`, `running`, `paused` or `ended`."
+          },
+          "tiers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminTierOut"
+            }
+          },
+          "totals": {
+            "$ref": "#/components/schemas/CampaignTotalsOut"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        }
+      },
+      "AdminCouponListResponse": {
+        "type": "object",
+        "required": [
+          "items",
+          "total"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminCouponOut"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "AdminCouponOut": {
+        "type": "object",
+        "description": "A coupon in the admin console, with what an admin should look at\nbefore paying it out.",
+        "required": [
+          "id",
+          "code",
+          "campaignId",
+          "campaignName",
+          "amount",
+          "status",
+          "claimedAt",
+          "sharedPhone",
+          "sharedIp",
+          "newAccount"
+        ],
+        "properties": {
+          "amount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "booking": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CouponBookingOut"
+              }
+            ]
+          },
+          "brand": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CampaignBrandOut",
+                "description": "The operator to pay."
+              }
+            ]
+          },
+          "campaignId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "campaignName": {
+            "type": "string"
+          },
+          "claimedAt": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "newAccount": {
+            "type": "boolean",
+            "description": "The account was created less than a day before it claimed."
+          },
+          "owner": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CouponOwnerOut"
+              }
+            ]
+          },
+          "redeemedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "settledAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "settlementNote": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sharedIp": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Other coupons of this campaign claimed from the same network."
+          },
+          "sharedPhone": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Other coupons of this campaign used with the same contact phone."
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      },
       "AdminMutationResponse": {
         "type": "object",
         "description": "Response of `POST /api/admin/brands` + `PUT /api/admin/brands/{id}` + `DELETE`.",
@@ -7657,6 +8320,33 @@
           }
         }
       },
+      "AdminTierOut": {
+        "type": "object",
+        "required": [
+          "id",
+          "amount",
+          "totalSlots",
+          "claimedSlots"
+        ],
+        "properties": {
+          "amount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "claimedSlots": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "totalSlots": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
       "AdminVehicleTypeListResponse": {
         "type": "object",
         "description": "Response of `GET /api/admin/vehicle-types`.",
@@ -7887,14 +8577,16 @@
             "type": "string",
             "format": "uuid"
           },
-          "campaignId": {
+          "code": {
+            "type": "string"
+          },
+          "couponId": {
             "type": [
               "string",
               "null"
-            ]
-          },
-          "code": {
-            "type": "string"
+            ],
+            "format": "uuid",
+            "description": "The coupon this booking uses (reserved until the trip)."
           },
           "discount": {
             "type": "integer",
@@ -8540,68 +9232,173 @@
           }
         }
       },
-      "CampaignListResponse": {
+      "CampaignBrandOut": {
         "type": "object",
-        "description": "Response of `GET /api/campaigns`.",
-        "required": [
-          "items"
-        ],
-        "properties": {
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/CampaignOut"
-            }
-          }
-        }
-      },
-      "CampaignOut": {
-        "type": "object",
-        "description": "Campaign list item returned by `GET /api/campaigns`.",
+        "description": "An operator a campaign covers.",
         "required": [
           "id",
-          "code",
-          "discountType",
-          "discountValue"
+          "name",
+          "slug"
         ],
         "properties": {
-          "code": {
-            "type": "string"
+          "id": {
+            "type": "string",
+            "format": "uuid"
           },
-          "discountType": {
-            "type": "string"
-          },
-          "discountValue": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "endsAt": {
+          "logoUrl": {
             "type": [
               "string",
               "null"
             ]
           },
-          "id": {
-            "type": "string",
-            "format": "uuid"
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
           }
         }
       },
-      "CampaignValidateResponse": {
+      "CampaignInput": {
         "type": "object",
-        "description": "Response of `GET /api/campaigns/validate?code=&subtotal=`.",
+        "description": "The whole campaign as the admin wants it (create, or replace on\nupdate). Tiers missing from an update are removed (allowed only while\nnobody claimed them).",
         "required": [
-          "valid",
-          "discount"
+          "name",
+          "startsAt",
+          "endsAt",
+          "couponValidity",
+          "allBrands",
+          "tiers"
         ],
         "properties": {
-          "discount": {
+          "allBrands": {
+            "type": "boolean"
+          },
+          "brandIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Required (non-empty) when `allBrands` is false."
+          },
+          "couponValidity": {
+            "type": "string",
+            "description": "`campaign` or `permanent`."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "endsAt": {
+            "type": "string",
+            "description": "ISO-8601 (any offset; stored in UTC)."
+          },
+          "name": {
+            "type": "string"
+          },
+          "paused": {
+            "type": "boolean"
+          },
+          "startsAt": {
+            "type": "string",
+            "description": "ISO-8601 (any offset; stored in UTC)."
+          },
+          "tiers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TierInput"
+            }
+          }
+        }
+      },
+      "CampaignTierOut": {
+        "type": "object",
+        "description": "One \"amount × slots\" voucher of a campaign.",
+        "required": [
+          "id",
+          "amount",
+          "totalSlots",
+          "remaining"
+        ],
+        "properties": {
+          "amount": {
             "type": "integer",
             "format": "int64",
-            "description": "Discount amount (VND) applied to the subtotal. 0 when invalid."
+            "description": "The discount, in VND."
           },
-          "valid": {
-            "type": "boolean"
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "remaining": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Slots still free (from the cache: claims keep it current, claiming\nitself is exact)."
+          },
+          "totalSlots": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "CampaignTotalsOut": {
+        "type": "object",
+        "description": "Where a campaign's money stands.",
+        "required": [
+          "budget",
+          "claimed",
+          "inUse",
+          "owedCount",
+          "owedAmount",
+          "paidCount",
+          "paidAmount",
+          "rejectedCount",
+          "expiredCount"
+        ],
+        "properties": {
+          "budget": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Σ amount × slots over its tiers (VND): the most it can cost."
+          },
+          "claimed": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Coupons handed out (not given back)."
+          },
+          "expiredCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "inUse": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Coupons on bookings that have not travelled yet."
+          },
+          "owedAmount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "owedCount": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Trips taken: payouts awaiting an admin (count and VND)."
+          },
+          "paidAmount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "paidCount": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Payouts made (count and VND)."
+          },
+          "rejectedCount": {
+            "type": "integer",
+            "format": "int64"
           }
         }
       },
@@ -8985,6 +9782,118 @@
               "null"
             ],
             "description": "Click id for Performance Max / App campaigns (web)."
+          }
+        }
+      },
+      "CouponBookingOut": {
+        "type": "object",
+        "required": [
+          "id",
+          "code",
+          "status"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "contactPhone": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "CouponOut": {
+        "type": "object",
+        "description": "A customer's coupon.",
+        "required": [
+          "id",
+          "code",
+          "campaignId",
+          "campaignName",
+          "amount",
+          "status",
+          "allBrands",
+          "brands",
+          "claimedAt"
+        ],
+        "properties": {
+          "allBrands": {
+            "type": "boolean"
+          },
+          "amount": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The discount, in VND."
+          },
+          "bookingCode": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The booking it is on, while `reserved`."
+          },
+          "brands": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CampaignBrandOut"
+            }
+          },
+          "campaignId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "campaignName": {
+            "type": "string"
+          },
+          "claimedAt": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "description": "`held` (ready to use) or `reserved` (on a booking that has not\ntravelled yet)."
+          },
+          "validUntil": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Book before this (ISO-8601 UTC); absent = no end."
+          }
+        }
+      },
+      "CouponOwnerOut": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "email"
+        ],
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
           }
         }
       },
@@ -10167,12 +11076,6 @@
             "format": "uuid",
             "description": "Required when the route has pickup points; must be one of them."
           },
-          "campaignCode": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
           "contactEmail": {
             "type": [
               "string",
@@ -10184,6 +11087,14 @@
           },
           "contactPhone": {
             "type": "string"
+          },
+          "couponId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "The customer's held coupon to use (`GET /api/coupons/mine`)."
           },
           "droppingPointId": {
             "type": [
@@ -10702,6 +11613,34 @@
           }
         }
       },
+      "MyCouponsResponse": {
+        "type": "object",
+        "description": "Response of `GET /api/coupons/mine`.",
+        "required": [
+          "claimedCampaignIds"
+        ],
+        "properties": {
+          "active": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CouponOut",
+                "description": "The coupon the account holds; at most one at a time."
+              }
+            ]
+          },
+          "claimedCampaignIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Campaigns this account already claimed from (one coupon each)."
+          }
+        }
+      },
       "NotificationListResponse": {
         "type": "object",
         "description": "Response of `GET /api/notifications`.",
@@ -11108,6 +12047,69 @@
               "type": "string"
             },
             "description": "The providers this deployment takes payments with\n(`momo` | `vnpay` | `zalopay` | `cod` | `vietqr`)."
+          }
+        }
+      },
+      "PayoutListResponse": {
+        "type": "object",
+        "required": [
+          "items",
+          "totalOwed",
+          "totalPaid"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PayoutOut"
+            },
+            "description": "Most owed first."
+          },
+          "totalOwed": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "totalPaid": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "PayoutOut": {
+        "type": "object",
+        "description": "What the platform owes and paid one operator.",
+        "required": [
+          "owedCount",
+          "owedAmount",
+          "paidCount",
+          "paidAmount"
+        ],
+        "properties": {
+          "brand": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CampaignBrandOut"
+              }
+            ]
+          },
+          "owedAmount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "owedCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "paidAmount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "paidCount": {
+            "type": "integer",
+            "format": "int64"
           }
         }
       },
@@ -11559,6 +12561,84 @@
           }
         }
       },
+      "PublicCampaignListResponse": {
+        "type": "object",
+        "description": "Response of `GET /api/campaigns`: running and upcoming campaigns.",
+        "required": [
+          "items",
+          "serverTime"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PublicCampaignOut"
+            }
+          },
+          "serverTime": {
+            "type": "string",
+            "description": "The server's clock (ISO-8601 UTC), for countdowns that do not\ntrust the device clock."
+          }
+        }
+      },
+      "PublicCampaignOut": {
+        "type": "object",
+        "description": "A campaign as the home page shows it.",
+        "required": [
+          "id",
+          "name",
+          "startsAt",
+          "endsAt",
+          "couponValidity",
+          "allBrands",
+          "brands",
+          "tiers"
+        ],
+        "properties": {
+          "allBrands": {
+            "type": "boolean"
+          },
+          "brands": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CampaignBrandOut"
+            },
+            "description": "The covered operators (empty when `allBrands`)."
+          },
+          "couponValidity": {
+            "type": "string",
+            "description": "`campaign` (book before `endsAt`) or `permanent`."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "endsAt": {
+            "type": "string",
+            "description": "ISO-8601 UTC."
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "startsAt": {
+            "type": "string",
+            "description": "ISO-8601 UTC."
+          },
+          "tiers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CampaignTierOut"
+            },
+            "description": "Biggest discount first."
+          }
+        }
+      },
       "RefreshRequest": {
         "type": "object",
         "properties": {
@@ -11629,6 +12709,18 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "RejectCouponRequest": {
+        "type": "object",
+        "description": "Body of `POST /api/admin/coupons/{id}/reject`.",
+        "required": [
+          "reason"
+        ],
+        "properties": {
+          "reason": {
+            "type": "string"
           }
         }
       },
@@ -12435,6 +13527,43 @@
           }
         }
       },
+      "SettleCouponsRequest": {
+        "type": "object",
+        "description": "Body of `POST /api/admin/coupons/settle`.",
+        "required": [
+          "couponIds"
+        ],
+        "properties": {
+          "couponIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Payment reference or note."
+          }
+        }
+      },
+      "SettleCouponsResponse": {
+        "type": "object",
+        "required": [
+          "settled"
+        ],
+        "properties": {
+          "settled": {
+            "type": "integer",
+            "format": "int64",
+            "description": "How many were redeemed and are now paid (others were skipped).",
+            "minimum": 0
+          }
+        }
+      },
       "StaffPresenceOfflineOut": {
         "type": "object",
         "description": "One OFFLINE entry of the team roster — a staff member who was\nrecently active (durable `last seen` from the DB backstop) but has\nno live socket right now. Rendered dimmed below the online roster\nso an admin can see who just dropped (flaky network) instead of an\nempty board.",
@@ -12773,6 +13902,32 @@
           }
         }
       },
+      "TierInput": {
+        "type": "object",
+        "description": "A tier in a create/update request. `id` names an existing tier.",
+        "required": [
+          "amount",
+          "totalSlots"
+        ],
+        "properties": {
+          "amount": {
+            "type": "integer",
+            "format": "int64",
+            "description": "VND, a positive multiple of 1 000."
+          },
+          "id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "totalSlots": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
       "TripAmenity": {
         "type": "object",
         "required": [
@@ -12862,59 +14017,6 @@
           },
           "vehicleTypeLabel": {
             "type": "string"
-          }
-        }
-      },
-      "TripCampaign": {
-        "type": "object",
-        "required": [
-          "id",
-          "code",
-          "discountType",
-          "discountValue",
-          "usedCount",
-          "status"
-        ],
-        "properties": {
-          "code": {
-            "type": "string"
-          },
-          "discountType": {
-            "type": "string"
-          },
-          "discountValue": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "endsAt": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "maxUses": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64"
-          },
-          "startsAt": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "status": {
-            "type": "string"
-          },
-          "usedCount": {
-            "type": "integer",
-            "format": "int64"
           }
         }
       },
@@ -13022,8 +14124,7 @@
           "amenities",
           "pickupPoints",
           "schedulePoints",
-          "seatMap",
-          "campaigns"
+          "seatMap"
         ],
         "properties": {
           "amenities": {
@@ -13037,12 +14138,6 @@
           },
           "busLayout": {
             "$ref": "#/components/schemas/TripBusLayout"
-          },
-          "campaigns": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/TripCampaign"
-            }
           },
           "from": {
             "$ref": "#/components/schemas/TripEndpoint"
@@ -14543,6 +15638,10 @@
       "description": "Booking-derived loyalty points, tiers and history"
     },
     {
+      "name": "campaigns",
+      "description": "Discount campaigns: claim a coupon, use it on a booking"
+    },
+    {
       "name": "payments",
       "description": "Payment intents + provider webhooks (VNPay/MoMo/ZaloPay/VietQR/COD)"
     },
@@ -14568,7 +15667,7 @@
     },
     {
       "name": "public",
-      "description": "Public catalog (brands, routes, trips, campaigns)"
+      "description": "Public catalog (brands, routes, trips)"
     },
     {
       "name": "routing",

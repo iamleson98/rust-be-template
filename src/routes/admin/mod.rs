@@ -33,6 +33,7 @@ pub mod addresses;
 pub mod bookings;
 pub mod brands;
 pub mod bus_layouts;
+pub mod campaigns;
 pub mod chat;
 pub mod jobs;
 pub mod pickup_points;
@@ -55,6 +56,8 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .nest("/addresses", addresses::router())
         .nest("/brands", brands::router())
+        .nest("/campaigns", campaigns::router())
+        .nest("/coupons", campaigns::coupons_router())
         .nest("/routes", routes::router())
         .nest("/schedules", schedules::router())
         .nest("/pickup-points", pickup_points::router())

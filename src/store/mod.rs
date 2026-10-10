@@ -20,6 +20,7 @@ pub use self::booking::{
     BookingFilter, BookingOrder, BookingStore, ConfirmOutcome, DbBookingStore, Released,
 };
 pub use self::brands::{BrandStore, CacheBrandStore, DbBrandStore};
+pub use self::campaigns::{CampaignStore, DbCampaignStore};
 pub use self::chat::{CacheChatStore, ChatStore, DbChatStore, NewChatMessage, NewNullClawExchange};
 pub use self::composite::CompositeStore;
 pub use self::error::{StoreError, StoreResult};
@@ -77,6 +78,7 @@ mod ads_conversion;
 mod audit;
 mod booking;
 mod brands;
+pub mod campaigns;
 pub mod chat;
 mod composite;
 mod error;
