@@ -52,6 +52,22 @@ pub struct Session {
     close: Option<mpsc::Sender<()>>,
 }
 
+/// A newly registered socket.
+pub struct Registered {
+    pub id: u64,
+    /// `Some(seq)` when this is the user's first socket: they just came online.
+    pub online_seq: Option<u64>,
+}
+
+/// A socket that just closed.
+pub struct Departed {
+    pub user: SessionUser,
+    /// The room it was in.
+    pub channel_id: Option<String>,
+    /// `Some(seq)` when this was the user's last socket: they just went offline.
+    pub offline_seq: Option<u64>,
+}
+
 /// The shared chat hub. Cheap to clone (`&'static` via [`hub()`]).
 ///
 /// Staff presence (online / busy / load) lives in [`crate::presence`] —
@@ -75,6 +91,11 @@ pub struct ChatHub {
     ip_conns: DashMap<String, std::sync::atomic::AtomicUsize>,
     idempotency: DashMap<String, (Instant, Option<String>)>, // (stored_at, value)
     next_id: std::sync::atomic::AtomicU64,
+    /// Bumped on every online/offline transition of a user (first socket
+    /// opened, last socket closed). Presence events carry it so clients
+    /// apply them in order — a page refresh closes one socket and opens
+    /// another within milliseconds, and the two events may arrive swapped.
+    presence_seq: AtomicU64,
     /// Total live sessions across all IPs (atomic for O(1) admission checks).
     global_conns: AtomicUsize,
     /// Hard cap on `global_conns` (read once at init from config; 0 = unlimited).
@@ -201,6 +222,7 @@ impl ChatHub {
             ip_conns: DashMap::new(),
             idempotency: DashMap::new(),
             next_id: std::sync::atomic::AtomicU64::new(1),
+            presence_seq: AtomicU64::new(0),
             global_conns: AtomicUsize::new(0),
             max_global_conns: max_global,
             slow_consumer_threshold,
@@ -308,11 +330,11 @@ impl ChatHub {
         }
     }
 
-    /// Register a new connection. Returns the assigned socket id.
+    /// Register a new connection.
     /// Precondition: the caller has ALREADY acquired a global slot via
     /// `try_acquire_global` and a per-IP slot via `try_acquire_ip`.
     /// `unregister` releases both.
-    pub fn register(&self, user: SessionUser, ip: String, tx: ClientTx) -> u64 {
+    pub fn register(&self, user: SessionUser, ip: String, tx: ClientTx) -> Registered {
         use std::sync::atomic::Ordering;
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
         let user_id = user.id.to_string();
@@ -334,7 +356,14 @@ impl ChatHub {
         // user-targeted + staff/admin fan-outs become O(recipients)
         // instead of O(all sessions) — with a UUID `to_string()` per
         // scanned session on the old path.
-        self.by_user.entry(user_id.clone()).or_default().insert(id);
+        // The entry guard holds the shard lock, so "first socket" and its
+        // sequence number are decided atomically with `unregister`'s
+        // "last socket".
+        let online_seq = {
+            let set = self.by_user.entry(user_id.clone()).or_default();
+            set.insert(id);
+            (set.len() == 1).then(|| self.presence_seq.fetch_add(1, Ordering::AcqRel) + 1)
+        };
         if is_staff {
             self.staff_sockets
                 .entry(user_id.clone())
@@ -344,7 +373,7 @@ impl ChatHub {
         if is_admin {
             self.admin_sockets.entry(user_id).or_default().insert(id);
         }
-        id
+        Registered { id, online_seq }
     }
 
     /// Attach a priority close channel to a session (the handler's
@@ -363,9 +392,10 @@ impl ChatHub {
 
     /// Tear down a connection: leave any joined room, remove the staff
     /// presence socket, release the IP slot, release the global slot,
-    /// and drop the session. Returns the (user, channel_id) pair so the
-    /// caller can broadcast the correct presence-offline update.
-    pub fn unregister(&self, id: u64) -> Option<(SessionUser, Option<String>)> {
+    /// and drop the session. Returns who left, from which room, and
+    /// whether that was their last socket, so the caller can broadcast
+    /// the right presence updates.
+    pub fn unregister(&self, id: u64) -> Option<Departed> {
         let (_, sess) = self.sessions.remove(&id)?;
         // Leave the current channel room (presence broadcast is done by caller).
         if let Some(cid) = &sess.channel_id {
@@ -377,7 +407,7 @@ impl ChatHub {
         // seen would be the same permanent-RSS leak `leave_room` fixed for
         // rooms).
         let user_id = sess.user.id.to_string();
-        self.drop_index(&self.by_user, &user_id, id);
+        let offline_seq = self.drop_user_socket(&user_id, id);
         if sess.user.is_staff() {
             self.drop_index(&self.staff_sockets, &user_id, id);
         }
@@ -391,7 +421,55 @@ impl ChatHub {
         }
         self.release_ip(&sess.ip);
         self.release_global();
-        Some((sess.user, sess.channel_id))
+        Some(Departed {
+            user: sess.user,
+            channel_id: sess.channel_id,
+            offline_seq,
+        })
+    }
+
+    /// Drop `id` from the user's socket set under the shard write lock,
+    /// so "last socket" and its sequence number are decided atomically
+    /// with `register`'s "first socket". Returns the sequence number when
+    /// the user just went offline.
+    fn drop_user_socket(&self, user_id: &str, id: u64) -> Option<u64> {
+        let offline_seq = {
+            let set = self.by_user.get_mut(user_id)?;
+            set.remove(&id);
+            set.is_empty()
+                .then(|| self.presence_seq.fetch_add(1, Ordering::AcqRel) + 1)
+        };
+        if offline_seq.is_some() {
+            self.by_user.remove_if(user_id, |_, s| s.is_empty());
+        }
+        offline_seq
+    }
+
+    /// Customers (not staff) online right now, with the presence sequence
+    /// number the list is at least as new as. The number is read first, so
+    /// any transition the list misses carries a higher one and still gets
+    /// applied by clients.
+    pub fn online_customers(&self) -> (u64, Vec<String>) {
+        let seq = self.presence_seq.load(Ordering::Acquire);
+        let users = self
+            .by_user
+            .iter()
+            // A set can sit empty for an instant between its last socket
+            // leaving and the entry being reclaimed.
+            .filter(|e| !e.value().is_empty() && !self.staff_sockets.contains_key(e.key()))
+            .map(|e| e.key().clone())
+            .collect();
+        (seq, users)
+    }
+
+    /// Detach a socket from its room (the customer closed the support
+    /// panel but stays signed in). Returns the room it left.
+    pub fn clear_channel(&self, id: u64) -> Option<String> {
+        let prev = self.sessions.get_mut(&id)?.channel_id.take();
+        if let Some(prev) = &prev {
+            self.leave_room(prev, id);
+        }
+        prev
     }
 
     /// Remove `id` from `index[user_id]`'s set and reclaim the whole
@@ -1148,11 +1226,17 @@ mod tests {
     fn register_returns_incrementing_ids() {
         let h = fresh_hub();
         let (tx, _rx) = make_tx();
-        let id1 = h.register(sample_user("u1", "user"), "1.1.1.1".into(), tx);
+        let id1 = h
+            .register(sample_user("u1", "user"), "1.1.1.1".into(), tx)
+            .id;
         let (tx, _rx) = make_tx();
-        let id2 = h.register(sample_user("u2", "user"), "1.1.1.1".into(), tx);
+        let id2 = h
+            .register(sample_user("u2", "user"), "1.1.1.1".into(), tx)
+            .id;
         let (tx, _rx) = make_tx();
-        let id3 = h.register(sample_user("u3", "user"), "1.1.1.1".into(), tx);
+        let id3 = h
+            .register(sample_user("u3", "user"), "1.1.1.1".into(), tx)
+            .id;
         assert!(id2 > id1, "ids must be monotonic: {id1} {id2}");
         assert!(id3 > id2, "ids must be monotonic: {id2} {id3}");
     }
@@ -1161,13 +1245,15 @@ mod tests {
     fn register_then_unregister_removes_session() {
         let h = fresh_hub();
         let (tx, _rx) = make_tx();
-        let id = h.register(sample_user("u1", "user"), "1.1.1.1".into(), tx);
+        let id = h
+            .register(sample_user("u1", "user"), "1.1.1.1".into(), tx)
+            .id;
         assert!(h.user_of(id).is_some());
-        let (user, channel) = h
+        let departed = h
             .unregister(id)
             .expect("unregister should return the session");
-        assert_eq!(user.name, "User-u1");
-        assert!(channel.is_none(), "no channel was set");
+        assert_eq!(departed.user.name, "User-u1");
+        assert!(departed.channel_id.is_none(), "no channel was set");
         assert!(
             h.user_of(id).is_none(),
             "session must be gone after unregister"
@@ -1185,7 +1271,7 @@ mod tests {
         assert!(h.try_acquire_global(), "global acquire must succeed first");
         assert!(h.try_acquire_ip(ip, 1), "acquire must succeed first");
         let (tx, _rx) = make_tx();
-        let id = h.register(sample_user("u1", "user"), ip.into(), tx);
+        let id = h.register(sample_user("u1", "user"), ip.into(), tx).id;
         // Both slots busy.
         assert!(
             !h.try_acquire_ip(ip, 1),
@@ -1217,7 +1303,9 @@ mod tests {
     fn set_channel_returns_previous() {
         let h = fresh_hub();
         let (tx, _rx) = make_tx();
-        let id = h.register(sample_user("u1", "user"), "1.1.1.1".into(), tx);
+        let id = h
+            .register(sample_user("u1", "user"), "1.1.1.1".into(), tx)
+            .id;
         assert_eq!(h.channel_of(id), None);
         let prev = h.set_channel(id, "ch1".into());
         assert_eq!(prev, None);
@@ -1239,7 +1327,9 @@ mod tests {
     fn set_channel_leaves_old_room() {
         let h = fresh_hub();
         let (tx, _rx) = make_tx();
-        let id = h.register(sample_user("u1", "user"), "1.1.1.1".into(), tx);
+        let id = h
+            .register(sample_user("u1", "user"), "1.1.1.1".into(), tx)
+            .id;
         h.set_channel(id, "ch1".into());
         h.join_room("ch1", id);
         // Sanity: in ch1.
@@ -1253,13 +1343,17 @@ mod tests {
     fn join_and_leave_room() {
         let h = fresh_hub();
         let (tx, _rx) = make_tx();
-        let id = h.register(sample_user("u1", "user"), "1.1.1.1".into(), tx);
+        let id = h
+            .register(sample_user("u1", "user"), "1.1.1.1".into(), tx)
+            .id;
         h.join_room("room-a", id);
         // user_still_in_room excludes `except` from the search, so checking
         // the user's only socket against itself returns false. We use a
         // second socket to verify membership instead.
         let (tx2, _rx2) = make_tx();
-        let id2 = h.register(sample_user("u2", "user"), "2.2.2.2".into(), tx2);
+        let id2 = h
+            .register(sample_user("u2", "user"), "2.2.2.2".into(), tx2)
+            .id;
         h.join_room("room-a", id2);
         let u1_id = sample_user_id("u1");
         // id is in the room; checking from id2's perspective (except=id2) sees id.
@@ -1283,7 +1377,9 @@ mod tests {
         // entry per channel ever joined (permanent RSS growth).
         let h = fresh_hub();
         let (tx, _rx) = make_tx();
-        let id = h.register(sample_user("u1", "user"), "1.1.1.1".into(), tx);
+        let id = h
+            .register(sample_user("u1", "user"), "1.1.1.1".into(), tx)
+            .id;
         h.join_room("room-a", id);
         assert_eq!(h.stats().rooms, 1, "room entry exists while occupied");
         h.leave_room("room-a", id);
@@ -1302,8 +1398,12 @@ mod tests {
         let h = fresh_hub();
         let (tx1, _rx1) = make_tx();
         let (tx2, mut rx2) = make_tx();
-        let id1 = h.register(sample_user("u1", "user"), "1.1.1.1".into(), tx1);
-        let id2 = h.register(sample_user("u2", "user"), "2.2.2.2".into(), tx2);
+        let id1 = h
+            .register(sample_user("u1", "user"), "1.1.1.1".into(), tx1)
+            .id;
+        let id2 = h
+            .register(sample_user("u2", "user"), "2.2.2.2".into(), tx2)
+            .id;
         h.join_room("room", id1);
         h.join_room("room", id2);
         h.leave_room("room", id1);
@@ -1325,8 +1425,12 @@ mod tests {
         let h = fresh_hub();
         let (tx1, mut rx1) = make_tx();
         let (tx2, mut rx2) = make_tx();
-        let id1 = h.register(sample_user("u1", "user"), "1.1.1.1".into(), tx1);
-        let id2 = h.register(sample_user("u2", "user"), "2.2.2.2".into(), tx2);
+        let id1 = h
+            .register(sample_user("u1", "user"), "1.1.1.1".into(), tx1)
+            .id;
+        let id2 = h
+            .register(sample_user("u2", "user"), "2.2.2.2".into(), tx2)
+            .id;
         h.join_room("room", id1);
         h.join_room("room", id2);
 
@@ -1350,8 +1454,12 @@ mod tests {
         let h = fresh_hub();
         let (tx1, mut rx1) = make_tx();
         let (tx2, mut rx2) = make_tx();
-        let id1 = h.register(sample_user("u1", "user"), "1.1.1.1".into(), tx1);
-        let id2 = h.register(sample_user("u2", "user"), "2.2.2.2".into(), tx2);
+        let id1 = h
+            .register(sample_user("u1", "user"), "1.1.1.1".into(), tx1)
+            .id;
+        let id2 = h
+            .register(sample_user("u2", "user"), "2.2.2.2".into(), tx2)
+            .id;
         h.join_room("room", id1);
         h.join_room("room", id2);
 
@@ -1367,7 +1475,9 @@ mod tests {
     fn send_to_delivers_to_single_socket() {
         let h = fresh_hub();
         let (tx, mut rx) = make_tx();
-        let id = h.register(sample_user("u1", "user"), "1.1.1.1".into(), tx);
+        let id = h
+            .register(sample_user("u1", "user"), "1.1.1.1".into(), tx)
+            .id;
         h.send_to(id, &serde_json::json!({ "type": "hello" }));
         let m = rx.try_recv().expect("must receive");
         assert!(std::str::from_utf8(&m).unwrap_or("").contains("hello"));
@@ -1380,8 +1490,12 @@ mod tests {
         let h = fresh_hub();
         let (tx1, _rx1) = make_tx();
         let (tx2, _rx2) = make_tx();
-        let id1 = h.register(sample_user("uA", "user"), "1.1.1.1".into(), tx1);
-        let id2 = h.register(sample_user("uA", "user"), "1.1.1.1".into(), tx2);
+        let id1 = h
+            .register(sample_user("uA", "user"), "1.1.1.1".into(), tx1)
+            .id;
+        let id2 = h
+            .register(sample_user("uA", "user"), "1.1.1.1".into(), tx2)
+            .id;
         h.join_room("room", id1);
         h.join_room("room", id2);
         let ua_id = sample_user_id("uA");
@@ -1471,7 +1585,7 @@ mod tests {
         let user = sample_user("uP", "employee");
         let uid = user.id.to_string();
         let (tx, _rx) = make_tx();
-        let id = h.register(user, "1.1.1.1".into(), tx);
+        let id = h.register(user, "1.1.1.1".into(), tx).id;
         presence().chat_socket_connected(&sample_user("uP", "employee"), id);
         assert!(presence().is_online(&uid));
         h.unregister(id);
@@ -1618,7 +1732,9 @@ mod tests {
     fn user_of_returns_user_for_known_id() {
         let h = fresh_hub();
         let (tx, _rx) = make_tx();
-        let id = h.register(sample_user("u7", "user"), "1.1.1.1".into(), tx);
+        let id = h
+            .register(sample_user("u7", "user"), "1.1.1.1".into(), tx)
+            .id;
         let u = h.user_of(id).expect("must be Some");
         assert_eq!(u.name, "User-u7");
     }
@@ -1715,7 +1831,9 @@ mod tests {
     fn stats_reflects_state() {
         let h = fresh_hub();
         let (tx, _rx) = make_tx();
-        let id1 = h.register(sample_user("u1", "user"), "1.1.1.1".into(), tx);
+        let id1 = h
+            .register(sample_user("u1", "user"), "1.1.1.1".into(), tx)
+            .id;
         h.join_room("room-x", id1);
         let s = h.stats();
         assert_eq!(s.rooms, 1, "one room joined");
@@ -1728,8 +1846,12 @@ mod tests {
         let h = fresh_hub();
         let (tx1, _rx1) = make_tx();
         let (tx2, _rx2) = make_tx();
-        let id1 = h.register(sample_user("u1", "user"), "1.1.1.1".into(), tx1);
-        let id2 = h.register(sample_user("u2", "user"), "2.2.2.2".into(), tx2);
+        let id1 = h
+            .register(sample_user("u1", "user"), "1.1.1.1".into(), tx1)
+            .id;
+        let id2 = h
+            .register(sample_user("u2", "user"), "2.2.2.2".into(), tx2)
+            .id;
         let mut ids = h.all_session_ids();
         ids.sort();
         assert_eq!(ids, vec![id1, id2]);
@@ -1740,8 +1862,12 @@ mod tests {
         let h = fresh_hub();
         let (tx1, _rx1) = make_tx();
         let (tx2, mut rx2) = make_tx();
-        let id1 = h.register(sample_user("u1", "user"), "1.1.1.1".into(), tx1);
-        let id2 = h.register(sample_user("u2", "user"), "2.2.2.2".into(), tx2);
+        let id1 = h
+            .register(sample_user("u1", "user"), "1.1.1.1".into(), tx1)
+            .id;
+        let id2 = h
+            .register(sample_user("u2", "user"), "2.2.2.2".into(), tx2)
+            .id;
         h.join_room("room", id1);
         h.join_room("room", id2);
         let n = h.broadcast_to_room_raw("room", r#"{\"type\":\"ping\"}"#);
@@ -1760,7 +1886,9 @@ mod tests {
         // permanent-RSS leak leave_room fixed for rooms.
         let h = fresh_hub();
         let (tx, _rx) = make_tx();
-        let id = h.register(sample_user("staff1", "employee"), "1.1.1.1".into(), tx);
+        let id = h
+            .register(sample_user("staff1", "employee"), "1.1.1.1".into(), tx)
+            .id;
         assert_eq!(h.by_user.len(), 1);
         assert_eq!(h.staff_sockets.len(), 1);
         assert_eq!(h.admin_sockets.len(), 0, "employee is not admin");
@@ -1771,8 +1899,12 @@ mod tests {
         // Multi-socket user: entry survives until the LAST socket drops.
         let (tx1, _rx1) = make_tx();
         let (tx2, _rx2) = make_tx();
-        let id1 = h.register(sample_user("uA", "user"), "1.1.1.1".into(), tx1);
-        let id2 = h.register(sample_user("uA", "user"), "1.1.1.1".into(), tx2);
+        let id1 = h
+            .register(sample_user("uA", "user"), "1.1.1.1".into(), tx1)
+            .id;
+        let id2 = h
+            .register(sample_user("uA", "user"), "1.1.1.1".into(), tx2)
+            .id;
         assert_eq!(h.by_user.len(), 1, "same user = one entry");
         h.unregister(id1);
         assert_eq!(h.by_user.len(), 1, "entry survives while one socket lives");
@@ -1787,9 +1919,15 @@ mod tests {
         let (tx1, _rx1) = make_tx();
         let (tx2, _rx2) = make_tx();
         let (tx3, _rx3) = make_tx();
-        let id1 = h.register(sample_user("uA", "user"), "1.1.1.1".into(), tx1);
-        let _other = h.register(sample_user("uB", "user"), "2.2.2.2".into(), tx2);
-        let id3 = h.register(sample_user("uA", "user"), "1.1.1.1".into(), tx3);
+        let id1 = h
+            .register(sample_user("uA", "user"), "1.1.1.1".into(), tx1)
+            .id;
+        let _other = h
+            .register(sample_user("uB", "user"), "2.2.2.2".into(), tx2)
+            .id;
+        let id3 = h
+            .register(sample_user("uA", "user"), "1.1.1.1".into(), tx3)
+            .id;
         let mut sockets = h.sockets_of_user(&sample_user_id("uA"));
         sockets.sort();
         let mut expected = vec![id1, id3];
@@ -1810,7 +1948,9 @@ mod tests {
         // close sentinel and count the reap.
         let h = ChatHub::with_limits(3, 60, 4);
         let (tx, mut rx) = mpsc::channel(4);
-        let id = h.register(sample_user("u1", "user"), "1.1.1.1".into(), tx);
+        let id = h
+            .register(sample_user("u1", "user"), "1.1.1.1".into(), tx)
+            .id;
         h.join_room("room", id);
         for _ in 0..10 {
             h.broadcast_to_room_raw("room", "{\"type\":\"ping\"}");
@@ -1849,7 +1989,9 @@ mod tests {
         let h = ChatHub::with_limits(3, 60, 4);
         let (tx, mut rx) = mpsc::channel(2);
         let (close_tx, mut close_rx) = mpsc::channel::<()>(1);
-        let id = h.register(sample_user("u1", "user"), "1.1.1.1".into(), tx);
+        let id = h
+            .register(sample_user("u1", "user"), "1.1.1.1".into(), tx)
+            .id;
         h.set_closer(id, close_tx);
         h.join_room("room", id);
         // Fill the queue (2 queued) + 5 dropped.
@@ -1883,12 +2025,86 @@ mod tests {
     fn reaper_disabled_when_threshold_zero() {
         let h = ChatHub::with_limits(3, 60, 0);
         let (tx, _rx) = mpsc::channel(2);
-        let id = h.register(sample_user("u1", "user"), "1.1.1.1".into(), tx);
+        let id = h
+            .register(sample_user("u1", "user"), "1.1.1.1".into(), tx)
+            .id;
         h.join_room("room", id);
         for _ in 0..10 {
             h.broadcast_to_room_raw("room", "{\"type\":\"ping\"}");
         }
         assert_eq!(h.reap_slow_consumers(), 0, "threshold 0 = reaper off");
         assert_eq!(h.slow_reaped_total(), 0);
+    }
+
+    // ── Customer presence ───────────────────────────────────────
+
+    /// Online means "has at least one socket": only the first socket
+    /// announces it, only the last one's close takes it back, and every
+    /// announcement carries a strictly newer sequence number.
+    #[test]
+    fn presence_flips_on_first_and_last_socket_with_increasing_seq() {
+        let h = fresh_hub();
+        let u = sample_user("cust-a", "user");
+        let uid = u.id.to_string();
+
+        let (tx, _rx1) = make_tx();
+        let first = h.register(u.clone(), "1.1.1.1".into(), tx);
+        let up = first
+            .online_seq
+            .expect("first socket brings the user online");
+        let (tx, _rx2) = make_tx();
+        let second = h.register(u.clone(), "1.1.1.1".into(), tx);
+        assert_eq!(second.online_seq, None, "a second tab is not news");
+        assert_eq!(h.online_customers().1, vec![uid.clone()]);
+
+        let gone = h.unregister(first.id).unwrap();
+        assert_eq!(gone.offline_seq, None, "one tab is still open");
+        let down = h
+            .unregister(second.id)
+            .unwrap()
+            .offline_seq
+            .expect("last socket takes the user offline");
+        assert!(down > up);
+        assert!(h.online_customers().1.is_empty());
+
+        // A refresh: the new socket's online event is newer still.
+        let (tx, _rx3) = make_tx();
+        let again = h.register(u, "1.1.1.1".into(), tx).online_seq.unwrap();
+        assert!(again > down);
+    }
+
+    /// The staff list shows customers; staff sockets never appear in it,
+    /// and the snapshot's number covers every transition it reflects.
+    #[test]
+    fn online_customers_excludes_staff_and_is_as_new_as_its_seq() {
+        let h = fresh_hub();
+        let (tx, _rx1) = make_tx();
+        let c = h.register(sample_user("cust-b", "user"), "1.1.1.1".into(), tx);
+        let (tx, _rx2) = make_tx();
+        h.register(sample_user("emp-b", "employee"), "2.2.2.2".into(), tx);
+        let (tx, _rx3) = make_tx();
+        h.register(sample_user("adm-b", "admin"), "3.3.3.3".into(), tx);
+
+        let (seq, users) = h.online_customers();
+        assert_eq!(users, vec![sample_user("cust-b", "user").id.to_string()]);
+        assert!(seq >= c.online_seq.unwrap());
+    }
+
+    /// Closing the support panel detaches the socket from its room but
+    /// keeps the user online.
+    #[test]
+    fn clear_channel_leaves_the_room_but_not_the_site() {
+        let h = fresh_hub();
+        let (tx, _rx) = make_tx();
+        let u = sample_user("cust-c", "user");
+        let id = h.register(u.clone(), "1.1.1.1".into(), tx).id;
+        h.set_channel(id, "room-c".into());
+        h.join_room("room-c", id);
+        assert!(h.is_user_online_in_channel("room-c", &u.id.to_string()));
+
+        assert_eq!(h.clear_channel(id).as_deref(), Some("room-c"));
+        assert!(!h.is_user_online_in_channel("room-c", &u.id.to_string()));
+        assert_eq!(h.clear_channel(id), None);
+        assert_eq!(h.online_customers().1, vec![u.id.to_string()]);
     }
 }

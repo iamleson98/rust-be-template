@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useT } from '@/lib/i18n'
 import { customerInitial, customerName } from './channel-info'
+import { OnlineDot } from './channel-row'
 
 type ActionProps = {
   label: string
@@ -45,6 +46,7 @@ type Props = {
   /** Back to the queue — phones and tablets show one pane at a time. */
   onBack?: () => void
   channel: ChatChannelOut
+  /** The customer is signed in with the site open. */
   userOnline: boolean
   typingUser: { name: string } | null
   busy: boolean
@@ -96,21 +98,16 @@ export function ConversationHeader({
             <ArrowLeft className="size-5" />
           </button>
         )}
-        <Avatar className="h-8 w-8 shrink-0">
-          <AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">
-            {customerInitial(channel)}
-          </AvatarFallback>
-        </Avatar>
+        <div className="relative shrink-0">
+          <Avatar className="h-8 w-8">
+            <AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">
+              {customerInitial(channel)}
+            </AvatarFallback>
+          </Avatar>
+          {userOnline && <OnlineDot className="size-2.5" />}
+        </div>
         <div className="min-w-0">
-          <div className="font-semibold text-sm truncate flex items-center gap-2">
-            {customerName(channel)}
-            {userOnline && (
-              <span
-                className="h-2 w-2 rounded-full bg-emerald-500 shrink-0"
-                title={t('chat.online')}
-              />
-            )}
-          </div>
+          <div className="font-semibold text-sm truncate">{customerName(channel)}</div>
           <div className="text-[11px] text-muted-foreground truncate flex items-center gap-2">
             {typingUser ? (
               <span className="text-blue-600 italic">

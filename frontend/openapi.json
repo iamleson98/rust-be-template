@@ -3734,6 +3734,33 @@
         }
       }
     },
+    "/api/chat/channels/online": {
+      "get": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "`GET /api/chat/channels/online` — who is online, for the staff channel\nlist: every customer signed in with the site open, and the queue's\nchannels that belong to them (brand-scoped like `list_channels`), most\nrecent activity first. Staff keep it current with the\n`customer_presence` WS events, applying only those with a higher `seq`.",
+        "operationId": "online_channels",
+        "responses": {
+          "200": {
+            "description": "Online customers and their channels",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnlineChannelsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden — staff only"
+          }
+        }
+      }
+    },
     "/api/chat/channels/{id}/claim": {
       "post": {
         "tags": [
@@ -10870,6 +10897,38 @@
               "type": "string"
             },
             "description": "Providers the sign-in page should offer (`google` | `facebook`)."
+          }
+        }
+      },
+      "OnlineChannelsResponse": {
+        "type": "object",
+        "description": "Response of `GET /api/chat/channels/online`.",
+        "required": [
+          "seq",
+          "userIds",
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChatChannelOut"
+            },
+            "description": "The queue's channels whose customer is online, most recent\nactivity first."
+          },
+          "seq": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Presence sequence number this answer is at least as new as. A live\n`customer_presence` event with a higher `seq` is newer than it.",
+            "minimum": 0
+          },
+          "userIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Every customer signed in with the site open right now."
           }
         }
       },

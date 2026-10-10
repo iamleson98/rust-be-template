@@ -10,6 +10,7 @@ import '../../core/net/ws_client.dart';
 import '../../shared/widgets.dart';
 import 'chat_service.dart';
 import 'conversations_controller.dart';
+import 'customer_presence.dart';
 import 'models.dart';
 
 /// The support queue — the agent's home screen.
@@ -25,6 +26,10 @@ class ConversationsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final channels = ref.watch(filteredChannelsProvider);
+    final onlineCount = onlineLead(
+      channels,
+      ref.watch(customerPresenceProvider),
+    );
     final queue = ref.watch(conversationsProvider);
     final status = ref.watch(chatStatusProvider).value;
     final user = ref.watch(authControllerProvider).user;
@@ -80,8 +85,11 @@ class ConversationsScreen extends ConsumerWidget {
                               itemCount: channels.length,
                               separatorBuilder: (_, __) =>
                                   const SizedBox(height: 4),
-                              itemBuilder: (context, i) =>
-                                  _ConversationRow(channel: channels[i]),
+                              itemBuilder: (context, i) => _ConversationRow(
+                                channel: channels[i],
+                                online: i < onlineCount,
+                                section: _sectionLabel(i, onlineCount),
+                              ),
                             ),
                           ))
                   : queue.hasError
@@ -375,19 +383,71 @@ class _FilterTabs extends ConsumerWidget {
   }
 }
 
-/// One conversation row: messenger-style — avatar + presence, name,
-/// time, preview, status chip, purple unread pill.
+/// The heading above row [i]: where the online customers start, and
+/// where they end.
+String? _sectionLabel(int i, int onlineCount) {
+  if (onlineCount == 0) return null;
+  if (i == 0) return 'Đang online · $onlineCount';
+  if (i == onlineCount) return 'Ngoại tuyến';
+  return null;
+}
+
+/// Heading over a group of rows; the online group's carries a green dot.
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel(this.text, {required this.online});
+
+  final String text;
+  final bool online;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.theme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 10, 8, 4),
+      child: Row(
+        children: [
+          if (online) ...[
+            const PresenceDot(online: true, size: 8),
+            const SizedBox(width: 6),
+          ],
+          Text(
+            text.toUpperCase(),
+            style: theme.typography.body.xs.copyWith(
+              color: theme.colors.mutedForeground,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.6,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// One conversation row: messenger-style — avatar with a green dot while
+/// the customer is online, name, time, preview, status chip, purple
+/// unread pill.
 class _ConversationRow extends ConsumerWidget {
-  const _ConversationRow({required this.channel});
+  const _ConversationRow({
+    required this.channel,
+    required this.online,
+    this.section,
+  });
 
   final Channel channel;
+
+  /// The customer is signed in with the site open.
+  final bool online;
+
+  /// Heading to show above this row, if it starts a group.
+  final String? section;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = context.theme;
     final unread = channel.unreadEmployee;
 
-    return Semantics(
+    final row = Semantics(
       button: true,
       label: channel.displayName,
       child: GestureDetector(
@@ -443,11 +503,11 @@ class _ConversationRow extends ConsumerWidget {
                         ),
                       ),
                     )
-                  else
-                    Positioned(
+                  else if (online)
+                    const Positioned(
                       right: -1,
                       bottom: -1,
-                      child: PresenceDot(online: channel.isOpen, size: 12),
+                      child: PresenceDot(online: true, size: 12),
                     ),
                 ],
               ),
@@ -556,6 +616,12 @@ class _ConversationRow extends ConsumerWidget {
           ),
         ),
       ),
+    );
+    final label = section;
+    if (label == null) return row;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [_SectionLabel(label, online: online), row],
     );
   }
 

@@ -38,6 +38,7 @@ export function useCustomerRoom({ userId, channelId, onBanned }: Options) {
   const { connected, send } = useChatSocket({
     enabled: !!userId,
     channelId,
+    userId,
     onGiveUp: () => void queryClient.invalidateQueries({ queryKey: authMeQueryKey() }),
     onEvent: (event) => {
       const here = 'channelId' in event && event.channelId === channelId

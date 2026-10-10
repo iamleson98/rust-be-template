@@ -20,7 +20,9 @@ import '../../core/net/ws_client.dart';
 ///    `channel_closed`   — queue shape changed → refetch
 ///    `staff_presence`   — team availability snapshot
 ///    `typing`           — typing indicator in a joined room
-///    `presence`         — customer online/offline in a joined room
+///    `customer_presence` — a customer signed in with the site open
+///                         (first tab) or left (last tab); see
+///                         `customer_presence.dart`
 ///    `pong`             — heartbeat ack
 ///
 ///  Client → server:
@@ -47,8 +49,8 @@ class ChatLiveService {
 
   bool get isConnected => _client.isConnected;
 
-  /// Room membership — the hub only broadcasts `message`/`typing`/
-  /// `presence` to sockets that joined the channel's room.
+  /// Room membership — the hub only broadcasts `message`/`typing` to
+  /// sockets that joined the channel's room.
   void join(String channelId) => _client.send('join', {'channelId': channelId});
 
   void sendTyping(String channelId, bool isTyping) =>

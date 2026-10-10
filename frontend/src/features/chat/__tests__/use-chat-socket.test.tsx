@@ -8,14 +8,19 @@ const mocks = vi.hoisted(() => ({ sockets: [] as unknown[] }))
 vi.mock('@/api/ws-client', () => ({
   WsClient: class {
     connected = false
-    handlers = new Map<string, (data: Record<string, unknown>) => void>()
+    handlers = new Map<string, Set<(data: Record<string, unknown>) => void>>()
     sent: [string, Record<string, unknown> | undefined][] = []
     close = vi.fn()
     constructor() {
       mocks.sockets.push(this)
     }
     on(type: string, handler: (data: Record<string, unknown>) => void) {
-      this.handlers.set(type, handler)
+      if (!this.handlers.has(type)) this.handlers.set(type, new Set())
+      this.handlers.get(type)!.add(handler)
+      return this
+    }
+    off(type: string, handler: (data: Record<string, unknown>) => void) {
+      this.handlers.get(type)?.delete(handler)
       return this
     }
     send(type: string, data?: Record<string, unknown>) {
@@ -25,7 +30,7 @@ vi.mock('@/api/ws-client', () => ({
     }
     // test controls
     emit(type: string, data: Record<string, unknown> = {}) {
-      this.handlers.get(type)?.(data)
+      for (const handler of this.handlers.get(type) ?? []) handler(data)
     }
     open() {
       this.connected = true
@@ -56,14 +61,14 @@ beforeEach(() => {
   mocks.sockets.length = 0
 })
 
-function setup(props: { enabled?: boolean; channelId?: string | null } = {}) {
+type Props = { enabled: boolean; channelId?: string | null; userId?: string | null }
+
+function setup(props: Partial<Props> = {}) {
   const onEvent = vi.fn<(event: ChatEvent) => void>()
   const onGiveUp = vi.fn()
-  const hook = renderHook(
-    (p: { enabled: boolean; channelId?: string | null }) =>
-      useChatSocket({ ...p, onEvent, onGiveUp }),
-    { initialProps: { enabled: true, ...props } },
-  )
+  const hook = renderHook((p: Props) => useChatSocket({ ...p, onEvent, onGiveUp }), {
+    initialProps: { enabled: true, ...props },
+  })
   return { onEvent, onGiveUp, ...hook }
 }
 
@@ -128,6 +133,42 @@ describe('useChatSocket', () => {
     expect(onGiveUp).not.toHaveBeenCalled()
     act(() => socket().emit('_giveup', { everOpened: false }))
     expect(onGiveUp).toHaveBeenCalledTimes(1)
+  })
+
+  it('shares one socket between holders and closes it when the last lets go', () => {
+    const presence = setup()
+    const panel = setup({ channelId: 'c1' })
+    expect(mocks.sockets).toHaveLength(1)
+    act(() => socket().open())
+    expect(presence.result.current.connected).toBe(true)
+    expect(panel.result.current.connected).toBe(true)
+    expect(joins()).toEqual(['c1'])
+
+    panel.unmount()
+    expect(socket().sent.at(-1)).toEqual(['leave', undefined]) // support sees the panel close
+    expect(socket().close).not.toHaveBeenCalled()
+    act(() => socket().emit('_message', { type: 'typing' }))
+    expect(panel.onEvent).not.toHaveBeenCalled()
+    expect(presence.onEvent).toHaveBeenCalledTimes(1)
+
+    presence.unmount()
+    expect(socket().close).toHaveBeenCalled()
+  })
+
+  it('a holder that joins an open socket is connected at once', () => {
+    setup()
+    act(() => socket().open())
+    const late = setup({ channelId: 'c9' })
+    expect(late.result.current.connected).toBe(true)
+    expect(joins()).toEqual(['c9'])
+  })
+
+  it('reopens the socket when the signed-in user changes', () => {
+    const { rerender } = setup({ userId: 'a' })
+    const first = socket()
+    rerender({ enabled: true, userId: 'b' })
+    expect(first.close).toHaveBeenCalled()
+    expect(socket()).not.toBe(first)
   })
 
   it('closes the socket when disabled or unmounted', () => {

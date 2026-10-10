@@ -19,7 +19,6 @@ class RoomState {
     this.loading = false,
     this.error,
     this.typingName,
-    this.customerOnline = false,
     this.active = true,
     this.hasMore = true,
     this.loadingOlder = false,
@@ -33,7 +32,6 @@ class RoomState {
   final bool loading;
   final String? error;
   final String? typingName;
-  final bool customerOnline;
 
   /// False once closed (trims memory when the agent leaves the room).
   final bool active;
@@ -51,7 +49,6 @@ class RoomState {
     bool? loading,
     String? error,
     String? typingName,
-    bool? customerOnline,
     bool? active,
     bool? hasMore,
     bool? loadingOlder,
@@ -63,7 +60,6 @@ class RoomState {
     loading: loading ?? this.loading,
     error: clearError ? null : (error ?? this.error),
     typingName: clearTyping ? null : (typingName ?? this.typingName),
-    customerOnline: customerOnline ?? this.customerOnline,
     active: active ?? this.active,
     hasMore: hasMore ?? this.hasMore,
     loadingOlder: loadingOlder ?? this.loadingOlder,
@@ -367,8 +363,6 @@ class RoomsNotifier extends Notifier<Map<String, RoomState>> {
         _onRoomMessage(msg);
       case 'typing':
         _onTyping(msg);
-      case 'presence':
-        _onPresence(msg);
     }
   }
 
@@ -406,13 +400,6 @@ class RoomsNotifier extends Notifier<Map<String, RoomState>> {
         clearTyping: !isTyping,
       ),
     );
-  }
-
-  void _onPresence(Map<String, dynamic> msg) {
-    final channelId = msg['channelId'] as String?;
-    if (channelId == null || !state.containsKey(channelId)) return;
-    final online = msg['online'] as bool? ?? false;
-    _updateRoom(channelId, (room) => room.copyWith(customerOnline: online));
   }
 
   // ── Mutation helper ────────────────────────────────────────────────

@@ -37,7 +37,16 @@ export type ChatEvent =
       text?: string
     }
   | { type: 'typing'; channelId: string; userId?: string; name: string; isTyping: boolean }
-  | { type: 'presence'; channelId: string; online: boolean }
+  | {
+      /** A customer signed in with the site open (first tab) or left (last tab). */
+      type: 'customer_presence'
+      userId: string
+      online: boolean
+      /** Orders these events against each other and the online snapshot. */
+      seq: number
+      /** The customer's open channels, on coming online, when the server knew them. */
+      channelIds?: string[]
+    }
   | { type: 'joined'; channelId: string; botActive?: boolean }
   | { type: 'channel_assigned'; channelId: string; employeeId?: string; employeeName?: string }
   | { type: 'channel_released' | 'channel_closed'; channelId: string }

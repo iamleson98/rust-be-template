@@ -101,6 +101,14 @@ pub trait ChatStore: Send + Sync {
     /// there are more channels than the list's `limit` (which caps
     /// at 200). Without this, the "Đang chờ" card would max out at
     /// the list's page size.
+    /// The not-closed channels (same queue as `list_open_channels`) whose
+    /// customer is one of `user_ids` — the "online now" section of the
+    /// staff channel list. Unpaged: bounded by who is connected.
+    async fn list_open_channels_of_users(
+        &self,
+        brand_id: Option<Uuid>,
+        user_ids: &[Uuid],
+    ) -> StoreResult<Vec<chat_channel::Model>>;
     async fn count_channels_by_status(&self) -> StoreResult<Vec<(String, i64)>>;
     /// Compute the average first-response time across all channels
     /// that have at least one user message + one employee reply.
@@ -288,6 +296,26 @@ impl ChatStore for DbChatStore {
             q = q.filter(chat_channel::Column::BrandId.eq(brand_id));
         }
         Ok(q.all(self.db.as_ref()).await?)
+    }
+
+    async fn list_open_channels_of_users(
+        &self,
+        brand_id: Option<Uuid>,
+        user_ids: &[Uuid],
+    ) -> StoreResult<Vec<chat_channel::Model>> {
+        // Chunked so a busy evening never builds one huge IN list.
+        let mut out = Vec::new();
+        for chunk in user_ids.chunks(500) {
+            let mut q = chat_channel::Entity::find()
+                .filter(chat_channel::Column::Status.is_in(["open", "assigned"]))
+                .filter(chat_channel::Column::UserId.is_in(chunk.to_vec()));
+            if let Some(brand_id) = brand_id {
+                q = q.filter(chat_channel::Column::BrandId.eq(brand_id));
+            }
+            out.extend(q.all(self.db.as_ref()).await?);
+        }
+        out.sort_by(|a, b| b.last_message_at.cmp(&a.last_message_at));
+        Ok(out)
     }
 
     async fn count_channels_by_status(&self) -> StoreResult<Vec<(String, i64)>> {
@@ -892,6 +920,16 @@ impl<S: ChatStore> ChatStore for CacheChatStore<S> {
         self.inner.list_open_channels(brand_id, limit, offset).await
     }
 
+    async fn list_open_channels_of_users(
+        &self,
+        brand_id: Option<Uuid>,
+        user_ids: &[Uuid],
+    ) -> StoreResult<Vec<chat_channel::Model>> {
+        self.inner
+            .list_open_channels_of_users(brand_id, user_ids)
+            .await
+    }
+
     async fn count_channels_by_status(&self) -> StoreResult<Vec<(String, i64)>> {
         // Aggregate queries are not cached — they need fresh results
         // every call (the channel count changes on every new channel).
@@ -1188,6 +1226,42 @@ mod tests {
                 "closed channel leaked into queue page {offset}"
             );
         }
+    }
+
+    /// The "online now" section: only the given customers' not-closed
+    /// channels, in the staff's brand when they have one, newest first.
+    #[tokio::test]
+    async fn open_channels_of_users_filters_by_owner_status_and_brand() {
+        let store = mem_store().await;
+        let (online_a, online_b, offline) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
+        let brand = Uuid::new_v4();
+        let mut rows = vec![
+            channel(online_a, "open", "2026-09-01T09:00:00Z"),
+            channel(online_b, "assigned", "2026-09-03T09:00:00Z"),
+            channel(online_b, "closed", "2026-09-04T09:00:00Z"),
+            channel(offline, "open", "2026-09-05T09:00:00Z"),
+        ];
+        rows[1].brand_id = Set(Some(brand));
+        for am in rows {
+            chat_channel::Entity::insert(am)
+                .exec(store.db.as_ref())
+                .await
+                .unwrap();
+        }
+
+        let all = store
+            .list_open_channels_of_users(None, &[online_a, online_b])
+            .await
+            .unwrap();
+        let owners: Vec<Uuid> = all.iter().map(|c| c.user_id).collect();
+        assert_eq!(owners, vec![online_b, online_a], "newest activity first");
+
+        let branded = store
+            .list_open_channels_of_users(Some(brand), &[online_a, online_b])
+            .await
+            .unwrap();
+        assert_eq!(branded.len(), 1);
+        assert_eq!(branded[0].user_id, online_b);
     }
 
     #[tokio::test]

@@ -235,7 +235,8 @@ pub async fn handle_socket(
     let (tx, mut rx) = mpsc::channel::<bytes::Bytes>(limits.channel_cap.max(1));
     let (close_tx, mut close_rx) = mpsc::channel::<()>(1);
 
-    let sid = hub().register(user.clone(), admission.into_session(), tx);
+    let registered = hub().register(user.clone(), admission.into_session(), tx);
+    let sid = registered.id;
     // Give the reaper a priority close path that works even when the
     // outbound queue is completely full (the reaping condition itself):
     // the write pump's `close_rx` select branch sends a proper Close
@@ -253,6 +254,17 @@ pub async fn handle_socket(
     if is_staff {
         presence().chat_socket_connected(&user, sid);
         hub().broadcast_staff_presence(None);
+    } else if let Some(seq) = registered.online_seq {
+        // Staff lists hold only some channels; the ids say whether this
+        // customer's conversation is one a list should fetch to show as
+        // online. Unknown (lookup failed) → lists refetch to be safe.
+        let channel_ids = st
+            .chats
+            .list_open_channels_of_users(None, &[user.id])
+            .await
+            .ok()
+            .map(|cs| cs.into_iter().map(|c| c.id).collect::<Vec<_>>());
+        broadcast_customer_presence(user.id, true, seq, channel_ids);
     }
 
     tracing::debug!(
@@ -381,9 +393,19 @@ pub async fn handle_socket(
     // and releases the per-IP + global connection slots (hub.rs).
     // Calling release_ip/release_global again here would double-decrement
     // the counters and progressively bypass WS_MAX_CONNECTIONS.
-    hub().unregister(sid);
+    let departed = hub().unregister(sid);
+    if let Some(room) = departed.as_ref().and_then(|d| d.channel_id.as_deref()) {
+        if !hub().user_still_in_room(room, &user.id.to_string(), sid) {
+            hub().broadcast_to_room(
+                room,
+                &json!({ "type": "presence", "channelId": room, "userId": user.id, "online": false }),
+            );
+        }
+    }
     if is_staff {
         hub().broadcast_staff_presence(None);
+    } else if let Some(seq) = departed.and_then(|d| d.offline_seq) {
+        broadcast_customer_presence(user.id, false, seq, None);
     }
     tracing::debug!(socket_id = sid, "ws disconnected");
 }
@@ -400,6 +422,10 @@ async fn handle_text(
     let ty = msg.get("type").and_then(|v| v.as_str()).unwrap_or("");
     match ty {
         "join" => handle_join(st, sid, user, &msg).await,
+        "leave" => {
+            handle_leave(sid, user);
+            Ok(())
+        }
         "message" => handle_message(st, sid, user, &msg).await,
         "read" => handle_read(st, user, &msg).await,
         "typing" => {
@@ -480,6 +506,40 @@ async fn handle_join(
         hub().send_to(sid, &presence().staff_json(brand_id.as_deref()));
     }
     Ok(())
+}
+
+/// `leave` — the customer closed the support panel but stays signed in:
+/// the socket leaves its room, and the room hears they are gone.
+fn handle_leave(sid: u64, user: &SessionUser) {
+    if let Some(prev) = hub().clear_channel(sid) {
+        if !hub().user_still_in_room(&prev, &user.id.to_string(), sid) {
+            hub().broadcast_to_room(
+                &prev,
+                &json!({ "type": "presence", "channelId": prev, "userId": user.id, "online": false }),
+            );
+        }
+    }
+}
+
+/// Tell every staff client that a customer came online (first socket) or
+/// went offline (last socket closed). `seq` orders the events; an online
+/// event lists the customer's open channels when known.
+fn broadcast_customer_presence(
+    user_id: uuid::Uuid,
+    online: bool,
+    seq: u64,
+    channel_ids: Option<Vec<uuid::Uuid>>,
+) {
+    let mut ev = json!({
+        "type": "customer_presence",
+        "userId": user_id,
+        "online": online,
+        "seq": seq,
+    });
+    if let Some(ids) = channel_ids {
+        ev["channelIds"] = json!(ids);
+    }
+    hub().broadcast_to_staff(&ev);
 }
 
 /// `message` — store + broadcast a chat message (with idempotency).

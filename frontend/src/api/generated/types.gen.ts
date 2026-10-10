@@ -2040,6 +2040,26 @@ export type OAuthProvidersResponse = {
 };
 
 /**
+ * Response of `GET /api/chat/channels/online`.
+ */
+export type OnlineChannelsResponse = {
+    /**
+     * The queue's channels whose customer is online, most recent
+     * activity first.
+     */
+    items: Array<ChatChannelOut>;
+    /**
+     * Presence sequence number this answer is at least as new as. A live
+     * `customer_presence` event with a higher `seq` is newer than it.
+     */
+    seq: number;
+    /**
+     * Every customer signed in with the site open right now.
+     */
+    userIds: Array<string>;
+};
+
+/**
  * One passenger on a booking.
  */
 export type PassengerReq = {
@@ -6348,6 +6368,33 @@ export type CreateChannelResponses = {
 };
 
 export type CreateChannelResponse2 = CreateChannelResponses[keyof CreateChannelResponses];
+
+export type OnlineChannelsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/chat/channels/online';
+};
+
+export type OnlineChannelsErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden — staff only
+     */
+    403: unknown;
+};
+
+export type OnlineChannelsResponses = {
+    /**
+     * Online customers and their channels
+     */
+    200: OnlineChannelsResponse;
+};
+
+export type OnlineChannelsResponse2 = OnlineChannelsResponses[keyof OnlineChannelsResponses];
 
 export type ClaimChannelData = {
     body?: never;

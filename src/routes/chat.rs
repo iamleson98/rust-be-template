@@ -9,7 +9,7 @@ use validator::Validate;
 use crate::dto::chat::{
     ChannelAssignmentResponse, ChannelUserOut, ChatChannelListResponse, ChatChannelOut,
     ChatMessageListResponse, ChatMessageOut, CreateChannelRequest, CreateChannelResponse,
-    CreateMessageRequest, CreateMessageResponse, MarkChannelReadResponse,
+    CreateMessageRequest, CreateMessageResponse, MarkChannelReadResponse, OnlineChannelsResponse,
 };
 use crate::entity::{chat_channel, chat_message};
 use crate::error::AppError;
@@ -86,6 +86,18 @@ pub async fn list_channels(
         )
         .await?;
 
+    let items = channels_to_dtos(&st, uid, channels).await?;
+    Ok(Json(ChatChannelListResponse { items }))
+}
+
+/// Channel rows → DTOs for `uid`'s list, with the customer and the active
+/// assignee embedded. Users and assignments are batch-fetched (one
+/// round-trip each, never one per channel).
+async fn channels_to_dtos(
+    st: &AppState,
+    uid: Uuid,
+    channels: Vec<chat_channel::Model>,
+) -> Result<Vec<ChatChannelOut>, AppError> {
     // Batch-fetch the customer user rows for every channel in one
     // round-trip (avoids N+1 queries when listing channels for the
     // admin support queue). Each `user::Model` is then mapped to
@@ -147,7 +159,7 @@ pub async fn list_channels(
         &crate::entity::chat_assignment::Model,
     > = assignments.iter().map(|a| (a.channel_id, a)).collect();
 
-    let items: Vec<ChatChannelOut> = channels
+    Ok(channels
         .into_iter()
         .map(|c| {
             let user_info = user_dtos.get(&c.user_id).cloned();
@@ -162,8 +174,47 @@ pub async fn list_channels(
                 .is_some_and(|id| Uuid::parse_str(id).is_ok_and(|u| u == uid));
             channel_to_dto(c, user_info, assigned_to, assigned_to_me)
         })
+        .collect())
+}
+
+/// `GET /api/chat/channels/online` — who is online, for the staff channel
+/// list: every customer signed in with the site open, and the queue's
+/// channels that belong to them (brand-scoped like `list_channels`), most
+/// recent activity first. Staff keep it current with the
+/// `customer_presence` WS events, applying only those with a higher `seq`.
+#[utoipa::path(
+    get,
+    path = "/api/chat/channels/online",
+    tag = "chat",
+    responses(
+        (status = 200, description = "Online customers and their channels", body = OnlineChannelsResponse),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Forbidden — staff only"),
+    )
+)]
+pub async fn online_channels(
+    State(st): State<AppState>,
+    AuthUser(uid): AuthUser,
+) -> Result<Json<OnlineChannelsResponse>, AppError> {
+    let staff = session_user_of(&st, uid).await?;
+    if !staff.is_staff() {
+        return Err(AppError::Forbidden("only staff see who is online".into()));
+    }
+    let (seq, online) = crate::ws::hub::hub().online_customers();
+    let user_ids: Vec<Uuid> = online
+        .iter()
+        .filter_map(|id| Uuid::parse_str(id).ok())
         .collect();
-    Ok(Json(ChatChannelListResponse { items }))
+    let channels = st
+        .chats
+        .list_open_channels_of_users(staff.brand_id, &user_ids)
+        .await?;
+    let items = channels_to_dtos(&st, uid, channels).await?;
+    Ok(Json(OnlineChannelsResponse {
+        seq,
+        user_ids,
+        items,
+    }))
 }
 
 #[derive(Deserialize, IntoParams)]
@@ -776,6 +827,7 @@ pub fn router() -> axum::Router<crate::state::AppState> {
     use axum::routing::{get, post};
     axum::Router::new()
         .route("/channels", get(list_channels).post(create_channel))
+        .route("/channels/online", get(online_channels))
         .route("/channels/{id}/claim", post(claim_channel))
         .route("/channels/{id}/release", post(release_channel))
         .route("/channels/{id}/close", post(close_channel))

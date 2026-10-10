@@ -15,6 +15,7 @@ import '../../shared/widgets.dart';
 import '../call/call_controller.dart';
 import '../notifications/notification_service.dart';
 import 'conversations_controller.dart';
+import 'customer_presence.dart';
 import 'models.dart';
 import 'rooms_controller.dart';
 
@@ -390,6 +391,10 @@ class _RoomScreenState extends ConsumerState<RoomScreen> {
     );
     final channel = room?.channel;
     final messages = room?.messages ?? const <ChatMessage>[];
+    final userId = channel?.userId;
+    final online = ref.watch(
+      customerPresenceProvider.select((p) => p.isOnline(userId ?? '')),
+    );
 
     _onMessagesChanged(messages);
 
@@ -408,7 +413,7 @@ class _RoomScreenState extends ConsumerState<RoomScreen> {
           children: [
             _RoomHeader(
               channel: channel,
-              online: room?.customerOnline ?? false,
+              online: online,
               typingName: room?.typingName,
               onBack: () => context.pop(),
               onCall: channel == null || channel.isClosed
