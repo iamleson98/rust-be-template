@@ -3067,6 +3067,27 @@
         }
       }
     },
+    "/api/auth/oauth/providers": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "`GET /api/auth/oauth/providers` — the social sign-ins that work right\nnow, so the login page shows no button that would end in an error.",
+        "operationId": "oauth_providers",
+        "responses": {
+          "200": {
+            "description": "Enabled providers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthProvidersResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/auth/oauth/{provider}/callback": {
       "get": {
         "tags": [
@@ -10833,6 +10854,22 @@
           "provider": {
             "type": "string",
             "description": "Provider name (e.g. \"http\" or \"stub\")."
+          }
+        }
+      },
+      "OAuthProvidersResponse": {
+        "type": "object",
+        "description": "Response of `GET /api/auth/oauth/providers`.",
+        "required": [
+          "providers"
+        ],
+        "properties": {
+          "providers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Providers the sign-in page should offer (`google` | `facebook` | `twitter`)."
           }
         }
       },

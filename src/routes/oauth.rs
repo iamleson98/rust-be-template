@@ -38,10 +38,10 @@
 use axum::extract::{Path, Query, State};
 use axum::response::{IntoResponse, Redirect, Response};
 use axum_extra::extract::CookieJar;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use time::Duration as SignedDuration;
 use tracing::Instrument;
-use utoipa::IntoParams;
+use utoipa::{IntoParams, ToSchema};
 
 use crate::auth::oauth::{self, OAuthProvider};
 use crate::error::{AppError, AppResult};
@@ -91,10 +91,7 @@ pub async fn oauth_start(
     Path(provider): Path<String>,
     jar: CookieJar,
 ) -> AppResult<Response> {
-    let cfg = oauth_provider_config(&st, &provider)
-        .ok_or_else(|| AppError::NotFound(format!("oauth provider '{provider}' not configured")))?;
-
-    let provider_cfg = build_provider(&provider, cfg)
+    let provider_cfg = enabled_provider(&st.config.oauth, &provider)
         .ok_or_else(|| AppError::NotFound(format!("oauth provider '{provider}' not configured")))?;
 
     let state = oauth::generate_state();
@@ -241,17 +238,7 @@ pub async fn oauth_callback(
     }
 
     // 5. Build the provider + exchange the code.
-    let cfg = match oauth_provider_config(&st, &provider) {
-        Some(c) => c,
-        None => {
-            return Ok(Redirect::temporary(&format!(
-                "{error_redirect_base}?oauth_error={}",
-                urlencoding::encode("Nhà cung cấp OAuth không được cấu hình")
-            ))
-            .into_response());
-        }
-    };
-    let provider_impl = match build_provider(&provider, cfg) {
+    let provider_impl = match enabled_provider(&st.config.oauth, &provider) {
         Some(p) => p,
         None => {
             return Ok(Redirect::temporary(&format!(
@@ -333,29 +320,86 @@ pub async fn oauth_callback(
 
 // ── Helpers ───────────────────────────────────────────────────────
 
-fn oauth_provider_config<'a>(
-    st: &'a AppState,
-    provider: &str,
-) -> Option<&'a crate::config::OAuthProviderConfig> {
-    match provider {
-        "facebook" => Some(&st.config.oauth.facebook),
-        "google" => Some(&st.config.oauth.google),
-        "twitter" => Some(&st.config.oauth.twitter),
-        _ => None,
+/// Every provider this backend can sign people in with.
+const PROVIDERS: [&str; 3] = ["google", "facebook", "twitter"];
+
+/// The provider behind `name` when it is switched on (`OAUTH_<P>_ENABLED`)
+/// and has both its client id and secret.
+fn enabled_provider(
+    oauth_cfg: &crate::config::OAuthConfig,
+    name: &str,
+) -> Option<Box<dyn OAuthProvider>> {
+    let cfg = match name {
+        "facebook" => &oauth_cfg.facebook,
+        "google" => &oauth_cfg.google,
+        "twitter" => &oauth_cfg.twitter,
+        _ => return None,
+    };
+    if !cfg.enabled {
+        return None;
     }
+    oauth::build_provider(name, cfg)
 }
 
-fn build_provider(
-    name: &str,
-    cfg: &crate::config::OAuthProviderConfig,
-) -> Option<Box<dyn OAuthProvider>> {
-    oauth::build_provider(name, cfg)
+/// Response of `GET /api/auth/oauth/providers`.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct OAuthProvidersResponse {
+    /// Providers the sign-in page should offer (`google` | `facebook` | `twitter`).
+    pub providers: Vec<String>,
+}
+
+/// `GET /api/auth/oauth/providers` — the social sign-ins that work right
+/// now, so the login page shows no button that would end in an error.
+#[utoipa::path(
+    get,
+    path = "/api/auth/oauth/providers",
+    tag = "auth",
+    responses((status = 200, description = "Enabled providers", body = OAuthProvidersResponse))
+)]
+pub async fn oauth_providers(State(st): State<AppState>) -> axum::Json<OAuthProvidersResponse> {
+    axum::Json(OAuthProvidersResponse {
+        providers: PROVIDERS
+            .iter()
+            .filter(|p| enabled_provider(&st.config.oauth, p).is_some())
+            .map(|p| p.to_string())
+            .collect(),
+    })
 }
 
 /// Build the OAuth router.
 pub fn router() -> axum::Router<crate::state::AppState> {
     use axum::routing::get;
     axum::Router::new()
+        .route("/providers", get(oauth_providers))
         .route("/{provider}/start", get(oauth_start))
         .route("/{provider}/callback", get(oauth_callback))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::{OAuthConfig, OAuthProviderConfig};
+
+    #[test]
+    fn a_provider_needs_its_switch_and_both_credentials() {
+        let creds = |enabled| OAuthProviderConfig {
+            enabled,
+            client_id: "id".into(),
+            client_secret: "secret".into(),
+            scopes: String::new(),
+        };
+        let cfg = OAuthConfig {
+            google: creds(true),
+            facebook: creds(false),
+            twitter: OAuthProviderConfig {
+                client_secret: String::new(),
+                ..creds(true)
+            },
+            ..Default::default()
+        };
+        assert!(enabled_provider(&cfg, "google").is_some());
+        assert!(enabled_provider(&cfg, "facebook").is_none(), "switched off");
+        assert!(enabled_provider(&cfg, "twitter").is_none(), "no secret");
+        assert!(enabled_provider(&cfg, "github").is_none());
+    }
 }
