@@ -25,9 +25,7 @@ pub struct Model {
     pub created_at: String,
     #[sea_orm(column_type = "Text")]
     pub updated_at: String,
-    /// Passengers up to this age pay the child fare; `None` = no child fare.
     pub child_max_age: Option<i16>,
-    /// How much less a child pays than an adult, in percent.
     pub child_discount_percent: Option<i16>,
 }
 

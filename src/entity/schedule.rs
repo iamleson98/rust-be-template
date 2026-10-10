@@ -45,6 +45,8 @@ pub enum Relation {
         on_delete = "Cascade"
     )]
     Route,
+    #[sea_orm(has_many = "super::schedule_fare::Entity")]
+    ScheduleFare,
     #[sea_orm(has_many = "super::schedule_point::Entity")]
     SchedulePoint,
     #[sea_orm(has_many = "super::trip_session::Entity")]
@@ -68,6 +70,12 @@ impl Related<super::bus_layout::Entity> for Entity {
 impl Related<super::route::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Route.def()
+    }
+}
+
+impl Related<super::schedule_fare::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::ScheduleFare.def()
     }
 }
 
