@@ -8335,7 +8335,7 @@
           },
           "claimedSlots": {
             "type": "integer",
-            "format": "int32"
+            "format": "int64"
           },
           "id": {
             "type": "string",
@@ -8343,7 +8343,7 @@
           },
           "totalSlots": {
             "type": "integer",
-            "format": "int32"
+            "format": "int64"
           }
         }
       },
@@ -9335,12 +9335,12 @@
           },
           "remaining": {
             "type": "integer",
-            "format": "int32",
+            "format": "int64",
             "description": "Slots still free (from the cache: claims keep it current, claiming\nitself is exact)."
           },
           "totalSlots": {
             "type": "integer",
-            "format": "int32"
+            "format": "int64"
           }
         }
       },
@@ -13924,7 +13924,7 @@
           },
           "totalSlots": {
             "type": "integer",
-            "format": "int32"
+            "format": "int64"
           }
         }
       },
