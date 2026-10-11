@@ -24,6 +24,13 @@ const ALSO_REFRESH: Record<string, string[]> = {
   adminCampaigns: ['campaigns', 'adminCoupons'],
   adminCoupons: ['adminCampaigns'], // payouts move the campaign totals
   adminReviews: ['reviews'],
+  // The brands page nests routes under brands and schedules under routes,
+  // each row showing counts: a change below refreshes every level above it
+  // (and the public catalog the home page and search read).
+  adminBrands: ['brands'],
+  adminRoutes: ['adminBrands', 'routes', 'brands'],
+  adminSchedules: ['adminRoutes', 'adminBrands', 'routes', 'trips', 'search'],
+  adminPickupPoints: ['adminRoutes', 'adminSchedules'],
   users: ['auth'], // a role change alters the session user
 }
 
