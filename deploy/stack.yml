@@ -86,6 +86,14 @@ services:
       # call rings ALSO wake closed/force-stopped apps via push.
       # Empty = push disabled (WS ring + Android duty mode still work).
       - FCM_CREDENTIALS_JSON=${FCM_CREDENTIALS_JSON:-}
+      # APNs token auth (iOS VoIP push): with these set, a call rings a
+      # locked or closed iPhone through CallKit (see docs/IOS_CALLS.md).
+      # Empty = iOS push disabled (only an open app rings).
+      - APNS_KEY_PEM=${APNS_KEY_PEM:-}
+      - APNS_KEY_ID=${APNS_KEY_ID:-}
+      - APNS_TEAM_ID=${APNS_TEAM_ID:-}
+      - APNS_TOPIC=${APNS_TOPIC:-}
+      - APNS_SANDBOX=${APNS_SANDBOX:-false}
 
       # ── Payments / contact ──────────────────────────────────────
       - PAYMENT_PUBLIC_BASE_URL=${PAYMENT_PUBLIC_BASE_URL:-https://datxevui.com}

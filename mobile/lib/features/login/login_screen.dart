@@ -142,7 +142,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               controller: _server,
                             ),
                             label: const Text('Địa chỉ máy chủ'),
-                            hint: 'https://api.datxevui.com',
+                            hint: 'https://datxevui.com',
                             textInputAction: TextInputAction.next,
                           ),
                           const SizedBox(height: 12),

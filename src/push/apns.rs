@@ -81,13 +81,25 @@ pub struct ApnsClient {
     key: EncodingKey,
     key_id: String,
     team_id: String,
-    /// The push topic — the app's bundle id (`APNS_TOPIC`).
+    /// The push topic: the app's bundle id (`APNS_TOPIC`) + `.voip`.
     topic: String,
     http: reqwest::Client,
     /// APNs base URL (production / sandbox).
     base: String,
     /// Cached `(jwt, created_at)`.
     token_cache: RwLock<Option<(String, Instant)>>,
+}
+
+/// Apple addresses VoIP pushes to the bundle id with `.voip` appended;
+/// the bare bundle id is refused (`DeviceTokenNotForTopic`), so the call
+/// would never ring. `APNS_TOPIC` may be given either way.
+fn voip_topic(bundle_id: &str) -> String {
+    let id = bundle_id.trim();
+    if id.ends_with(".voip") {
+        id.to_string()
+    } else {
+        format!("{id}.voip")
+    }
 }
 
 /// Provider tokens may live up to 1h (Apple); refresh comfortably
@@ -113,7 +125,7 @@ impl ApnsClient {
             key: encoding,
             key_id: key.key_id.clone(),
             team_id: key.team_id.clone(),
-            topic: topic.trim().to_string(),
+            topic: voip_topic(topic),
             http,
             base: if sandbox {
                 "https://api.sandbox.push.apple.com".into()
@@ -235,6 +247,12 @@ qa9NoNsBdPax9GabtFBWPgOtMyEAZIc/NUBtBWYsYlEl9mkB/0wi5rOV
     }
 
     #[test]
+    fn voip_pushes_go_to_the_bundle_ids_voip_topic() {
+        assert_eq!(voip_topic(" com.example.app "), "com.example.app.voip");
+        assert_eq!(voip_topic("com.example.app.voip"), "com.example.app.voip");
+    }
+
+    #[test]
     fn client_rejects_bad_credentials_loudly() {
         // Missing topic.
         assert!(ApnsClient::from_parts(&test_key(), "  ", false).is_err());
@@ -307,7 +325,7 @@ qa9NoNsBdPax9GabtFBWPgOtMyEAZIc/NUBtBWYsYlEl9mkB/0wi5rOV
         // ── Request line + Apple-mandated headers ────────────────────
         assert!(text.starts_with("POST /3/device/aabbcc "));
         assert!(text.contains("apns-push-type: voip"));
-        assert!(text.contains("apns-topic: com.example.app"));
+        assert!(text.contains("apns-topic: com.example.app.voip"));
         assert!(text.contains("apns-priority: 10"));
         assert!(text.contains("apns-collapse-id: call-c1"));
         assert!(text.contains("apns-expiration: "));
