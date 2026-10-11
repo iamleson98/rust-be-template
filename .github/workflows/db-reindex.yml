@@ -1,0 +1,156 @@
+# ─── DB reindex: rebuild all indexes from the table rows via the ────
+# pinned rust-sql engine's own CLI — fixes "partial-index strays" ────
+# (rows lost under concurrent write load while their unique/PK index
+# entries survive, blocking re-inserts with 2067 and hiding rows from
+# scans) without touching the table data.
+#
+# Trigger: workflow_dispatch ONLY. Destructive to NOTHING — REINDEX
+# drops and rebuilds every index from the live table rows. The service
+# is stopped for the operation (the CLI and the backend must not both
+# hold the file open), then restarted behind the same health gate the
+# db-reset workflow uses.
+#
+# Inputs:
+#   confirm — must be typed as "reindex"
+#
+# Build: the CLI is built from the rust-sql submodule PIN recorded on
+# master (the exact engine the deployed image linked), so the on-disk
+# format is always version-matched.
+
+name: DB reindex
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "reindex" to confirm'
+        required: true
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+env:
+  DB_VOLUME_DIR: /var/lib/docker/volumes/datxevui_vexevn-data/_data
+  DEPLOY_DIR: /opt/vexevn
+
+jobs:
+  reindex:
+    name: Build CLI + REINDEX on the server
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.confirm == 'reindex' }}
+    timeout-minutes: 50
+    steps:
+      - name: Guard — server secrets present?
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+        run: |
+          if [ -z "$SERVER_HOST" ]; then
+            echo "::error::SERVER_HOST secret not set — cannot reindex."
+            exit 1
+          fi
+
+      - name: Checkout (with the pinned rust-sql engine)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build rustqlite-cli from the pinned engine
+        run: |
+          cd rust-sql
+          cargo build --release --bin rustqlite-cli
+          strip target/release/rustqlite-cli 2>/dev/null || true
+          ./target/release/rustqlite-cli --version 2>/dev/null || true
+          sha=$(git rev-parse --short HEAD)
+          echo "ENGINE_SHA=$sha" >> "$GITHUB_ENV"
+          du -h target/release/rustqlite-cli
+
+      - name: Upload the CLI to the server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          source: rust-sql/target/release/rustqlite-cli
+          target: /opt/migration/cli-${{ env.ENGINE_SHA }}
+          strip_components: 3
+
+      - name: Stop backend, REINDEX, restart
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          DB_VOLUME_DIR: ${{ env.DB_VOLUME_DIR }}
+          DEPLOY_DIR: ${{ env.DEPLOY_DIR }}
+          ENGINE_SHA: ${{ env.ENGINE_SHA }}
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          envs: DB_VOLUME_DIR,DEPLOY_DIR,ENGINE_SHA
+          script_stop: true
+          script: |
+            set -eu
+            CLI=/opt/migration/cli-$ENGINE_SHA/rustqlite-cli
+            echo "== CLI =="
+            ls -la "$CLI"
+            chmod +x "$CLI"
+
+            echo "== stopping datxevui_backend =="
+            docker service scale datxevui_backend=0 --detach
+            # From here on the backend comes back up however this script
+            # ends: a failed backup or REINDEX must not leave the site down.
+            trap 'chown 1000:999 "$DB_VOLUME_DIR"/app.db* 2>/dev/null || true; echo "== starting datxevui_backend =="; docker service scale datxevui_backend=1 --detach' EXIT
+            stopped=""
+            for i in $(seq 1 60); do
+              n=$(docker service ls --filter name=datxevui_backend --format '{{.Replicas}}' || true)
+              if [ "$n" = "0/0" ]; then stopped=1; break; fi
+              sleep 2
+            done
+            if [ -z "$stopped" ]; then
+              echo "!! backend still running — not touching the database"
+              exit 1
+            fi
+
+            # No backup, no reindex: the db with its WAL and shm, size-checked.
+            echo "== backup =="
+            ls -la "$DB_VOLUME_DIR" | grep app.db || true
+            BK="$DEPLOY_DIR/backups/pre-reindex.$(date -u +%Y%m%dT%H%M%SZ)"
+            mkdir -p "$BK"
+            cp -a "$DB_VOLUME_DIR"/app.db* "$BK"/
+            [ "$(stat -c %s "$DB_VOLUME_DIR/app.db")" = "$(stat -c %s "$BK/app.db")" ]
+            echo "backup at $BK"
+
+            echo "== REINDEX (as the app user) =="
+            setpriv --reuid 1000 --regid 999 --clear-groups \
+              sh -c "printf 'REINDEX;\n' | '$CLI' '$DB_VOLUME_DIR/app.db'"
+            echo "reindex ok"
+
+            echo "== integrity check (informational) =="
+            setpriv --reuid 1000 --regid 999 --clear-groups \
+              sh -c "printf 'PRAGMA integrity_check;\n' | '$CLI' '$DB_VOLUME_DIR/app.db'" || true
+            # The EXIT trap fixes ownership and restarts the backend.
+
+      - name: Health gate — backend must serve /health again
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script_stop: true
+          script: |
+            set -eu
+            ok=""
+            for i in $(seq 1 60); do
+              pub=$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 https://datxevui.com/health || true)
+              echo "attempt $i: public=$pub"
+              if [ "$pub" = "200" ]; then ok=1; break; fi
+              sleep 3
+            done
+            if [ -z "$ok" ]; then
+              echo "!! backend did not become healthy — last logs:"
+              docker service logs datxevui_backend --tail 40 2>&1 | tail -40
+              exit 1
+            fi
+            echo "== healthy after reindex =="
