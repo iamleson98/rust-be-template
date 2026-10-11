@@ -31,7 +31,7 @@ import { Baby, Building2, Phone, Mail, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useT } from '@/lib/i18n'
 import { optionalText } from '@/lib/forms'
-import { formatVND } from '@/lib/format'
+import { formatNum, formatVND } from '@/lib/format'
 import type { AdminBrandOut, UpsertBrandRequest } from '@/api'
 import { slugify } from '@/lib/text'
 import { getErrorMessage } from '@/lib/error-message'
@@ -63,10 +63,6 @@ const makeBrandSchema = (t: ReturnType<typeof useT>) =>
       .optional()
       .or(z.literal(''))
       .refine((v) => !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), t('validation.email')),
-    accentColor: z
-      .string()
-      .trim()
-      .regex(/^#[0-9a-fA-F]{6}$/, t('adminBrands.hexInvalid')),
     status: z.enum(['active', 'inactive']),
     /** Child tickets: who counts as a child and how much less they pay. */
     childFare: z.object({
@@ -76,16 +72,18 @@ const makeBrandSchema = (t: ReturnType<typeof useT>) =>
         .int()
         .min(1, t('brandForm.childAgeRange'))
         .max(17, t('brandForm.childAgeRange')),
-      discountPercent: z
+      /** VND off each child ticket, in thousands (as the server checks). */
+      discountAmount: z
         .number()
         .int()
         .min(0, t('brandForm.childDiscountRange'))
-        .max(100, t('brandForm.childDiscountRange')),
+        .max(100_000_000, t('brandForm.childDiscountRange'))
+        .refine((v) => v % 1000 === 0, t('brandForm.childDiscountRange')),
     }),
   })
 type BrandFormValues = z.infer<ReturnType<typeof makeBrandSchema>>
 
-const NO_CHILD_FARE = { enabled: false, maxAge: 10, discountPercent: 25 }
+const NO_CHILD_FARE = { enabled: false, maxAge: 10, discountAmount: 50_000 }
 /** The adult fare the form's example applies the discount to. */
 const EXAMPLE_FARE = 300_000
 
@@ -110,7 +108,9 @@ export function BrandFormDialog({
 
   const form = useForm<BrandFormValues>({
     resolver: zodResolver(brandSchema),
-    mode: 'onBlur',
+    // Errors appear on submit, then follow each change: an error popping up
+    // on blur shifts the layout under the pointer and swallows the click.
+    mode: 'onSubmit',
     reValidateMode: 'onChange',
     defaultValues: {
       name: '',
@@ -118,7 +118,6 @@ export function BrandFormDialog({
       description: '',
       contactPhone: '',
       contactEmail: '',
-      accentColor: '#0d9488',
       status: 'active',
       childFare: NO_CHILD_FARE,
     },
@@ -137,7 +136,6 @@ export function BrandFormDialog({
         description: brand?.description ?? '',
         contactPhone: brand?.contactPhone ?? '',
         contactEmail: brand?.contactEmail ?? '',
-        accentColor: brand?.accentColor ?? '#0d9488',
         status: brand?.status === 'inactive' ? 'inactive' : 'active',
         childFare: brand?.childFare ? { enabled: true, ...brand.childFare } : NO_CHILD_FARE,
       })
@@ -159,12 +157,11 @@ export function BrandFormDialog({
         description: (values.description ?? '').trim(),
         contactPhone: (values.contactPhone ?? '').trim(),
         contactEmail: (values.contactEmail ?? '').trim(),
-        accentColor: values.accentColor,
         status: values.status,
         childFare: values.childFare.enabled
           ? {
               maxAge: values.childFare.maxAge,
-              discountPercent: values.childFare.discountPercent,
+              discountAmount: values.childFare.discountAmount,
             }
           : null,
       }
@@ -282,32 +279,7 @@ export function BrandFormDialog({
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3 items-start">
-              <FormField
-                control={form.control}
-                name="accentColor"
-                render={({ field }) => (
-                  <FormItem className="grid gap-1.5">
-                    <FormLabel>{t('brandForm.accentColor')}</FormLabel>
-                    <FormControl>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="color"
-                          value={field.value ?? '#0d9488'}
-                          onChange={field.onChange}
-                          className="h-9 w-12 rounded border cursor-pointer"
-                        />
-                        <Input
-                          {...field}
-                          value={field.value ?? ''}
-                          className="font-mono text-base md:text-xs flex-1"
-                        />
-                      </div>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+            <div className="grid gap-3 sm:w-1/2">
               <FormField
                 control={form.control}
                 name="status"
@@ -377,18 +349,28 @@ export function BrandFormDialog({
                     />
                     <FormField
                       control={form.control}
-                      name="childFare.discountPercent"
+                      name="childFare.discountAmount"
                       render={({ field }) => (
                         <FormItem className="grid gap-1.5">
                           <FormLabel>{t('brandForm.childDiscount')}</FormLabel>
                           <FormControl>
-                            <Input
-                              type="number"
-                              min={0}
-                              max={100}
-                              value={field.value}
-                              onChange={(e) => field.onChange(Number(e.target.value))}
-                            />
+                            <div className="relative">
+                              <Input
+                                inputMode="numeric"
+                                value={field.value ? formatNum(field.value) : ''}
+                                onChange={(e) =>
+                                  field.onChange(
+                                    Number(e.target.value.replace(/\D/g, '').slice(0, 9)) || 0,
+                                  )
+                                }
+                                onBlur={field.onBlur}
+                                placeholder="50.000"
+                                className="pr-7 tabular-nums"
+                              />
+                              <span className="pointer-events-none absolute top-1/2 right-2.5 -translate-y-1/2 text-sm text-muted-foreground">
+                                ₫
+                              </span>
+                            </div>
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -399,11 +381,7 @@ export function BrandFormDialog({
                     {t('brandForm.childFareExample', {
                       age: childFare.maxAge,
                       adult: formatVND(EXAMPLE_FARE),
-                      child: formatVND(
-                        Math.round(
-                          (EXAMPLE_FARE * (100 - childFare.discountPercent)) / 100 / 1000,
-                        ) * 1000,
-                      ),
+                      child: formatVND(Math.max(0, EXAMPLE_FARE - childFare.discountAmount)),
                     })}
                   </p>
                 </>
@@ -414,7 +392,7 @@ export function BrandFormDialog({
               <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
                 {t('common.cancel')}
               </Button>
-              <Button type="submit" disabled={saving} className="bg-rose-600 hover:bg-rose-700">
+              <Button type="submit" disabled={saving}>
                 {saving ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> {t('common.saving')}

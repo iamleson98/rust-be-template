@@ -239,7 +239,6 @@ impl PublicService {
                 slug: b.slug.clone(),
                 name: b.name.clone(),
                 logo_url: b.logo_url.clone(),
-                accent_color: b.accent_color.clone(),
                 rating: b.rating,
                 route_count: route_counts.get(&b.id.to_string()).copied().unwrap_or(0),
             })
@@ -265,7 +264,6 @@ impl PublicService {
             description: b.description,
             contact_phone: b.contact_phone,
             contact_email: b.contact_email,
-            accent_color: b.accent_color,
             rating: b.rating,
         })
     }
@@ -370,7 +368,6 @@ impl PublicService {
                     brand: RouteBrandPreview {
                         name: brand.map(|b| b.name.clone()),
                         slug: brand.map(|b| b.slug.clone()),
-                        accent_color: brand.and_then(|b| b.accent_color.clone()),
                         logo_url: brand.and_then(|b| b.logo_url.clone()),
                         rating: brand.and_then(|b| b.rating),
                     },
@@ -867,9 +864,6 @@ impl PublicService {
                     brand_slug: brand.map(|b| b.slug.clone()).unwrap_or_default(),
                     brand_logo: brand.and_then(|b| b.logo_url.clone()),
                     brand_rating: brand.and_then(|b| b.rating),
-                    brand_accent: brand
-                        .and_then(|b| b.accent_color.clone())
-                        .unwrap_or_else(|| "#0d9488".into()),
                     from_name: from_place.map(|p| p.name.to_string()).unwrap_or_default(),
                     from_lat: from_place.map(|p| p.lat).unwrap_or(0.0),
                     from_lon: from_place.map(|p| p.lon).unwrap_or(0.0),
@@ -1309,9 +1303,6 @@ impl PublicService {
                     .unwrap_or_default()
                     .into(),
                 brand_rating: brand.and_then(|b| b.rating),
-                brand_accent: brand
-                    .and_then(|b| b.accent_color.clone())
-                    .unwrap_or_default(),
                 from_name: from_city.map(|c| c.name.to_string()).unwrap_or_default(),
                 from_lat: from_city.map(|c| c.lat).unwrap_or(from_lat),
                 from_lon: from_city.map(|c| c.lon).unwrap_or(from_lon),
@@ -1682,7 +1673,6 @@ impl PublicService {
                 slug: brand.as_ref().map(|b| b.slug.clone()),
                 logo_url: brand.as_ref().and_then(|b| b.logo_url.clone()),
                 rating: brand.as_ref().and_then(|b| b.rating),
-                accent_color: brand.as_ref().and_then(|b| b.accent_color.clone()),
             },
             from: TripEndpoint {
                 name: start_place.map(|c| c.name.to_string()),
@@ -1853,9 +1843,6 @@ impl PublicService {
                         brand_slug: brand.map(|b| b.slug.clone()).unwrap_or_default(),
                         brand_logo: brand.and_then(|b| b.logo_url.clone()),
                         brand_rating: brand.and_then(|b| b.rating),
-                        brand_accent: brand
-                            .and_then(|b| b.accent_color.clone())
-                            .unwrap_or_else(|| "#0d9488".into()),
                         from_name: from_city.map(|c| c.name.to_string()).unwrap_or_default(),
                         from_lat: from_city.map(|c| c.lat).unwrap_or(0.0),
                         from_lon: from_city.map(|c| c.lon).unwrap_or(0.0),

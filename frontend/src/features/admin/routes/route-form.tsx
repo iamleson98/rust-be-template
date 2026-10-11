@@ -95,7 +95,9 @@ export function RouteFormDialog({
 
   const form = useForm<z.input<RouteSchema>, unknown, z.output<RouteSchema>>({
     resolver: zodResolver(routeSchema),
-    mode: 'onBlur',
+    // Errors appear on submit, then follow each change: an error popping up
+    // on blur shifts the layout under the pointer and swallows the click.
+    mode: 'onSubmit',
     reValidateMode: 'onChange',
     defaultValues: {
       name: '',
@@ -160,10 +162,7 @@ export function RouteFormDialog({
           <DialogDescription>
             {brand ? (
               <>
-                {t('routeForm.belongsTo')}{' '}
-                <span className="font-medium" style={{ color: brand.accentColor ?? undefined }}>
-                  {brand.name}
-                </span>
+                {t('routeForm.belongsTo')} <span className="font-medium">{brand.name}</span>
               </>
             ) : null}
           </DialogDescription>

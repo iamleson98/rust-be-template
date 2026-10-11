@@ -38,7 +38,6 @@ function trip(i: number) {
     brandSlug: `mock-bus-${Math.floor(i / 5)}`,
     brandLogo: null,
     brandRating: 4.5,
-    brandAccent: '#0d9488',
     fromName: 'Hà Nội',
     fromLat: 21.0287,
     fromLon: 105.8524,

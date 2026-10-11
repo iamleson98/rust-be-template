@@ -21,14 +21,16 @@ type Props = {
   pickupPoints: RouteScheduleStop[]
   fromName: string
   toName: string
-  accentColor?: string
 }
 
+/** The route line and intermediate stops, in the brand blue. */
+const LINE = '#0063c4'
+
 /** Numbered circular marker: order badge on a colored disc. */
-function stopIcon(index: number, total: number, accent: string): L.DivIcon {
+function stopIcon(index: number, total: number): L.DivIcon {
   const isFirst = index === 0
   const isLast = index === total - 1
-  const bg = isFirst ? '#2563eb' : isLast ? '#dc2626' : accent
+  const bg = isFirst ? '#2563eb' : isLast ? '#dc2626' : LINE
   const ring = isFirst ? '#1e40af' : isLast ? '#991b1b' : 'white'
   const label = isFirst ? 'A' : isLast ? 'B' : String(index)
   const svg =
@@ -100,13 +102,7 @@ function FixSize() {
   return null
 }
 
-export function RouteScheduleMap({
-  geometry,
-  pickupPoints,
-  fromName,
-  toName,
-  accentColor = '#2563eb',
-}: Props) {
+export function RouteScheduleMap({ geometry, pickupPoints, fromName, toName }: Props) {
   const t = useT()
 
   const geo = useMemo(() => geometry ?? [], [geometry])
@@ -149,26 +145,19 @@ export function RouteScheduleMap({
           <FitBounds points={allPoints} />
 
           {geo.length >= 2 && (
-            <Polyline
-              positions={geo}
-              pathOptions={{ color: accentColor, weight: 4, opacity: 0.85 }}
-            />
+            <Polyline positions={geo} pathOptions={{ color: LINE, weight: 4, opacity: 0.85 }} />
           )}
           {geo.length < 2 && stops.length >= 2 && (
             // Straight-line fallback when the route has no geometry —
             // still an honest visual (dashed = "no real road data").
             <Polyline
               positions={stops.map((s) => [s.lat, s.lon] as [number, number])}
-              pathOptions={{ color: accentColor, weight: 3, opacity: 0.7, dashArray: '8 8' }}
+              pathOptions={{ color: LINE, weight: 3, opacity: 0.7, dashArray: '8 8' }}
             />
           )}
 
           {stops.map((s, i) => (
-            <Marker
-              key={s.id}
-              position={[s.lat, s.lon]}
-              icon={stopIcon(i, stops.length, accentColor)}
-            >
+            <Marker key={s.id} position={[s.lat, s.lon]} icon={stopIcon(i, stops.length)}>
               <Popup>
                 <div className="text-sm min-w-40">
                   <div className="font-semibold">{s.name ?? '—'}</div>

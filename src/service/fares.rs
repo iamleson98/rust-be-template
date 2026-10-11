@@ -8,8 +8,8 @@
 //! Child tickets are the brand's choice. When the brand sets
 //! `child_max_age`, passengers up to that age pay the class's child price
 //! if the schedule sets one, and otherwise the adult price less
-//! `child_discount_percent`, rounded to the nearest 1,000 ₫. A child never
-//! pays more than an adult.
+//! `child_discount_amount` (a fixed amount of VND, never below 0). A child
+//! never pays more than an adult.
 //!
 //! The server alone applies these rules: the passenger type a client sends
 //! is ignored, only the age counts.
@@ -38,8 +38,8 @@ pub const MAX_CHILD_AGE: i16 = 17;
 pub struct ChildPolicy {
     /// Passengers up to this age (inclusive) are children.
     pub max_age: i16,
-    /// Percent off the adult price when the schedule sets no child price.
-    pub discount_percent: i16,
+    /// VND off the adult price when the schedule sets no child price.
+    pub discount_amount: i64,
 }
 
 impl ChildPolicy {
@@ -47,7 +47,7 @@ impl ChildPolicy {
     pub fn of(brand: &brand::Model) -> Option<Self> {
         Some(Self {
             max_age: brand.child_max_age?,
-            discount_percent: brand.child_discount_percent.unwrap_or(0),
+            discount_amount: brand.child_discount_amount.unwrap_or(0),
         })
     }
 
@@ -60,7 +60,7 @@ impl From<ChildPolicy> for ChildFarePolicy {
     fn from(p: ChildPolicy) -> Self {
         Self {
             max_age: p.max_age,
-            discount_percent: p.discount_percent,
+            discount_amount: p.discount_amount,
         }
     }
 }
@@ -203,9 +203,7 @@ impl Passenger {
 /// `None` when the brand sells no child tickets.
 pub fn child_price(adult: i64, fare: Fare, policy: Option<ChildPolicy>) -> Option<i64> {
     let policy = policy?;
-    let price = fare
-        .child
-        .unwrap_or_else(|| round_vnd(adult * i64::from(100 - policy.discount_percent) / 100));
+    let price = fare.child.unwrap_or_else(|| adult - policy.discount_amount);
     Some(price.clamp(0, adult))
 }
 
@@ -215,11 +213,6 @@ pub fn ticket(age: i64, adult: i64, fare: Fare, policy: Option<ChildPolicy>) -> 
         Some(price) => (Passenger::Child, price),
         None => (Passenger::Adult, adult),
     }
-}
-
-/// Nearest 1,000 ₫ (prices are quoted in thousands).
-fn round_vnd(amount: i64) -> i64 {
-    (amount + 500).div_euclid(1000) * 1000
 }
 
 /// A seat class as stored: trimmed and lower-case; `None` for standard.
@@ -235,7 +228,7 @@ mod tests {
 
     const POLICY: ChildPolicy = ChildPolicy {
         max_age: 10,
-        discount_percent: 25,
+        discount_amount: 100_000,
     };
 
     fn table() -> FareTable {
@@ -290,12 +283,12 @@ mod tests {
     }
 
     #[test]
-    fn children_get_the_brand_discount_rounded_to_a_thousand() {
+    fn children_get_the_brand_discount_amount() {
         let fare = table().fare(Some("vip"));
-        // 450,000 less 25 % = 337,500 → 338,000.
+        // 450,000 less 100,000.
         assert_eq!(
             ticket(10, fare.adult, fare, Some(POLICY)),
-            (Passenger::Child, 338_000)
+            (Passenger::Child, 350_000)
         );
         // One year past the limit is an adult.
         assert_eq!(
@@ -314,10 +307,10 @@ mod tests {
     }
 
     #[test]
-    fn a_full_discount_makes_children_free() {
+    fn a_discount_above_the_fare_makes_children_free() {
         let fare = table().fare(None);
         let free = ChildPolicy {
-            discount_percent: 100,
+            discount_amount: 500_000,
             ..POLICY
         };
         assert_eq!(

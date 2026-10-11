@@ -19,14 +19,13 @@ pub struct Model {
     #[sea_orm(column_type = "Double", nullable)]
     pub rating: Option<f64>,
     pub status: String,
-    pub accent_color: Option<String>,
     pub total_trips: i64,
     #[sea_orm(column_type = "Text")]
     pub created_at: String,
     #[sea_orm(column_type = "Text")]
     pub updated_at: String,
     pub child_max_age: Option<i16>,
-    pub child_discount_percent: Option<i16>,
+    pub child_discount_amount: Option<i64>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

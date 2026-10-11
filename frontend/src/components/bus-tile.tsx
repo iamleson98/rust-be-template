@@ -8,28 +8,15 @@ const SIZES = {
   xs: 'size-8 rounded-lg [&>svg]:size-4',
 }
 
-const DEFAULT_ACCENT = '#2563eb'
-
-/** An operator's brand colour as a bus icon tile; `tint` = pale background with a coloured icon. */
-export function BusTile({
-  accent,
-  size,
-  tint,
-}: {
-  accent?: string | null
-  size: keyof typeof SIZES
-  tint?: boolean
-}) {
-  const color = accent || DEFAULT_ACCENT
+/** A trip's bus icon tile in the brand blue; `tint` = pale background with a blue icon. */
+export function BusTile({ size, tint }: { size: keyof typeof SIZES; tint?: boolean }) {
   return (
     <div
-      className={cn('grid shrink-0 place-items-center', SIZES[size], !tint && 'text-white')}
-      style={{
-        background: tint
-          ? `linear-gradient(135deg, ${color}22, ${color}11)`
-          : `linear-gradient(135deg, ${color}, ${color}cc)`,
-        color: tint ? color : undefined,
-      }}
+      className={cn(
+        'grid shrink-0 place-items-center',
+        SIZES[size],
+        tint ? 'bg-primary/10 text-primary' : 'bg-primary text-primary-foreground',
+      )}
       aria-hidden
     >
       <Bus />

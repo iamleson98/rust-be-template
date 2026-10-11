@@ -46,7 +46,7 @@ export function RecentPurchasesCard({
           <ul className="divide-y divide-border/60">
             {bookings.slice(0, 5).map((b) => (
               <li key={b.id} className="flex items-center gap-3 py-2.5">
-                <BusTile accent={b.trip?.brandAccent} size="sm" />
+                <BusTile size="sm" />
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-medium">
                     {b.trip?.routeName ?? t('accountPage.feedback.tripFallback')}

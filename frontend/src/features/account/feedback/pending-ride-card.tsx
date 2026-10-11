@@ -34,7 +34,7 @@ export function PendingRideCard({
         className="flex w-full items-center gap-4 px-4 py-3.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
         aria-expanded={expanded}
       >
-        <BusTile accent={trip?.brandAccent} size="lg" />
+        <BusTile size="lg" />
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-semibold">
             {trip?.routeName || t('accountPage.feedback.tripFallback')}

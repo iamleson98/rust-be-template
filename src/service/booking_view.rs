@@ -268,7 +268,6 @@ pub async fn booking_views(
                         to_name: to.map(|c| c.name.to_string()),
                         brand_id: r.brand_id,
                         brand_name: brand.map(|b| b.name.clone()),
-                        brand_accent: brand.and_then(|b| b.accent_color.clone()),
                         brand_logo: brand.and_then(|b| b.logo_url.clone()),
                         bus_layout_name: s
                             .bus_layout_id

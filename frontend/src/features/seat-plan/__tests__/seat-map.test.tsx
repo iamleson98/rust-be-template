@@ -96,11 +96,11 @@ describe('SeatMap', () => {
       <SeatMap
         {...props}
         selectedSeatIds={['B2']}
-        childFare={{ maxAge: 10, discountPercent: 25 }}
+        childFare={{ maxAge: 10, discountAmount: 50_000 }}
       />,
     )
     expect(screen.getByRole('button', { name: /B2/ })).toHaveTextContent('B2300k')
-    expect(screen.getByText('Trẻ em đến 10 tuổi giảm 25%')).toBeInTheDocument()
+    expect(screen.getByText(/^Trẻ em đến 10 tuổi được giảm 50\.000\s₫ mỗi vé$/)).toBeInTheDocument()
   })
 
   it('marks selected seats with aria-pressed and reports the clicked seat', () => {

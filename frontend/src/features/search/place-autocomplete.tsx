@@ -64,9 +64,9 @@ type PickedPlace = {
 type Props = {
   value: string
   onChange: (val: string) => void
-  /** RHF blur handler — forwarded to the inner Input so `mode: 'onBlur'`
-   *  validation actually fires for this field (the Slot passes it down
-   *  but this component must hand it to the <Input> itself). */
+  /** RHF blur handler — forwarded to the inner Input so the field counts as
+   *  touched (the Slot passes it down but this component must hand it to
+   *  the <Input> itself). */
   onBlur?: () => void
   /** RHF error state — forwarded so the Input renders its red
    *  aria-invalid border (the Slot injects it on this component; without

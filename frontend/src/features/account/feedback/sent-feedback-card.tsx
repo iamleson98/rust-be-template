@@ -42,7 +42,7 @@ export function SentFeedbackCard({
       <div className="space-y-3 px-4 py-4">
         <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2.5 text-sm">
-            <BusTile accent={trip?.brandAccent} size="xs" tint />
+            <BusTile size="xs" tint />
             <div className="min-w-0">
               <div className="truncate font-semibold">
                 {trip?.routeName || review.title || t('accountPage.feedback.tripFallback')}

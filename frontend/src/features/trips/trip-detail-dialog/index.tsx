@@ -173,7 +173,6 @@ function TripView({ detail }: { detail: TripDetail }) {
             departureAt: detail.trip.departureAt ?? undefined,
             departureTime: detail.trip.departureTime ?? undefined,
             brandName: detail.brand.name ?? '',
-            brandAccent: detail.brand.accentColor ?? undefined,
             brandRating: detail.brand.rating ?? undefined,
             minPrice: detail.pricing.fares[0]?.priceAdult ?? detail.pricing.basePriceAdult,
             vehicleTypeLabel: detail.busLayout.vehicleTypeLabel,
@@ -246,7 +245,6 @@ function TripView({ detail }: { detail: TripDetail }) {
                   pickupPoints={detail.pickupPoints}
                   fromName={detail.from.name ?? ''}
                   toName={detail.to.name ?? ''}
-                  accentColor={detail.brand.accentColor ?? undefined}
                 />
                 <StopTimeline
                   title={t('tripDetail.routeTimelineTitle')}
@@ -293,7 +291,6 @@ function TripView({ detail }: { detail: TripDetail }) {
                   routeId={detail.route.id}
                   brandName={detail.brand.name ?? ''}
                   routeName={detail.route.name}
-                  accentColor={detail.brand.accentColor ?? undefined}
                 />
               </TabsContent>
             </ScrollArea>

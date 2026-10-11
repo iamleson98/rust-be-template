@@ -23,7 +23,6 @@ function BrandSummaryCard({
   onClick: () => void
 }) {
   const t = useT()
-  const accent = summary.brandAccent || '#2563eb'
   const totalNonZero = Math.max(
     1,
     summary.pending + summary.approved + summary.rejected + summary.hidden,
@@ -39,8 +38,7 @@ function BrandSummaryCard({
     >
       <div className="flex items-center gap-3">
         <div
-          className="size-10 shrink-0 rounded-lg grid place-items-center text-white font-bold text-sm"
-          style={{ background: accent }}
+          className="grid size-10 shrink-0 place-items-center rounded-lg bg-primary text-sm font-bold text-primary-foreground"
           aria-hidden
         >
           {(summary.brandName ?? '?').slice(0, 2).toUpperCase()}

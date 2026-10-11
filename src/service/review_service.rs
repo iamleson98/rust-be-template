@@ -191,7 +191,6 @@ impl ReviewService {
                     brand_name: brand.map(|b| b.name.clone()),
                     brand_slug: brand.map(|b| b.slug.clone()),
                     brand_logo: brand.and_then(|b| b.logo_url.clone()),
-                    brand_accent: brand.and_then(|b| b.accent_color.clone()),
                     total: acc.total,
                     pending: acc.pending,
                     approved: acc.approved,

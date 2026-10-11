@@ -5929,7 +5929,7 @@
         "tags": [
           "reviews"
         ],
-        "summary": "`GET /api/reviews/{id}` — get a review by ID.",
+        "summary": "`GET /api/reviews/{id}` — an approved review by ID (the author's phone left out).",
         "operationId": "get",
         "parameters": [
           {
@@ -7169,12 +7169,6 @@
           "layoutCount"
         ],
         "properties": {
-          "accentColor": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
           "childFare": {
             "oneOf": [
               {
@@ -7951,12 +7945,6 @@
             ],
             "format": "double",
             "description": "Average star rating (0.0–5.0) across all statuses, rounded to\none decimal place. `None` when the brand has no reviews."
-          },
-          "brandAccent": {
-            "type": [
-              "string",
-              "null"
-            ]
           },
           "brandId": {
             "type": [
@@ -8931,12 +8919,6 @@
           "routeName"
         ],
         "properties": {
-          "brandAccent": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
           "brandId": {
             "type": [
               "string",
@@ -9017,12 +8999,6 @@
           "name"
         ],
         "properties": {
-          "accentColor": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
           "contactEmail": {
             "type": [
               "string",
@@ -9092,12 +9068,6 @@
           "routeCount"
         ],
         "properties": {
-          "accentColor": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
           "id": {
             "type": "string",
             "format": "uuid"
@@ -9743,13 +9713,13 @@
         "description": "A brand's child tickets: passengers up to `maxAge` pay a child price.",
         "required": [
           "maxAge",
-          "discountPercent"
+          "discountAmount"
         ],
         "properties": {
-          "discountPercent": {
+          "discountAmount": {
             "type": "integer",
-            "format": "int32",
-            "description": "Percent off the adult price, where the schedule sets no child price."
+            "format": "int64",
+            "description": "VND off the adult price, where the schedule sets no child price\n(a child never pays less than 0)."
           },
           "maxAge": {
             "type": "integer",
@@ -13092,12 +13062,6 @@
         "type": "object",
         "description": "Brand preview embedded in `RouteOut`.",
         "properties": {
-          "accentColor": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
           "logoUrl": {
             "type": [
               "string",
@@ -13946,12 +13910,6 @@
       "TripBrandDetail": {
         "type": "object",
         "properties": {
-          "accentColor": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
           "id": {
             "type": [
               "string",
@@ -14337,7 +14295,6 @@
           "routeName",
           "brandName",
           "brandSlug",
-          "brandAccent",
           "fromName",
           "fromLat",
           "fromLon",
@@ -14368,9 +14325,6 @@
           "availableSeats": {
             "type": "integer",
             "format": "int64"
-          },
-          "brandAccent": {
-            "type": "string"
           },
           "brandId": {
             "type": [
@@ -15015,12 +14969,6 @@
         "type": "object",
         "description": "Request body for `POST /api/admin/brands` (create) and\n`PUT /api/admin/brands/{id}` (update — all fields optional).",
         "properties": {
-          "accentColor": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
           "childFare": {
             "oneOf": [
               {

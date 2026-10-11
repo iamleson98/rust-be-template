@@ -17,7 +17,6 @@ type Props = {
   routeId?: string
   brandName: string
   routeName?: string
-  accentColor?: string
 }
 
 const PAGE_SIZE = 5
@@ -31,7 +30,6 @@ export const ReviewsList = memo(function ReviewsList({
   routeId,
   brandName,
   routeName,
-  accentColor = '#2563eb',
 }: Props) {
   const t = useT()
   const [page, setPage] = useState(1)
@@ -123,7 +121,6 @@ export const ReviewsList = memo(function ReviewsList({
               <ReviewCard
                 key={r.id}
                 r={r}
-                accentColor={accentColor}
                 brandName={brandName}
                 helpfulMap={helpfulMap}
                 markHelpful={markHelpful}

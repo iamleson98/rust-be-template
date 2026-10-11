@@ -145,10 +145,7 @@ export function SearchStep({
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5 text-xs">
-                    <span
-                      className="inline-block h-2 w-2 rounded-full"
-                      style={{ background: tr.brandAccent }}
-                    />
+                    <span className="inline-block h-2 w-2 rounded-full bg-primary" />
                     <span className="font-medium">{tr.brandName}</span>
                     <span className="text-muted-foreground">· {tr.vehicleTypeLabel}</span>
                   </div>

@@ -11,11 +11,11 @@ What a ticket costs, who sets it, and where the rules live.
   class without its own fare, cost the schedule's `basePriceAdult`; a
   `schedule_fare` row prices one other class.
 - **Child tickets are each brand's own policy.** A brand that sells them sets
-  an age limit (`childFare.maxAge`, 1–17) and a discount
-  (`childFare.discountPercent`). A passenger up to that age pays the class's
-  child price when the schedule sets one (`basePriceChild`, or `priceChild`
-  on a class fare), and otherwise the adult price less the discount, rounded
-  to the nearest 1,000 ₫. A child never pays more than an adult. A brand
+  an age limit (`childFare.maxAge`, 1–17) and a fixed discount in VND
+  (`childFare.discountAmount`, in thousands). A passenger up to that age
+  pays the class's child price when the schedule sets one (`basePriceChild`,
+  or `priceChild` on a class fare), and otherwise the adult price less the
+  discount, never below 0. A child never pays more than an adult. A brand
   without a policy sells every seat at the adult price.
 - **The server decides.** A booking sends each passenger's age and seat;
   the type a client claims is ignored. `service/fares.rs` holds every rule
@@ -34,7 +34,7 @@ own price in `booking_seat.price`.
 
 | | |
 |---|---|
-| `PUT /api/admin/brands/{id}` | `childFare: {maxAge, discountPercent}` turns child tickets on, `null` off, absent leaves them |
+| `PUT /api/admin/brands/{id}` | `childFare: {maxAge, discountAmount}` turns child tickets on, `null` off, absent leaves them |
 | `PUT /api/admin/schedules/{id}` | `basePriceAdult`, `basePriceChild` (0 = brand discount), `classFares: [{seatClass, priceAdult, priceChild?}]` replaces all class fares |
 | `GET /api/admin/bus-layouts` | `seatClasses: [{seatClass, seats}]` per layout, for the fare editor |
 | `GET /api/trips/{id}` | per seat `finalPrice` + `childPrice`; `pricing.fares` (one per class on the trip) and `pricing.childFare`; `trip.bookable` |

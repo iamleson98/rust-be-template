@@ -136,8 +136,6 @@ pub struct BookingTrip {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub brand_name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub brand_accent: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub brand_logo: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bus_layout_name: Option<String>,

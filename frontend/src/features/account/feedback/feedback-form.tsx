@@ -81,7 +81,9 @@ export const FeedbackForm = memo(function FeedbackForm({
 
   const form = useForm<FeedbackValues>({
     resolver: zodResolver(feedbackSchema),
-    mode: 'onBlur',
+    // Errors appear on submit, then follow each change: an error popping up
+    // on blur shifts the layout under the pointer and swallows the click.
+    mode: 'onSubmit',
     reValidateMode: 'onChange',
     defaultValues: {
       rating: existingReview?.rating ?? 0,
@@ -120,7 +122,6 @@ export const FeedbackForm = memo(function FeedbackForm({
     setSubmitted(false)
   }
 
-  const accent = booking.trip?.brandAccent ?? '#2563eb'
   const isShortComment = comment.trim().length > 0 && comment.trim().length < 20
 
   // ─── "Read-only" view for an existing review ─────────────────
@@ -206,7 +207,7 @@ export const FeedbackForm = memo(function FeedbackForm({
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             {/* Star rating — custom control */}
-            <FeedbackRatingField form={form} accent={accent} />
+            <FeedbackRatingField form={form} />
 
             {/* Tag picker — custom control */}
             <FeedbackTagPickerField form={form} />

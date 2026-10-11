@@ -83,7 +83,6 @@ export type CreatedTicketPayload = {
     departureDate: string | null
     departureAt: string | null
     brandName: string | null
-    brandAccent: string | null
     brandLogo: string | null
   }
   seats: { code: string; passengerName: string; price: number }[]
@@ -302,7 +301,6 @@ export function ChatTicketPicker({
           departureDate: trip.trip.departureDate,
           departureAt: trip.trip.departureAt ?? null,
           brandName: selectedTrip.brandName,
-          brandAccent: selectedTrip.brandAccent,
           brandLogo: selectedTrip.brandLogo ?? null,
         },
         seats: held.seats.map((s) => ({

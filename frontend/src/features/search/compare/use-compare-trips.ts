@@ -33,7 +33,6 @@ function detailToResult(d: TripDetail): TripResult {
     amenities: d.amenities.map((a) => a.label),
     arrivalAt: d.trip.arrivalAt ?? undefined,
     availableSeats: d.trip.availableSeats,
-    brandAccent: d.brand.accentColor ?? '#2563eb',
     brandId: d.brand.id ?? undefined,
     brandName: d.brand.name ?? '',
     brandRating: d.brand.rating ?? undefined,

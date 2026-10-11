@@ -3401,7 +3401,7 @@ export const reviewsRemoveMutation = (options?: Partial<Options<ReviewsRemoveDat
 export const reviewsGetQueryKey = (options: Options<ReviewsGetData>) => createQueryKey('reviewsGet', options, false, ['reviews']);
 
 /**
- * `GET /api/reviews/{id}` — get a review by ID.
+ * `GET /api/reviews/{id}` — an approved review by ID (the author's phone left out).
  */
 export const reviewsGetOptions = (options: Options<ReviewsGetData>) => queryOptions<ReviewsGetResponse, DefaultError, ReviewsGetResponse, ReturnType<typeof reviewsGetQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {

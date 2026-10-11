@@ -26,12 +26,10 @@ function Figure({ value, label }: { value: number; label: string }) {
 /** The brand's identity, rating and what it runs. */
 export function BrandDialogHeader({
   brand,
-  accent,
   reviewCount,
   routes,
 }: {
   brand: BrandDetailOut
-  accent: string
   reviewCount: number
   routes: RouteOut[]
 }) {
@@ -43,10 +41,7 @@ export function BrandDialogHeader({
     <div className="shrink-0 space-y-3 border-b px-4 pt-4 pb-3 sm:px-5">
       {/* pr-10 keeps the name clear of the dialog's close button. */}
       <div className="flex items-start gap-3 pr-10">
-        <div
-          className="grid size-14 shrink-0 place-items-center rounded-xl text-lg font-bold text-white"
-          style={{ background: accent }}
-        >
+        <div className="grid size-14 shrink-0 place-items-center rounded-xl bg-primary text-lg font-bold text-primary-foreground">
           {brand.logoUrl ? (
             <img
               src={brand.logoUrl}

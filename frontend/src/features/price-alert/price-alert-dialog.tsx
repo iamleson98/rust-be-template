@@ -71,7 +71,9 @@ export function PriceAlertDialog() {
     z.output<typeof priceAlertSchema>
   >({
     resolver: zodResolver(priceAlertSchema),
-    mode: 'onBlur',
+    // Errors appear on submit, then follow each change: an error popping up
+    // on blur shifts the layout under the pointer and swallows the click.
+    mode: 'onSubmit',
     reValidateMode: 'onChange',
     defaultValues: {
       phone: '',

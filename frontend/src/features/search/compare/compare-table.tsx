@@ -43,8 +43,7 @@ export function CompareTable({ trips, onPick }: { trips: TripResult[]; onPick: (
                   </div>
                   <Badge
                     variant="outline"
-                    className="text-[10px] font-normal"
-                    style={{ borderColor: tr.brandAccent, color: tr.brandAccent }}
+                    className="border-primary/40 text-[10px] font-normal text-primary"
                   >
                     {tSync(VEHICLE_TYPE_LABELS[tr.vehicleType] ?? tr.vehicleType)}
                   </Badge>

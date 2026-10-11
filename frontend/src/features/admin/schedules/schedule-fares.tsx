@@ -12,9 +12,9 @@ import type { ScheduleFormInstance } from './schedule-schema'
 
 type Row = { cls: string; seats: number | null }
 
-/** The brand's child price for an adult fare, as the server rounds it. */
+/** The brand's child price for an adult fare, as the server computes it. */
 const discounted = (adult: number, policy: ChildFarePolicy) =>
-  Math.round((adult * (100 - policy.discountPercent)) / 100 / 1000) * 1000
+  Math.min(adult, Math.max(0, adult - policy.discountAmount))
 
 /**
  * What every seat class costs on this schedule. Standard seats use the base price,
@@ -51,7 +51,7 @@ export function ScheduleFares({
           {childFare
             ? t('adminSchedules.childFarePolicy', {
                 age: childFare.maxAge,
-                percent: childFare.discountPercent,
+                amount: formatVND(childFare.discountAmount),
               })
             : t('adminSchedules.noChildFare')}
         </span>

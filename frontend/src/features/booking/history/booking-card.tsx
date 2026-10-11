@@ -76,7 +76,7 @@ function BookingCardImpl({
           {/* Route, operator and when */}
           {b.trip && (
             <div className="flex items-start gap-3">
-              <BusTile accent={b.trip.brandAccent} size="md" />
+              <BusTile size="md" />
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-x-1.5 text-sm font-semibold">
                   <span>{b.trip.fromName}</span>

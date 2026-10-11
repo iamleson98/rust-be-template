@@ -110,12 +110,11 @@ async fn seed_trip_chain(store: &CompositeStore) -> anyhow::Result<Uuid> {
             contact_email: Set(None),
             rating: Set(None),
             status: Set("active".into()),
-            accent_color: Set(Some("#2563eb".into())),
             total_trips: Set(0),
             created_at: Set(now.into()),
             updated_at: Set(now.into()),
             child_max_age: Set(None),
-            child_discount_percent: Set(None),
+            child_discount_amount: Set(None),
         })
         .await?;
 

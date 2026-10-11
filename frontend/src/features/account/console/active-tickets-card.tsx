@@ -112,7 +112,7 @@ export function ActiveTicketsCard({
               params={{ code: b.code }}
               className="group flex items-center gap-3 rounded-2xl bg-white p-3.5 shadow-soft ring-1 ring-slate-200/80 transition-colors hover:ring-primary/30"
             >
-              <BusTile accent={b.trip?.brandAccent} size="md" />
+              <BusTile size="md" />
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-semibold text-slate-900">
                   {b.trip?.routeName ?? t('accountPage.feedback.tripFallback')}

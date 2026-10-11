@@ -18,7 +18,6 @@ const trip: TripResult = {
   routeName: 'HCM - CT',
   brandName: 'Phuong Trang',
   brandSlug: 'phuong-trang',
-  brandAccent: '#f97316',
   brandRating: 4.6,
   fromName: 'TP. Hồ Chí Minh',
   fromLat: 0,
