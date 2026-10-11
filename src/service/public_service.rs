@@ -102,6 +102,24 @@ fn parse_amenities(raw: &Option<String>) -> Vec<String> {
 /// Prefers the schedule's `HH:mm` string; falls back to the ISO
 /// `departure_at`. Unparseable/missing values sort last (i32::MAX) so
 /// incomplete data never shadows complete data.
+/// The search form's optional "leaving after" time (`HH:MM`) in minutes
+/// past midnight; `None` when absent or blank.
+fn parse_depart_after(value: Option<&str>) -> AppResult<Option<i32>> {
+    let Some(v) = value.map(str::trim).filter(|v| !v.is_empty()) else {
+        return Ok(None);
+    };
+    let invalid = || AppError::BadRequest("departAfter must be HH:MM".into());
+    let (h, m) = v.split_once(':').ok_or_else(invalid)?;
+    let (h, m): (i32, i32) = (
+        h.parse().map_err(|_| invalid())?,
+        m.parse().map_err(|_| invalid())?,
+    );
+    if !(0..24).contains(&h) || !(0..60).contains(&m) {
+        return Err(invalid());
+    }
+    Ok(Some(h * 60 + m))
+}
+
 fn departure_minutes(t: &TripResult) -> i32 {
     let src = t
         .departure_time
@@ -606,7 +624,9 @@ impl PublicService {
         vehicle_types: Vec<String>,
         sort: &str,
         min_seats: i64,
+        depart_after: Option<&str>,
     ) -> AppResult<TripSearchResponse> {
+        let depart_after = parse_depart_after(depart_after)?;
         let from = from.trim();
         let to = to.trim();
         let date = date.trim();
@@ -925,6 +945,11 @@ impl PublicService {
             }),
         }
 
+        // "Leaving after" (the search form's optional time) narrows the day.
+        if let Some(after) = depart_after {
+            items.retain(|t| departure_minutes(t) >= after);
+        }
+
         // ── Paginate ───────────────────────────────────────────────
         // `total` counts every matching trip BEFORE the offset window
         // is applied (capped by fetch_cap upstream); `has_more` is
@@ -972,7 +997,9 @@ impl PublicService {
         min_seats: i64,
         vehicle_types: Vec<String>,
         max_distance_km: f64,
+        depart_after: Option<&str>,
     ) -> AppResult<TripSearchResponse> {
+        let depart_after = parse_depart_after(depart_after)?;
         let limit = limit.clamp(1, 100);
         let min_seats = min_seats.max(1);
         let max_dist = max_distance_km.max(1.0);
@@ -1349,6 +1376,9 @@ impl PublicService {
                 .then_with(|| x.0.trip_id.cmp(&y.0.trip_id))
         });
 
+        if let Some(after) = depart_after {
+            scored.retain(|(t, _)| departure_minutes(t) >= after);
+        }
         let total = scored.len() as u64;
         let page: Vec<TripResult> = scored
             .into_iter()

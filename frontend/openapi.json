@@ -6396,6 +6396,18 @@
               ],
               "format": "int64"
             }
+          },
+          {
+            "name": "departAfter",
+            "in": "query",
+            "description": "Only trips leaving at or after this time of day (`HH:MM`).",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
           }
         ],
         "responses": {
@@ -6522,6 +6534,18 @@
                 "null"
               ],
               "format": "double"
+            }
+          },
+          {
+            "name": "departAfter",
+            "in": "query",
+            "description": "Only trips leaving at or after this time of day (`HH:MM`).",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
             }
           }
         ],
@@ -13444,6 +13468,10 @@
               "string",
               "null"
             ]
+          },
+          "hasPassword": {
+            "type": "boolean",
+            "description": "Whether the account has a password (social sign-ins may not yet):\nchanging it then asks for the current one."
           },
           "id": {
             "type": "string",

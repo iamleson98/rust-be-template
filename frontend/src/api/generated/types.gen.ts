@@ -3039,6 +3039,11 @@ export type SessionUser = {
     brandName?: string | null;
     email?: string | null;
     employeeRole?: string | null;
+    /**
+     * Whether the account has a password (social sign-ins may not yet):
+     * changing it then asks for the current one.
+     */
+    hasPassword?: boolean;
     id: string;
     name: string;
     phone?: string | null;
@@ -8453,6 +8458,10 @@ export type SearchTripsData = {
         vehicleTypes?: string | null;
         sort?: string | null;
         minSeats?: number | null;
+        /**
+         * Only trips leaving at or after this time of day (`HH:MM`).
+         */
+        departAfter?: string | null;
     };
     url: '/api/search';
 };
@@ -8480,6 +8489,10 @@ export type SearchTripsGeoData = {
         minSeats?: number | null;
         vehicleTypes?: string | null;
         maxDistanceKm?: number | null;
+        /**
+         * Only trips leaving at or after this time of day (`HH:MM`).
+         */
+        departAfter?: string | null;
     };
     url: '/api/search/geo';
 };

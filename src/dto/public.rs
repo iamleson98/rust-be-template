@@ -481,4 +481,6 @@ pub struct SearchTripsQuery {
     pub vehicle_types: Option<String>,
     pub sort: Option<String>,
     pub min_seats: Option<i64>,
+    /// Only trips leaving at or after this time of day (`HH:MM`).
+    pub depart_after: Option<String>,
 }

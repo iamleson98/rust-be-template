@@ -157,6 +157,7 @@ pub async fn search_trips(
                 vehicle_types,
                 q.sort.as_deref().unwrap_or("departure"),
                 q.min_seats.unwrap_or(0),
+                q.depart_after.as_deref(),
             )
             .await?,
     ))
@@ -248,6 +249,8 @@ pub struct GeoSearchQuery {
     pub min_seats: Option<i64>,
     pub vehicle_types: Option<String>,
     pub max_distance_km: Option<f64>,
+    /// Only trips leaving at or after this time of day (`HH:MM`).
+    pub depart_after: Option<String>,
 }
 
 #[utoipa::path(
@@ -286,6 +289,7 @@ pub async fn search_trips_geo(
                 q.min_seats.unwrap_or(0),
                 vehicle_types,
                 q.max_distance_km.unwrap_or(50.0),
+                q.depart_after.as_deref(),
             )
             .await?,
     ))

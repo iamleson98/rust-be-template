@@ -821,6 +821,7 @@ mod tests {
             brand_id: None,
             brand_name: None,
             employee_role: None,
+            has_password: false,
         }
     }
 

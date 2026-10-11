@@ -435,7 +435,17 @@ async fn search_generates_trips_on_demand() -> anyhow::Result<()> {
     // the trip and the search must return it.
     let res = st
         .public
-        .search_trips("hà nội", "đà nẵng", &date, 20, 0, vec![], "departure", 1)
+        .search_trips(
+            "hà nội",
+            "đà nẵng",
+            &date,
+            20,
+            0,
+            vec![],
+            "departure",
+            1,
+            None,
+        )
         .await?;
     assert_eq!(
         res.items.len(),
@@ -451,7 +461,17 @@ async fn search_generates_trips_on_demand() -> anyhow::Result<()> {
     // Idempotency: a SECOND search for the same date must not duplicate.
     let res2 = st
         .public
-        .search_trips("hà nội", "đà nẵng", &date, 20, 0, vec![], "departure", 1)
+        .search_trips(
+            "hà nội",
+            "đà nẵng",
+            &date,
+            20,
+            0,
+            vec![],
+            "departure",
+            1,
+            None,
+        )
         .await?;
     assert_eq!(
         res2.items.len(),
@@ -474,6 +494,7 @@ async fn search_generates_trips_on_demand() -> anyhow::Result<()> {
             vec![],
             "departure",
             1,
+            None,
         )
         .await?;
     assert!(res_past.items.is_empty(), "past dates are never generated");
@@ -738,7 +759,17 @@ async fn search_matches_routes_by_city_slugs_not_just_name() -> anyhow::Result<(
     // Official names (differ from the route name entirely).
     let res = st
         .public
-        .search_trips("Hà Nội", "Đà Nẵng", &date, 20, 0, vec![], "departure", 1)
+        .search_trips(
+            "Hà Nội",
+            "Đà Nẵng",
+            &date,
+            20,
+            0,
+            vec![],
+            "departure",
+            1,
+            None,
+        )
         .await?;
     assert_eq!(
         res.items.len(),
@@ -787,7 +818,17 @@ async fn search_matches_routes_by_city_slugs_not_just_name() -> anyhow::Result<(
         .await?;
     let res = st
         .public
-        .search_trips("Sài Gòn", "Cần Thơ", &date, 20, 0, vec![], "departure", 1)
+        .search_trips(
+            "Sài Gòn",
+            "Cần Thơ",
+            &date,
+            20,
+            0,
+            vec![],
+            "departure",
+            1,
+            None,
+        )
         .await?;
     assert_eq!(
         res.items.len(),
@@ -798,7 +839,17 @@ async fn search_matches_routes_by_city_slugs_not_just_name() -> anyhow::Result<(
     // Direction still matters: the reverse direction must NOT match.
     let res = st
         .public
-        .search_trips("Đà Nẵng", "Hà Nội", &date, 20, 0, vec![], "departure", 1)
+        .search_trips(
+            "Đà Nẵng",
+            "Hà Nội",
+            &date,
+            20,
+            0,
+            vec![],
+            "departure",
+            1,
+            None,
+        )
         .await?;
     assert!(
         res.items.iter().all(|t| t.route_id != route.id),
@@ -923,7 +974,7 @@ async fn search_sorts_by_price_and_rating() -> anyhow::Result<()> {
     // sort=price → ascending min_price.
     let res = st
         .public
-        .search_trips("Hà Nội", "Đà Nẵng", &date, 20, 0, vec![], "price", 1)
+        .search_trips("Hà Nội", "Đà Nẵng", &date, 20, 0, vec![], "price", 1, None)
         .await?;
     let prices: Vec<i64> = res.items.iter().map(|t| t.min_price).collect();
     let mut sorted = prices.clone();
@@ -935,7 +986,7 @@ async fn search_sorts_by_price_and_rating() -> anyhow::Result<()> {
     // cities via name or slugs — Huế route only matches by name here).
     let res = st
         .public
-        .search_trips("Hà Nội", "Đà Nẵng", &date, 20, 0, vec![], "rating", 1)
+        .search_trips("Hà Nội", "Đà Nẵng", &date, 20, 0, vec![], "rating", 1, None)
         .await?;
     if let Some(first) = res.items.first() {
         assert_eq!(first.brand_slug, "sort-test-b", "highest rating first");
@@ -944,7 +995,17 @@ async fn search_sorts_by_price_and_rating() -> anyhow::Result<()> {
     // sort=departure (default) → 08:00 before 21:00 on the same route.
     let res = st
         .public
-        .search_trips("Hà Nội", "Đà Nẵng", &date, 20, 0, vec![], "departure", 1)
+        .search_trips(
+            "Hà Nội",
+            "Đà Nẵng",
+            &date,
+            20,
+            0,
+            vec![],
+            "departure",
+            1,
+            None,
+        )
         .await?;
     let times: Vec<&str> = res
         .items
@@ -954,6 +1015,47 @@ async fn search_sorts_by_price_and_rating() -> anyhow::Result<()> {
     let mut sorted_times = times.clone();
     sorted_times.sort();
     assert_eq!(times, sorted_times, "sort=departure must be chronological");
+
+    // departAfter → only the trips leaving at or after that time; total follows.
+    let all = res.items.len();
+    let late = st
+        .public
+        .search_trips(
+            "Hà Nội",
+            "Đà Nẵng",
+            &date,
+            20,
+            0,
+            vec![],
+            "departure",
+            1,
+            Some("12:00"),
+        )
+        .await?;
+    assert!(
+        !late.items.is_empty() && late.items.len() < all,
+        "08:00 is filtered out"
+    );
+    assert!(late
+        .items
+        .iter()
+        .all(|t| t.departure_time.as_deref().unwrap_or("") >= "12:00"));
+    assert_eq!(late.total, Some(late.items.len() as u64));
+    assert!(st
+        .public
+        .search_trips(
+            "Hà Nội",
+            "Đà Nẵng",
+            &date,
+            20,
+            0,
+            vec![],
+            "departure",
+            1,
+            Some("25:00")
+        )
+        .await
+        .is_err());
 
     Ok(())
 }
@@ -1013,7 +1115,17 @@ async fn search_paginates_with_offset_and_has_more() -> anyhow::Result<()> {
     // Page 1: two of three trips, hasMore true, total 3.
     let page1 = st
         .public
-        .search_trips("Hà Nội", "Đà Nẵng", &date, 2, 0, vec![], "departure", 1)
+        .search_trips(
+            "Hà Nội",
+            "Đà Nẵng",
+            &date,
+            2,
+            0,
+            vec![],
+            "departure",
+            1,
+            None,
+        )
         .await?;
     assert_eq!(page1.items.len(), 2, "page 1 returns exactly limit items");
     assert_eq!(page1.total, Some(3), "total counts ALL matching trips");
@@ -1024,7 +1136,17 @@ async fn search_paginates_with_offset_and_has_more() -> anyhow::Result<()> {
     // Page 2: the remaining trip, hasMore false.
     let page2 = st
         .public
-        .search_trips("Hà Nội", "Đà Nẵng", &date, 2, 2, vec![], "departure", 1)
+        .search_trips(
+            "Hà Nội",
+            "Đà Nẵng",
+            &date,
+            2,
+            2,
+            vec![],
+            "departure",
+            1,
+            None,
+        )
         .await?;
     assert_eq!(page2.items.len(), 1, "page 2 returns the last trip only");
     assert_eq!(page2.total, Some(3));
@@ -1051,7 +1173,17 @@ async fn search_paginates_with_offset_and_has_more() -> anyhow::Result<()> {
     // Offset past the end: empty page, hasMore false (not an error).
     let past = st
         .public
-        .search_trips("Hà Nội", "Đà Nẵng", &date, 2, 10, vec![], "departure", 1)
+        .search_trips(
+            "Hà Nội",
+            "Đà Nẵng",
+            &date,
+            2,
+            10,
+            vec![],
+            "departure",
+            1,
+            None,
+        )
         .await?;
     assert!(past.items.is_empty());
     assert_eq!(past.has_more, Some(false));
@@ -1065,7 +1197,17 @@ async fn search_paginates_with_offset_and_has_more() -> anyhow::Result<()> {
     // hasMore:false instead of guessing from an empty array).
     let none = st
         .public
-        .search_trips("Hà Nội", "Cà Mau", &date, 2, 0, vec![], "departure", 1)
+        .search_trips(
+            "Hà Nội",
+            "Cà Mau",
+            &date,
+            2,
+            0,
+            vec![],
+            "departure",
+            1,
+            None,
+        )
         .await?;
     assert!(none.items.is_empty());
     assert_eq!(none.has_more, Some(false));
@@ -1209,6 +1351,7 @@ async fn geo_search_ranks_by_proximity_and_paginates() -> anyhow::Result<()> {
             1,
             vec![],
             50.0,
+            None,
         )
         .await?;
     assert_eq!(ranked.items.len(), 3, "both routes' trips must match");
@@ -1235,6 +1378,7 @@ async fn geo_search_ranks_by_proximity_and_paginates() -> anyhow::Result<()> {
             1,
             vec![],
             50.0,
+            None,
         )
         .await?;
     assert_eq!(page1.items.len(), 2);
@@ -1255,6 +1399,7 @@ async fn geo_search_ranks_by_proximity_and_paginates() -> anyhow::Result<()> {
             1,
             vec![],
             50.0,
+            None,
         )
         .await?;
     assert_eq!(page2.items.len(), 1);

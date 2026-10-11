@@ -1233,6 +1233,7 @@ mod tests {
             brand_id: None,
             brand_name: None,
             employee_role: None,
+            has_password: false,
         });
         assert_eq!(caller.name.as_deref(), Some("Nguyễn Văn A"));
         assert_eq!(

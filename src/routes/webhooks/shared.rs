@@ -142,6 +142,7 @@ pub async fn handle_platform_message(
         brand_id: None,
         brand_name: None,
         employee_role: None,
+        has_password: user.password_hash.is_some(),
     };
 
     let user_msg_id = stored_msg.id.to_string();
