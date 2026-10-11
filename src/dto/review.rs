@@ -52,6 +52,15 @@ pub struct ReviewOut {
     pub user_id: Option<Uuid>,
 }
 
+impl ReviewOut {
+    /// The review as anyone may see it: the author's phone (often their
+    /// booking's contact number) stays with the author and the staff.
+    pub fn public(mut self) -> Self {
+        self.author_phone = None;
+        self
+    }
+}
+
 /// Response of `GET /api/reviews` (public: `items` only) and
 /// `GET /api/reviews/mine` (adds `total`/`limit`/`offset` so the
 /// account feedback page can paginate).

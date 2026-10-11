@@ -1838,6 +1838,25 @@ export const en: TranslationMap = {
   'trust.privacyDecree': 'in line with Decree 13/2023/NĐ-CP on personal data protection.',
   'trust.privacyRights':
     'You may request access to, correction, or deletion of your personal data at any time.',
+  'trust.title': 'Book with confidence',
+  'trust.subtitle': 'What you can count on every time you book with DatXeVui',
+  'trust.priceTitle': 'Clear prices, no booking fee',
+  'trust.priceBody':
+    'The price you see is the price you pay. Coupons come straight off the total and nothing is added at checkout.',
+  'trust.confirmTitle': 'Every ticket confirmed',
+  'trust.confirmBody':
+    'Paid online: confirmed the moment the payment goes through. Paying on board: the operator calls you to confirm.',
+  'trust.cancelTitle': 'Cancellation rules up front',
+  'trust.cancelBody':
+    'Each operator\'s cancellation and change rules are shown under Policies before you book. Refunds go back to the way you paid.',
+  'trust.cancelLink': 'Read the cancellation policy',
+  'trust.supportTitle': 'Real people to help',
+  'trust.supportBody': 'Chat with us online, call {hotline} or email {email}.',
+  'trust.supportLink': 'Call {hotline}',
+  'trust.privacy':
+    'Your personal data is handled under Decree 13/2023/NĐ-CP on personal data protection.',
+  'trust.privacyLink': 'Privacy policy',
+  'trust.verifiedTrip': 'Verified trip',
   'ui.pickDate': 'Pick a date…',
   'ui.clearDate': 'Clear date',
   'ui.clearTime': 'Clear time',
@@ -2093,6 +2112,10 @@ export const en: TranslationMap = {
   'bookingFlow.placedTitle': 'Your seats are reserved!',
   'bookingFlow.placedDesc':
     'The operator will call you to confirm the ticket. You pay when you board.',
+  'bookingFlow.agreeLead': 'By booking you agree to the',
+  'bookingFlow.agreeTerms': 'Terms of use',
+  'bookingFlow.agreeAnd': 'and the',
+  'bookingFlow.agreeCancellation': 'Cancellation policy',
   'bookingHistory.statusAwaiting': 'Awaiting confirmation',
   'bookingHistory.statusPaying': 'Payment in progress',
   'bookingHistory.awaitingNotice':

@@ -61,7 +61,9 @@ pub async fn list(
             }
         }
     }
-    Ok(Json(st.reviews.list(&public_list_filter(&q)).await?))
+    let mut page = st.reviews.list(&public_list_filter(&q)).await?;
+    page.items = page.items.into_iter().map(ReviewOut::public).collect();
+    Ok(Json(page))
 }
 
 #[derive(Deserialize, utoipa::IntoParams)]
@@ -153,7 +155,7 @@ pub async fn mine(
     ))
 }
 
-/// `GET /api/reviews/{id}` — get a review by ID.
+/// `GET /api/reviews/{id}` — an approved review by ID (the author's phone left out).
 #[utoipa::path(
     get,
     path = "/api/reviews/{id}",
@@ -168,7 +170,13 @@ pub async fn get(
     State(st): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<ReviewOut>, AppError> {
-    Ok(Json(st.reviews.get(id).await?))
+    // Like the list: only approved reviews are public (a pending or
+    // rejected one is "not found" rather than readable by its id).
+    let review = st.reviews.get(id).await?;
+    if review.status != "approved" {
+        return Err(AppError::NotFound("review not found".into()));
+    }
+    Ok(Json(review.public()))
 }
 
 /// `POST /api/reviews` — create a review. Requires authentication.
@@ -311,5 +319,35 @@ mod tests {
         assert_eq!(f.user_id, None);
         assert_eq!(f.limit, 20, "default limit");
         assert_eq!(f.offset, 0, "default offset");
+    }
+
+    /// A reviewer's phone (often their booking's contact number) never
+    /// leaves through the public endpoints.
+    #[test]
+    fn public_reviews_hide_the_author_phone() {
+        let review = ReviewOut {
+            id: Uuid::nil(),
+            booking_id: None,
+            trip_session_id: None,
+            route_id: None,
+            brand_id: None,
+            author_name: Some("An".into()),
+            author_phone: Some("0912345678".into()),
+            rating: 5,
+            title: None,
+            content: None,
+            tags: vec![],
+            photos: vec![],
+            status: "approved".into(),
+            helpful_count: 0,
+            reply: None,
+            replied_at: None,
+            created_at: String::new(),
+            updated_at: String::new(),
+            user_id: None,
+        };
+        let json = serde_json::to_value(review.public()).unwrap();
+        assert!(json.get("authorPhone").is_none(), "{json}");
+        assert_eq!(json["authorName"], "An");
     }
 }

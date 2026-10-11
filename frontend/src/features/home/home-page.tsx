@@ -2,8 +2,8 @@
  * Home route — `/`
  *
  * Renders the marketing landing page: hero, discount campaigns,
- * recently-viewed, popular routes, brand showcase, testimonials,
- * recommendations.
+ * recently-viewed, popular routes, brand showcase, what we promise,
+ * testimonials, recommendations.
  *
  * All sections are lazy-loaded islands (code-split). The hero is in the
  * shell bundle so it paints immediately; the rest stream in as chunks
@@ -11,6 +11,7 @@
  */
 import { lazy, Suspense } from 'react'
 import { Hero } from '@/features/home/hero'
+import { TrustCommitments } from '@/features/home/trust-commitments'
 import { IslandFallback } from '../../components/island-fallback'
 
 const CampaignSpotlight = lazy(() =>
@@ -51,6 +52,8 @@ export function HomePage() {
       <Suspense fallback={<IslandFallback minHeight={300} />}>
         <BrandShowcase />
       </Suspense>
+      {/* In the shell bundle (static, prerendered): the promises sit in the page's HTML. */}
+      <TrustCommitments />
       <Suspense fallback={<IslandFallback minHeight={400} />}>
         <Testimonials />
       </Suspense>

@@ -1834,6 +1834,25 @@ export const vi: TranslationMap = {
   'trust.privacyDecree': 'tuân thủ Nghị định 13/2023/NĐ-CP về bảo vệ dữ liệu cá nhân.',
   'trust.privacyRights':
     'Bạn có quyền yêu cầu truy cập, chỉnh sửa hoặc xoá dữ liệu cá nhân bất cứ lúc nào.',
+  'trust.title': 'Đặt vé yên tâm',
+  'trust.subtitle': 'Những điều bạn luôn nhận được khi đặt vé trên DatXeVui',
+  'trust.priceTitle': 'Giá rõ ràng, không phí đặt vé',
+  'trust.priceBody':
+    'Giá bạn thấy là giá bạn trả. Mã giảm giá trừ thẳng vào tổng tiền, không cộng thêm phí nào khi thanh toán.',
+  'trust.confirmTitle': 'Vé được xác nhận rõ ràng',
+  'trust.confirmBody':
+    'Thanh toán online: vé được xác nhận ngay khi cổng thanh toán báo thành công. Trả tiền tại xe: nhà xe gọi điện xác nhận với bạn.',
+  'trust.cancelTitle': 'Chính sách huỷ vé minh bạch',
+  'trust.cancelBody':
+    'Quy định huỷ, đổi vé của từng nhà xe hiện ở mục Chính sách trước khi bạn đặt. Tiền hoàn trả về đúng phương thức bạn đã thanh toán.',
+  'trust.cancelLink': 'Xem chính sách huỷ vé',
+  'trust.supportTitle': 'Luôn có người hỗ trợ',
+  'trust.supportBody': 'Nhắn tin trực tuyến, gọi tổng đài {hotline} hoặc gửi email tới {email}.',
+  'trust.supportLink': 'Gọi {hotline}',
+  'trust.privacy':
+    'Thông tin cá nhân của bạn được xử lý theo Nghị định 13/2023/NĐ-CP về bảo vệ dữ liệu cá nhân.',
+  'trust.privacyLink': 'Chính sách bảo mật',
+  'trust.verifiedTrip': 'Đã đi chuyến này',
   'ui.pickDate': 'Chọn ngày…',
   'ui.clearDate': 'Xoá ngày',
   'ui.clearTime': 'Xoá giờ',
@@ -2082,6 +2101,10 @@ export const vi: TranslationMap = {
   'adminTickets.finalNotice': 'Vé đã hoàn thành hoặc đã huỷ nên không thể thay đổi nữa.',
   'bookingFlow.placedTitle': 'Đã giữ chỗ cho bạn!',
   'bookingFlow.placedDesc': 'Nhà xe sẽ gọi cho bạn để xác nhận vé. Bạn trả tiền khi lên xe.',
+  'bookingFlow.agreeLead': 'Khi đặt vé, bạn đồng ý với',
+  'bookingFlow.agreeTerms': 'Điều khoản sử dụng',
+  'bookingFlow.agreeAnd': 'và',
+  'bookingFlow.agreeCancellation': 'Chính sách huỷ vé',
   'bookingHistory.statusAwaiting': 'Chờ xác nhận',
   'bookingHistory.statusPaying': 'Đang thanh toán',
   'bookingHistory.awaitingNotice':

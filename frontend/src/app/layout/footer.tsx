@@ -4,6 +4,7 @@ import { Link, useNavigate } from '@tanstack/react-router'
 import { Headphones, Mail, MessageCircle, ShieldCheck } from 'lucide-react'
 import { routesOptions } from '@/api'
 import { useT } from '@/lib/i18n'
+import { SUPPORT } from '@/lib/support'
 import { useEnabledProviders, type PaymentProvider } from '@/lib/payment'
 import { buildSearchInput, vnDate } from '@/lib/search-params'
 import { useSession } from '@/stores/session'
@@ -70,7 +71,7 @@ export const Footer = memo(function Footer() {
               {t('layout.footer.brandIntro')}
             </p>
             <a
-              href="tel:19006067"
+              href={SUPPORT.hotlineHref}
               className="mt-5 inline-flex items-center gap-3 rounded-2xl bg-slate-50 py-2.5 pr-4 pl-2.5 ring-1 ring-slate-200 transition-colors hover:bg-slate-100"
             >
               <span className="grid size-9 place-items-center rounded-xl bg-primary/10 text-primary">
@@ -79,7 +80,7 @@ export const Footer = memo(function Footer() {
               <span className="leading-tight">
                 <span className="block text-[11px] text-slate-500">{t('footer.hotline')}</span>
                 <span className="block text-base font-bold text-slate-900 tabular-nums">
-                  1900 6067
+                  {SUPPORT.hotline}
                 </span>
               </span>
             </a>
@@ -114,11 +115,11 @@ export const Footer = memo(function Footer() {
               </li>
               <li>
                 <a
-                  href="mailto:cskh@datxevui.com"
+                  href={SUPPORT.emailHref}
                   className={`${LINK} inline-flex max-w-full items-center gap-1.5`}
                 >
                   <Mail className="size-3.5 shrink-0" />
-                  <span className="truncate">cskh@datxevui.com</span>
+                  <span className="truncate">{SUPPORT.email}</span>
                 </a>
               </li>
             </Column>

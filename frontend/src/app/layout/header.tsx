@@ -6,21 +6,23 @@ import { usePrefs } from '@/stores/prefs'
 import { isStaffUser, useSession } from '@/stores/session'
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
 import { useT } from '@/lib/i18n'
+import { SUPPORT } from '@/lib/support'
 import { useLogout } from '@/features/auth/api'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import {
-  LayoutDashboard,
-  Globe,
-  Gift,
+  Briefcase,
   Check,
+  Gift,
   GitCompare,
+  Globe,
+  LayoutDashboard,
   LogIn,
   LogOut,
-  Phone,
-  Briefcase,
-  Ticket,
   Mail,
+  Phone,
+  PhoneCall,
+  Ticket,
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -118,6 +120,21 @@ export const Header = memo(function Header() {
         </nav>
 
         <div className="ml-auto flex items-center gap-1 sm:gap-1.5">
+          {/* A real number to call, in view on every desktop page. */}
+          <a
+            href={SUPPORT.hotlineHref}
+            className="mr-1 hidden items-center gap-2 rounded-full py-1 pr-3 pl-1 transition-colors hover:bg-slate-100 lg:inline-flex"
+          >
+            <span className="grid size-8 place-items-center rounded-full bg-emerald-50 text-emerald-600">
+              <PhoneCall className="size-4" aria-hidden />
+            </span>
+            <span className="leading-tight">
+              <span className="block text-[10px] text-slate-500">{t('footer.hotline')}</span>
+              <span className="block text-sm font-semibold text-slate-900 tabular-nums">
+                {SUPPORT.hotline}
+              </span>
+            </span>
+          </a>
           {compareCount > 0 && (
             <button
               onClick={() => setCompareOpen(true)}
