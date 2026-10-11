@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 
 import { DataTable } from '../data-table'
 import { DataTableColumnHeader } from '../data-table-column-header'
+import { DataTableViewOptions } from '../data-table-view-options'
 import type { DataTableFeatures } from '../data-table-features'
 
 interface Payment {
@@ -237,5 +238,25 @@ describe('DataTable', () => {
     )
 
     expect(screen.getByRole('button', { name: 'Hide email' })).toBeInTheDocument()
+  })
+
+  // The menu's label is a Base UI group label: outside a group it threw on open.
+  it('opens the column picker and hides a column', async () => {
+    const user = userEvent.setup()
+    render(
+      <DataTable
+        columns={columns}
+        data={payments}
+        toolbar={(table) => <DataTableViewOptions table={table} />}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: /cột/i }))
+    const email = await screen.findByRole('menuitemcheckbox', { name: 'Email' })
+    expect(email).toBeChecked()
+    await user.click(email)
+    await waitFor(() =>
+      expect(screen.queryByRole('columnheader', { name: /email/i })).not.toBeInTheDocument(),
+    )
   })
 })

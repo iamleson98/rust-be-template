@@ -71,7 +71,9 @@ export function PriceAlertDialog() {
     z.output<typeof priceAlertSchema>
   >({
     resolver: zodResolver(priceAlertSchema),
-    mode: 'onBlur',
+    // Errors appear on submit, then follow each change: an error popping up
+    // on blur shifts the layout under the pointer and swallows the click.
+    mode: 'onSubmit',
     reValidateMode: 'onChange',
     defaultValues: {
       phone: '',
@@ -161,19 +163,10 @@ export function PriceAlertDialog() {
 
   return (
     <Dialog open={priceAlertOpen} onOpenChange={(o) => !o && closePriceAlert()}>
-      <DialogContent className="max-w-lg w-[95vw] max-h-[92dvh] overflow-y-auto">
-        <DialogHeader>
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-linear-to-br from-blue-500 to-blue-500 text-white flex items-center justify-center shrink-0">
-              <Bell className="h-5 w-5" />
-            </div>
-            <div>
-              <DialogTitle className="text-lg font-bold">{t('priceAlert.dialogTitle')}</DialogTitle>
-              <DialogDescription className="text-xs">
-                {t('priceAlert.dialogDesc')}
-              </DialogDescription>
-            </div>
-          </div>
+      <DialogContent className="max-w-lg">
+        <DialogHeader icon={<Bell />}>
+          <DialogTitle>{t('priceAlert.dialogTitle')}</DialogTitle>
+          <DialogDescription>{t('priceAlert.dialogDesc')}</DialogDescription>
         </DialogHeader>
 
         {success ? (
@@ -199,11 +192,7 @@ export function PriceAlertDialog() {
               <Button variant="outline" size="sm" onClick={() => setSuccess(null)}>
                 {t('priceAlert.createAnother')}
               </Button>
-              <Button
-                size="sm"
-                className="bg-blue-600 hover:bg-blue-700 text-white"
-                onClick={closePriceAlert}
-              >
+              <Button size="sm" onClick={closePriceAlert}>
                 {t('priceAlert.done')}
               </Button>
             </div>
@@ -213,7 +202,7 @@ export function PriceAlertDialog() {
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>
               {/* Route (read-only display) */}
               <div className="space-y-1.5">
-                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <Label className="text-sm font-medium text-slate-900">
                   {t('priceAlert.routeLabel')}
                 </Label>
                 <div className="flex items-center gap-2 rounded-lg border bg-slate-50 px-3 py-2.5">
@@ -248,10 +237,7 @@ export function PriceAlertDialog() {
                 name="phone"
                 render={({ field }) => (
                   <FormItem className="space-y-1.5">
-                    <FormLabel
-                      htmlFor="alert-phone"
-                      className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
-                    >
+                    <FormLabel htmlFor="alert-phone" className="text-sm font-medium text-slate-900">
                       {t('auth.phone')} <span className="text-destructive">*</span>
                     </FormLabel>
                     <div className="relative">
@@ -277,10 +263,7 @@ export function PriceAlertDialog() {
                 name="email"
                 render={({ field }) => (
                   <FormItem className="space-y-1.5">
-                    <FormLabel
-                      htmlFor="alert-email"
-                      className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
-                    >
+                    <FormLabel htmlFor="alert-email" className="text-sm font-medium text-slate-900">
                       {t('auth.email')}{' '}
                       <span className="text-muted-foreground/60 normal-case font-normal">
                         {t('priceAlert.emailOptional')}
@@ -326,7 +309,7 @@ export function PriceAlertDialog() {
                 <Button
                   type="submit"
                   disabled={submitting || !fromName || !toName}
-                  className="bg-blue-600 hover:bg-blue-700 text-white gap-2 min-w-35"
+                  className="min-w-35 gap-2"
                 >
                   {submitting ? (
                     <>

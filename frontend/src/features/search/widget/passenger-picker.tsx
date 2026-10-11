@@ -9,12 +9,9 @@ import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Users, Minus, Plus } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { FIELD_CONTROL, FIELD_ERROR, FIELD_ITEM, FIELD_LABEL } from './field-style'
 import type { SearchFormValues } from './schema'
-
-/** Shared label style — darker than muted-foreground so the tiny
- *  uppercase labels stay readable on the white widget card. */
-const LABEL_CLASS =
-  'h-5 text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 pl-1'
 
 export function SearchPassengerPicker({
   form,
@@ -22,14 +19,12 @@ export function SearchPassengerPicker({
   setSearchParams,
   paxOpen,
   setPaxOpen,
-  compact = false,
 }: {
   form: UseFormReturn<SearchFormValues>
   searchParams: SearchParams
   setSearchParams: (p: Partial<SearchParams>) => void
   paxOpen: boolean
   setPaxOpen: React.Dispatch<React.SetStateAction<boolean>>
-  compact?: boolean
 }) {
   const t = useT()
   return (
@@ -39,8 +34,8 @@ export function SearchPassengerPicker({
         control={form.control}
         name="adults"
         render={({ field }) => (
-          <FormItem className={compact ? 'space-y-1' : 'space-y-1.5'}>
-            <FormLabel className={LABEL_CLASS}>{t('search.passengers')}</FormLabel>
+          <FormItem className={FIELD_ITEM}>
+            <FormLabel className={FIELD_LABEL}>{t('search.passengers')}</FormLabel>
             <div className="relative group/pax">
               <Users className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 z-10 text-muted-foreground group-hover/pax:text-blue-600 transition-colors" />
               <Popover open={paxOpen} onOpenChange={setPaxOpen}>
@@ -48,7 +43,7 @@ export function SearchPassengerPicker({
                   <Button
                     type="button"
                     variant="outline"
-                    className="w-full justify-start font-normal bg-white/95 h-10 pl-10"
+                    className={cn(FIELD_CONTROL, 'w-full justify-start pl-10 font-normal')}
                   >
                     {searchParams.adults + searchParams.children}
                   </Button>
@@ -82,12 +77,7 @@ export function SearchPassengerPicker({
                 </PopoverContent>
               </Popover>
             </div>
-            <div
-              className={compact ? 'min-h-4 max-md:min-h-0' : 'min-h-5 max-md:min-h-0'}
-              aria-live="polite"
-            >
-              <FormMessage className={compact ? 'text-xs leading-4' : undefined} />
-            </div>
+            <FormMessage className={FIELD_ERROR} />
           </FormItem>
         )}
       />

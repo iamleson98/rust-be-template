@@ -42,8 +42,6 @@ export function BrandDetailDialog({ slug, onClose }: { slug: string; onClose: ()
   })
   const reviewCount = statsQuery.data?.count ?? 0
 
-  const accent = brand?.accentColor ?? '#2563eb'
-
   // Search this route from tomorrow.
   const quickSearch = (fromName: string, toName: string) => {
     const tomorrow = new Date()
@@ -56,7 +54,10 @@ export function BrandDetailDialog({ slug, onClose }: { slug: string; onClose: ()
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="flex max-h-[92dvh] w-[95vw] max-w-3xl flex-col gap-0 overflow-hidden p-0 max-md:h-dvh max-md:max-h-dvh max-md:w-screen max-md:max-w-none max-md:rounded-none max-md:border-0">
+      <DialogContent
+        mobile="fullscreen"
+        className="flex max-w-3xl flex-col gap-0 overflow-clip p-0"
+      >
         {!brand ? (
           <>
             <DialogTitle className="sr-only">{t('brandDetail.loadingTitle')}</DialogTitle>
@@ -82,12 +83,7 @@ export function BrandDetailDialog({ slug, onClose }: { slug: string; onClose: ()
           </>
         ) : (
           <>
-            <BrandDialogHeader
-              brand={brand}
-              accent={accent}
-              reviewCount={reviewCount}
-              routes={routes}
-            />
+            <BrandDialogHeader brand={brand} reviewCount={reviewCount} routes={routes} />
 
             <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col gap-0">
               <TabsList className="h-auto w-full justify-start gap-1 rounded-none border-b bg-background px-3 py-2">
@@ -111,11 +107,10 @@ export function BrandDetailDialog({ slug, onClose }: { slug: string; onClose: ()
                 <BrandRoutesTab
                   isLoading={routesQuery.isLoading}
                   routes={routes}
-                  accent={accent}
                   onQuickSearch={quickSearch}
                 />
                 <TabsContent value="reviews" className="m-0 p-4">
-                  <ReviewsList brandId={brand.id} brandName={brand.name} accentColor={accent} />
+                  <ReviewsList brandId={brand.id} brandName={brand.name} />
                 </TabsContent>
               </ScrollArea>
             </Tabs>

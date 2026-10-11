@@ -3,7 +3,7 @@
 use sea_orm::Set;
 use uuid::Uuid;
 
-use super::validate::{slugify, valid_hex_color, valid_slug};
+use super::validate::{slugify, valid_slug};
 use super::{now_iso, AdminService};
 use crate::dto::admin::{
     AdminBrandListResponse, AdminBrandOut, AdminMutationResponse, UpsertBrandRequest,
@@ -55,7 +55,6 @@ impl AdminService {
                 contact_email: b.contact_email.clone(),
                 rating: b.rating,
                 status: b.status.clone(),
-                accent_color: b.accent_color.clone(),
                 child_fare: ChildPolicy::of(b).map(Into::into),
                 created_at: b.created_at.clone(),
                 updated_at: b.updated_at.clone(),
@@ -91,15 +90,6 @@ impl AdminService {
             ));
         }
 
-        let accent_color = body.accent_color.as_deref().map(|s| s.to_string());
-        if let Some(ref c) = accent_color {
-            if !valid_hex_color(c) {
-                return Err(AppError::Validation(
-                    "accentColor must be #RRGGBB hex".into(),
-                ));
-            }
-        }
-
         let child_fare = body
             .child_fare
             .flatten()
@@ -118,12 +108,11 @@ impl AdminService {
             // Computed from approved reviews, never typed in.
             rating: Set(None),
             status: Set(body.status.clone().unwrap_or_else(|| "active".to_string())),
-            accent_color: Set(accent_color),
             total_trips: Set(0),
             created_at: Set(now.clone()),
             updated_at: Set(now),
             child_max_age: Set(child_fare.map(|p| p.max_age)),
-            child_discount_percent: Set(child_fare.map(|p| p.discount_percent)),
+            child_discount_amount: Set(child_fare.map(|p| p.discount_amount)),
         };
 
         self.store
@@ -172,21 +161,13 @@ impl AdminService {
         if let Some(ref v) = body.contact_email {
             active.contact_email = Set(Some(v.clone()));
         }
-        if let Some(ref v) = body.accent_color {
-            if !valid_hex_color(v) {
-                return Err(AppError::Validation(
-                    "accentColor must be #RRGGBB hex".into(),
-                ));
-            }
-            active.accent_color = Set(Some(v.clone()));
-        }
         if let Some(ref v) = body.status {
             active.status = Set(v.clone());
         }
         if let Some(policy) = body.child_fare {
             let policy = policy.map(valid_child_fare).transpose()?;
             active.child_max_age = Set(policy.map(|p| p.max_age));
-            active.child_discount_percent = Set(policy.map(|p| p.discount_percent));
+            active.child_discount_amount = Set(policy.map(|p| p.discount_amount));
         }
 
         active.updated_at = Set(now_iso());
@@ -217,9 +198,10 @@ fn valid_child_fare(policy: ChildFarePolicy) -> AppResult<ChildFarePolicy> {
             "childFare.maxAge must be 1–{MAX_CHILD_AGE}"
         )));
     }
-    if !(0..=100).contains(&policy.discount_percent) {
+    // Fares are quoted in thousands of VND, so is the discount.
+    if !(0..=100_000_000).contains(&policy.discount_amount) || policy.discount_amount % 1_000 != 0 {
         return Err(AppError::Validation(
-            "childFare.discountPercent must be 0–100".into(),
+            "childFare.discountAmount must be 0–100.000.000 ₫, in thousands".into(),
         ));
     }
     Ok(policy)

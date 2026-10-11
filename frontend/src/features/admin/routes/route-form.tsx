@@ -95,7 +95,9 @@ export function RouteFormDialog({
 
   const form = useForm<z.input<RouteSchema>, unknown, z.output<RouteSchema>>({
     resolver: zodResolver(routeSchema),
-    mode: 'onBlur',
+    // Errors appear on submit, then follow each change: an error popping up
+    // on blur shifts the layout under the pointer and swallows the click.
+    mode: 'onSubmit',
     reValidateMode: 'onChange',
     defaultValues: {
       name: '',
@@ -153,18 +155,14 @@ export function RouteFormDialog({
   return (
     <Dialog open={open} onOpenChange={(o) => !saving && onOpenChange(o)}>
       <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <RouteIcon className="h-5 w-5 text-blue-600" />
+        <DialogHeader icon={<RouteIcon />}>
+          <DialogTitle>
             {isEdit ? t('routeForm.editTitle') : t('routeForm.createTitle')}
           </DialogTitle>
           <DialogDescription>
             {brand ? (
               <>
-                {t('routeForm.belongsTo')}{' '}
-                <span className="font-medium" style={{ color: brand.accentColor ?? undefined }}>
-                  {brand.name}
-                </span>
+                {t('routeForm.belongsTo')} <span className="font-medium">{brand.name}</span>
               </>
             ) : null}
           </DialogDescription>
@@ -241,7 +239,7 @@ export function RouteFormDialog({
               <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
                 {t('common.cancel')}
               </Button>
-              <Button type="submit" disabled={saving} className="bg-blue-600 hover:bg-blue-700">
+              <Button type="submit" disabled={saving}>
                 {saving ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> {t('common.saving')}

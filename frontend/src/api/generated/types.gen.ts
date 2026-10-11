@@ -100,7 +100,6 @@ export type AdminBrandListResponse = {
  * Admin brand list item — like `BrandOut` but with `routeCount` + `layoutCount`.
  */
 export type AdminBrandOut = {
-    accentColor?: string | null;
     childFare?: null | ChildFarePolicy;
     contactEmail?: string | null;
     contactPhone?: string | null;
@@ -354,7 +353,6 @@ export type AdminReviewBrandSummary = {
      * one decimal place. `None` when the brand has no reviews.
      */
     avgRating?: number | null;
-    brandAccent?: string | null;
     /**
      * `None` = reviews not linked to any brand (legacy/guest rows).
      */
@@ -726,7 +724,6 @@ export type BookingStop = {
  * The trip a booking is for.
  */
 export type BookingTrip = {
-    brandAccent?: string | null;
     brandId?: string | null;
     brandLogo?: string | null;
     brandName?: string | null;
@@ -755,7 +752,6 @@ export type BookingTrip = {
  * Brand detail returned by `GET /api/brands/{slug}`.
  */
 export type BrandDetailOut = {
-    accentColor?: string | null;
     contactEmail?: string | null;
     contactPhone?: string | null;
     description?: string | null;
@@ -780,7 +776,6 @@ export type BrandListResponse = {
  * Slim brand entry returned by `GET /api/brands`.
  */
 export type BrandOut = {
-    accentColor?: string | null;
     id: string;
     logoUrl?: string | null;
     name: string;
@@ -1087,9 +1082,10 @@ export type ChatStatsResponse = {
  */
 export type ChildFarePolicy = {
     /**
-     * Percent off the adult price, where the schedule sets no child price.
+     * VND off the adult price, where the schedule sets no child price
+     * (a child never pays less than 0).
      */
-    discountPercent: number;
+    discountAmount: number;
     /**
      * Oldest age (inclusive) that travels on a child ticket.
      */
@@ -2855,7 +2851,6 @@ export type ReviewTagsResponse = {
  * Brand preview embedded in `RouteOut`.
  */
 export type RouteBrandPreview = {
-    accentColor?: string | null;
     logoUrl?: string | null;
     name?: string | null;
     rating?: number | null;
@@ -3044,6 +3039,11 @@ export type SessionUser = {
     brandName?: string | null;
     email?: string | null;
     employeeRole?: string | null;
+    /**
+     * Whether the account has a password (social sign-ins may not yet):
+     * changing it then asks for the current one.
+     */
+    hasPassword?: boolean;
     id: string;
     name: string;
     phone?: string | null;
@@ -3294,7 +3294,6 @@ export type TripAmenity = {
 };
 
 export type TripBrandDetail = {
-    accentColor?: string | null;
     id?: string | null;
     logoUrl?: string | null;
     name?: string | null;
@@ -3432,7 +3431,6 @@ export type TripResult = {
     amenities: Array<string>;
     arrivalAt?: string | null;
     availableSeats: number;
-    brandAccent: string;
     brandId?: string | null;
     brandLogo?: string | null;
     brandName: string;
@@ -3689,7 +3687,6 @@ export type UpsertAddressRequest = {
  * `PUT /api/admin/brands/{id}` (update — all fields optional).
  */
 export type UpsertBrandRequest = {
-    accentColor?: string | null;
     childFare?: null | ChildFarePolicy;
     contactEmail?: string | null;
     contactPhone?: string | null;
@@ -8461,6 +8458,10 @@ export type SearchTripsData = {
         vehicleTypes?: string | null;
         sort?: string | null;
         minSeats?: number | null;
+        /**
+         * Only trips leaving at or after this time of day (`HH:MM`).
+         */
+        departAfter?: string | null;
     };
     url: '/api/search';
 };
@@ -8488,6 +8489,10 @@ export type SearchTripsGeoData = {
         minSeats?: number | null;
         vehicleTypes?: string | null;
         maxDistanceKm?: number | null;
+        /**
+         * Only trips leaving at or after this time of day (`HH:MM`).
+         */
+        departAfter?: string | null;
     };
     url: '/api/search/geo';
 };

@@ -21,7 +21,11 @@ function CallSurface({ embedded, children }: { embedded: boolean; children: Reac
   return target ? createPortal(children, target) : null
 }
 
-/** Staff's persistent button for noticing and answering calls while the panel is closed. */
+/**
+ * Staff's way back to a ringing or running call after closing the panel. While
+ * idle there is none: it would only cover the page (the chat's send button), and
+ * a new call opens the panel by itself.
+ */
 function AgentButton({ call }: { call: AudioCall }) {
   const t = useT()
   const path = useRouterState({ select: (s) => s.location.pathname })
@@ -97,7 +101,9 @@ export function AudioCallWidget() {
     <>
       {/* The remote audio; iOS only autoplays an element that is in the DOM with playsInline. */}
       <audio ref={audioRef} autoPlay playsInline className="hidden" />
-      {!call.open && isAgent && <AgentButton call={call} />}
+      {!call.open && isAgent && call.state !== 'idle' && call.state !== 'ended' && (
+        <AgentButton call={call} />
+      )}
       {call.open && (
         <CallSurface embedded={!isAgent}>
           <div

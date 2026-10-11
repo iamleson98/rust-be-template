@@ -584,6 +584,36 @@ async fn editing_a_claimed_campaign_keeps_the_promises_made() {
     e.svc.delete(e.admin, unused).await.unwrap();
 }
 
+/// Given-back coupons free their slot, but they still name their tier:
+/// removing it is refused with a clear conflict (it used to hit the
+/// foreign key and fail as an internal error).
+#[tokio::test]
+async fn a_tier_with_given_back_coupons_stays() {
+    let e = env(1).await;
+    let created = e
+        .svc
+        .create(e.admin, input(&[(50_000, 2), (20_000, 5)]))
+        .await
+        .unwrap();
+    let (big, small) = (created.tiers[0].id, created.tiers[1].id);
+    let customer = e.user("user").await;
+    e.svc.claim(customer, None, created.id, big).await.unwrap();
+    e.svc.give_up(customer).await.unwrap();
+    assert_eq!(e.claimed_slots(big).await, 0);
+
+    let mut edit = input(&[]);
+    edit.starts_at = created.starts_at.clone();
+    edit.ends_at = created.ends_at.clone();
+    edit.tiers = vec![TierInput {
+        id: Some(small),
+        amount: 20_000,
+        total_slots: 5,
+    }];
+    let err = e.svc.update(e.admin, created.id, edit).await.unwrap_err();
+    assert!(matches!(err, AppError::Conflict(_)), "{err:?}");
+    assert_eq!(e.svc.admin_get(created.id).await.unwrap().tiers.len(), 2);
+}
+
 #[tokio::test]
 async fn invalid_campaigns_are_refused() {
     let e = env(1).await;

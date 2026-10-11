@@ -36,7 +36,7 @@ const render = (detail: TripDetail) =>
 
 describe('useBookingForm', () => {
   it('seats the searched adult, then the child, at their own prices', () => {
-    const { result } = render(trip({ maxAge: 10, discountPercent: 25 }))
+    const { result } = render(trip({ maxAge: 10, discountAmount: 50_000 }))
     expect(result.current.tickets.map((t) => [t.seat.id, t.type, t.price])).toEqual([
       ['A1', 'adult', 400_000],
       ['A2', 'child', 300_000],
@@ -45,7 +45,7 @@ describe('useBookingForm', () => {
   })
 
   it('follows the age the customer enters', () => {
-    const { result } = render(trip({ maxAge: 10, discountPercent: 25 }))
+    const { result } = render(trip({ maxAge: 10, discountAmount: 50_000 }))
     act(() => result.current.form.setValue('passengers.1.age', 12))
     expect(result.current.tickets[1].type).toBe('adult')
     expect(result.current.subtotal).toBe(800_000)

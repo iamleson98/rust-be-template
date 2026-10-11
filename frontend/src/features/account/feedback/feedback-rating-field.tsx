@@ -5,13 +5,7 @@ import { Star } from 'lucide-react'
 import { useT } from '@/lib/i18n'
 import type { FeedbackValues } from './feedback-schema'
 
-export function FeedbackRatingField({
-  form,
-  accent,
-}: {
-  form: UseFormReturn<FeedbackValues>
-  accent: string
-}) {
+export function FeedbackRatingField({ form }: { form: UseFormReturn<FeedbackValues> }) {
   const t = useT()
   const [hoverRating, setHoverRating] = useState(0)
   const rating: number = form.watch('rating') ?? 0
@@ -70,7 +64,7 @@ export function FeedbackRatingField({
             </div>
             {/* Stable node (no key-remount): swapping text in place
                 instead of unmounting/remounting the span. */}
-            <span className="text-sm font-semibold min-h-5" style={{ color: accent }}>
+            <span className="text-sm font-semibold min-h-5 text-primary">
               {displayRating > 0 ? ratingLabels[displayRating] : ''}
             </span>
           </div>

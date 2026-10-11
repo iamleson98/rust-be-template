@@ -54,7 +54,7 @@ impl Fixture {
             .unwrap();
     }
 
-    async fn child_tickets(&self, max_age: i16, discount_percent: i16) {
+    async fn child_tickets(&self, max_age: i16, discount_amount: i64) {
         let mut brand: brand::ActiveModel = brand::Entity::find_by_id(self.brand_of_trip().await)
             .one(self.store.db())
             .await
@@ -62,7 +62,7 @@ impl Fixture {
             .unwrap()
             .into();
         brand.child_max_age = Set(Some(max_age));
-        brand.child_discount_percent = Set(Some(discount_percent));
+        brand.child_discount_amount = Set(Some(discount_amount));
         brand.update(self.store.db()).await.unwrap();
     }
 
@@ -136,7 +136,7 @@ async fn class_fares_reprice_unsold_seats_only() {
 async fn each_passenger_pays_for_their_own_seat_and_age() {
     let f = fixture(2).await;
     f.vip_first_seat().await;
-    f.child_tickets(10, 25).await;
+    f.child_tickets(10, 125_000).await;
     let owner = f.owner().await;
 
     // The child sits in the VIP seat although listed second; the claimed
@@ -150,7 +150,7 @@ async fn each_passenger_pays_for_their_own_seat_and_age() {
     );
     let held = f.svc.hold_with_user(owner, &req).await.unwrap();
 
-    // VIP 500,000 less 25 % = 375,000 for the child; 350,000 for the adult.
+    // VIP 500,000 less 125,000 = 375,000 for the child; 350,000 for the adult.
     assert_eq!(held.subtotal, 375_000 + STANDARD);
     let booking = f.booking(held.booking_id).await;
     assert_eq!((booking.adult_count, booking.child_count), (1, 1));

@@ -216,6 +216,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[cfg(target_os = "linux")] // reads `/proc`
     fn snapshot_reads_on_linux() {
         // This test suite runs on Linux: every field must parse.
         let s = MemorySnapshot::read();

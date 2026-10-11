@@ -3,7 +3,6 @@
 import { type ComponentProps } from 'react'
 import { RadioGroup as RadioGroupPrimitive } from '@base-ui/react/radio-group'
 import { Radio as RadioPrimitive } from '@base-ui/react/radio'
-import { CircleIcon } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 
@@ -39,18 +38,17 @@ function RadioGroupItem({ className, ...props }: ComponentProps<typeof RadioPrim
       render={(componentProps, state) => (
         <span {...componentProps} data-state={state.checked ? 'checked' : 'unchecked'} />
       )}
+      // A grid that centres the dot (the root renders as a span, which has no layout).
       className={cn(
-        'border-input text-primary focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:bg-input/30 aspect-square size-4 shrink-0 rounded-full border  transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50',
+        'border-input focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:bg-input/30 data-[state=checked]:border-primary inline-grid aspect-square size-4 shrink-0 place-items-center rounded-full border bg-white transition-[color,box-shadow,border-color] outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50',
         className,
       )}
       {...props}
     >
       <RadioPrimitive.Indicator
         data-slot="radio-group-indicator"
-        className="relative flex items-center justify-center"
-      >
-        <CircleIcon className="fill-primary absolute top-1/2 left-1/2 size-2 -translate-x-1/2 -translate-y-1/2" />
-      </RadioPrimitive.Indicator>
+        className="size-2 rounded-full bg-primary"
+      />
     </RadioPrimitive.Root>
   )
 }

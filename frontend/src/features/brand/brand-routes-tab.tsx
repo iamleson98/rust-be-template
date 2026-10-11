@@ -11,12 +11,10 @@ import { useT } from '@/lib/i18n'
 export function BrandRoutesTab({
   isLoading,
   routes,
-  accent,
   onQuickSearch,
 }: {
   isLoading: boolean
   routes: RouteOut[]
-  accent: string
   onQuickSearch: (fromName: string, toName: string) => void
 }) {
   const t = useT()
@@ -46,7 +44,7 @@ export function BrandRoutesTab({
               <div className="min-w-0 flex-1">
                 <div className="flex min-w-0 items-center gap-2 text-sm font-semibold">
                   <span className="truncate">{r.from.name}</span>
-                  <ArrowRight className="size-3.5 shrink-0" style={{ color: accent }} />
+                  <ArrowRight className="size-3.5 shrink-0 text-primary" />
                   <span className="truncate">{r.to.name}</span>
                 </div>
                 <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">

@@ -215,6 +215,10 @@ pub async fn ws_upgrade(
 /// is reserved for applications). Clients stop reconnecting on it.
 pub const REGION_BLOCKED_CLOSE: u16 = 4403;
 
+/// How long an answered call outlives the drop of a socket carrying it,
+/// for the client to reconnect (a network switch) and resume it.
+const CALL_RESUME_GRACE: Duration = Duration::from_secs(15);
+
 /// Tell a caller outside the allowed countries why, then close.
 async fn refuse_region(mut socket: WebSocket) {
     let frame = json!({
@@ -451,7 +455,46 @@ pub async fn handle_socket(
 
     let _ = close_tx.send(()).await;
 
-    // ── Session cleanup for the disconnecting user ───────────────────
+    let uid = user_id.to_string();
+    // A network switch (Wi-Fi ↔ 4G) drops the socket while the call's
+    // audio still flows peer to peer, or comes back after an ICE restart:
+    // an ANSWERED call this socket carried gets CALL_RESUME_GRACE for the
+    // client to reconnect and take it over (`register` + `resume`) before
+    // it is ended. A ringing call ends at once (the caller vanished).
+    let grace = sessions().socket_carries_active_call(&uid, sid);
+    let role = call_hub().unregister(&uid, sid);
+    // Give the connection slots back, after `unregister` (which does not
+    // release: a socket that never sent `register` has no peer there).
+    drop(admission);
+    if grace {
+        tokio::spawn(async move {
+            tokio::time::sleep(CALL_RESUME_GRACE).await;
+            // Reconnected meanwhile: the user did not go offline after all.
+            let role = role.filter(|_| call_hub().user_socket_count(&uid) == 0);
+            release_dropped_socket(&uid, sid, role);
+        });
+    } else {
+        release_dropped_socket(&uid, sid, role);
+    }
+
+    tokio::select! {
+        _ = &mut write_task => { }
+        _ = tokio::time::sleep(Duration::from_millis(500)) => {
+            write_task.abort();
+        }
+    }
+
+    tracing::info!(
+        user_id = %user_id,
+        "ws-call disconnected"
+    );
+}
+
+/// End what a dropped socket leaves behind: the calls it carried (the
+/// counterpart and the user's other devices get a `hangup`), and — when
+/// it was the user's last socket (`role` is set) — everything the user
+/// was in, re-routing ringing calls to the next agent.
+fn release_dropped_socket(uid: &str, sid: u64, role: Option<CallRole>) {
     // A dropped socket ends every call it was CARRYING: the offer it
     // sent (caller vanished) or the answer it gave (its PC is gone).
     // With multi-session users (web + phone) an unrelated device
@@ -459,8 +502,7 @@ pub async fn handle_socket(
     // is socket-aware, then the last-socket block below handles the
     // user going fully offline (incl. ring escalation to the next
     // available agent).
-    let uid = user_id.to_string();
-    for ended in sessions().end_sessions_of_socket(&uid, sid) {
+    for ended in sessions().end_sessions_of_socket(uid, sid) {
         tracing::info!(
             user = %ended.dropped_user_id,
             socket = sid,
@@ -493,10 +535,6 @@ pub async fn handle_socket(
         );
         crate::push::push().notify_call_ended(&ended.agent_id, &ended.customer_id);
     }
-    let role = call_hub().unregister(&uid, sid);
-    // Give the connection slots back, after `unregister` (which does not
-    // release: a socket that never sent `register` has no peer there).
-    drop(admission);
     if let Some(role) = role {
         match role {
             CallRole::Agent => {
@@ -509,7 +547,7 @@ pub async fn handle_socket(
                 // Drain the agent's sessions: active ones notify the
                 // customer, ringing customer-initiated ones re-route.
                 for _ in 0..100 {
-                    match sessions().on_agent_hangup(&uid, "agent-offline", pick_agent) {
+                    match sessions().on_agent_hangup(uid, "agent-offline", pick_agent) {
                         HangupOutcome::NoSession => break,
                         HangupOutcome::ReRouted {
                             customer_id,
@@ -528,7 +566,7 @@ pub async fn handle_socket(
                             customer_id,
                             reason,
                         } => {
-                            agent_session_cleanup(&uid);
+                            agent_session_cleanup(uid);
                             let _ = call_hub().send_to(
                                 &customer_id,
                                 &json!({
@@ -540,13 +578,13 @@ pub async fn handle_socket(
                         }
                     }
                 }
-                agent_session_cleanup(&uid);
+                agent_session_cleanup(uid);
             }
             CallRole::Customer => {
                 // Customer socket dropped — tell the agent the call is
                 // over and free them from in-call.
                 if let crate::audio_call::session::CustomerHangup::NotifyAgent { agent_id } =
-                    sessions().on_customer_hangup(&uid)
+                    sessions().on_customer_hangup(uid)
                 {
                     agent_session_cleanup(&agent_id);
                     let _ = call_hub().send_to(
@@ -558,7 +596,7 @@ pub async fn handle_socket(
                         }),
                     );
                     // Push-ring phones stop too.
-                    crate::push::push().notify_call_ended(&agent_id, &uid);
+                    crate::push::push().notify_call_ended(&agent_id, uid);
                 }
             }
         }
@@ -571,18 +609,6 @@ pub async fn handle_socket(
     if matches!(role, Some(CallRole::Agent)) {
         call_hub().broadcast_presence();
     }
-
-    tokio::select! {
-        _ = &mut write_task => { }
-        _ = tokio::time::sleep(Duration::from_millis(500)) => {
-            write_task.abort();
-        }
-    }
-
-    tracing::info!(
-        user_id = %user_id,
-        "ws-call disconnected"
-    );
 }
 
 /// Process a `register` message: parse role + channelId, enforce RBAC,
@@ -648,6 +674,16 @@ fn process_register(
         }
     };
 
+    // A client that reconnects with its call still running (a network
+    // switch) takes the call over on this socket, so the old socket's
+    // drop — often noticed only now, or later — no longer ends it.
+    let uid = user.id.to_string();
+    if msg.get("resume").and_then(Value::as_bool) == Some(true)
+        && sessions().resume_on_socket(&uid, sid)
+    {
+        tracing::info!(user_id = %uid, socket = sid, "call resumed on a new socket");
+    }
+
     let n = call_hub().online_agent_count();
     let ice_n = ice_servers.as_array().map(|a| a.len()).unwrap_or(0);
     tracing::info!(
@@ -664,7 +700,7 @@ fn process_register(
     // must end now. The end-of-call hangup is delivered to the OTHER
     // side (and to this user's other sockets) — a socket that
     // reconnected would otherwise never hear about it.
-    let active_call = sessions().active_call_of(&user.id.to_string());
+    let active_call = sessions().active_call_of(&uid);
     let _ = tx.try_send(bytes::Bytes::from(
         json!({
             "type": "registered",
@@ -1260,6 +1296,7 @@ mod handler_tests {
             brand_id: None,
             brand_name: None,
             employee_role: None,
+            has_password: false,
         }
     }
 
@@ -1609,6 +1646,65 @@ mod handler_tests {
         call_hub().unregister(&agent_id, sid);
         call_hub().unregister(&agent_id, sid2);
         call_hub().unregister(&agent_id, sid3);
+        sessions().clear();
+    }
+
+    /// A network switch: the agent's phone reconnects on a new socket
+    /// with the call still running; the old socket's drop, seen later,
+    /// must not end the call — a register WITHOUT `resume` (another
+    /// device) does not take it over.
+    #[tokio::test]
+    async fn a_call_resumed_on_a_new_socket_survives_the_old_ones_drop() {
+        let _guard = TEST_LOCK.lock().unwrap();
+        let customer_id = Uuid::new_v4().to_string();
+        let agent_id = Uuid::new_v4().to_string();
+        sessions().clear();
+        let register = |sid, resume: bool| {
+            let (tx, rx) = mpsc::channel::<bytes::Bytes>(8);
+            let msg = json!({"type": "register", "role": "agent", "resume": resume});
+            process_register(
+                &fake_user(&agent_id, "employee"),
+                &msg,
+                &tx,
+                sid,
+                &json!([]),
+            )
+            .expect("agent register ok");
+            rx
+        };
+        let old_sid = call_hub().next_socket_id();
+        let _old = register(old_sid, false);
+        sessions().begin_customer_offer(
+            &customer_id,
+            json!({"type": "offer", "sdp": "v=0"}),
+            None,
+            None,
+            |_| Some(agent_id.clone()),
+            crate::audio_call::session::CallerProfile::anon(),
+        );
+        assert!(sessions()
+            .on_answer(&agent_id, &customer_id, Some(old_sid))
+            .is_some());
+
+        // Another device of the agent connects: it does not take the call.
+        let other_sid = call_hub().next_socket_id();
+        let _other = register(other_sid, false);
+        assert!(sessions().socket_carries_active_call(&agent_id, old_sid));
+
+        // The phone, on its new network, resumes the call.
+        let new_sid = call_hub().next_socket_id();
+        let mut rx = register(new_sid, true);
+        let registered = next_frame(&mut rx, "registered").expect("registered frame");
+        assert_eq!(registered["activeCall"]["state"], "active");
+
+        // The old socket's drop arrives late: the call goes on.
+        let role = call_hub().unregister(&agent_id, old_sid);
+        release_dropped_socket(&agent_id, old_sid, role);
+        assert!(sessions().is_user_in_call(&customer_id));
+
+        // Teardown.
+        call_hub().unregister(&agent_id, other_sid);
+        call_hub().unregister(&agent_id, new_sid);
         sessions().clear();
     }
 

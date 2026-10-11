@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { buildSearchInput, parseSearch, SEARCH_DEFAULTS, toQuery } from '../search-params'
+import {
+  buildSearchInput,
+  legSearch,
+  parseSearch,
+  SEARCH_DEFAULTS,
+  toQuery,
+} from '../search-params'
 
 describe('parseSearch', () => {
   it('applies the defaults to an empty URL', () => {
@@ -7,9 +13,11 @@ describe('parseSearch', () => {
   })
 
   it('reads router-parsed values and URLSearchParams strings alike', () => {
-    const typed = parseSearch({ adults: 3, children: 1, roundTrip: true, sort: 'price' })
+    const typed = parseSearch({ adults: 3, children: 1, returnDate: '2026-10-12', sort: 'price' })
     const strings = parseSearch(
-      Object.fromEntries(new URLSearchParams('adults=3&children=1&roundTrip=true&sort=price')),
+      Object.fromEntries(
+        new URLSearchParams('adults=3&children=1&returnDate=2026-10-12&sort=price'),
+      ),
     )
     expect(typed).toEqual(strings)
     expect(typed).toMatchObject({ adults: 3, children: 1, roundTrip: true, sort: 'price' })
@@ -39,11 +47,20 @@ describe('parseSearch', () => {
     expect(parseSearch({ adults: '2.9' }).adults).toBe(2)
   })
 
-  it('accepts a valid date and the legacy 1/true round-trip flags', () => {
+  it('makes a search a round trip exactly when it has a return day', () => {
+    expect(
+      parseSearch({ date: '2026-10-10', returnDate: '2026-10-12', roundTrip: '1' }),
+    ).toMatchObject({ date: '2026-10-10', roundTrip: true, leg: 'out' })
+    // The flag alone (older links) would ask for a return day nobody picked.
     expect(parseSearch({ date: '2026-10-10', roundTrip: '1' })).toMatchObject({
-      date: '2026-10-10',
-      roundTrip: true,
+      roundTrip: false,
     })
+  })
+
+  it('shows the return leg only on a round trip', () => {
+    expect(parseSearch({ returnDate: '2026-10-12', leg: 'return' }).leg).toBe('return')
+    expect(parseSearch({ leg: 'return' }).leg).toBe('out')
+    expect(parseSearch({ returnDate: '2026-10-12', leg: 'back' }).leg).toBe('out')
   })
 
   it('reads vehicle types from the router JSON, the legacy vt= list, or an array', () => {
@@ -89,7 +106,13 @@ describe('toQuery', () => {
   })
 
   it('round-trips through parseSearch', () => {
-    const params = parseSearch({ from: 'A', adults: 2, vt: 'limousine,sleeper', roundTrip: '1' })
+    const params = parseSearch({
+      from: 'A',
+      adults: 2,
+      vt: 'limousine,sleeper',
+      returnDate: '2026-10-12',
+      leg: 'return',
+    })
     expect(parseSearch(toQuery(params))).toEqual(params)
   })
 })
@@ -160,5 +183,36 @@ describe('buildSearchInput', () => {
         fromCity: 'Hà Nội',
       }),
     ).toEqual({ from: 'Hà Nội', to: 'Đà Nẵng' })
+  })
+})
+
+describe('legSearch', () => {
+  const trip = parseSearch({
+    from: 'A',
+    to: 'B',
+    date: '2026-10-12',
+    time: '08:00',
+    returnDate: '2026-10-15',
+    fromLat: 1,
+    fromLon: 2,
+    toLat: 3,
+    toLon: 4,
+  })
+
+  it('searches the outbound leg as is', () => {
+    expect(legSearch(trip)).toBe(trip)
+  })
+
+  it('runs the return leg back from `to` on the return day, at any time', () => {
+    expect(legSearch({ ...trip, leg: 'return' })).toMatchObject({
+      from: 'B',
+      to: 'A',
+      date: '2026-10-15',
+      time: '',
+      fromLat: 3,
+      fromLon: 4,
+      toLat: 1,
+      toLon: 2,
+    })
   })
 })

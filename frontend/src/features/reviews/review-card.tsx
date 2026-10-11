@@ -32,14 +32,12 @@ export type Review = {
 
 export function ReviewCard({
   r,
-  accentColor,
   brandName,
   helpfulMap,
   markHelpful,
   openLightbox,
 }: {
   r: Review
-  accentColor: string
   brandName: string
   helpfulMap: Record<string, boolean>
   markHelpful: (id: string) => void
@@ -49,10 +47,7 @@ export function ReviewCard({
   return (
     <div key={r.id} className="rounded-xl border bg-card p-4">
       <div className="flex items-start gap-3">
-        <div
-          className="h-10 w-10 rounded-full text-white inline-flex items-center justify-center text-sm font-bold shrink-0"
-          style={{ background: `linear-gradient(135deg, ${accentColor}, ${accentColor}dd)` }}
-        >
+        <div className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
           {r.authorName?.slice(0, 1).toUpperCase() ?? 'A'}
         </div>
         <div className="flex-1 min-w-0">
@@ -100,15 +95,9 @@ export function ReviewCard({
             <ReviewPhotoGrid photos={r.photos} onOpen={(i) => openLightbox(r.photos!, i)} />
           )}
           {r.reply && (
-            <div
-              className="mt-3 ml-3 pl-3 border-l-2 space-y-1"
-              style={{ borderColor: accentColor }}
-            >
+            <div className="mt-3 ml-3 space-y-1 border-l-2 border-primary/40 pl-3">
               <div className="text-xs font-semibold flex items-center gap-1">
-                <span
-                  className="inline-flex h-5 w-5 rounded-full items-center justify-center text-[10px] text-white"
-                  style={{ background: accentColor }}
-                >
+                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">
                   {brandName.slice(0, 1)}
                 </span>
                 {t('reviews.replyFrom', { brand: brandName })}

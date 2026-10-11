@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { passengerType, ticketPrice } from '../fares'
 
-const policy = { maxAge: 10, discountPercent: 25 }
+const policy = { maxAge: 10, discountAmount: 50_000 }
 
 describe('fares', () => {
   it('only treats passengers as children when the brand sells child tickets', () => {

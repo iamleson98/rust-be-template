@@ -87,7 +87,9 @@ export function useBookingForm({ trip, seatIds, adults, children }: Options) {
   const form = useForm<BookingValues>({
     resolver: zodResolver(bookingSchema),
     defaultValues: EMPTY,
-    mode: 'onBlur',
+    // Errors appear on submit, then follow each change: an error popping up
+    // on blur shifts the layout under the pointer and swallows the click.
+    mode: 'onSubmit',
     reValidateMode: 'onChange',
   })
   const { fields, update, replace } = useFieldArray({ control: form.control, name: 'passengers' })

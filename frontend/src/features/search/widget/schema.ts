@@ -25,6 +25,8 @@ export const searchSchema = z
     from: requiredText('search.from'),
     to: requiredText('search.to'),
     date: requiredText('search.date'),
+    /** Optional "leaving after" time, `HH:MM` or ''. */
+    time: z.string(),
     roundTrip: z.boolean(),
     returnDate: z.string(),
     adults: z

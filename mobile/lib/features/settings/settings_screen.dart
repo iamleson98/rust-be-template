@@ -35,9 +35,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           controller: controller,
           autofocus: true,
           keyboardType: TextInputType.url,
-          decoration: const InputDecoration(
-            hintText: 'https://api.datxevui.com',
-          ),
+          decoration: const InputDecoration(hintText: 'https://datxevui.com'),
         ),
         actions: [
           TextButton(

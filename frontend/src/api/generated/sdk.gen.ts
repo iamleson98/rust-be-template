@@ -1262,7 +1262,7 @@ export const reviewsTags = <ThrowOnError extends boolean = false>(options?: Opti
 export const reviewsRemove = <ThrowOnError extends boolean = false>(options: Options<ReviewsRemoveData, ThrowOnError>): RequestResult<ReviewsRemoveResponses, ReviewsRemoveErrors, ThrowOnError> => (options.client ?? client).delete<ReviewsRemoveResponses, ReviewsRemoveErrors, ThrowOnError>({ url: '/api/reviews/{id}', ...options });
 
 /**
- * `GET /api/reviews/{id}` — get a review by ID.
+ * `GET /api/reviews/{id}` — an approved review by ID (the author's phone left out).
  */
 export const reviewsGet = <ThrowOnError extends boolean = false>(options: Options<ReviewsGetData, ThrowOnError>): RequestResult<ReviewsGetResponses, ReviewsGetErrors, ThrowOnError> => (options.client ?? client).get<ReviewsGetResponses, ReviewsGetErrors, ThrowOnError>({ url: '/api/reviews/{id}', ...options });
 

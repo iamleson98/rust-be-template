@@ -68,9 +68,8 @@ export function downloadTripImage(trip: ShareTrip) {
   ctx.fillStyle = 'rgba(255,255,255,0.85)'
   ctx.fillText(translate(lang, 'trips.imageTagline'), cardX + 240, cardY + 58)
 
-  // Brand accent stripe
-  const accent = trip.brandAccent || '#2563eb'
-  ctx.fillStyle = accent
+  // Accent stripe in the brand blue
+  ctx.fillStyle = '#0063c4'
   ctx.fillRect(cardX, cardY + 110, 12, cardH - 110)
 
   // Brand name + rating

@@ -52,56 +52,51 @@ export function CampaignSpotlight() {
       aria-labelledby="campaigns-title"
       className="page-x scroll-mt-20 pt-8 md:pt-11"
     >
-      <div className="relative isolate overflow-hidden rounded-3xl bg-linear-to-br from-rose-600 via-rose-500 to-orange-400 px-4 py-6 text-white sm:rounded-[2rem] sm:px-8 sm:py-8 lg:px-10">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -top-24 -right-20 -z-10 size-80 rounded-full bg-white/15 blur-3xl"
-        />
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -bottom-32 -left-16 -z-10 size-80 rounded-full bg-amber-300/30 blur-3xl"
-        />
-
-        <div className="flex items-start gap-3">
-          <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-white/15 ring-1 ring-white/25">
+      {/* A calm white panel: the warm tint and icon mark it as offers without
+          a wall of colour behind the text. */}
+      <div className="overflow-hidden rounded-3xl bg-white shadow-soft ring-1 ring-slate-200/80">
+        <div className="flex items-start gap-3 border-b border-rose-100/80 bg-linear-to-r from-rose-50 via-orange-50/60 to-white px-4 py-5 sm:px-8 sm:py-6 lg:px-10">
+          <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-rose-500 text-white shadow-sm">
             <TicketPercent className="size-6" aria-hidden />
           </span>
           <div className="min-w-0">
             <h2
               id="campaigns-title"
-              className="text-2xl leading-tight font-extrabold tracking-tight text-balance sm:text-3xl"
+              className="text-xl leading-tight font-bold tracking-tight text-balance text-slate-900 sm:text-2xl"
             >
               {t('campaigns.sectionTitle')}
             </h2>
-            <p className="mt-1 text-sm text-white/85 sm:text-[15px]">
-              {t('campaigns.sectionSubtitle')}
-            </p>
+            <p className="mt-1 text-sm text-slate-600">{t('campaigns.sectionSubtitle')}</p>
           </div>
         </div>
 
-        {signedIn && !customer && (
-          <p className="mt-4 rounded-xl bg-white/15 px-3 py-2 text-sm ring-1 ring-white/25">
-            {t('campaigns.staffOnlyNote')}
+        <div className="px-4 py-6 sm:px-8 lg:px-10">
+          {signedIn && !customer && (
+            <p className="mb-5 rounded-xl bg-amber-50 px-3.5 py-2.5 text-sm text-amber-900 ring-1 ring-amber-200">
+              {t('campaigns.staffOnlyNote')}
+            </p>
+          )}
+          {mine?.active && <MyCouponCard coupon={mine.active} className="mb-6" />}
+
+          <div className="space-y-8">
+            {items.map((c) => (
+              <CampaignBlock
+                key={c.id}
+                campaign={c}
+                mine={mine}
+                upcoming={Date.parse(c.startsAt) > serverNow}
+                signedIn={signedIn}
+                customer={customer}
+                skewMs={skewMs}
+                onPhaseChange={refetch}
+              />
+            ))}
+          </div>
+
+          <p className="mt-6 border-t border-slate-100 pt-4 text-xs text-slate-500">
+            {t('campaigns.rules')}
           </p>
-        )}
-        {mine?.active && <MyCouponCard coupon={mine.active} className="mt-5" />}
-
-        <div className="mt-6 space-y-7">
-          {items.map((c) => (
-            <CampaignBlock
-              key={c.id}
-              campaign={c}
-              mine={mine}
-              upcoming={Date.parse(c.startsAt) > serverNow}
-              signedIn={signedIn}
-              customer={customer}
-              skewMs={skewMs}
-              onPhaseChange={refetch}
-            />
-          ))}
         </div>
-
-        <p className="mt-6 text-xs text-white/80">{t('campaigns.rules')}</p>
       </div>
     </section>
   )
@@ -142,10 +137,10 @@ function CampaignBlock({
   return (
     <article aria-labelledby={`campaign-${c.id}`}>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <h3 id={`campaign-${c.id}`} className="text-lg font-bold tracking-tight sm:text-xl">
+        <h3 id={`campaign-${c.id}`} className="text-lg font-semibold tracking-tight text-slate-900">
           {c.name}
         </h3>
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-950/20 px-2.5 py-1 text-xs font-semibold ring-1 ring-white/20">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700 ring-1 ring-rose-200/70">
           <Clock className="size-3.5" aria-hidden />
           <Countdown
             to={upcoming ? c.startsAt : c.endsAt}
@@ -155,13 +150,13 @@ function CampaignBlock({
           />
         </span>
       </div>
-      {c.description && <p className="mt-1.5 max-w-3xl text-sm text-white/90">{c.description}</p>}
-      <p className="mt-1 text-xs text-white/80">
+      {c.description && <p className="mt-1.5 max-w-3xl text-sm text-slate-600">{c.description}</p>}
+      <p className="mt-1 text-xs text-slate-500">
         {operatorsText(c, t)} ·{' '}
         {validityText(c.couponValidity === 'permanent' ? null : c.endsAt, t)}
       </p>
 
-      <div className={cn(RAIL, 'mt-3.5 lg:grid-cols-4')}>
+      <div className={cn(RAIL, 'mt-3.5 lg:grid-cols-4 2xl:grid-cols-5')}>
         {c.tiers.map((tier) => (
           <Voucher key={tier.id} campaignId={c.id} tier={tier} block={block(tier)} />
         ))}
@@ -223,11 +218,11 @@ function Voucher({
   return (
     <div
       className={cn(
-        'flex flex-col overflow-hidden rounded-2xl bg-white text-slate-900 shadow-lg shadow-rose-950/15',
-        gone && 'opacity-80',
+        'flex flex-col overflow-hidden rounded-2xl bg-white text-slate-900 shadow-soft ring-1 ring-slate-200/80 transition-shadow hover:shadow-float',
+        gone && 'opacity-70',
       )}
     >
-      <div className="bg-linear-to-br from-rose-50 to-orange-50 px-4 pt-3.5 pb-3">
+      <div className="bg-rose-50/60 px-4 pt-3.5 pb-3">
         <div className="text-[11px] font-semibold tracking-wide text-rose-600/80 uppercase">
           {t('campaigns.discount')}
         </div>
@@ -240,7 +235,7 @@ function Voucher({
           {money(tier.amount)}
         </div>
       </div>
-      <div className="relative border-t-2 border-dashed border-rose-100 px-4 pt-3 pb-4">
+      <div className="relative border-t border-dashed border-rose-200/80 px-4 pt-3 pb-4">
         <div className="flex items-center gap-2.5">
           <div
             className="h-1.5 flex-1 overflow-hidden rounded-full bg-rose-100"
@@ -263,7 +258,10 @@ function Voucher({
             'mt-3 w-full rounded-xl font-semibold disabled:opacity-100',
             block === 'yours'
               ? 'bg-emerald-600 text-white'
-              : 'bg-rose-600 hover:bg-rose-700 disabled:bg-slate-100 disabled:text-slate-500',
+              : block === 'guest'
+                ? // One soft outline per tier for guests, not a row of red slabs.
+                  'bg-white text-rose-700 ring-1 ring-rose-200 hover:bg-rose-50'
+                : 'bg-rose-600 hover:bg-rose-700 disabled:bg-slate-100 disabled:text-slate-500',
           )}
         >
           {claim.isPending ? (

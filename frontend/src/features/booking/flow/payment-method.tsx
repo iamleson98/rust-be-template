@@ -15,6 +15,8 @@ import { StepActions } from './step-actions'
 
 export type PaymentMethodKey = 'momo' | 'vnpay' | 'bank' | 'cod'
 
+const POLICY_LINK = 'font-medium text-primary underline-offset-2 hover:underline'
+
 /** The checkout methods, in display order, and the provider behind each. */
 const METHOD_PROVIDER: Record<PaymentMethodKey, PaymentProvider> = {
   momo: 'momo',
@@ -23,11 +25,19 @@ const METHOD_PROVIDER: Record<PaymentMethodKey, PaymentProvider> = {
   cod: 'cod',
 }
 
-/** The methods the server can take payments with (every one until it has said). */
-export function offeredMethods(enabled: PaymentProvider[] | undefined): PaymentMethodKey[] {
-  return (Object.keys(METHOD_PROVIDER) as PaymentMethodKey[]).filter(
+/**
+ * The methods the server can take payments with (every one until it has said).
+ * A coupon covering the whole fare leaves nothing for a gateway to charge
+ * (they refuse zero), so a 0 ₫ total is placed on board.
+ */
+export function offeredMethods(
+  enabled: PaymentProvider[] | undefined,
+  total?: number,
+): PaymentMethodKey[] {
+  const offered = (Object.keys(METHOD_PROVIDER) as PaymentMethodKey[]).filter(
     (m) => !enabled || enabled.includes(METHOD_PROVIDER[m]),
   )
+  return total === 0 ? offered.filter((m) => m === 'cod') : offered
 }
 
 const methodText = (t: ReturnType<typeof useT>, m: PaymentMethodKey) =>
@@ -131,6 +141,18 @@ export function PaymentMethodStep({
         <div className="space-y-0.5">
           <p className="font-medium text-foreground">{t('bookingFlow.securePayment')}</p>
           <p>{t('bookingFlow.sslDecreeNote')}</p>
+          {/* New tab: the booking in progress stays open. */}
+          <p className="pt-1">
+            {t('bookingFlow.agreeLead')}{' '}
+            <a href="/terms" target="_blank" rel="noopener" className={POLICY_LINK}>
+              {t('bookingFlow.agreeTerms')}
+            </a>{' '}
+            {t('bookingFlow.agreeAnd')}{' '}
+            <a href="/terms#cancellation" target="_blank" rel="noopener" className={POLICY_LINK}>
+              {t('bookingFlow.agreeCancellation')}
+            </a>
+            .
+          </p>
         </div>
       </div>
 

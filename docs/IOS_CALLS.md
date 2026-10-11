@@ -76,10 +76,12 @@ to work.
 1. **Keys → create a key** with the *Apple Push Notifications service
    (APNs)* capability. Download the `.p8` file, note the **Key ID**
    (10 chars) and your **Team ID** (10 chars, Membership page).
-2. **Identifiers → your app's bundle id** (`APNS_TOPIC`) — no extra
-   capability is needed for VoIP pushes beyond being an app id; the
-   `voip` background mode is already declared in
-   `mobile/ios/Runner/Info.plist`.
+2. **Identifiers → `com.datxevui.supportAgent`** (`APNS_TOPIC`) needs the
+   **Push Notifications** capability: PushKit hands out no VoIP token
+   without it. The app already requests it (`Runner/Runner.entitlements`,
+   `aps-environment`) and declares the `voip` background mode in
+   `mobile/ios/Runner/Info.plist`; with automatic signing Xcode enables
+   the capability on the app id at the first build.
 3. No certificates needed — the backend uses token-based auth, which
    works for both sandbox and production and does not expire.
 
@@ -91,11 +93,12 @@ APNS_KEY_PEM=-----BEGIN PRIVATE KEY-----\nMIG...\n-----END PRIVATE KEY-----
 # APNS_KEY_PATH=/run/secrets/apns_key.p8
 APNS_KEY_ID=ABC123DEFG
 APNS_TEAM_ID=TEAM12345
-APNS_TOPIC=com.datxevui.support
+APNS_TOPIC=com.datxevui.supportAgent   # VoIP pushes go to "<topic>.voip"
 APNS_SANDBOX=false        # true while signed with a dev profile
 ```
 
-Both transports are independent: `FCM_CREDENTIALS_JSON` covers Android,
+Put them in `/opt/vexevn/.env` on the server; `deploy/stack.yml` passes
+them to the backend. Both transports are independent: `FCM_CREDENTIALS_JSON` covers Android,
 `APNS_*` covers iOS; either may be empty. Boot logs state clearly which
 are enabled (`push: APNs VoIP enabled (topic …, sandbox=…)`).
 

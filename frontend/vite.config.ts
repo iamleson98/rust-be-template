@@ -17,6 +17,12 @@ import path from 'node:path'
 // the client advertises `Accept-Encoding: gzip` / `br`, skipping
 // runtime compression entirely. Net effect: ~70-85% smaller wire
 // bytes for JS/CSS at zero per-request CPU cost.
+/**
+ * Where the dev server sends API and WebSocket traffic: the backend on :8080
+ * unless DEV_API_TARGET says otherwise (a second backend on another port).
+ */
+const API = process.env.DEV_API_TARGET ?? 'http://localhost:8080'
+
 export default defineConfig({
   plugins: [
     react(),
@@ -155,7 +161,7 @@ export default defineConfig({
     // Port 3000 matches the Caddyfile's default upstream so the SPA is
     // served at the sandbox preview URL with no extra config.
     port: 3000,
-    // Proxy all backend routes to the Rust (Axum) backend on :8080.
+    // Proxy all backend routes to the Rust (Axum) backend (`API`, :8080).
     //
     // The frontend SDK uses RELATIVE URLs (e.g. /api/auth/me) so all
     // HTTP requests go through this proxy → same-origin → cookies work.
@@ -169,7 +175,7 @@ export default defineConfig({
     proxy: {
       // HTTP API — all /api/* requests go to the backend.
       '/api': {
-        target: 'http://localhost:8080',
+        target: API,
         changeOrigin: true,
       },
       // WebSocket — audio-call signaling relay.
@@ -177,7 +183,7 @@ export default defineConfig({
       // path prefix in insertion order. Since '/ws-call' starts with
       // '/ws', the '/ws' rule would catch it first if listed before.
       '/ws-call': {
-        target: 'http://localhost:8080',
+        target: API,
         ws: true,
         changeOrigin: true,
       },
@@ -186,18 +192,18 @@ export default defineConfig({
       // target must be http:// (not ws://) — Vite's http-proxy uses
       // the target for the initial HTTP upgrade handshake.
       '/ws': {
-        target: 'http://localhost:8080',
+        target: API,
         ws: true,
         changeOrigin: true,
       },
       // Other backend routes.
-      '/health': 'http://localhost:8080',
-      '/docs': 'http://localhost:8080',
-      '/swagger-ui': 'http://localhost:8080',
-      '/api-docs': 'http://localhost:8080',
-      '/sitemap.xml': 'http://localhost:8080',
-      '/robots.txt': 'http://localhost:8080',
-      '/sw.js': 'http://localhost:8080',
+      '/health': API,
+      '/docs': API,
+      '/swagger-ui': API,
+      '/api-docs': API,
+      '/sitemap.xml': API,
+      '/robots.txt': API,
+      '/sw.js': API,
     },
   },
 })

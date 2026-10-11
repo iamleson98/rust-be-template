@@ -41,10 +41,7 @@ export const BrandShowcase = memo(function BrandShowcase() {
             params={{ slug: brand.slug }}
             className="group flex items-center gap-3 rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-200/80 transition duration-200 hover:-translate-y-0.5 hover:shadow-float hover:ring-primary/30"
           >
-            <span
-              className="grid size-12 shrink-0 place-items-center overflow-hidden rounded-xl text-sm font-bold text-white"
-              style={{ backgroundColor: brand.accentColor ?? '#2563eb' }}
-            >
+            <span className="grid size-12 shrink-0 place-items-center overflow-hidden rounded-xl bg-primary text-sm font-bold text-primary-foreground">
               {brand.logoUrl ? (
                 <img
                   src={brand.logoUrl}

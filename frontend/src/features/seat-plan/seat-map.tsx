@@ -233,10 +233,10 @@ function Legend({ tiers, childFare }: { tiers: Tier[]; childFare?: ChildFarePoli
       {childFare && (
         <p className="flex items-center gap-1.5 text-amber-700">
           <Baby className="h-3.5 w-3.5 shrink-0" />
-          {childFare.discountPercent > 0
+          {childFare.discountAmount > 0
             ? t('trips.childFareDiscount', {
                 age: childFare.maxAge,
-                percent: childFare.discountPercent,
+                amount: formatVND(childFare.discountAmount),
               })
             : t('trips.childFarePrice', { age: childFare.maxAge })}
         </p>

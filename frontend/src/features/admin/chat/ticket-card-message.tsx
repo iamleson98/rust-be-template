@@ -44,15 +44,7 @@ export function TicketCardMessage({
   return (
     <div className={`flex ${isEmployee ? 'justify-end' : 'justify-start'}`}>
       <div className="max-w-[88%] sm:max-w-[75%] rounded-2xl overflow-hidden border bg-white">
-        {/* Header strip with brand accent */}
-        <div
-          className="px-3 py-2 text-white flex items-center justify-between gap-2"
-          style={{
-            background: trip?.brandAccent
-              ? `linear-gradient(135deg, ${trip.brandAccent}, ${trip.brandAccent}cc)`
-              : 'linear-gradient(135deg, #2563eb, #0ea5e9)',
-          }}
-        >
+        <div className="flex items-center justify-between gap-2 bg-primary px-3 py-2 text-primary-foreground">
           <div className="flex items-center gap-1.5 text-xs font-semibold">
             <TicketIcon className="h-3.5 w-3.5" />
             {t('adminChat.eTicket')}

@@ -42,7 +42,6 @@ import { DataTable, DataTableColumnHeader, type DataTableFeatures } from '@/comp
 import type { AdminBusLayoutOut } from '@/api'
 
 import { BusLayoutDialog } from '@/features/admin/bus-layouts/bus-layout-dialog'
-import { BrandDot } from '@/features/admin/brand-dot'
 import { vehicleCodeLabel } from '@/features/admin/brands/brand-tree-helpers'
 import { getErrorMessage } from '@/lib/error-message'
 import { useT } from '@/lib/i18n'
@@ -55,7 +54,6 @@ interface BusLayoutRow {
   name: string
   brandId: string | null
   brandName: string | null
-  brandColor: string | null
   vehicleType: string | null
   vehicleLabel: string | null
   seatCount: number | null
@@ -81,7 +79,6 @@ export function AdminBusLayoutsPage() {
       (brandsQuery.data?.items ?? []) as {
         id: string
         name: string
-        accentColor?: string | null
       }[],
     [brandsQuery.data],
   )
@@ -110,7 +107,6 @@ export function AdminBusLayoutsPage() {
       name: layout.name ?? '',
       brandId: layout.brandId ?? null,
       brandName: brand?.name ?? null,
-      brandColor: brand?.accentColor ?? null,
       vehicleType: layout.vehicleType ?? null,
       vehicleLabel: layout.vehicleType ? vehicleCodeLabel(layout.vehicleType) : null,
       seatCount: layout.totalSeats ?? null,
@@ -167,16 +163,7 @@ export function AdminBusLayoutsPage() {
           header: ({ column }) => (
             <DataTableColumnHeader column={column} title={t('busLayouts.brand')} />
           ),
-          cell: ({ getValue, row }) => {
-            const name = getValue()
-            if (!name) return <span className="text-muted-foreground">—</span>
-            return (
-              <span className="flex items-center gap-2">
-                <BrandDot color={row.original.brandColor ?? undefined} />
-                {name}
-              </span>
-            )
-          },
+          cell: ({ getValue }) => getValue() || <span className="text-muted-foreground">—</span>,
           sortFn: 'text',
           meta: { label: t('busLayouts.brand') },
         }),

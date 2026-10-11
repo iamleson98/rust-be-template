@@ -83,7 +83,6 @@ export type CreatedTicketPayload = {
     departureDate: string | null
     departureAt: string | null
     brandName: string | null
-    brandAccent: string | null
     brandLogo: string | null
   }
   seats: { code: string; passengerName: string; price: number }[]
@@ -302,7 +301,6 @@ export function ChatTicketPicker({
           departureDate: trip.trip.departureDate,
           departureAt: trip.trip.departureAt ?? null,
           brandName: selectedTrip.brandName,
-          brandAccent: selectedTrip.brandAccent,
           brandLogo: selectedTrip.brandLogo ?? null,
         },
         seats: held.seats.map((s) => ({
@@ -346,11 +344,8 @@ export function ChatTicketPicker({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <TicketIcon className="h-5 w-5 text-blue-600" />
-            {t('chat.bookForCustomer')}
-          </DialogTitle>
+        <DialogHeader icon={<TicketIcon />}>
+          <DialogTitle>{t('chat.bookForCustomer')}</DialogTitle>
           <DialogDescription>{t('adminTickets.pickerDescription')}</DialogDescription>
         </DialogHeader>
 

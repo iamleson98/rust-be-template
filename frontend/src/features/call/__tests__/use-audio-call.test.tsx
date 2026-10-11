@@ -171,8 +171,11 @@ describe('useAudioCall — staff', () => {
     await until(() => mocks.clients.length === 1)
 
     const offer = { type: 'offer', sdp: 'o' }
+    expect(useUi.getState().callOpen).toBe(false)
     act(() => lastClient().fire('incoming', { from: 'c1', callerName: 'An', sdp: offer }))
     expect(result.current.call.incoming).toMatchObject({ from: 'c1', callerName: 'An' })
+    // Staff have no idle call button: the ringing call opens the panel.
+    expect(useUi.getState().callOpen).toBe(true)
 
     await act(async () => {
       await result.current.call.acceptCall()

@@ -10,46 +10,16 @@ import { PlaceAutocomplete } from '@/features/search/place-autocomplete'
 import { FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { ArrowLeftRight, CircleDot, MapPin } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { FIELD_ERROR, FIELD_ITEM, FIELD_LABEL } from './field-style'
 import type { SearchFormValues } from './schema'
-
-/** Shared label style — darker than muted-foreground so the tiny
- *  uppercase labels stay readable on the white widget card. */
-const LABEL_CLASS =
-  'text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 pl-1'
-
-/** Reserved space for the validation message — keeps every field the
- *  SAME height whether or not an error is showing, so an error on one
- *  field never staggers the row (the old bug: From/To inputs jumped
- *  ~30px apart when only one had a red message under it). */
-function MessageSlot({
-  compact,
-  collapseOnPhones = false,
-  children,
-}: {
-  compact: boolean
-  /** Reserve the space only where fields share a row (md up). */
-  collapseOnPhones?: boolean
-  children: React.ReactNode
-}) {
-  return (
-    <div
-      className={cn(compact ? 'min-h-4' : 'min-h-5', collapseOnPhones && 'max-md:min-h-0')}
-      aria-live="polite"
-    >
-      {children}
-    </div>
-  )
-}
 
 export function SearchRouteFields({
   form,
   swap,
-  compact = false,
   layout = 'row',
 }: {
   form: UseFormReturn<SearchFormValues>
   swap: () => void
-  compact?: boolean
   /**
    * `row`: three grid cells (from, swap, to) with labels. `stacked`: the two
    * fields as one compact group, the swap button between them, labels for
@@ -77,8 +47,8 @@ export function SearchRouteFields({
         control={form.control}
         name="from"
         render={({ field }) => (
-          <FormItem className={compact ? 'space-y-1' : 'space-y-1.5'}>
-            <FormLabel className={stacked ? 'sr-only' : cn(LABEL_CLASS, auto && 'max-md:sr-only')}>
+          <FormItem className={FIELD_ITEM}>
+            <FormLabel className={stacked ? 'sr-only' : cn(FIELD_LABEL, auto && 'max-md:sr-only')}>
               {t('search.from')}{' '}
               <span className="text-destructive" aria-hidden="true">
                 *
@@ -110,16 +80,10 @@ export function SearchRouteFields({
                 placeholder={t('search.placeholder')}
                 icon={<CircleDot className="h-4 w-4 text-primary" />}
                 pinColor="blue"
-                className="[&_input]:h-10"
+                className="[&_input]:h-11 [&_input]:rounded-xl"
               />
             </FormControl>
-            {stacked ? (
-              <FormMessage className="text-xs leading-4" />
-            ) : (
-              <MessageSlot compact={compact} collapseOnPhones={auto}>
-                <FormMessage className={compact ? 'text-xs leading-4' : undefined} />
-              </MessageSlot>
-            )}
+            <FormMessage className={stacked ? 'text-xs leading-4' : FIELD_ERROR} />
           </FormItem>
         )}
       />
@@ -129,11 +93,10 @@ export function SearchRouteFields({
       <div
         className={cn(
           stacked
-            ? 'absolute right-12 top-11 z-10 -translate-y-1/2'
+            ? 'absolute right-12 top-12 z-10 -translate-y-1/2'
             : auto
-              ? 'absolute right-12 top-11 z-10 -translate-y-1/2 md:static md:flex md:translate-y-0 md:items-center md:justify-center md:pb-1'
-              : 'hidden md:flex items-center justify-center',
-          layout === 'row' && (compact ? 'pb-0.5' : 'pb-1'),
+              ? 'absolute right-12 top-12 z-10 -translate-y-1/2 md:static md:flex md:h-11 md:translate-y-0 md:items-center md:justify-center'
+              : 'hidden h-11 items-center justify-center md:flex',
         )}
       >
         <button
@@ -159,8 +122,8 @@ export function SearchRouteFields({
         control={form.control}
         name="to"
         render={({ field }) => (
-          <FormItem className={compact ? 'space-y-1' : 'space-y-1.5'}>
-            <FormLabel className={stacked ? 'sr-only' : cn(LABEL_CLASS, auto && 'max-md:sr-only')}>
+          <FormItem className={FIELD_ITEM}>
+            <FormLabel className={stacked ? 'sr-only' : cn(FIELD_LABEL, auto && 'max-md:sr-only')}>
               {t('search.to')}{' '}
               <span className="text-destructive" aria-hidden="true">
                 *
@@ -188,16 +151,10 @@ export function SearchRouteFields({
                 placeholder={t('search.placeholder')}
                 icon={<MapPin className="h-4 w-4 text-rose-600 fill-rose-600/20" />}
                 pinColor="red"
-                className="[&_input]:h-10"
+                className="[&_input]:h-11 [&_input]:rounded-xl"
               />
             </FormControl>
-            {stacked ? (
-              <FormMessage className="text-xs leading-4" />
-            ) : (
-              <MessageSlot compact={compact} collapseOnPhones={auto}>
-                <FormMessage className={compact ? 'text-xs leading-4' : undefined} />
-              </MessageSlot>
-            )}
+            <FormMessage className={stacked ? 'text-xs leading-4' : FIELD_ERROR} />
           </FormItem>
         )}
       />

@@ -103,7 +103,7 @@ export function MobileSearchSummary({
           className="flex max-h-[85dvh] flex-col gap-0 p-0 sm:mx-auto sm:max-w-xl sm:rounded-t-3xl"
         >
           <SheetHeader className="px-4 py-3 border-b shrink-0">
-            <SheetTitle className="text-base">{t('search.title')}</SheetTitle>
+            <SheetTitle>{t('search.title')}</SheetTitle>
             <SheetDescription className="sr-only">{t('search.title')}</SheetDescription>
           </SheetHeader>
           <div
@@ -120,13 +120,12 @@ export function MobileSearchSummary({
                 aria-label={t('search.title')}
               >
                 {/* Stacked: one compact group, the swap button between the fields. */}
-                <SearchRouteFields form={form} swap={swap} compact layout="stacked" />
+                <SearchRouteFields form={form} swap={swap} layout="stacked" />
                 <div className="grid grid-cols-2 gap-3">
                   <SearchDateFields
                     form={form}
                     searchParams={searchParams}
                     setSearchParams={setSearchParams}
-                    compact
                   />
                   <SearchPassengerPicker
                     form={form}
@@ -134,7 +133,6 @@ export function MobileSearchSummary({
                     setSearchParams={setSearchParams}
                     paxOpen={paxOpen}
                     setPaxOpen={setPaxOpen}
-                    compact
                   />
                 </div>
                 <Button type="submit" disabled={submitting} size="lg" className="h-11 w-full gap-2">

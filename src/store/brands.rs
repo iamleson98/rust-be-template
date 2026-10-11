@@ -103,12 +103,11 @@ impl BrandStore for DbBrandStore {
             contact_email: Set(None),
             rating: Set(None),
             status: Set("active".into()),
-            accent_color: Set(None),
             total_trips: Set(0),
             created_at: Set(now.clone()),
             updated_at: Set(now),
             child_max_age: Set(None),
-            child_discount_percent: Set(None),
+            child_discount_amount: Set(None),
         };
         brand::Entity::insert(model)
             .exec_without_returning(self.db.as_ref())
@@ -123,12 +122,11 @@ impl BrandStore for DbBrandStore {
             contact_email: None,
             rating: None,
             status: "active".into(),
-            accent_color: None,
             total_trips: 0,
             created_at: now_clone.clone(),
             updated_at: now_clone,
             child_max_age: None,
-            child_discount_percent: None,
+            child_discount_amount: None,
         })
     }
 

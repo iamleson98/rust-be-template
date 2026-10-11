@@ -282,11 +282,6 @@ function BrandNode({
         </TableCell>
         <TableCell className="px-3 py-3">
           <div className="flex items-center gap-2.5">
-            <span
-              className="h-2.5 w-2.5 shrink-0 rounded-full"
-              style={{ background: brand.accentColor ?? '#94a3b8' }}
-              aria-hidden
-            />
             <span className="font-semibold">{brand.name}</span>
             <Badge
               variant="outline"

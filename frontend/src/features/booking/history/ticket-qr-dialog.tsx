@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { QrCode } from 'lucide-react'
 import { bookingsDetailOptions } from '@/api'
 import {
   Dialog,
@@ -27,7 +28,7 @@ export function TicketQrDialog({
   return (
     <Dialog open={!!code} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-sm">
-        <DialogHeader>
+        <DialogHeader icon={<QrCode />}>
           <DialogTitle>{t('bookingHistory.qrTitle')}</DialogTitle>
           <DialogDescription>{t('bookingHistory.qrHint')}</DialogDescription>
         </DialogHeader>
@@ -40,16 +41,14 @@ export function TicketQrDialog({
               alt={t('bookingHistory.qrAlt', { code: ticket.code })}
               width={240}
               height={240}
-              className="rounded-xl border bg-white p-2"
+              className="rounded-2xl bg-white p-2 ring-1 ring-slate-200"
             />
           ) : (
             <p className="py-10 text-center text-sm text-muted-foreground">
               {t('bookingHistory.qrUnavailable')}
             </p>
           )}
-          <code className="font-mono text-xl font-extrabold tracking-wide text-blue-700">
-            {code}
-          </code>
+          <code className="font-mono text-xl font-bold tracking-wide text-slate-900">{code}</code>
           {ticket && ticket.seats.length > 0 && (
             <p className="text-sm text-muted-foreground">
               {t('bookingHistory.qrSeats', {

@@ -8,13 +8,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// supplied (in priority order):
 ///   1. `--dart-define=API_BASE_URL=https://api.example.com` (CI / enterprise)
 ///   2. a value the agent saved on the login screen (persisted locally)
-///   3. a dev default — `http://10.0.2.2:8080`, which is the Android
-///      emulator's alias for the host machine's `localhost:8080`.
+///   3. the default: production (`https://datxevui.com`) in release builds;
+///      in debug `http://10.0.2.2:8080`, the Android emulator's alias for
+///      the host machine's `localhost:8080`.
 @immutable
 class AppConfig {
   const AppConfig({required this.baseUrl});
 
-  /// Scheme + host + optional port, e.g. `https://api.datxevui.com`.
+  /// Scheme + host + optional port, e.g. `https://datxevui.com`.
   final String baseUrl;
 
   /// Base URL without a trailing slash, safe for path concatenation.
@@ -51,9 +52,13 @@ const _kServerUrlKey = 'vexevn.server_url';
 /// Compile-time override, else null.
 const _kDartDefineUrl = String.fromEnvironment('API_BASE_URL');
 
-/// Dev default: Android emulator host loopback. iOS simulator would use
-/// `http://localhost:8080` — agents set the real URL on first launch anyway.
-const _kDefaultUrl = 'http://10.0.2.2:8080';
+/// Store builds start on production, so a fresh install (an App Review
+/// device included) signs in without typing a server. Debug builds use the
+/// Android emulator's alias for the host's `localhost:8080` (the iOS
+/// simulator would use `http://localhost:8080`).
+const _kDefaultUrl = kReleaseMode
+    ? 'https://datxevui.com'
+    : 'http://10.0.2.2:8080';
 
 class AppConfigNotifier extends Notifier<AppConfig> {
   int _changeVersion = 0;

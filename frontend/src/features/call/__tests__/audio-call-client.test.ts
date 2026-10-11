@@ -344,4 +344,106 @@ describe('AudioCallClient', () => {
     expect(client.state).toBe('idle')
     expect(errors).toContain('no-agent')
   })
+
+  describe('when the media path drops mid-call (a network switch)', () => {
+    const lose = (pc: FakePeer) => {
+      pc.connectionState = 'disconnected'
+      pc.onconnectionstatechange?.()
+    }
+    const restarts = (ws: FakeSocket) => ws.frames('call', 'offer').filter((f) => f.iceRestart)
+
+    /** A customer's call with media flowing: the customer is the offerer. */
+    async function liveCall() {
+      const t = setup()
+      await t.client.startCall()
+      t.ws.receive({ type: 'answer', from: 'agent-7', sdp: { type: 'answer', sdp: 'x' } })
+      await flush()
+      FakePeer.last.connect()
+      return t
+    }
+
+    it('the offerer restarts ICE after a moment and keeps the call once media is back', async () => {
+      const { client, ws } = await liveCall()
+      lose(FakePeer.last)
+      await vi.advanceTimersByTimeAsync(2_900)
+      expect(restarts(ws)).toHaveLength(0) // a blip gets to recover by itself
+      await vi.advanceTimersByTimeAsync(200)
+      expect(restarts(ws)).toHaveLength(1)
+
+      FakePeer.last.connect()
+      await vi.advanceTimersByTimeAsync(60_000)
+      expect(client.state).toBe('active')
+      expect(ws.frames('hangup')).toHaveLength(0)
+    })
+
+    it('gets fresh restarts for a later switch', async () => {
+      const { client, ws } = await liveCall()
+      for (let outage = 1; outage <= 3; outage++) {
+        lose(FakePeer.last)
+        await vi.advanceTimersByTimeAsync(3_000)
+        FakePeer.last.connect()
+      }
+      expect(restarts(ws)).toHaveLength(3)
+      expect(client.state).toBe('active')
+    })
+
+    it('the offerer gives up after two restarts that do not bring media back', async () => {
+      const { client, ws } = await liveCall()
+      lose(FakePeer.last)
+      await vi.advanceTimersByTimeAsync(3_000 + 10_000)
+      expect(restarts(ws)).toHaveLength(2)
+      expect(client.state).toBe('active')
+      await vi.advanceTimersByTimeAsync(10_000)
+      expect(ws.frames('hangup')).toHaveLength(1)
+      expect(client.state).toBe('ended')
+    })
+
+    it('resends a restart the dropped socket could not carry, without using an attempt', async () => {
+      const { client, ws } = await liveCall()
+      ws.drop() // the switch takes the signalling socket down too
+      lose(FakePeer.last)
+      await vi.advanceTimersByTimeAsync(3_000)
+      const ws2 = FakeSocket.instances.at(-1)!
+      expect(ws2).not.toBe(ws)
+      ws2.open()
+      // The new socket takes the call over on the server.
+      expect(ws2.frames('register')[0]).toMatchObject({ resume: true })
+      ws2.receive({ type: 'registered', onlineAgents: 1, activeCall: { id: 's' } })
+      await vi.advanceTimersByTimeAsync(3_000)
+      expect(restarts(ws2)).toHaveLength(1)
+      FakePeer.last.connect()
+      expect(client.state).toBe('active')
+    })
+
+    it('the answerer waits for the offerer to restart instead of hanging up', async () => {
+      const { client, ws } = setup('agent')
+      ws.receive({ type: 'incoming', from: 'cust-1', sdp: { type: 'offer', sdp: 'o' } })
+      await client.acceptCall({ type: 'offer', sdp: 'o' }, 'cust-1')
+      FakePeer.last.connect()
+
+      lose(FakePeer.last)
+      await vi.advanceTimersByTimeAsync(20_000)
+      expect(ws.frames('hangup')).toHaveLength(0)
+      expect(restarts(ws)).toHaveLength(0) // never the answerer (glare rule)
+      ws.receive({ type: 'renegotiate', from: 'cust-1', sdp: { type: 'offer', sdp: 'r' } })
+      await flush()
+      FakePeer.last.connect()
+      await vi.advanceTimersByTimeAsync(60_000)
+      expect(client.state).toBe('active')
+    })
+
+    it('the answerer ends the call when media stays gone', async () => {
+      const { client, ws } = setup('agent')
+      ws.receive({ type: 'incoming', from: 'cust-1', sdp: { type: 'offer', sdp: 'o' } })
+      await client.acceptCall({ type: 'offer', sdp: 'o' }, 'cust-1')
+      FakePeer.last.connect()
+
+      lose(FakePeer.last)
+      await vi.advanceTimersByTimeAsync(24_900)
+      expect(client.state).toBe('active')
+      await vi.advanceTimersByTimeAsync(200)
+      expect(ws.frames('hangup')).toHaveLength(1)
+      expect(client.state).toBe('ended')
+    })
+  })
 })

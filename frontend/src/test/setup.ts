@@ -49,6 +49,11 @@ class MockResizeObserver implements ResizeObserver {
 }
 window.ResizeObserver = MockResizeObserver as unknown as typeof ResizeObserver
 
+// ── Mock Element.getAnimations (Base UI waits on exit animations) ──
+if (!Element.prototype.getAnimations) {
+  Element.prototype.getAnimations = () => []
+}
+
 // ── Mock scrollTo (jsdom doesn't implement it) ────────────────
 window.scrollTo = vi.fn()
 

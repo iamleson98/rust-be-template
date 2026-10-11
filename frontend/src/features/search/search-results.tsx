@@ -1,16 +1,18 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { Navigation2 } from 'lucide-react'
 import { toast } from 'sonner'
 import type { TripResult } from '@/api'
 import { useT } from '@/lib/i18n'
-import type { SortKey } from '@/lib/search-params'
+import { legSearch, type SortKey } from '@/lib/search-params'
 import { SearchWidget } from './widget/search-widget'
 import { ActiveFilterChips } from './active-filter-chips'
 import { FiltersSidebar } from './filters-sidebar'
 import { ResultsActions } from './results-actions'
 import { DateStrip } from './date-strip'
+import { LegTabs } from './leg-tabs'
+import { forgetReturnLeg, rememberReturnLeg } from './return-leg'
 import { SortTabs } from './filter-controls'
 import { MobileFilters } from './mobile-filters'
 import { RouteDirectory } from './route-directory'
@@ -26,8 +28,17 @@ const NO_RESULTS: TripResult[] = []
 /** The `/search` page body: query bar, filters, results; or the route catalogue until both ends are picked. */
 export function SearchResults() {
   const t = useT()
-  const { search, update } = useSearchUrl()
+  const { search: urlSearch, update } = useSearchUrl()
   const saved = useSavedSearches()
+  // A round trip shows one leg at a time; `search` is the leg on screen.
+  const search = useMemo(() => legSearch(urlSearch), [urlSearch])
+  const returning = search !== urlSearch
+
+  // While the outbound leg is on screen, the success screen of its booking can offer the way back.
+  useEffect(() => {
+    if (urlSearch.roundTrip && !returning) rememberReturnLeg(urlSearch)
+    else forgetReturnLeg()
+  }, [urlSearch, returning])
 
   const browsing = !search.from || !search.to
   const query = useTripSearchInfinite(browsing ? null : search)
@@ -63,7 +74,8 @@ export function SearchResults() {
   }
 
   const applySaved = (s: SavedSearch) => {
-    update({ ...s, sort: s.sort as SortKey })
+    // A saved search is one-way: it replaces the round trip.
+    update({ ...s, sort: s.sort as SortKey, returnDate: '', leg: 'out' })
     rf.setFilters(s.filters)
     toast.success(t('searchPage.savedSearchApplied'))
   }
@@ -84,7 +96,27 @@ export function SearchResults() {
         </div>
       ) : (
         <div className="page-x py-5 md:py-6">
-          {search.date && <DateStrip date={search.date} onPick={(date) => update({ date })} />}
+          {urlSearch.roundTrip && (
+            <div className="mb-4">
+              <LegTabs search={urlSearch} onPick={(leg) => update({ leg })} />
+            </div>
+          )}
+          {search.date &&
+            (returning ? (
+              <DateStrip
+                date={search.date}
+                min={urlSearch.date}
+                onPick={(returnDate) => update({ returnDate })}
+              />
+            ) : (
+              <DateStrip
+                date={search.date}
+                onPick={(date) =>
+                  // Leaving after the return day ends the round trip.
+                  update(urlSearch.returnDate < date ? { date, returnDate: '' } : { date })
+                }
+              />
+            ))}
 
           <div className="mt-5 flex gap-6">
             <FiltersSidebar results={results} rf={rf} />

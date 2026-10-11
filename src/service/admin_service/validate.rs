@@ -53,11 +53,6 @@ pub fn slugify(input: &str) -> String {
     out
 }
 
-/// `#RRGGBB` hex color validator.
-pub(super) fn valid_hex_color(s: &str) -> bool {
-    s.len() == 7 && s.starts_with('#') && s.as_bytes()[1..7].iter().all(|b| b.is_ascii_hexdigit())
-}
-
 /// Validate a slug (lowercase alphanumeric + dashes).
 pub(super) fn valid_slug(s: &str) -> bool {
     !s.is_empty()
@@ -112,18 +107,6 @@ mod tests {
     #[test]
     fn slugify_trims_trailing_dashes() {
         assert_eq!(slugify("hello!!!"), "hello");
-    }
-
-    #[test]
-    fn valid_hex_color_accepts_6_digit() {
-        assert!(valid_hex_color("#1a2b3c"));
-        assert!(valid_hex_color("#FFFFFF"));
-    }
-    #[test]
-    fn valid_hex_color_rejects_short() {
-        assert!(!valid_hex_color("#fff"));
-        assert!(!valid_hex_color("1a2b3c"));
-        assert!(!valid_hex_color("#gggggg"));
     }
 
     #[test]

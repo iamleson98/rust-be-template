@@ -57,6 +57,10 @@ cargo run                       # or: cargo run -- serve
 
 # 3. Visit the API
 open http://localhost:8080/swagger-ui
+
+# 4. Web app in dev: Vite on :3000 proxies /api and the WebSockets to :8080
+cd frontend && bun run dev      # DEV_API_TARGET=http://localhost:8181 for another backend
+open http://localhost:3000
 ```
 
 ## CLI
@@ -147,7 +151,7 @@ All config is loaded from `.env` (or actual env vars) via `figment`. See
 | `STORAGE_BACKEND` | `local` | `local`, `s3`, or `minio` |
 | `JWT_SECRET` | (must override) | ≥32 bytes for HS256 |
 | `RATE_LIMIT_RPM` | `60` | per-IP token bucket |
-| `CORS_ORIGINS` | `http://localhost:3000,5173` | comma-separated |
+| `CORS_ORIGINS` | `http://localhost:3000`, `:8080` (and `127.0.0.1`) | comma-separated; also the allowed origins of browser POST/PUT/DELETE |
 
 ## Database — the rust-sql engine (the only backend)
 

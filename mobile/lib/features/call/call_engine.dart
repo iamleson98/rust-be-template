@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 /// One WebRTC session (audio-only).
@@ -189,7 +191,7 @@ class CallEngine {
     }
   }
 
-  /// Tears the session down: close the PC, release the mic. Safe to call
+  /// Tears the session down: release the mic, close the PC. Safe to call
   /// multiple times.
   void close() {
     if (_closed) return;
@@ -197,14 +199,34 @@ class CallEngine {
     onLocalCandidate = null;
     onConnectionState = null;
     onRemoteStream = null;
-    try {
-      _pc?.close();
-      _pc?.dispose();
-    } catch (_) {}
-    try {
-      _localStream?.dispose();
-    } catch (_) {}
+    final pc = _pc;
+    final local = _localStream;
     _pc = null;
     _localStream = null;
+    unawaited(_release(pc, local));
+  }
+
+  /// Stops the mic tracks first — only then does the OS let go of the
+  /// microphone (iOS's mic indicator, the audio session) — then closes
+  /// and frees the connection. Each step is awaited, so a failure is
+  /// caught here instead of escaping as an unhandled async error.
+  static Future<void> _release(
+    RTCPeerConnection? pc,
+    MediaStream? local,
+  ) async {
+    for (final track in local?.getTracks() ?? const <MediaStreamTrack>[]) {
+      try {
+        await track.stop();
+      } catch (_) {}
+    }
+    try {
+      await pc?.close();
+    } catch (_) {}
+    try {
+      await pc?.dispose();
+    } catch (_) {}
+    try {
+      await local?.dispose();
+    } catch (_) {}
   }
 }

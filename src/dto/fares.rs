@@ -12,9 +12,10 @@ pub struct ChildFarePolicy {
     /// Oldest age (inclusive) that travels on a child ticket.
     #[validate(range(min = 1, max = 17))]
     pub max_age: i16,
-    /// Percent off the adult price, where the schedule sets no child price.
-    #[validate(range(min = 0, max = 100))]
-    pub discount_percent: i16,
+    /// VND off the adult price, where the schedule sets no child price
+    /// (a child never pays less than 0).
+    #[validate(range(min = 0, max = 100_000_000))]
+    pub discount_amount: i64,
 }
 
 /// What one seat class costs on a schedule. Standard seats use the

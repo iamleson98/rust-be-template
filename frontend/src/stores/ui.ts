@@ -8,7 +8,6 @@ export type ShareTrip = {
   departureAt?: string
   departureTime?: string
   brandName: string
-  brandAccent?: string
   brandRating?: number
   minPrice: number
   vehicleTypeLabel?: string

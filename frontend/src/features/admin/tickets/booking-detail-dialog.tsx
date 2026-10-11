@@ -10,6 +10,7 @@ import {
   CalendarClock,
   CheckCircle2,
   Flag,
+  Loader2,
   Lock,
   Phone,
   PhoneCall,
@@ -17,6 +18,16 @@ import {
   User,
 } from 'lucide-react'
 import { adminBookingsGetOptions } from '@/api'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -55,27 +66,26 @@ export function BookingDetailDialog({
   })
   const status = useTicketStatus()
   const [reason, setReason] = useState('')
+  // Cancelling is final (the seats go back on sale): it asks first.
+  const [confirmingCancel, setConfirmingCancel] = useState(false)
   const ticket = data?.item
   const stage = ticket ? ticketStage(ticket) : null
   const final = ticket?.status === 'completed' || ticket?.status === 'cancelled'
 
   const act = async (action: TicketAction) => {
     if (!ticket) return
-    if (
-      action === 'cancelled' &&
-      !window.confirm(t('adminTickets.cancelConfirm', { code: ticket.code }))
-    ) {
-      return
+    if (await status.set(ticket, action, reason)) {
+      setReason('')
+      return true
     }
-    if (await status.set(ticket, action, reason)) setReason('')
+    return false
   }
 
   return (
     <Dialog open={!!bookingId} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="flex max-h-[90dvh] max-w-2xl flex-col overflow-hidden">
-        <DialogHeader>
+      <DialogContent className="flex max-w-2xl flex-col overflow-clip">
+        <DialogHeader icon={<TicketIcon />}>
           <DialogTitle className="flex flex-wrap items-center gap-2">
-            <TicketIcon className="h-5 w-5 text-blue-600" />
             {ticket
               ? t('adminTickets.ticketCode', { code: ticket.code })
               : t('adminTickets.detailTitle')}
@@ -240,7 +250,7 @@ export function BookingDetailDialog({
                       variant="outline"
                       className="gap-1.5 border-rose-200 text-rose-600 hover:bg-rose-50"
                       disabled={status.pending}
-                      onClick={() => act('cancelled')}
+                      onClick={() => setConfirmingCancel(true)}
                     >
                       <Ban className="h-4 w-4" />
                       {t('adminTickets.cancelTicket')}
@@ -252,6 +262,49 @@ export function BookingDetailDialog({
           </ScrollArea>
         )}
       </DialogContent>
+
+      <AlertDialog
+        open={confirmingCancel}
+        onOpenChange={(open) => {
+          if (!status.pending) setConfirmingCancel(open)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {t('adminTickets.cancelTitle', { code: ticket?.code ?? '' })}
+            </AlertDialogTitle>
+            <AlertDialogDescription>{t('adminTickets.cancelBody')}</AlertDialogDescription>
+          </AlertDialogHeader>
+          {reason.trim() && (
+            <p className="rounded-lg bg-muted px-3 py-2 text-sm">
+              <span className="text-muted-foreground">{t('adminTickets.cancelReasonLabel')}: </span>
+              {reason.trim()}
+            </p>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={status.pending}>
+              {t('adminTickets.keepTicket')}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={status.pending}
+              onClick={async (e) => {
+                // Stay open until the server answers; a failure keeps it open to retry.
+                e.preventDefault()
+                if (await act('cancelled')) setConfirmingCancel(false)
+              }}
+              className="gap-1.5 bg-rose-600 text-white hover:bg-rose-700"
+            >
+              {status.pending ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Ban className="size-4" />
+              )}
+              {t('adminTickets.cancelTicket')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   )
 }

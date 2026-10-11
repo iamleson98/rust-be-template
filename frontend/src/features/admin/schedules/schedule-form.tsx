@@ -23,9 +23,9 @@
  *     AddressMapDialog (map + full-text search) and the freshly created
  *     address is immediately selected.
  *
- * Time fields use the shared `TimePicker` (shadcn docs pattern: native
- * `<input type="time">`, HH:MM value); dates use `DatePicker`
- * (Popover + Calendar, Vietnamese locale).
+ * Time fields use the shared `TimePicker` (hour and minute columns in a
+ * popover, HH:MM value); dates use `DatePicker` (Popover + Calendar,
+ * Vietnamese locale).
  *
  * Migrated from manual `fetch` POST/PUT to the `useMutation(adminSchedulesCreateMutation())`
  * TanStack Query mutation. The mutation auto-invalidates the schedules list
@@ -114,7 +114,9 @@ export function ScheduleFormDialog({
 
   const form = useForm<z.input<typeof scheduleSchema>, unknown, z.output<typeof scheduleSchema>>({
     resolver: zodResolver(scheduleSchema),
-    mode: 'onBlur',
+    // Errors appear on submit, then follow each change: an error popping up
+    // on blur shifts the layout under the pointer and swallows the click.
+    mode: 'onSubmit',
     reValidateMode: 'onChange',
     defaultValues: {
       departureTime: '08:00',
@@ -326,10 +328,9 @@ export function ScheduleFormDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={(o) => !saving && onOpenChange(o)}>
-        <DialogContent className="max-w-4xl max-h-[92dvh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Clock className="h-5 w-5 text-blue-600" />
+        <DialogContent className="max-w-4xl">
+          <DialogHeader icon={<Clock />}>
+            <DialogTitle>
               {isEdit ? t('brands.editSchedule') : t('adminSchedules.createTitle')}
             </DialogTitle>
             <DialogDescription>
@@ -344,7 +345,13 @@ export function ScheduleFormDialog({
           </DialogHeader>
 
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4">
+            <form
+              // A failed check always says so, even when the field is off screen.
+              onSubmit={form.handleSubmit(onSubmit, () =>
+                toast.error(t('adminSchedules.checkFields')),
+              )}
+              className="grid gap-4"
+            >
               {/* Point sequence stays full-width — the wide modal exists
                   precisely so the pickup/drop-off selects render on one
                   line with their arrival-time pickers instead of
@@ -390,7 +397,7 @@ export function ScheduleFormDialog({
                 <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
                   {t('common.cancel')}
                 </Button>
-                <Button type="submit" disabled={saving} className="bg-blue-600 hover:bg-blue-700">
+                <Button type="submit" disabled={saving}>
                   {saving ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> {t('common.saving')}

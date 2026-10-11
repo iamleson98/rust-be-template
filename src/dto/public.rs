@@ -26,8 +26,6 @@ pub struct BrandOut {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub logo_url: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub accent_color: Option<String>,
     /// Mean of the approved reviews; absent while there are none.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rating: Option<f64>,
@@ -50,8 +48,6 @@ pub struct BrandDetailOut {
     pub contact_phone: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub contact_email: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub accent_color: Option<String>,
     /// Mean of the approved reviews; absent while there are none.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rating: Option<f64>,
@@ -95,8 +91,6 @@ pub struct RouteBrandPreview {
     pub name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub slug: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub accent_color: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub logo_url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -145,7 +139,6 @@ pub struct TripResult {
     /// Mean of the brand's approved reviews; absent while there are none.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub brand_rating: Option<f64>,
-    pub brand_accent: String,
     pub from_name: String,
     pub from_lat: f64,
     pub from_lon: f64,
@@ -296,8 +289,6 @@ pub struct TripBrandDetail {
     /// Mean of the brand's approved reviews; absent while there are none.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rating: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub accent_color: Option<String>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -490,4 +481,6 @@ pub struct SearchTripsQuery {
     pub vehicle_types: Option<String>,
     pub sort: Option<String>,
     pub min_seats: Option<i64>,
+    /// Only trips leaving at or after this time of day (`HH:MM`).
+    pub depart_after: Option<String>,
 }

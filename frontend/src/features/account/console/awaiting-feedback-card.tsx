@@ -25,7 +25,7 @@ export function AwaitingFeedbackCard({ bookings }: { bookings: BookingItem[] }) 
       <ul className="space-y-2">
         {bookings.slice(0, 3).map((b) => (
           <li key={b.id} className="flex items-center gap-3 rounded-lg border p-3">
-            <BusTile accent={b.trip?.brandAccent} size="md" />
+            <BusTile size="md" />
             <div className="min-w-0 flex-1">
               <div className="truncate text-sm font-semibold">
                 {b.trip?.routeName ?? t('accountPage.feedback.tripFallback')}

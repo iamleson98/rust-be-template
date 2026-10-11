@@ -41,6 +41,15 @@ const OVERRIDES: Record<string, string> = {
   'POST /api/admin/bus-layouts/{id}/plan/fit': 'adminBusLayoutsFitPlan',
 }
 
+/**
+ * Endpoints that refresh on their own events, not their path's resource:
+ * the online-customers snapshot is costly (several lookups) and kept current
+ * by `customer_presence` events, so chat messages must not refetch it.
+ */
+const RESOURCE_OVERRIDES: Record<string, string> = {
+  'GET /api/chat/channels/online': 'chatPresence',
+}
+
 type Operation = { operationId: string; tags?: string[] }
 type Spec = { paths?: Record<string, Record<string, Operation>> }
 
@@ -58,7 +67,7 @@ function nameOperations(spec: Spec) {
   const taken = new Set<string>()
   for (const { key, path, op } of ops) {
     if (path.startsWith('/api/')) {
-      const resource = resourceOf(path)
+      const resource = RESOURCE_OVERRIDES[key] ?? resourceOf(path)
       op.tags = [resource]
       const verb = camel(op.operationId)
       const generic = !op.operationId.includes('_') || (uses.get(op.operationId) ?? 0) > 1

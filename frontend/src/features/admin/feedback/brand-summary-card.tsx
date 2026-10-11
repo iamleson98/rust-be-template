@@ -23,7 +23,6 @@ function BrandSummaryCard({
   onClick: () => void
 }) {
   const t = useT()
-  const accent = summary.brandAccent || '#2563eb'
   const totalNonZero = Math.max(
     1,
     summary.pending + summary.approved + summary.rejected + summary.hidden,
@@ -39,8 +38,7 @@ function BrandSummaryCard({
     >
       <div className="flex items-center gap-3">
         <div
-          className="size-10 shrink-0 rounded-lg grid place-items-center text-white font-bold text-sm"
-          style={{ background: accent }}
+          className="grid size-10 shrink-0 place-items-center rounded-lg bg-primary text-sm font-bold text-primary-foreground"
           aria-hidden
         >
           {(summary.brandName ?? '?').slice(0, 2).toUpperCase()}
@@ -143,7 +141,7 @@ export function BrandSummaryStrip({
         {t('adminFeedback.byBrand')}
       </div>
 
-      <div className="flex gap-3 overflow-x-auto pb-1 scroll-thin -mx-1 px-1">
+      <div className="-mx-1 -mt-1 flex gap-3 overflow-x-auto px-1 pt-1 pb-1 scroll-thin">
         {/* "All brands" card */}
         <button
           type="button"

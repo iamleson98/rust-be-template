@@ -29,7 +29,7 @@ export type ReviewItem = {
   reply?: string | null
   repliedAt?: string | null
   helpfulCount?: number
-  brand?: { name: string; accentColor: string }
+  brand?: { name: string }
   route?: { name: string; slug: string; fromName: string; toName: string }
 }
 

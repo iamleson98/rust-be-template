@@ -37,10 +37,7 @@ export function RouteCard({
             loading="lazy"
           />
         ) : (
-          <span
-            className="size-2 shrink-0 rounded-full"
-            style={{ background: r.brand.accentColor ?? '#64748b' }}
-          />
+          <span className="size-2 shrink-0 rounded-full bg-primary" />
         )}
         <span className="truncate">{r.brand.name}</span>
         {r.brand.rating != null && (

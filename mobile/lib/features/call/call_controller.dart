@@ -40,7 +40,27 @@ class CallController extends Notifier<CallUiState> {
   /// "Call ended" flash duration before returning to idle.
   Timer? _endedTimer;
 
+  /// Drives recovery while the media path is down (see [_recoverMedia]).
   Timer? _iceRecoveryTimer;
+
+  /// Media dropped mid-call: how long ICE gets to recover by itself
+  /// before a restart (a network switch, the edge of Wi-Fi).
+  static const _iceRecovery = Duration(seconds: 3);
+
+  /// How long each ICE restart gets to bring media back before the next.
+  static const _iceRestartGrace = Duration(seconds: 10);
+
+  /// Restarts per outage; the count resets once media is back, so a
+  /// later network switch gets its own.
+  static const _maxIceRestarts = 2;
+
+  /// An outage this long ends the call. The answerer (usually this app:
+  /// customers call from the web) cannot restart ICE, so it waits this
+  /// long for the caller's restart instead of hanging up at once.
+  static const _mediaLossLimit = Duration(seconds: 25);
+
+  /// When the media path dropped; null while it is up.
+  DateTime? _mediaDownSince;
 
   /// Grace window the signaling socket gets to come back before an
   /// in-progress call is ended as lost (see [_onSignalingStatus]).
@@ -60,7 +80,7 @@ class CallController extends Notifier<CallUiState> {
   /// offerer may drive an ICE restart (WebRTC glare rule).
   bool _isOfferer = false;
 
-  /// ICE restarts attempted this call (capped at 1).
+  /// ICE restarts sent in the current outage (see [_maxIceRestarts]).
   int _iceRestarts = 0;
 
   /// Inbound ICE candidates that arrived BEFORE the engine existed
@@ -102,10 +122,11 @@ class CallController extends Notifier<CallUiState> {
     // calls).
     sig.hasLiveCall = () =>
         state.status != CallStatus.idle && state.status != CallStatus.ended;
-    // Signaling-socket loss = call death (server invariant: a dropped
-    // socket ends every session it carries). Without this, an employee
-    // whose phone lost the socket mid-call (OS froze the app, network
-    // switched) kept a zombie "running" call — the end-of-call hangup
+    // A signaling socket lost for longer than [_sigLossGrace] ends the
+    // call: the server keeps an answered call only briefly for the
+    // reconnecting socket to resume it (`register` + `resume`). Without
+    // this, an employee whose phone lost the socket mid-call (OS froze
+    // the app) kept a zombie "running" call — the end-of-call hangup
     // goes to the OTHER side, never to the socket that dropped.
     _sigStatusSub = sig.connectionStates.listen(_onSignalingStatus);
     return const CallUiState();
@@ -150,6 +171,7 @@ class CallController extends Notifier<CallUiState> {
     }
     _isOfferer = true;
     _iceRestarts = 0;
+    _mediaDownSince = null;
 
     // The mic is open and an offer is out — keep the process alive
     // through screen-blanks from here on (see CallKeepAlive).
@@ -179,6 +201,7 @@ class CallController extends Notifier<CallUiState> {
     _ringTimer?.cancel();
     _isOfferer = false;
     _iceRestarts = 0;
+    _mediaDownSince = null;
     // Picking up silences the ring + vibration immediately.
     unawaited(ref.read(soundServiceProvider).stopRinging());
     final sig = ref.read(callSignalingProvider);
@@ -540,24 +563,37 @@ class CallController extends Notifier<CallUiState> {
           clearError: true,
         );
       }
+      // Back after an outage: the next one gets its own restarts.
       _iceRecoveryTimer?.cancel();
+      _mediaDownSince = null;
+      _iceRestarts = 0;
     } else if (s == RTCPeerConnectionState.RTCPeerConnectionStateFailed ||
         s == RTCPeerConnectionState.RTCPeerConnectionStateDisconnected) {
-      // ICE hiccup — give it 3s to recover, then either restart ICE
-      // (once, OFFERER-only — the office-network case where the media
-      // path never came up or died mid-negotiation) or hang up.
+      if (_mediaDownSince != null) return; // already recovering
+      _mediaDownSince = DateTime.now();
       _iceRecoveryTimer?.cancel();
-      _iceRecoveryTimer = Timer(const Duration(seconds: 3), () {
-        final current = state;
-        if (current.status == CallStatus.active ||
-            current.status == CallStatus.connecting) {
-          if (_isOfferer && _iceRestarts < 1) {
-            _restartIce();
-          } else {
-            _hangup('remote');
-          }
-        }
-      });
+      _iceRecoveryTimer = Timer(_iceRecovery, _recoverMedia);
+    }
+  }
+
+  /// Still no media. The offerer restarts ICE, spaced and capped; the
+  /// answerer cannot (glare rule), so it waits for the offerer's restart.
+  /// Either way an outage of [_mediaLossLimit] ends the call.
+  void _recoverMedia() {
+    final since = _mediaDownSince;
+    if (since == null ||
+        (state.status != CallStatus.active &&
+            state.status != CallStatus.connecting)) {
+      return;
+    }
+    final downFor = DateTime.now().difference(since);
+    if (downFor >= _mediaLossLimit ||
+        (_isOfferer && _iceRestarts >= _maxIceRestarts)) {
+      _hangup('remote');
+    } else if (_isOfferer) {
+      _restartIce();
+    } else {
+      _iceRecoveryTimer = Timer(_mediaLossLimit - downFor, _recoverMedia);
     }
   }
 
@@ -575,7 +611,6 @@ class CallController extends Notifier<CallUiState> {
       _hangup('remote');
       return;
     }
-    _iceRestarts++;
     _connectTimer?.cancel();
     unawaited(
       engine
@@ -586,10 +621,14 @@ class CallController extends Notifier<CallUiState> {
               return; // call ended while re-offering
             }
             if (!sig.sendRenegotiateOffer(peer, offer)) {
-              _hangup('remote');
+              // The same switch took the signalling socket down: try
+              // again once it is back, without using up an attempt.
+              _iceRecoveryTimer = Timer(_iceRecovery, _recoverMedia);
               return;
             }
+            _iceRestarts++;
             _startConnectTimeout();
+            _iceRecoveryTimer = Timer(_iceRestartGrace, _recoverMedia);
           })
           .catchError((_) {
             _hangup('remote');
@@ -648,6 +687,7 @@ class CallController extends Notifier<CallUiState> {
     _sigLossTimer?.cancel();
     _isOfferer = false;
     _iceRestarts = 0;
+    _mediaDownSince = null;
     // Kill the ring/ringback + haptics before anything else.
     unawaited(ref.read(soundServiceProvider).stopAll());
     _teardownEngine();

@@ -5,6 +5,20 @@ import { Dialog as DialogPrimitive } from '@base-ui/react/dialog'
 import { XIcon } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
+import {
+  MODAL_CENTERED,
+  MODAL_CLOSE,
+  MODAL_DESCRIPTION,
+  MODAL_FOOTER,
+  MODAL_FULLSCREEN_ON_PHONE,
+  MODAL_OVERLAY,
+  MODAL_SHEET_ON_PHONE,
+  MODAL_SURFACE,
+  MODAL_TITLE,
+  MODAL_VIEWPORT,
+  MODAL_VIEWPORT_FULLSCREEN_ON_PHONE,
+  MODAL_VIEWPORT_SHEET_ON_PHONE,
+} from './modal-styles'
 import { resolveNativeButton } from './resolve-native-button'
 
 /**
@@ -110,80 +124,129 @@ function DialogOverlay({ className, ...props }: ComponentProps<typeof DialogPrim
       render={(componentProps, state) => (
         <div {...componentProps} data-state={state.open ? 'open' : 'closed'} />
       )}
-      className={cn(
-        'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/50',
-        className,
-      )}
+      className={cn(MODAL_OVERLAY, className)}
       {...props}
     />
   )
 }
 
+/**
+ * A centred dialog (see `modal-styles.ts`). On phones it is a bottom sheet,
+ * or with `mobile="fullscreen"` it takes the whole screen (multi-step flows).
+ * A tall dialog scrolls with the page: it grows with its content inside a
+ * scrolling viewport. (One that needs a fixed height, e.g. around a map, sets
+ * its own `max-h-*` and scrolls a part of itself.)
+ */
 function DialogContent({
   className,
   children,
   showCloseButton = true,
+  mobile = 'sheet',
   ...props
 }: Omit<ComponentProps<typeof DialogPrimitive.Popup>, 'render'> & {
   showCloseButton?: boolean
+  mobile?: 'sheet' | 'fullscreen'
 }) {
   return (
     <DialogPortal>
       <DialogOverlay />
-      <DialogPrimitive.Popup
-        data-slot="dialog-content"
-        render={(componentProps, state) => (
-          <div {...componentProps} data-state={state.open ? 'open' : 'closed'} />
-        )}
+      <DialogPrimitive.Viewport
+        data-slot="dialog-viewport"
         className={cn(
-          'bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] max-h-[calc(100dvh-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 overflow-y-auto overscroll-contain rounded-lg border p-6 duration-200',
-          className,
+          MODAL_VIEWPORT,
+          mobile === 'sheet' ? MODAL_VIEWPORT_SHEET_ON_PHONE : MODAL_VIEWPORT_FULLSCREEN_ON_PHONE,
         )}
-        {...props}
       >
-        {children}
-        {showCloseButton && (
-          <DialogPrimitive.Close
-            data-slot="dialog-close"
-            render={(componentProps) => <button {...componentProps} data-state="open" />}
-            className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground absolute top-3.5 right-3.5 grid size-8 place-items-center rounded-full opacity-70 transition-[opacity,background-color] hover:bg-accent hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
-          >
-            <XIcon />
-            <span className="sr-only">Close</span>
-          </DialogPrimitive.Close>
-        )}
-      </DialogPrimitive.Popup>
+        <DialogPrimitive.Popup
+          data-slot="dialog-content"
+          render={(componentProps, state) => (
+            <div {...componentProps} data-state={state.open ? 'open' : 'closed'} />
+          )}
+          className={cn(
+            MODAL_SURFACE,
+            MODAL_CENTERED,
+            mobile === 'sheet' ? MODAL_SHEET_ON_PHONE : MODAL_FULLSCREEN_ON_PHONE,
+            className,
+          )}
+          {...props}
+        >
+          {children}
+          {showCloseButton && (
+            <DialogPrimitive.Close
+              data-slot="dialog-close"
+              render={(componentProps) => <button {...componentProps} data-state="open" />}
+              className={MODAL_CLOSE}
+            >
+              <XIcon />
+              <span className="sr-only">Close</span>
+            </DialogPrimitive.Close>
+          )}
+        </DialogPrimitive.Popup>
+      </DialogPrimitive.Viewport>
     </DialogPortal>
   )
 }
 
-function DialogHeader({ className, ...props }: ComponentProps<'div'>) {
+/** Tints for a header icon: the action's meaning, not decoration. */
+const ICON_TONES = {
+  primary: 'bg-primary/10 text-primary dark:bg-primary/20',
+  danger: 'bg-rose-50 text-rose-600 dark:bg-rose-500/15 dark:text-rose-300',
+  warning: 'bg-amber-50 text-amber-600 dark:bg-amber-500/15 dark:text-amber-300',
+  success: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300',
+} as const
+
+/**
+ * Title and description, left-aligned. With `icon`, the icon sits in a tinted
+ * tile beside them — one look for every dialog that has one.
+ */
+function DialogHeader({
+  className,
+  icon,
+  tone = 'primary',
+  children,
+  ...props
+}: ComponentProps<'div'> & { icon?: ReactNode; tone?: keyof typeof ICON_TONES }) {
+  if (!icon) {
+    return (
+      <div
+        data-slot="dialog-header"
+        // pr-10 keeps header content clear of the close button (size-8 at top-4/right-4).
+        className={cn('flex flex-col gap-1.5 pr-10 text-left', className)}
+        {...props}
+      >
+        {children}
+      </div>
+    )
+  }
   return (
     <div
       data-slot="dialog-header"
-      // pr-12 keeps header content clear of the absolutely-positioned
-      // close button (size-8 at top-3.5/right-3.5 → occupies the right 48px).
-      className={cn('flex flex-col gap-2 text-center sm:text-left pr-12', className)}
+      className={cn('flex items-start gap-3.5 pr-10 text-left', className)}
       {...props}
-    />
+    >
+      <span
+        aria-hidden
+        className={cn(
+          'grid size-10 shrink-0 place-items-center rounded-xl [&_svg]:size-5',
+          ICON_TONES[tone],
+        )}
+      >
+        {icon}
+      </span>
+      <div className="flex min-w-0 flex-1 flex-col gap-1 pt-0.5">{children}</div>
+    </div>
   )
 }
 
 function DialogFooter({ className, ...props }: ComponentProps<'div'>) {
-  return (
-    <div
-      data-slot="dialog-footer"
-      className={cn('flex flex-col-reverse gap-2 sm:flex-row sm:justify-end', className)}
-      {...props}
-    />
-  )
+  return <div data-slot="dialog-footer" className={cn(MODAL_FOOTER, className)} {...props} />
 }
 
 function DialogTitle({ className, ...props }: ComponentProps<typeof DialogPrimitive.Title>) {
   return (
     <DialogPrimitive.Title
       data-slot="dialog-title"
-      className={cn('text-lg leading-none font-semibold pr-12', className)}
+      className={cn(MODAL_TITLE, className)}
       {...props}
     />
   )
@@ -196,7 +259,7 @@ function DialogDescription({
   return (
     <DialogPrimitive.Description
       data-slot="dialog-description"
-      className={cn('text-muted-foreground text-sm', className)}
+      className={cn(MODAL_DESCRIPTION, className)}
       {...props}
     />
   )

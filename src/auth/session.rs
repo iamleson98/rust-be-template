@@ -37,6 +37,10 @@ pub struct SessionUser {
     pub brand_id: Option<Uuid>,
     pub brand_name: Option<String>,
     pub employee_role: Option<String>,
+    /// Whether the account has a password (social sign-ins may not yet):
+    /// changing it then asks for the current one.
+    #[serde(default)]
+    pub has_password: bool,
 }
 
 impl SessionUser {
@@ -61,6 +65,7 @@ impl SessionUser {
             brand_id: m.brand_id,
             brand_name: None,
             employee_role,
+            has_password: m.password_hash.is_some(),
         }
     }
 

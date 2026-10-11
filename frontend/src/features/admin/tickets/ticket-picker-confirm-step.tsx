@@ -50,10 +50,7 @@ export function ConfirmStep({
         <div className="space-y-1.5 text-xs">
           <Row label={t('admin.brands')}>
             <span className="flex items-center gap-1">
-              <span
-                className="inline-block h-2 w-2 rounded-full"
-                style={{ background: selectedTrip.brandAccent }}
-              />
+              <span className="inline-block h-2 w-2 rounded-full bg-primary" />
               {selectedTrip.brandName}
             </span>
           </Row>

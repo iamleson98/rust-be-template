@@ -106,7 +106,6 @@ export const TripCard = memo(function TripCard({
       departureAt: trip.departureAt ?? undefined,
       departureTime: trip.departureTime ?? undefined,
       brandName: trip.brandName,
-      brandAccent: trip.brandAccent,
       brandRating: trip.brandRating ?? undefined,
       minPrice: trip.minPrice,
       vehicleTypeLabel: trip.vehicleTypeLabel,
@@ -156,10 +155,7 @@ export const TripCard = memo(function TripCard({
         <div className="min-w-0 sm:p-5">
           {/* Operator */}
           <div className="flex items-center gap-2.5">
-            <span
-              className="grid size-9 shrink-0 place-items-center rounded-xl text-xs font-bold text-white"
-              style={{ background: trip.brandAccent }}
-            >
+            <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary text-xs font-bold text-primary-foreground">
               {initials(trip.brandName)}
             </span>
             <div className="min-w-0 flex-1">

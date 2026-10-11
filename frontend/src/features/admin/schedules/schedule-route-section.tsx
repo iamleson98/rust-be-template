@@ -76,7 +76,7 @@ export function ScheduleRouteSection({
         </div>
 
         {/* Start point + arrival time */}
-        <div className="grid grid-cols-[1fr_auto] gap-2 items-start">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 items-start">
           <FormField
             control={form.control}
             name="startPointId"
@@ -131,7 +131,10 @@ export function ScheduleRouteSection({
               </FormLabel>
               <div className="space-y-2">
                 {field.value.map((mid, i: number) => (
-                  <div key={i} className="grid grid-cols-[auto_1fr_auto_auto] gap-1.5 items-center">
+                  <div
+                    key={i}
+                    className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto_auto] gap-1.5 items-center"
+                  >
                     <span className="h-6 w-6 shrink-0 rounded-full bg-amber-100 text-amber-700 text-[11px] font-semibold flex items-center justify-center border border-amber-200">
                       {i + 1}
                     </span>
@@ -174,7 +177,7 @@ export function ScheduleRouteSection({
                       type="button"
                       aria-label={t('adminSchedules.removeMiddlePoint')}
                       onClick={() => removeMiddle(i)}
-                      className="col-start-4 justify-self-center h-9 w-9 shrink-0 rounded-md text-muted-foreground hover:text-rose-600 hover:bg-rose-50 flex items-center justify-center transition-colors"
+                      className="h-9 w-9 shrink-0 rounded-md text-muted-foreground hover:text-rose-600 hover:bg-rose-50 flex items-center justify-center transition-colors"
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
@@ -195,7 +198,7 @@ export function ScheduleRouteSection({
         />
 
         {/* End point + arrival time */}
-        <div className="grid grid-cols-[1fr_auto] gap-2 items-start">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 items-start">
           <FormField
             control={form.control}
             name="endPointId"

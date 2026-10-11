@@ -19,10 +19,7 @@ export function TripInfo({ detail, onShare }: { detail: TripDetail; onShare: () 
   return (
     <div className="shrink-0 border-b border-slate-200/80 bg-white px-4 pt-4 pb-3 pr-14 sm:px-6 sm:pr-16">
       <div className="flex items-start gap-3">
-        <span
-          className="grid size-11 shrink-0 place-items-center rounded-2xl text-sm font-bold text-white"
-          style={{ background: detail.brand.accentColor ?? undefined }}
-        >
+        <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-primary text-sm font-bold text-primary-foreground">
           {brandName
             .split(' ')
             .map((w) => w[0])

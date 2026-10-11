@@ -1,15 +1,5 @@
 'use client'
 
-/**
- * ShareActionGrid — the channel/action buttons of the share dialog
- * (copy link, download PNG, Facebook, Zalo, WhatsApp).
- *
- * Extracted from the original `share-dialog.tsx`. The handlers stay in
- * the dialog — they are passed down as props with their original names
- * so the markup is unchanged.
- */
-
-import { Button } from '@/components/ui/button'
 import { useT } from '@/lib/i18n'
 import { Copy, Check, Download, Facebook, MessageCircle } from 'lucide-react'
 
@@ -22,6 +12,10 @@ function WhatsAppIcon({ className }: { className?: string }) {
   )
 }
 
+/**
+ * The ways to share, as a row of round tiles (the share sheet people know
+ * from their phones): copy the link, save the image, or open a messenger.
+ */
 export function ShareActionGrid({
   copied,
   handleCopy,
@@ -38,48 +32,57 @@ export function ShareActionGrid({
   handleWhatsApp: () => void
 }) {
   const t = useT()
+  const actions = [
+    {
+      label: copied ? t('trips.copiedLabel') : t('trips.copyLink'),
+      icon: copied ? <Check /> : <Copy />,
+      tile: copied ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-700',
+      onClick: handleCopy,
+    },
+    {
+      label: t('trips.downloadImage'),
+      icon: <Download />,
+      tile: 'bg-slate-100 text-slate-700',
+      onClick: handleDownload,
+    },
+    {
+      label: 'Facebook',
+      icon: <Facebook />,
+      tile: 'bg-[#1877F2] text-white',
+      onClick: handleFacebook,
+    },
+    {
+      label: 'Zalo',
+      icon: <MessageCircle />,
+      tile: 'bg-[#0068FF] text-white',
+      onClick: handleZalo,
+    },
+    {
+      label: 'WhatsApp',
+      icon: <WhatsAppIcon className="size-5" />,
+      tile: 'bg-[#25D366] text-white',
+      onClick: handleWhatsApp,
+    },
+  ]
   return (
-    <div className="grid grid-cols-2 gap-2">
-      <Button
-        onClick={handleCopy}
-        variant="outline"
-        className="gap-2 border-blue-300 text-blue-700 hover:bg-blue-50"
-      >
-        {copied ? <Check className="h-4 w-4 text-blue-600" /> : <Copy className="h-4 w-4" />}
-        {copied ? t('trips.copiedLabel') : t('trips.copyLink')}
-      </Button>
-      <Button
-        onClick={handleDownload}
-        variant="outline"
-        className="gap-2 border-amber-300 text-violet-700 hover:bg-violet-50"
-      >
-        <Download className="h-4 w-4" />
-        {t('trips.downloadImage')}
-      </Button>
-      <Button
-        onClick={handleFacebook}
-        variant="outline"
-        className="gap-2 border-blue-300 text-blue-700 hover:bg-blue-50"
-      >
-        <Facebook className="h-4 w-4" />
-        Facebook
-      </Button>
-      <Button
-        onClick={handleZalo}
-        variant="outline"
-        className="gap-2 border-blue-300 text-blue-700 hover:bg-blue-50"
-      >
-        <MessageCircle className="h-4 w-4" />
-        Zalo
-      </Button>
-      <Button
-        onClick={handleWhatsApp}
-        variant="outline"
-        className="gap-2 col-span-2 border-blue-300 text-blue-700 hover:bg-blue-50"
-      >
-        <WhatsAppIcon className="h-4 w-4" />
-        {t('trips.shareWhatsApp')}
-      </Button>
+    <div className="grid grid-cols-5 gap-1">
+      {actions.map((a) => (
+        <button
+          key={a.label}
+          type="button"
+          onClick={a.onClick}
+          className="group flex flex-col items-center gap-1.5 rounded-xl px-1 py-2 text-center transition-colors hover:bg-slate-50"
+        >
+          <span
+            className={`grid size-12 place-items-center rounded-full transition-transform group-active:scale-95 [&_svg]:size-5 ${a.tile}`}
+          >
+            {a.icon}
+          </span>
+          <span className="line-clamp-2 text-[11px] leading-tight font-medium text-slate-600">
+            {a.label}
+          </span>
+        </button>
+      ))}
     </div>
   )
 }

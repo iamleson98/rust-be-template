@@ -57,8 +57,6 @@ pub struct AdminBrandOut {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rating: Option<f64>,
     pub status: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub accent_color: Option<String>,
     /// Child tickets; absent = children pay the adult fare.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub child_fare: Option<ChildFarePolicy>,
@@ -96,8 +94,6 @@ pub struct UpsertBrandRequest {
     pub contact_email: Option<String>,
     #[validate(length(max = 30))]
     pub status: Option<String>,
-    #[validate(length(max = 9))]
-    pub accent_color: Option<String>,
     /// Child tickets: a policy turns them on, `null` turns them off, and
     /// leaving the field out keeps the current setting.
     #[serde(default, deserialize_with = "nullable")]
@@ -590,8 +586,6 @@ pub struct AdminReviewBrandSummary {
     pub brand_slug: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub brand_logo: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub brand_accent: Option<String>,
     /// Total reviews for the brand (all statuses).
     pub total: i64,
     /// Reviews awaiting moderation.

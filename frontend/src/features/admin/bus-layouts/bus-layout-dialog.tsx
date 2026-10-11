@@ -31,7 +31,7 @@ export function BusLayoutDialog({ open, layout, onOpenChange, onSaved }: Props) 
   const body = { onBusyChange: setBusy, onCancel: () => onOpenChange(false), onSaved }
   return (
     <Dialog open={open} onOpenChange={(o) => !busy && onOpenChange(o)}>
-      <DialogContent className="max-h-[94dvh] max-w-6xl overflow-y-auto">
+      <DialogContent className="max-w-6xl">
         {open && (layout ? <EditLayout id={layout.id} {...body} /> : <CreateLayout {...body} />)}
       </DialogContent>
     </Dialog>
