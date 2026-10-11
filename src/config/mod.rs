@@ -476,8 +476,14 @@ pub struct CorsConfig {
 impl Default for CorsConfig {
     fn default() -> Self {
         Self {
-            origins: env_var("CORS_ORIGINS")
-                .unwrap_or_else(|| "http://127.0.0.1:3000,http://127.0.0.1:5173".into()),
+            // Without CORS_ORIGINS (a dev run with no .env): the Vite dev
+            // server (:3000, proxying to :8080) and the backend's own
+            // origin, by name and by address. Production sets its own.
+            origins: env_var("CORS_ORIGINS").unwrap_or_else(|| {
+                "http://localhost:3000,http://127.0.0.1:3000,\
+                 http://localhost:8080,http://127.0.0.1:8080"
+                    .into()
+            }),
         }
     }
 }
