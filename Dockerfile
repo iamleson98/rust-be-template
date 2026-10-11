@@ -206,5 +206,15 @@ CMD ["/app/backend", "serve"]
 # contention false positives are gone, genuine runtime hangs are still
 # caught (recovering in ~4 min instead of ~2.5 min, an acceptable
 # trade for not killing live calls).
+#
+# The probe is /ready, NOT /health: /health is pure liveness (always
+# 200 while the process exists) and cannot see a wedged DB pool. On
+# 2026-10-11 the engine's write-gate convoy stalled every pool acquire
+# for hours — /health stayed 200 the whole time, so Swarm kept the
+# 500-serving task "healthy" and never restarted it. /ready pings the
+# DB through the same pool with a 5s timeout, so a wedged pool fails
+# the probe and Swarm recovers the task automatically within the same
+# conservative 8×30s window. A restart during a heavy warmer pass is
+# safe by design: materialization is idempotent and conflict-tolerant.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=8 \
-    CMD ["curl", "-sf", "http://localhost:8080/health"]
+    CMD ["curl", "-sf", "http://localhost:8080/ready"]

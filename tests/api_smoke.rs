@@ -2122,3 +2122,294 @@ async fn warmer_fills_the_whole_sell_window() -> anyhow::Result<()> {
     }
     Ok(())
 }
+
+/// The 2026-10-11 production incident, distilled to its essence: the
+/// warmer's seat repair re-inserted seat rows that already existed and
+/// the multi-row INSERT aborted with `UNIQUE constraint failed:
+/// seat_inventory.trip_session_id, seat_inventory.seat_id` — on six
+/// consecutive dates. Each aborted statement rolled back inside the
+/// single-writer engine and queued every reader behind it until the
+/// pool stopped serving traffic.
+///
+/// Root cause class: the repair's "which trips have seats" read can go
+/// stale (or race a duplicate pass across a restart overlap), so the
+/// batch insert MUST be conflict-tolerant. This pins the store-level
+/// contract directly: a batch containing rows that already exist is a
+/// success (rows skipped), never an error.
+#[tokio::test]
+async fn seat_inventory_batch_insert_is_conflict_tolerant() -> anyhow::Result<()> {
+    use backend::entity::{bus_layout, route, schedule, seat, seat_inventory, trip_session};
+    use sea_orm::Set;
+
+    let store = migrated_store().await?;
+    let now = "2026-01-01T00:00:00Z".to_string();
+
+    // Parents the inventory FKs point at: route → schedule → trip,
+    // layout → seats.
+    let route_id = uuid::Uuid::new_v4();
+    store
+        .route_store()
+        .insert_route(route::ActiveModel {
+            id: Set(route_id),
+            brand_id: Set(None),
+            name: Set("Hà Nội - Nha Trang".into()),
+            start_location_id: Set("ha-noi".into()),
+            end_location_id: Set("nha-trang".into()),
+            status: Set("active".into()),
+            created_at: Set(now.clone()),
+            updated_at: Set(now.clone()),
+        })
+        .await?;
+    let sched_id = uuid::Uuid::new_v4();
+    store
+        .schedule_store()
+        .insert_schedule(schedule::ActiveModel {
+            id: Set(sched_id),
+            route_id: Set(route_id),
+            departure_time: Set("23:00".into()),
+            effective_from: Set(None),
+            effective_to: Set(None),
+            days_of_week: Set(Some("1111111".into())),
+            bus_layout_id: Set(None),
+            base_price_adult: Set(450_000),
+            base_price_child: Set(None),
+            amenities: Set(None),
+            created_at: Set(now.clone()),
+            vehicle_type_id: Set(None),
+        })
+        .await?;
+    let trip_id = uuid::Uuid::new_v4();
+    store
+        .trip_store()
+        .insert_trip_session(trip_session::ActiveModel {
+            id: Set(trip_id),
+            schedule_id: Set(sched_id),
+            departure_date: Set("2026-10-19".into()),
+            actual_departure_at: Set(None),
+            driver_name: Set(None),
+            driver_phone: Set(None),
+            status: Set("scheduled".into()),
+            total_seats: Set(2),
+            available_seats: Set(2),
+            created_at: Set(now.clone()),
+            updated_at: Set(now.clone()),
+        })
+        .await?;
+    let mut seat_ids = Vec::new();
+    {
+        use sea_orm::EntityTrait;
+        let layout_id = uuid::Uuid::new_v4();
+        bus_layout::Entity::insert(bus_layout::ActiveModel {
+            id: Set(layout_id),
+            brand_id: Set(None),
+            name: Set(Some("Conflict test layout".into())),
+            vehicle_type: Set(Some("sleeper".into())),
+            total_seats: Set(Some(2)),
+            layout_data: Set(None),
+            created_at: Set(now.clone()),
+            updated_at: Set(now.clone()),
+        })
+        .exec(store.db())
+        .await?;
+        for i in 0..2 {
+            let sid = uuid::Uuid::new_v4();
+            seat_ids.push(sid);
+            seat::Entity::insert(seat::ActiveModel {
+                id: Set(sid),
+                bus_layout_id: Set(layout_id),
+                seat_label: Set(format!("C{i}")),
+                seat_class: Set(None),
+                row_num: Set(Some(i as i16)),
+                col_num: Set(Some(0)),
+                is_window: Set(false),
+                floor: Set(0),
+                created_at: Set(now.clone()),
+            })
+            .exec(store.db())
+            .await?;
+        }
+    }
+
+    let seat_row = |seat: uuid::Uuid| seat_inventory::ActiveModel {
+        id: Set(uuid::Uuid::new_v4()),
+        trip_session_id: Set(trip_id),
+        seat_id: Set(seat),
+        status: Set("available".into()),
+        base_price: Set(100_000),
+        final_price: Set(100_000),
+        currency: Set("VND".into()),
+        held_until: Set(None),
+        held_by_booking_id: Set(None),
+        created_at: Set(now.clone()),
+        updated_at: Set(now.clone()),
+    };
+
+    // Seat S1 is already materialized (the "stale read missed it" state).
+    store
+        .trip_store()
+        .insert_seat_inventories_batch(vec![seat_row(seat_ids[0])])
+        .await?;
+
+    // The exact production shape: a batch that re-inserts the EXISTING
+    // (trip, S1) pair alongside a genuinely missing (trip, S2). Before
+    // the fix this aborted the whole statement with a UNIQUE error;
+    // after it, the conflict row is skipped and S2 lands.
+    store
+        .trip_store()
+        .insert_seat_inventories_batch(vec![seat_row(seat_ids[0]), seat_row(seat_ids[1])])
+        .await?;
+
+    let seats = store
+        .trip_store()
+        .list_seat_inventories_by_trip(&trip_id.to_string())
+        .await?;
+    assert_eq!(seats.len(), 2, "existing row skipped, missing row inserted");
+    assert!(
+        seats.iter().any(|s| s.seat_id == seat_ids[1]),
+        "the genuinely missing seat was materialized"
+    );
+
+    // And a batch where EVERY row conflicts is a silent no-op — the
+    // shape that made SeaORM's `exec` raise "None of the records are
+    // inserted" before `exec_without_returning` was used.
+    store
+        .trip_store()
+        .insert_seat_inventories_batch(vec![seat_row(seat_ids[0]), seat_row(seat_ids[1])])
+        .await?;
+    let seats = store
+        .trip_store()
+        .list_seat_inventories_by_trip(&trip_id.to_string())
+        .await?;
+    assert_eq!(seats.len(), 2, "fully-conflicting batch is a no-op");
+    Ok(())
+}
+
+/// The same contract at the service level: two repair passes racing on
+/// the same broken trip (the restart-overlap shape observed in
+/// production, where a draining task's warmer overlapped the
+/// replacement's boot pass) must BOTH succeed and must leave exactly
+/// one inventory row per seat. Whichever interleaving the runtime
+/// picks — serialized, overlapped, or fully concurrent — the outcome
+/// is the same: never a UNIQUE abort, never a duplicate row.
+#[tokio::test]
+async fn warmer_repair_survives_concurrent_duplicate_passes() -> anyhow::Result<()> {
+    use backend::entity::{bus_layout, schedule, seat, trip_session};
+    use backend::service::trip_warmer;
+    use sea_orm::Set;
+
+    let store = migrated_store().await?;
+    let now = "2026-01-01T00:00:00Z".to_string();
+    let date = (chrono::Utc::now() + chrono::Duration::days(2))
+        .format("%Y-%m-%d")
+        .to_string();
+
+    let route_id = uuid::Uuid::new_v4();
+    store
+        .route_store()
+        .insert_route(backend::entity::route::ActiveModel {
+            id: Set(route_id),
+            brand_id: Set(None),
+            name: Set("Hà Nội - Huế".into()),
+            start_location_id: Set("ha-noi".into()),
+            end_location_id: Set("hue".into()),
+            status: Set("active".into()),
+            created_at: Set(now.clone()),
+            updated_at: Set(now.clone()),
+        })
+        .await?;
+
+    let layout_id = uuid::Uuid::new_v4();
+    {
+        use sea_orm::EntityTrait;
+        bus_layout::Entity::insert(bus_layout::ActiveModel {
+            id: Set(layout_id),
+            brand_id: Set(None),
+            name: Set(Some("Race layout".into())),
+            vehicle_type: Set(Some("sleeper".into())),
+            total_seats: Set(Some(4)),
+            layout_data: Set(None),
+            created_at: Set(now.clone()),
+            updated_at: Set(now.clone()),
+        })
+        .exec(store.db())
+        .await?;
+        for i in 0..4 {
+            seat::Entity::insert(seat::ActiveModel {
+                id: Set(uuid::Uuid::new_v4()),
+                bus_layout_id: Set(layout_id),
+                seat_label: Set(format!("R{i}")),
+                seat_class: Set(None),
+                row_num: Set(Some(i as i16)),
+                col_num: Set(Some(0)),
+                is_window: Set(false),
+                floor: Set(0),
+                created_at: Set(now.clone()),
+            })
+            .exec(store.db())
+            .await?;
+        }
+    }
+
+    let sched_id = uuid::Uuid::new_v4();
+    let sched_model = schedule::ActiveModel {
+        id: Set(sched_id),
+        route_id: Set(route_id),
+        departure_time: Set("09:30".into()),
+        effective_from: Set(None),
+        effective_to: Set(None),
+        days_of_week: Set(Some("1111111".into())),
+        bus_layout_id: Set(Some(layout_id)),
+        base_price_adult: Set(400_000),
+        base_price_child: Set(None),
+        amenities: Set(None),
+        created_at: Set(now.clone()),
+        vehicle_type_id: Set(None),
+    };
+    store
+        .schedule_store()
+        .insert_schedule(sched_model.clone())
+        .await?;
+    let sched: schedule::Model = sched_model.try_into()?;
+
+    // The storm scar both passes will try to heal.
+    let trip_id = uuid::Uuid::new_v4();
+    store
+        .trip_store()
+        .insert_trip_session(trip_session::ActiveModel {
+            id: Set(trip_id),
+            schedule_id: Set(sched_id),
+            departure_date: Set(date.clone()),
+            actual_departure_at: Set(None),
+            driver_name: Set(None),
+            driver_phone: Set(None),
+            status: Set("scheduled".into()),
+            total_seats: Set(4),
+            available_seats: Set(4),
+            created_at: Set(now.clone()),
+            updated_at: Set(now.clone()),
+        })
+        .await?;
+
+    // Two repair passes over the same broken state at the same time.
+    let (r0, r1) = tokio::join!(
+        trip_warmer::repair_seat_inventories(store.as_ref(), std::slice::from_ref(&sched), &date),
+        trip_warmer::repair_seat_inventories(store.as_ref(), std::slice::from_ref(&sched), &date),
+    );
+    // Neither pass may error — the UNIQUE abort of the 2026-10-11
+    // incident is exactly the failure this forbids.
+    let healed0 = r0?;
+    let healed1 = r1?;
+    assert!(
+        healed0 + healed1 >= 1,
+        "at least one pass did the healing work"
+    );
+
+    // Exactly one inventory row per seat, whichever way the passes
+    // interleaved.
+    let seats = store
+        .trip_store()
+        .list_seat_inventories_by_trip(&trip_id.to_string())
+        .await?;
+    assert_eq!(seats.len(), 4, "no duplicate seat rows after the race");
+    Ok(())
+}

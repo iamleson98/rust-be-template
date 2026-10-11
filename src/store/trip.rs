@@ -7,6 +7,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use sea_orm::sea_query::OnConflict;
 use sea_orm::{
     ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
     QuerySelect,
@@ -81,6 +82,11 @@ pub trait TripStore: Send + Sync {
     ) -> StoreResult<trip_session::Model>;
 
     /// Batch-insert seat-inventory rows for a fresh trip in one statement.
+    /// Conflict-tolerant: rows whose (trip, seat) pair already exists are
+    /// skipped (`ON CONFLICT DO NOTHING`), never an error. Every caller is
+    /// a materializer whose contract is "ensure these seats EXIST" — a
+    /// concurrent fill/repair that wrote the same rows first is success,
+    /// not a conflict (see `trip_warmer` for the incident this answers).
     async fn insert_seat_inventories_batch(
         &self,
         models: Vec<seat_inventory::ActiveModel>,
@@ -350,9 +356,34 @@ impl TripStore for DbTripStore {
         // SQLite-compatible engine. The warmer passes whole date-fills
         // here (thousands of rows); the old unchunked single statement
         // would blow the parameter limit.
+        //
+        // `ON CONFLICT (trip_session_id, seat_id) DO NOTHING`: the
+        // 2026-10-11 production incident had the warmer's repair pass
+        // abort mid-date with `UNIQUE constraint failed:
+        // seat_inventory.trip_session_id, seat_inventory.seat_id` on six
+        // consecutive dates — a duplicate materialization (restart
+        // overlap / stale seat-existence read) made the repair re-insert
+        // rows that already existed. Each aborted multi-row statement
+        // rolled back inside the single-writer engine and queued every
+        // reader behind it; the pool then timed out user traffic for
+        // hours. Repair's semantics are "ensure present": skipping an
+        // existing row is the correct outcome, so the insert is
+        // conflict-tolerant by design and can never abort the batch.
+        // `exec_without_returning` (like the job queue's insert): a
+        // fully-skipped chunk is 0 rows affected, NOT the "None of the
+        // records are inserted" error `exec` raises when it cannot
+        // produce a last-insert id.
         for chunk in models.chunks(SEAT_INVENTORY_INSERT_CHUNK) {
             seat_inventory::Entity::insert_many(chunk.to_vec())
-                .exec(self.db.as_ref())
+                .on_conflict(
+                    OnConflict::columns([
+                        seat_inventory::Column::TripSessionId,
+                        seat_inventory::Column::SeatId,
+                    ])
+                    .do_nothing()
+                    .to_owned(),
+                )
+                .exec_without_returning(self.db.as_ref())
                 .await?;
         }
         Ok(())

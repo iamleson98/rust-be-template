@@ -18,7 +18,7 @@
 #      included — appends the canonical one, validates BEFORE swap;
 #      writes IN-PLACE so the bind-mounted file stays in sync)
 #   5. hot-reloads Caddy        (zero downtime; task-recreate fallback)
-#   6. health gate: /health on the NEW backend task (verified against
+#   6. health gate: /ready on the NEW backend task (DB-aware probe,
 #      the service spec image — detects swarm auto-rollback; retries
 #      once on the transient "lease does not exist" rejection)
 #
@@ -198,9 +198,9 @@ reload_caddy
 #      gate passed on the old task — the workflow went green while
 #      the service kept running the previous image).
 #   c) Docker health=healthy (the image's own HEALTHCHECK, curl
-#      /health) plus an in-container `curl /health` — direct
-#      confirmation, immune to the anti-scraping UA block (/health is
-#      exempted in middleware). NOTE: `--filter ancestor=$IMAGE` does
+#      /ready) plus an in-container `curl /ready` — direct
+#      confirmation, immune to the anti-scraping UA block (/health and
+#      /ready are exempted in middleware). NOTE: `--filter ancestor=$IMAGE` does
 #      NOT work — swarm resolves the tag to a digest at service
 #      create, so the tag-only ancestor filter never matched
 #      (false negative seen 2026-09-07).
@@ -213,7 +213,7 @@ wait_for_healthy() {
   for i in $(seq 1 90); do
     local t spec_img task_img
     t=$(docker ps -q --filter "name=${STACK}_backend" --filter "health=healthy" 2>/dev/null | head -n1 || true)
-    if [ -n "$t" ] && docker exec "$t" curl -sf http://localhost:8080/health >/dev/null 2>&1; then
+    if [ -n "$t" ] && docker exec "$t" curl -sf http://localhost:8080/ready >/dev/null 2>&1; then
       spec_img=$(docker service inspect --format \
         '{{.Spec.TaskTemplate.ContainerSpec.Image}}' "${STACK}_backend" 2>/dev/null)
       case "$spec_img" in
@@ -246,7 +246,7 @@ wait_for_healthy() {
   return 1
 }
 
-echo "waiting for /health ..."
+echo "waiting for /ready ..."
 rc=0
 wait_for_healthy || rc=$?
 if [ "$rc" -eq 2 ]; then
@@ -321,5 +321,5 @@ done
 
 docker image prune -f >/dev/null 2>&1 || true
 echo "deployed: $IMAGE"
-echo "e2e (needs DNS): curl -I https://datxevui.com/health"
+echo "e2e (needs DNS): curl -I https://datxevui.com/ready"
 exit 0
