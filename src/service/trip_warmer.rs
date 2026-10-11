@@ -75,15 +75,17 @@ pub const INLINE_FILL_BUDGET: Duration = Duration::from_secs(2);
 /// engine stays available to live traffic.
 const WARM_DATE_YIELD: Duration = Duration::from_millis(150);
 
-/// Pause after every insert batch during fills. The first production
-/// pass ran its hundreds-of-statements-per-date loops back-to-back and
-/// starved the connection pool for live traffic (worker/presence job
-/// claims hit pool timeouts, reads slowed to seconds). A few ms of
-/// yield per 64-row statement keeps the pool and the single-writer
-/// engine available to requests; the fill rate ceiling it implies
-/// (~12k seat rows/s before engine costs) is still far beyond what the
-/// engine can actually sustain, so the window pass loses nothing.
-const WARM_STATEMENT_YIELD: Duration = Duration::from_millis(5);
+/// Pause after every insert batch during fills. The engine serializes
+/// statements behind a write-preferring RwLock: with back-to-back
+/// inserts a pending writer is ALWAYS queued, and read statements
+/// (searches, admin lists, worker claims) starve until the pool times
+/// out — observed live on 2026-10-11, where v0.8.1's 5ms yield was not
+/// enough because individual 64-row inserts on the grown
+/// seat_inventory indexes hold the write lock for seconds at a time.
+/// A 100ms gap gives the queued readers a full drain window between
+/// statements, keeping the request path responsive for the whole
+/// (multi-hour, one-time) fill.
+const WARM_STATEMENT_YIELD: Duration = Duration::from_millis(100);
 
 /// Rows per paced insert batch in the fill loops. Must not exceed the
 /// store batch methods' internal chunk size semantics (64 × 11 columns
