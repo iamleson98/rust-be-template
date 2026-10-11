@@ -1862,6 +1862,11 @@ export const en: TranslationMap = {
   'ui.search': 'Search…',
   'ui.loading': 'Loading…',
   'ui.loadingMore': 'Loading more…',
+  'ui.hour': 'Hour',
+  'ui.minute': 'Min',
+  'ui.pickTime': 'Pick a time…',
+  'ui.pickDateTime': 'Pick a date and time…',
+  'ui.done': 'Done',
   'trips.seatGuideTitle': 'How to choose seats:',
   'trips.shareRateNote': 'Rate: 1 USD = {rate}₫',
   'trips.seatGuideBody':

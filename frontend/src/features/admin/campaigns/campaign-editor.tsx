@@ -10,6 +10,7 @@ import {
 } from '@/api'
 import { Segmented } from '@/components/console/segmented'
 import { Button } from '@/components/ui/button'
+import { DateTimePicker } from '@/components/ui/date-time-picker'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -130,18 +131,22 @@ function EditorBody({ target, onDone }: { target: EditorTarget; onDone: () => vo
             error={shown.startsAt && t(shown.startsAt)}
             hint={locked.start ? t('adminCampaigns.startLocked') : undefined}
           >
-            <Input
-              type="datetime-local"
+            <DateTimePicker
               value={draft.startsAt}
-              onChange={(e) => set({ startsAt: e.target.value })}
+              onChange={(startsAt) => set({ startsAt })}
               disabled={locked.start}
+              triggerClassName="h-10"
+              aria-label={t('adminCampaigns.fieldStart')}
             />
           </Field>
           <Field label={t('adminCampaigns.fieldEnd')} error={shown.endsAt && t(shown.endsAt)}>
-            <Input
-              type="datetime-local"
+            <DateTimePicker
               value={draft.endsAt}
-              onChange={(e) => set({ endsAt: e.target.value })}
+              onChange={(endsAt) => set({ endsAt })}
+              defaultTime="23:59"
+              minuteStep={1}
+              triggerClassName="h-10"
+              aria-label={t('adminCampaigns.fieldEnd')}
             />
           </Field>
         </div>

@@ -1858,6 +1858,11 @@ export const vi: TranslationMap = {
   'ui.search': 'Tìm kiếm…',
   'ui.loading': 'Đang tải…',
   'ui.loadingMore': 'Đang tải thêm…',
+  'ui.hour': 'Giờ',
+  'ui.minute': 'Phút',
+  'ui.pickTime': 'Chọn giờ…',
+  'ui.pickDateTime': 'Chọn ngày giờ…',
+  'ui.done': 'Xong',
   'trips.seatGuideTitle': 'Hướng dẫn chọn ghế:',
   'trips.shareRateNote': 'Tỷ giá: 1 USD = {rate}₫',
   'trips.seatGuideBody':

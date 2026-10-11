@@ -1,12 +1,12 @@
 /**
- * Tests for the TimePicker component (shadcn docs pattern: a styled
- * native `<input type="time">`).
+ * Tests for the custom TimePicker (house-styled trigger + hour/minute
+ * columns; no native `<input type="time">`).
  */
 import { describe, it, expect, vi } from 'vitest'
 import { useState } from 'react'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, within } from '@testing-library/react'
 
-import { TimePicker } from '@/components/ui/time-picker'
+import { TimePicker, normalizeTime } from '@/components/ui/time-picker'
 
 /** Controlled wrapper mirroring how the schedule form uses the picker. */
 function Harness(props: { initial?: string | null }) {
@@ -20,42 +20,43 @@ function Harness(props: { initial?: string | null }) {
 }
 
 describe('TimePicker', () => {
-  it('renders a native time input (docs pattern)', () => {
-    render(<TimePicker value="08:30" onChange={vi.fn()} aria-label="Giờ" />)
-    const input = screen.getByLabelText('Giờ') as HTMLInputElement
-    expect(input.type).toBe('time')
-    expect(input.value).toBe('08:30')
-    // the docs' indicator-hiding classes must stay applied
-    expect(input.className).toContain('appearance-none')
+  it('is not a native time input', () => {
+    const { container } = render(<TimePicker value="08:30" onChange={vi.fn()} aria-label="Giờ" />)
+    expect(container.querySelector('input[type="time"]')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Giờ: 08:30' })).toHaveTextContent('08:30')
   })
 
-  it('normalizes stored values to HH:MM on the way in', () => {
-    render(<TimePicker value="8:5" onChange={vi.fn()} aria-label="Giờ" />)
-    expect((screen.getByLabelText('Giờ') as HTMLInputElement).value).toBe('08:05')
+  it('normalizes stored values to HH:MM', () => {
+    expect(normalizeTime('8:5')).toBe('08:05')
+    expect(normalizeTime('10:30:00')).toBe('10:30')
+    expect(normalizeTime('25:99')).toBe('')
+    expect(normalizeTime(null)).toBe('')
   })
 
-  it('drops seconds from HH:MM:SS values', () => {
-    render(<TimePicker value="10:30:00" onChange={vi.fn()} aria-label="Giờ" />)
-    expect((screen.getByLabelText('Giờ') as HTMLInputElement).value).toBe('10:30')
+  it('shows the placeholder when the value is invalid', () => {
+    render(<TimePicker value="25:99" onChange={vi.fn()} placeholder="--:--" />)
+    expect(screen.getByRole('button', { name: /--:--/ })).toBeInTheDocument()
   })
 
-  it('treats invalid values as empty', () => {
-    render(<TimePicker value="25:99" onChange={vi.fn()} aria-label="Giờ" />)
-    expect((screen.getByLabelText('Giờ') as HTMLInputElement).value).toBe('')
-  })
-
-  it('emits HH:MM when the user picks a time', () => {
+  it('emits HH:MM as the hour then the minute are picked', () => {
     render(<Harness />)
-    const input = screen.getByLabelText('Giờ') as HTMLInputElement
-    fireEvent.change(input, { target: { value: '14:05' } })
-    expect(screen.getByTestId('mirror').textContent).toBe('14:05')
+    fireEvent.click(screen.getByRole('button', { name: 'Giờ' }))
+    fireEvent.click(
+      within(screen.getByRole('listbox', { name: 'Giờ' })).getByRole('option', { name: '14' }),
+    )
+    expect(screen.getByTestId('mirror').textContent).toBe('14:00')
+    fireEvent.click(
+      within(screen.getByRole('listbox', { name: 'Phút' })).getByRole('option', { name: '35' }),
+    )
+    expect(screen.getByTestId('mirror').textContent).toBe('14:35')
   })
 
-  it('emits null (not an empty string) when cleared', () => {
-    render(<Harness initial="09:00" />)
-    const input = screen.getByLabelText('Giờ') as HTMLInputElement
-    fireEvent.change(input, { target: { value: '' } })
-    expect(screen.getByTestId('mirror').textContent).toBe('null')
+  it('keeps an off-grid minute selectable', () => {
+    render(<Harness initial="07:42" />)
+    fireEvent.click(screen.getByRole('button', { name: 'Giờ: 07:42' }))
+    expect(
+      within(screen.getByRole('listbox', { name: 'Phút' })).getByRole('option', { name: '42' }),
+    ).toHaveAttribute('aria-selected', 'true')
   })
 
   it('clear button emits null', () => {
