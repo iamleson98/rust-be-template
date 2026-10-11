@@ -2105,7 +2105,6 @@ export const vi: TranslationMap = {
   'adminTickets.completeAfterDeparture': 'Đánh dấu hoàn thành sau khi xe đã khởi hành.',
   'adminTickets.markCompleted': 'Đánh dấu hoàn thành',
   'adminTickets.cancelTicket': 'Huỷ vé',
-  'adminTickets.cancelConfirm': 'Huỷ vé {code}? Ghế sẽ được mở bán lại và không thể hoàn tác.',
   'adminTickets.confirmedToast': 'Đã xác nhận vé {code}',
   'adminTickets.completedToast': 'Vé {code} đã hoàn thành',
   'adminTickets.cancelledToast': 'Đã huỷ vé {code}',
@@ -2115,6 +2114,10 @@ export const vi: TranslationMap = {
   'adminTickets.payingHint':
     'Khách đang thanh toán trực tuyến; vé tự xác nhận khi thanh toán xong.',
   'adminTickets.finalNotice': 'Vé đã hoàn thành hoặc đã huỷ nên không thể thay đổi nữa.',
+  'adminTickets.cancelTitle': 'Huỷ vé {code}?',
+  'adminTickets.cancelBody': 'Ghế sẽ được mở bán lại cho khách khác. Không thể hoàn tác.',
+  'adminTickets.cancelReasonLabel': 'Ghi chú',
+  'adminTickets.keepTicket': 'Không huỷ',
   'bookingFlow.placedTitle': 'Đã giữ chỗ cho bạn!',
   'bookingFlow.placedDesc': 'Nhà xe sẽ gọi cho bạn để xác nhận vé. Bạn trả tiền khi lên xe.',
   'bookingFlow.agreeLead': 'Khi đặt vé, bạn đồng ý với',

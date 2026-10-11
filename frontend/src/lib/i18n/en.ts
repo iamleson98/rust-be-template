@@ -2115,8 +2115,6 @@ export const en: TranslationMap = {
   'adminTickets.completeAfterDeparture': 'Mark the ticket completed once the trip has left.',
   'adminTickets.markCompleted': 'Mark completed',
   'adminTickets.cancelTicket': 'Cancel ticket',
-  'adminTickets.cancelConfirm':
-    'Cancel ticket {code}? Its seats go back on sale; this cannot be undone.',
   'adminTickets.confirmedToast': 'Ticket {code} confirmed',
   'adminTickets.completedToast': 'Ticket {code} completed',
   'adminTickets.cancelledToast': 'Ticket {code} cancelled',
@@ -2125,6 +2123,10 @@ export const en: TranslationMap = {
     'Call the customer to make sure they will travel, then confirm. The seats are held until departure.',
   'adminTickets.payingHint': 'The customer is paying online; the ticket confirms itself once paid.',
   'adminTickets.finalNotice': 'This ticket is completed or cancelled and can no longer change.',
+  'adminTickets.cancelTitle': 'Cancel ticket {code}?',
+  'adminTickets.cancelBody': 'The seats go back on sale. This cannot be undone.',
+  'adminTickets.cancelReasonLabel': 'Note',
+  'adminTickets.keepTicket': 'Keep ticket',
   'bookingFlow.placedTitle': 'Your seats are reserved!',
   'bookingFlow.placedDesc':
     'The operator will call you to confirm the ticket. You pay when you board.',
