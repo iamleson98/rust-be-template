@@ -17,6 +17,7 @@ import { CalendarClock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
 import { parseIsoDate } from '@/components/ui/date-picker'
+import { LunarDayButton, LunarFooter } from '@/components/ui/lunar-day'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { normalizeTime, TimeColumns } from '@/components/ui/time-picker'
@@ -44,6 +45,7 @@ export function DateTimePicker({
   triggerClassName,
   defaultTime = '08:00',
   minuteStep = 5,
+  lunar = false,
   id,
   'aria-label': ariaLabel,
 }: {
@@ -59,6 +61,8 @@ export function DateTimePicker({
   /** The time used when a day is picked before any time. */
   defaultTime?: string
   minuteStep?: number
+  /** Lunar day under each date, as in the search form's picker. */
+  lunar?: boolean
   id?: string
   'aria-label'?: string
 }) {
@@ -106,15 +110,22 @@ export function DateTimePicker({
         defaultMonth={date ?? minDate}
         onSelect={(d) => d && emit(format(d, DAY_FMT), time)}
         disabled={minDate ? (d: Date) => d < new Date(minDate.toDateString()) : undefined}
-        className={cn('p-0', isMobile && '[--cell-size:--spacing(11)]')}
+        className={cn(
+          'p-0',
+          // Lunar days need a second line: taller cells.
+          (lunar || isMobile) && '[--cell-size:--spacing(11)]',
+        )}
         classNames={isMobile ? { root: 'w-full' } : undefined}
+        components={lunar ? { DayButton: LunarDayButton } : undefined}
+        footer={lunar ? <LunarFooter date={date} /> : undefined}
       />
       <div className={cn('flex flex-col', !isMobile && 'border-l pl-3')}>
         <TimeColumns
           value={time}
           minuteStep={minuteStep}
           onChange={(next) => emit(day, next)}
-          className={cn('flex-1', isMobile && 'h-48 justify-center')}
+          // As tall as the calendar beside it; the columns scroll inside.
+          className={isMobile ? 'h-48 justify-center' : lunar ? 'h-[19rem]' : 'h-64'}
         />
         <Button type="button" size="sm" className="mt-2" onClick={() => setOpen(false)}>
           {t('ui.done')}

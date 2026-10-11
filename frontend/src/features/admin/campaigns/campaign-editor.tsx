@@ -136,6 +136,7 @@ function EditorBody({ target, onDone }: { target: EditorTarget; onDone: () => vo
               onChange={(startsAt) => set({ startsAt })}
               disabled={locked.start}
               triggerClassName="h-10"
+              lunar
               aria-label={t('adminCampaigns.fieldStart')}
             />
           </Field>
@@ -146,6 +147,7 @@ function EditorBody({ target, onDone }: { target: EditorTarget; onDone: () => vo
               defaultTime="23:59"
               minuteStep={1}
               triggerClassName="h-10"
+              lunar
               aria-label={t('adminCampaigns.fieldEnd')}
             />
           </Field>
