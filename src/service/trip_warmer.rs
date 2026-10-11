@@ -375,6 +375,17 @@ pub async fn materialize_missing(
 /// rows; returns how many trips were healed. Layout-less schedules
 /// (vehicle-type capacity) legitimately have no seat rows and are
 /// skipped.
+///
+/// The re-seed inserts are conflict-tolerant (`ON CONFLICT DO NOTHING`
+/// on the trip+seat unique index): a second pass that races a first one
+/// — or one whose seat-existence read went stale — skips the rows the
+/// other pass already wrote instead of aborting the batch. Before that
+/// semantics existed, duplicate materialization aborted the repair with
+/// `UNIQUE constraint failed` on six consecutive dates (2026-10-11),
+/// and each aborted multi-row statement's rollback queued every reader
+/// behind the single-writer engine until the pool stopped serving
+/// traffic. A repair may now duplicate work under overlap, but can
+/// never error, never wedge the engine, and always converges.
 pub async fn repair_seat_inventories(
     store: &CompositeStore,
     schedules: &[schedule::Model],
