@@ -160,6 +160,35 @@ pub trait TripStore: Send + Sync {
         &self,
         bus_layout_id: &str,
     ) -> StoreResult<Vec<seat::Model>>;
+    /// Seats of MANY layouts in one query — grouped by layout id by the
+    /// caller. The batched on-demand trip generator loads every missing
+    /// schedule's seats with this instead of one round-trip per layout.
+    async fn list_seats_by_layout_ids(
+        &self,
+        bus_layout_ids: Vec<Uuid>,
+    ) -> StoreResult<Vec<seat::Model>>;
+    /// The schedule ids that already have a `trip_session` row on
+    /// `date` — the batched existence check that replaces one
+    /// `find_trip_by_schedule_and_date` round-trip per schedule.
+    /// Chunked internally to bound the IN-list size.
+    async fn list_trip_schedule_ids_for_date(
+        &self,
+        schedule_ids: Vec<Uuid>,
+        date: &str,
+    ) -> StoreResult<Vec<Uuid>>;
+    /// Insert many trip sessions in chunked batches — the fast path of
+    /// the on-demand generator (one INSERT per ~60 rows instead of one
+    /// per trip).
+    async fn insert_trip_sessions_batch(
+        &self,
+        models: Vec<trip_session::ActiveModel>,
+    ) -> StoreResult<()>;
+    /// All trips departing on `date`, any schedule — the warmer's
+    /// repair scan (indexed by `TripSession_departureDate_idx`).
+    async fn list_trips_for_date(&self, date: &str) -> StoreResult<Vec<trip_session::Model>>;
+    /// Distinct trip ids that have at least one seat-inventory row
+    /// (any status) — the repair scan's "is this trip complete" check.
+    async fn list_trip_ids_with_seats(&self, trip_ids: Vec<Uuid>) -> StoreResult<Vec<Uuid>>;
     /// Scheduled trips departing on `date_gte` (`YYYY-MM-DD`) or later.
     async fn count_upcoming_trips(&self, date_gte: &str) -> StoreResult<u64>;
     async fn list_upcoming_trips(
@@ -177,6 +206,18 @@ pub trait TripStore: Send + Sync {
 pub struct DbTripStore {
     db: Arc<DatabaseConnection>,
 }
+
+/// Schedules per `IN (…)` chunk in the batched existence check —
+/// keeps generated SQL text and placeholder counts bounded.
+const SCHEDULE_ID_CHUNK: usize = 500;
+
+/// Trip rows per multi-row INSERT — 11 columns × 64 = 704 parameters,
+/// under the classic 999-variable limit.
+const TRIP_INSERT_CHUNK: usize = 64;
+
+/// Seat-inventory rows per multi-row INSERT — same arithmetic as
+/// [`TRIP_INSERT_CHUNK`].
+const SEAT_INVENTORY_INSERT_CHUNK: usize = 64;
 
 impl DbTripStore {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
@@ -295,6 +336,7 @@ impl TripStore for DbTripStore {
         Ok(inserted)
     }
 
+    #[store_macros::no_retry]
     async fn insert_seat_inventories_batch(
         &self,
         models: Vec<seat_inventory::ActiveModel>,
@@ -302,10 +344,50 @@ impl TripStore for DbTripStore {
         if models.is_empty() {
             return Ok(());
         }
-        seat_inventory::Entity::insert_many(models)
-            .exec(self.db.as_ref())
-            .await?;
+        // Chunked multi-row INSERTs: 11 columns × 64 rows = 704 bound
+        // parameters per statement — under the classic 999-variable
+        // ceiling, so the statement shape is portable to any
+        // SQLite-compatible engine. The warmer passes whole date-fills
+        // here (thousands of rows); the old unchunked single statement
+        // would blow the parameter limit.
+        for chunk in models.chunks(SEAT_INVENTORY_INSERT_CHUNK) {
+            seat_inventory::Entity::insert_many(chunk.to_vec())
+                .exec(self.db.as_ref())
+                .await?;
+        }
         Ok(())
+    }
+
+    async fn list_trips_for_date(&self, date: &str) -> StoreResult<Vec<trip_session::Model>> {
+        Ok(trip_session::Entity::find()
+            .filter(trip_session::Column::DepartureDate.eq(date.to_string()))
+            .all(self.db.as_ref())
+            .await?)
+    }
+
+    async fn list_trip_ids_with_seats(&self, trip_ids: Vec<Uuid>) -> StoreResult<Vec<Uuid>> {
+        if trip_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        // GROUP BY shape (same as `count_pickup_points_by_route_map`):
+        // `SELECT trip_session_id, COUNT(id) … GROUP BY trip_session_id`
+        // over chunked IN-lists — an index range scan per trip on
+        // `SeatInventory_tripSessionId_idx`.
+        use sea_orm::sea_query::Expr;
+        let mut out = Vec::new();
+        for chunk in trip_ids.chunks(SCHEDULE_ID_CHUNK) {
+            let rows: Vec<(Uuid, i64)> = seat_inventory::Entity::find()
+                .filter(seat_inventory::Column::TripSessionId.is_in(chunk.to_vec()))
+                .select_only()
+                .column(seat_inventory::Column::TripSessionId)
+                .column_as(Expr::col(seat_inventory::Column::Id).count(), "count")
+                .group_by(seat_inventory::Column::TripSessionId)
+                .into_tuple::<(Uuid, i64)>()
+                .all(self.db.as_ref())
+                .await?;
+            out.extend(rows.into_iter().map(|(id, _)| id));
+        }
+        Ok(out)
     }
 
     async fn list_trips_by_ids(&self, ids: Vec<Uuid>) -> StoreResult<Vec<trip_session::Model>> {
@@ -524,6 +606,71 @@ impl TripStore for DbTripStore {
             .filter(seat::Column::BusLayoutId.eq(lid))
             .all(self.db.as_ref())
             .await?)
+    }
+
+    async fn list_seats_by_layout_ids(
+        &self,
+        bus_layout_ids: Vec<Uuid>,
+    ) -> StoreResult<Vec<seat::Model>> {
+        if bus_layout_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        // Chunked IN-lists — same bounding rationale as
+        // `list_trip_schedule_ids_for_date` below.
+        let mut out = Vec::new();
+        for chunk in bus_layout_ids.chunks(SCHEDULE_ID_CHUNK) {
+            out.extend(
+                seat::Entity::find()
+                    .filter(seat::Column::BusLayoutId.is_in(chunk.to_vec()))
+                    .all(self.db.as_ref())
+                    .await?,
+            );
+        }
+        Ok(out)
+    }
+
+    async fn list_trip_schedule_ids_for_date(
+        &self,
+        schedule_ids: Vec<Uuid>,
+        date: &str,
+    ) -> StoreResult<Vec<Uuid>> {
+        if schedule_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        // One SELECT per ≤500-schedule chunk. Entity columns (not raw
+        // SQL) so `schedule_id` binds as the same 16-byte BLOB the
+        // engine stores — see `parse_uuid` (TEXT binds never match).
+        // The chunk bound keeps the IN-list and placeholder count well
+        // inside SQL-text limits on any engine.
+        let mut out = Vec::new();
+        for chunk in schedule_ids.chunks(SCHEDULE_ID_CHUNK) {
+            let existing = trip_session::Entity::find()
+                .filter(trip_session::Column::ScheduleId.is_in(chunk.to_vec()))
+                .filter(trip_session::Column::DepartureDate.eq(date.to_string()))
+                .all(self.db.as_ref())
+                .await?;
+            out.extend(existing.into_iter().map(|t| t.schedule_id));
+        }
+        Ok(out)
+    }
+
+    #[store_macros::no_retry]
+    async fn insert_trip_sessions_batch(
+        &self,
+        models: Vec<trip_session::ActiveModel>,
+    ) -> StoreResult<()> {
+        if models.is_empty() {
+            return Ok(());
+        }
+        // 11 columns × 64 rows = 704 bound parameters per statement —
+        // under SQLite's classic 999-variable ceiling, so the statement
+        // shape is portable to any SQLite-compatible engine.
+        for chunk in models.chunks(TRIP_INSERT_CHUNK) {
+            trip_session::Entity::insert_many(chunk.to_vec())
+                .exec(self.db.as_ref())
+                .await?;
+        }
+        Ok(())
     }
 
     async fn count_upcoming_trips(&self, date_gte: &str) -> StoreResult<u64> {

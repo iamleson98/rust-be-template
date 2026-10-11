@@ -78,6 +78,10 @@ pub trait ScheduleStore: Send + Sync {
     async fn find_bus_layout_by_id(&self, id: Uuid) -> StoreResult<Option<bus_layout::Model>>;
     async fn list_bus_layouts(&self) -> StoreResult<Vec<bus_layout::Model>>;
 
+    /// Bus layouts by id in one query — the search path's vehicle-type
+    /// fallback used to fetch these one layout at a time (N+1).
+    async fn list_bus_layouts_by_ids(&self, ids: Vec<Uuid>) -> StoreResult<Vec<bus_layout::Model>>;
+
     /// Paginated list with an optional brand filter, ordered by
     /// `created_at` (newest first) for stable pages. `limit=None`
     /// returns every matching row (legacy "fetch all" consumers such as
@@ -306,6 +310,19 @@ impl ScheduleStore for DbScheduleStore {
 
     async fn list_bus_layouts(&self) -> StoreResult<Vec<bus_layout::Model>> {
         Ok(bus_layout::Entity::find().all(self.db.as_ref()).await?)
+    }
+
+    async fn list_bus_layouts_by_ids(
+        &self,
+        ids: Vec<Uuid>,
+    ) -> StoreResult<Vec<bus_layout::Model>> {
+        if ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        Ok(bus_layout::Entity::find()
+            .filter(bus_layout::Column::Id.is_in(ids))
+            .all(self.db.as_ref())
+            .await?)
     }
 
     async fn list_bus_layouts_page(
