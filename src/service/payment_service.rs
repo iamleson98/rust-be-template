@@ -170,6 +170,13 @@ impl PaymentService {
         if hold_expired(&booking) {
             return Err(AppError::Gone("booking hold has expired".into()));
         }
+        // A coupon can cover the whole fare. Gateways refuse a zero amount,
+        // so such a booking is placed with pay-on-board (nothing to collect).
+        if booking.total <= 0 && req.provider != providers::COD {
+            return Err(AppError::BadRequest(
+                "nothing to pay online: choose pay on board (cod)".into(),
+            ));
+        }
         // Paying on board places the booking: its seats wait until departure
         // for the operator's confirmation call. A gateway payment needs longer
         // than the checkout hold; the seats stay put while it runs.
@@ -1095,6 +1102,41 @@ mod tests {
 
     fn id_of(owner: Uuid) -> String {
         owner.to_string()
+    }
+
+    /// A coupon covering the whole fare leaves nothing for a gateway to
+    /// charge (they refuse zero): pay-on-board places it instead.
+    #[tokio::test]
+    async fn a_fully_discounted_booking_is_placed_on_board_not_sent_to_a_gateway() {
+        use sea_orm::{ActiveModelTrait, ActiveValue::Set};
+        let f = fixture(1).await;
+        let owner = f.owner().await;
+        let held = f.hold(owner, 1).await;
+        crate::entity::booking::ActiveModel {
+            id: sea_orm::ActiveValue::Unchanged(held.booking_id),
+            discount: Set(held.subtotal),
+            total: Set(0),
+            ..Default::default()
+        }
+        .update(f.store.db())
+        .await
+        .unwrap();
+
+        let online = CreatePaymentReq {
+            provider: "vnpay".into(),
+            ..cod(held.booking_id)
+        };
+        let err = f
+            .payments
+            .create_payment(&online, Some(&id_of(owner)))
+            .await
+            .unwrap_err();
+        assert!(matches!(err, AppError::BadRequest(_)), "{err:?}");
+        // Nothing changed: pay-on-board still places it.
+        f.payments
+            .create_payment(&cod(held.booking_id), Some(&id_of(owner)))
+            .await
+            .unwrap();
     }
 
     #[tokio::test]

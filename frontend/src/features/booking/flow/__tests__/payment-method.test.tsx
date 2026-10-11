@@ -7,6 +7,14 @@ import { offeredMethods, PaymentMethodStep } from '@/features/booking/flow/payme
 import type { CouponOut } from '@/api'
 import type { CheckoutCoupon } from '@/features/booking/flow/use-checkout-coupon'
 
+describe('offeredMethods', () => {
+  it('offers only pay-on-board when a coupon covers the whole fare', () => {
+    expect(offeredMethods(undefined, 0)).toEqual(['cod'])
+    expect(offeredMethods(undefined, 120000)).toContain('momo')
+    expect(offeredMethods(['momo'], 0)).toEqual([])
+  })
+})
+
 describe('PaymentMethodStep', () => {
   const held: CouponOut = {
     id: 'k1',

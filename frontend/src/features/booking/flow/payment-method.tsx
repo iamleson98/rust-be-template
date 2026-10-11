@@ -25,11 +25,19 @@ const METHOD_PROVIDER: Record<PaymentMethodKey, PaymentProvider> = {
   cod: 'cod',
 }
 
-/** The methods the server can take payments with (every one until it has said). */
-export function offeredMethods(enabled: PaymentProvider[] | undefined): PaymentMethodKey[] {
-  return (Object.keys(METHOD_PROVIDER) as PaymentMethodKey[]).filter(
+/**
+ * The methods the server can take payments with (every one until it has said).
+ * A coupon covering the whole fare leaves nothing for a gateway to charge
+ * (they refuse zero), so a 0 ₫ total is placed on board.
+ */
+export function offeredMethods(
+  enabled: PaymentProvider[] | undefined,
+  total?: number,
+): PaymentMethodKey[] {
+  const offered = (Object.keys(METHOD_PROVIDER) as PaymentMethodKey[]).filter(
     (m) => !enabled || enabled.includes(METHOD_PROVIDER[m]),
   )
+  return total === 0 ? offered.filter((m) => m === 'cod') : offered
 }
 
 const methodText = (t: ReturnType<typeof useT>, m: PaymentMethodKey) =>

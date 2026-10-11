@@ -468,6 +468,18 @@ impl CampaignStore for DbCampaignStore {
                         insert_brands(txn, id, &brand_ids).await?;
                     }
                     for tier_id in delete_tiers {
+                        // Given-back and expired coupons still name their
+                        // tier (the history the payouts show): it stays.
+                        let referenced = coupon::Entity::find()
+                            .filter(coupon::Column::TierId.eq(tier_id))
+                            .count(txn)
+                            .await?
+                            > 0;
+                        if referenced {
+                            return Err(StoreError::Conflict(
+                                "a tier that coupons were claimed from cannot be removed".into(),
+                            ));
+                        }
                         let gone = discount_tier::Entity::delete_many()
                             .filter(discount_tier::Column::Id.eq(tier_id))
                             .filter(discount_tier::Column::CampaignId.eq(id))

@@ -34,9 +34,7 @@ export function BookingFlow() {
   const adults = useSearchForm((s) => s.searchParams.adults)
   const children = useSearchForm((s) => s.searchParams.children)
   const [chosen, setMethod] = useState<PaymentMethodKey>('momo')
-  const methods = offeredMethods(useEnabledProviders())
-  // Only what the server takes: the first offered method until one is picked.
-  const method = methods.includes(chosen) ? chosen : (methods[0] ?? chosen)
+  const enabledProviders = useEnabledProviders()
 
   const { data: trip } = useTripDetail(context?.tripId)
   const booking = useBookingForm({
@@ -47,6 +45,9 @@ export function BookingFlow() {
   })
   const coupon = useCheckoutCoupon(trip?.brand.id, booking.subtotal)
   const total = Math.max(0, booking.subtotal - coupon.discount)
+  const methods = offeredMethods(enabledProviders, total)
+  // Only what the server takes: the first offered method until one is picked.
+  const method = methods.includes(chosen) ? chosen : (methods[0] ?? chosen)
   const checkout = useCheckout({
     form: booking.form,
     context,
