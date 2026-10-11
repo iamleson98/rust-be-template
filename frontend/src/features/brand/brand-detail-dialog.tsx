@@ -56,7 +56,10 @@ export function BrandDetailDialog({ slug, onClose }: { slug: string; onClose: ()
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="flex max-h-[92dvh] w-[95vw] max-w-3xl flex-col gap-0 overflow-hidden p-0 max-md:h-dvh max-md:max-h-dvh max-md:w-screen max-md:max-w-none max-md:rounded-none max-md:border-0">
+      <DialogContent
+        mobile="fullscreen"
+        className="flex max-h-[92dvh] w-[95vw] max-w-3xl flex-col gap-0 overflow-hidden p-0"
+      >
         {!brand ? (
           <>
             <DialogTitle className="sr-only">{t('brandDetail.loadingTitle')}</DialogTitle>

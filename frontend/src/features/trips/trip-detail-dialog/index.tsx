@@ -65,7 +65,10 @@ export function TripDetailDialog({ tripId, onClose }: { tripId: string; onClose:
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       {/* Full screen on phones (a multi-step flow needs the whole height). */}
-      <DialogContent className="flex max-h-[92dvh] w-[97vw] max-w-7xl flex-col gap-0 overflow-hidden p-0 max-md:h-dvh max-md:max-h-dvh max-md:w-screen max-md:max-w-none max-md:rounded-none max-md:border-0">
+      <DialogContent
+        mobile="fullscreen"
+        className="flex max-h-[92dvh] w-[97vw] max-w-7xl flex-col gap-0 overflow-hidden p-0 2xl:max-w-[88rem]"
+      >
         {bookingStep !== 'idle' ? (
           <>
             <DialogTitle className="sr-only">{t('bookingFlow.completeBooking')}</DialogTitle>

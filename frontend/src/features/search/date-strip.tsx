@@ -36,7 +36,9 @@ export function DateStrip({ date, onPick }: { date: string; onPick: (day: string
       >
         <ChevronLeft className="size-4" />
       </button>
-      <div className="-mx-4 flex min-w-0 flex-1 gap-1.5 overflow-x-auto px-4 scrollbar-none sm:mx-0 sm:px-0">
+      {/* A sideways scroller clips vertically too: the padding (taken back by the
+          negative margin) leaves room for the pills' ring, shadow and focus ring. */}
+      <div className="-mx-4 -my-1.5 flex min-w-0 flex-1 gap-1.5 overflow-x-auto px-4 py-1.5 scrollbar-none sm:-mx-1 sm:px-1">
         {days.map((day) => {
           const active = day === date
           return (

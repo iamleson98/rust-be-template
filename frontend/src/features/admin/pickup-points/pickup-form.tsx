@@ -166,9 +166,8 @@ export function PickupPointFormDialog({
   return (
     <Dialog open={open} onOpenChange={(o) => !saving && onOpenChange(o)}>
       <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <MapPin className="h-5 w-5 text-rose-600" />
+        <DialogHeader icon={<MapPin />}>
+          <DialogTitle>
             {isEdit ? t('adminPickup.editTitle') : t('adminPickup.createTitle')}
           </DialogTitle>
           <DialogDescription>

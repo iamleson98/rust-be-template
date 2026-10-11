@@ -145,19 +145,15 @@ export function ShareDialog() {
 
   return (
     <Dialog open={shareOpen} onOpenChange={(o) => !o && close()}>
-      {/* flex + internal scroll — previously `overflow-hidden` with no
-          max-height clipped the email form + rate note on phones. */}
-      <DialogContent className="max-w-md w-[95vw] max-h-[90dvh] p-0 gap-0 overflow-hidden flex flex-col">
-        <DialogHeader className="px-5 py-4 pr-12 border-b bg-linear-to-r from-blue-50 to-blue-50 shrink-0">
-          <DialogTitle className="text-base font-extrabold flex items-center gap-2">
-            <Share2 className="h-4 w-4 text-blue-600" />
-            {t('trips.shareTrip')}
-          </DialogTitle>
-          <DialogDescription className="text-xs">{t('trips.shareTripDesc')}</DialogDescription>
+      {/* The header stays put; the body scrolls (the email form is long on phones). */}
+      <DialogContent className="flex w-[95vw] max-w-md flex-col gap-0 overflow-hidden p-0 max-sm:p-0">
+        <DialogHeader icon={<Share2 />} className="shrink-0 border-b px-5 py-4 pr-14">
+          <DialogTitle>{t('trips.shareTrip')}</DialogTitle>
+          <DialogDescription>{t('trips.shareTripDesc')}</DialogDescription>
         </DialogHeader>
 
         {shareTripData && shareInfo && (
-          <div className="p-5 space-y-4 flex-1 min-h-0 overflow-y-auto overscroll-contain">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
             {/* Trip Card Preview */}
             <ShareTripCard
               shareTripData={shareTripData}
@@ -185,7 +181,7 @@ export function ShareDialog() {
 
             {/* Exchange rate note (contact info lives in the site
                 footer — no hotline repetition here) */}
-            <div className="flex items-center justify-center gap-1.5 text-[10px] text-muted-foreground pt-1">
+            <div className="text-center text-[11px] text-muted-foreground">
               {t('trips.shareRateNote', { rate: EXCHANGE_RATE.toLocaleString('vi-VN') })}
             </div>
           </div>

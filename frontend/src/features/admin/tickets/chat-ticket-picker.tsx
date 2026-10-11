@@ -346,11 +346,8 @@ export function ChatTicketPicker({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <TicketIcon className="h-5 w-5 text-blue-600" />
-            {t('chat.bookForCustomer')}
-          </DialogTitle>
+        <DialogHeader icon={<TicketIcon />}>
+          <DialogTitle>{t('chat.bookForCustomer')}</DialogTitle>
           <DialogDescription>{t('adminTickets.pickerDescription')}</DialogDescription>
         </DialogHeader>
 

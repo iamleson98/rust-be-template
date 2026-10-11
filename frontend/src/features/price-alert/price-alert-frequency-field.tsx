@@ -56,7 +56,7 @@ export function PriceAlertFrequencyField({
       name="frequency"
       render={({ field }) => (
         <FormItem className="space-y-1.5">
-          <FormLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          <FormLabel className="text-sm font-medium text-slate-900">
             {t('priceAlert.freqLabel')}
           </FormLabel>
           <FormControl>

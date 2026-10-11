@@ -46,12 +46,12 @@ export function PaymentActionDialog({
     <Dialog open={!!actionDialog} onOpenChange={(o) => !o && setActionDialog(null)}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-base">
+          <DialogTitle>
             {actionDialog?.type === 'cancel' && t('adminPayments.cancelTransaction')}
             {actionDialog?.type === 'refund' && t('adminPayments.refundTransaction')}
             {actionDialog?.type === 'mark_collected' && t('adminPayments.confirmCashTitle')}
           </DialogTitle>
-          <DialogDescription className="text-xs">
+          <DialogDescription>
             {t('adminPayments.txnRefLabel', { ref: actionDialog?.payment.providerTxnRef ?? '' })}
           </DialogDescription>
         </DialogHeader>
@@ -95,7 +95,7 @@ export function PaymentActionDialog({
                   ? 'bg-rose-600 hover:bg-rose-700'
                   : actionDialog?.type === 'mark_collected'
                     ? 'bg-emerald-600 hover:bg-emerald-700'
-                    : 'bg-blue-600 hover:bg-blue-700'
+                    : undefined
               }
             >
               {updateStatus.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />}

@@ -160,7 +160,7 @@ export function PayoutsPanel() {
       <Panel title={t('adminCampaigns.reviewTitle')} icon={<AlertTriangle />}>
         <p className="mb-3 text-xs text-muted-foreground">{t('adminCampaigns.reviewHint')}</p>
         <div className="mb-3 flex flex-wrap items-center gap-2">
-          <div className="max-w-full overflow-x-auto scrollbar-none">
+          <div className="-m-1 max-w-full overflow-x-auto p-1 scrollbar-none">
             <Segmented
               label={t('common.status')}
               value={status}

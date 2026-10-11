@@ -27,7 +27,7 @@ export function PriceAlertExistingList({
   const t = useT()
   return (
     <div className="space-y-1.5 pt-2 border-t">
-      <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+      <Label className="text-sm font-medium text-slate-900">
         {t('priceAlert.existingCount', { count: existingAlerts.length })}
       </Label>
       <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">

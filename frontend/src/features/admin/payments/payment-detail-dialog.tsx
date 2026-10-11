@@ -43,8 +43,8 @@ export function PaymentDetailDialog({
     <Dialog open={!!selectedPayment} onOpenChange={(o) => !o && setSelectedPayment(null)}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle className="text-base">{t('adminPayments.detailTitle')}</DialogTitle>
-          <DialogDescription className="text-xs">
+          <DialogTitle>{t('adminPayments.detailTitle')}</DialogTitle>
+          <DialogDescription className="font-mono text-xs">
             {selectedPayment?.providerTxnRef}
           </DialogDescription>
         </DialogHeader>

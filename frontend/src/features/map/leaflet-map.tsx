@@ -259,17 +259,17 @@ function MapSearchBox({
   return (
     <div ref={boxRef} className="absolute left-3 top-3 z-1000 w-[min(20rem,calc(100%-7rem))]">
       <div className="relative">
+        {/* z-10: the input after it would otherwise paint over it. */}
         <Search
           aria-hidden="true"
-          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-blue-600"
-          strokeWidth={2.5}
+          className="pointer-events-none absolute top-1/2 left-3.5 z-10 size-4.5 -translate-y-1/2 text-slate-500"
         />
         <input
           value={q}
           onChange={(e) => onInput(e.target.value)}
           onFocus={() => setOpen(true)}
           placeholder={placeholder ?? t('mapPage.searchPlaceholder')}
-          className="w-full h-11 pl-11 pr-10 rounded-lg border border-slate-200 bg-white/95 backdrop-blur text-base md:text-sm outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-400"
+          className="h-11 w-full rounded-xl bg-white pr-10 pl-10 text-base shadow-float ring-1 ring-slate-900/10 outline-none placeholder:text-slate-400 focus:ring-2 focus:ring-primary/40 md:text-sm"
         />
         {loading && (
           <Loader2 className="absolute right-3.5 top-1/2 -translate-y-1/2 h-5 w-5 animate-spin text-blue-600" />
@@ -288,7 +288,7 @@ function MapSearchBox({
         )}
       </div>
       {open && hits.length > 0 && (
-        <ul className="mt-1 max-h-72 overflow-y-auto rounded-lg border border-slate-200 bg-white">
+        <ul className="mt-1.5 max-h-72 overflow-y-auto rounded-xl bg-white p-1 shadow-float ring-1 ring-slate-900/10">
           {hits.map((h) => (
             <li key={h.osmId}>
               <button
@@ -297,7 +297,7 @@ function MapSearchBox({
                   onSelect(h)
                   setOpen(false)
                 }}
-                className="flex w-full items-start gap-2.5 px-3 py-2 text-left text-sm hover:bg-blue-50 transition-colors"
+                className="flex w-full items-start gap-2.5 rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-slate-100"
               >
                 <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
                 <span className="line-clamp-2 text-foreground">

@@ -143,7 +143,7 @@ export function BrandSummaryStrip({
         {t('adminFeedback.byBrand')}
       </div>
 
-      <div className="flex gap-3 overflow-x-auto pb-1 scroll-thin -mx-1 px-1">
+      <div className="-mx-1 -mt-1 flex gap-3 overflow-x-auto px-1 pt-1 pb-1 scroll-thin">
         {/* "All brands" card */}
         <button
           type="button"

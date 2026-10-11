@@ -19,7 +19,6 @@ import { useT } from '@/lib/i18n'
 import { reverseGeocode } from '@/features/map/leaflet-map'
 import { useMyLocation } from '@/features/map/use-my-location'
 import type { AdminAddressOut, PlaceSearchHit } from '@/api'
-import { cn } from '@/lib/utils'
 import { LatLongRegex, parseLatLong } from './lat-long'
 import { getErrorMessage } from '@/lib/error-message'
 
@@ -304,9 +303,8 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
           mobile layout (form + 420px map + footer) ran ~1100px tall, so
           the Save/Cancel footer was unreachable on phones. */}
       <DialogContent className="max-w-4xl max-h-[92dvh] p-0 gap-0 overflow-hidden flex flex-col">
-        <DialogHeader className="px-5 py-4 pr-12 border-b bg-white shrink-0">
-          <DialogTitle className="flex items-center gap-2 text-base">
-            <MapPin className="h-4 w-4 text-blue-600" />
+        <DialogHeader icon={<MapPin />} className="shrink-0 border-b px-5 py-4 pr-14">
+          <DialogTitle>
             {t('adminAddresses.createTitle')}
             {brandName ? (
               <span className="ml-1 text-xs font-normal text-muted-foreground">· {brandName}</span>
@@ -412,13 +410,14 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
               className="absolute left-3 top-3 z-1000 w-[min(20rem,calc(100%-1.5rem))]"
             >
               <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                {/* z-10: the input after it would otherwise paint over it. */}
+                <Search className="pointer-events-none absolute top-1/2 left-3.5 z-10 size-4 -translate-y-1/2 text-slate-500" />
                 <input
                   value={query}
                   onChange={(e) => onInput(e.target.value)}
                   onFocus={() => setSearchOpen(true)}
                   placeholder={t('map.searchField')}
-                  className="w-full h-10 pl-10 pr-9 rounded-lg border border-slate-200 bg-white/95 backdrop-blur text-base md:text-sm outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-400"
+                  className="h-10 w-full rounded-xl bg-white pr-9 pl-10 text-base shadow-float ring-1 ring-slate-900/10 outline-none placeholder:text-slate-400 focus:ring-2 focus:ring-primary/40 md:text-sm"
                 />
                 {searchLoading ? (
                   <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-blue-600" />
@@ -528,7 +527,6 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
               form.lon == null ||
               !brandId
             }
-            className={cn('bg-blue-600 hover:bg-blue-700')}
           >
             {createMutation.isPending ? (
               <>

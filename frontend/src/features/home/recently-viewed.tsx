@@ -18,7 +18,7 @@ export const RecentlyViewed = memo(function RecentlyViewed() {
         <History className="size-4 text-slate-400" />
         {t('home.recentlyViewedTitle')}
       </h2>
-      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 scrollbar-none sm:mx-0 sm:flex-wrap sm:px-0">
+      <div className="-mx-4 -my-1 flex gap-2 overflow-x-auto px-4 py-1 scrollbar-none sm:-mx-1 sm:flex-wrap sm:px-1">
         {recentlyViewed.slice(0, 6).map((rv) => (
           <Link
             key={rv.tripId}

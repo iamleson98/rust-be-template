@@ -93,7 +93,7 @@ export function RouteDirectory() {
       {isError ? (
         <ErrorState description={t('home.popularRoutesError')} onRetry={() => refetch()} />
       ) : isLoading ? (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 2xl:grid-cols-4">
           {Array.from({ length: 6 }).map((_, i) => (
             <Shimmer key={i} className="h-40 rounded-2xl" />
           ))}
@@ -104,7 +104,7 @@ export function RouteDirectory() {
           <p className="mt-3 text-sm text-muted-foreground">{t('searchPage.directoryEmpty')}</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 2xl:grid-cols-4">
           {items.map((r) => (
             <RouteCard
               key={r.id}

@@ -25,7 +25,8 @@ export function ConsolePage({
         'w-full space-y-5',
         // Bottom room on phones: floating buttons (call, support) sit there.
         inset && 'mx-auto px-4 pt-5 pb-24 md:px-6 md:py-6',
-        inset && (width === 'wide' ? 'max-w-7xl' : 'max-w-2xl'),
+        // Wide pages use big monitors (tables, boards); forms stay readable.
+        inset && (width === 'wide' ? 'max-w-7xl 2xl:max-w-[120rem]' : 'max-w-2xl'),
         !inset && width === 'narrow' && 'max-w-2xl',
         className,
       )}

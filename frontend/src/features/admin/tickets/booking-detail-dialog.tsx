@@ -73,9 +73,8 @@ export function BookingDetailDialog({
   return (
     <Dialog open={!!bookingId} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="flex max-h-[90dvh] max-w-2xl flex-col overflow-hidden">
-        <DialogHeader>
+        <DialogHeader icon={<TicketIcon />}>
           <DialogTitle className="flex flex-wrap items-center gap-2">
-            <TicketIcon className="h-5 w-5 text-blue-600" />
             {ticket
               ? t('adminTickets.ticketCode', { code: ticket.code })
               : t('adminTickets.detailTitle')}

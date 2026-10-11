@@ -91,11 +91,8 @@ export function RoutePickupPointsDialog({
     <>
       <Dialog open={open} onOpenChange={(o) => !deleting && onOpenChange(o)}>
         <DialogContent className="max-w-lg max-h-[85dvh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base">
-              <MapPin className="h-4 w-4 text-rose-600" />
-              {t('adminBrands.pickupPointsTitle')}
-            </DialogTitle>
+          <DialogHeader icon={<MapPin />}>
+            <DialogTitle>{t('adminBrands.pickupPointsTitle')}</DialogTitle>
             <DialogDescription className="truncate">
               {route
                 ? `${route.name} · ${route.startLocation?.name ?? ''} → ${route.endLocation?.name ?? ''}`

@@ -135,12 +135,9 @@ export function CancelDialog() {
   return (
     <Dialog open={!!cancelBookingId} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-rose-700">
-            <XCircle className="h-5 w-5" />
-            {t('cancel.title')}
-          </DialogTitle>
-          <DialogDescription className="text-sm text-muted-foreground">
+        <DialogHeader icon={<XCircle />} tone="danger">
+          <DialogTitle>{t('cancel.title')}</DialogTitle>
+          <DialogDescription>
             {step === 1 && t('cancel.reason')}
             {step === 2 && t('cancel.refundPolicy')}
             {step === 3 && t('cancel.successTitle')}

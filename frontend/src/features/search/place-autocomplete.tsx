@@ -453,13 +453,12 @@ export function PlaceAutocomplete({
       {/* Map picker dialog */}
       <Dialog open={mapOpen} onOpenChange={setMapOpen}>
         <DialogContent className="max-w-3xl max-h-[92dvh] p-0 gap-0 overflow-hidden flex flex-col">
-          <DialogHeader className="px-4 py-3 pr-12 border-b bg-white shrink-0">
-            <DialogTitle className="text-base flex items-center gap-2">
-              <MapPin
-                className={cn('h-4 w-4', pinColor === 'red' ? 'text-rose-600' : 'text-blue-600')}
-              />
-              {t('searchPage.pickLocationOnMap')}
-            </DialogTitle>
+          <DialogHeader
+            icon={<MapPin />}
+            tone={pinColor === 'red' ? 'danger' : 'primary'}
+            className="shrink-0 border-b px-5 py-4 pr-14"
+          >
+            <DialogTitle>{t('searchPage.pickLocationOnMap')}</DialogTitle>
             {/* Description (also satisfies aria-describedby) */}
             <DialogDescription className="sr-only">
               {t('searchPage.pickLocationOnMapDesc')}

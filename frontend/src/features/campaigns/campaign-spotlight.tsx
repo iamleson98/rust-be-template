@@ -161,7 +161,7 @@ function CampaignBlock({
         {validityText(c.couponValidity === 'permanent' ? null : c.endsAt, t)}
       </p>
 
-      <div className={cn(RAIL, 'mt-3.5 lg:grid-cols-4')}>
+      <div className={cn(RAIL, 'mt-3.5 lg:grid-cols-4 2xl:grid-cols-5')}>
         {c.tiers.map((tier) => (
           <Voucher key={tier.id} campaignId={c.id} tier={tier} block={block(tier)} />
         ))}

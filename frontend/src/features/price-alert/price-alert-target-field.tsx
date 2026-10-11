@@ -50,10 +50,7 @@ export function PriceAlertTargetField({
       name="targetPrice"
       render={({ field }) => (
         <FormItem className="space-y-1.5">
-          <FormLabel
-            htmlFor="target-price"
-            className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
-          >
+          <FormLabel htmlFor="target-price" className="text-sm font-medium text-slate-900">
             {t('priceAlert.targetPriceLabel')} <span className="text-destructive">*</span>
           </FormLabel>
           <div className="relative">

@@ -153,9 +153,8 @@ export function RouteFormDialog({
   return (
     <Dialog open={open} onOpenChange={(o) => !saving && onOpenChange(o)}>
       <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <RouteIcon className="h-5 w-5 text-blue-600" />
+        <DialogHeader icon={<RouteIcon />}>
+          <DialogTitle>
             {isEdit ? t('routeForm.editTitle') : t('routeForm.createTitle')}
           </DialogTitle>
           <DialogDescription>
@@ -241,7 +240,7 @@ export function RouteFormDialog({
               <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
                 {t('common.cancel')}
               </Button>
-              <Button type="submit" disabled={saving} className="bg-blue-600 hover:bg-blue-700">
+              <Button type="submit" disabled={saving}>
                 {saving ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> {t('common.saving')}

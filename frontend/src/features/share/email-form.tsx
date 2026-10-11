@@ -127,10 +127,10 @@ export function ShareEmailForm({
     <Form {...form}>
       <form
         onSubmit={form.handleSubmit(onSendEmail)}
-        className="rounded-xl border border-slate-200 bg-slate-50/60 p-3 space-y-3"
+        className="space-y-3 rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200/70"
       >
-        <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          <Mail className="h-3.5 w-3.5 text-blue-600" />
+        <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+          <Mail className="size-4 text-primary" aria-hidden />
           {t('trips.emailSection')}
         </div>
         <FormField
@@ -181,11 +181,7 @@ export function ShareEmailForm({
             </FormItem>
           )}
         />
-        <Button
-          type="submit"
-          disabled={sendingEmail}
-          className="w-full gap-2 bg-blue-600 hover:bg-blue-700 text-white"
-        >
+        <Button type="submit" disabled={sendingEmail} className="w-full gap-2">
           {sendingEmail ? (
             <>
               <Check className="h-4 w-4 animate-pulse" />

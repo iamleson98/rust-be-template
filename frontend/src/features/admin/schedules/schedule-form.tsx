@@ -327,9 +327,8 @@ export function ScheduleFormDialog({
     <>
       <Dialog open={open} onOpenChange={(o) => !saving && onOpenChange(o)}>
         <DialogContent className="max-w-4xl max-h-[92dvh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Clock className="h-5 w-5 text-blue-600" />
+          <DialogHeader icon={<Clock />}>
+            <DialogTitle>
               {isEdit ? t('brands.editSchedule') : t('adminSchedules.createTitle')}
             </DialogTitle>
             <DialogDescription>
@@ -390,7 +389,7 @@ export function ScheduleFormDialog({
                 <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
                   {t('common.cancel')}
                 </Button>
-                <Button type="submit" disabled={saving} className="bg-blue-600 hover:bg-blue-700">
+                <Button type="submit" disabled={saving}>
                   {saving ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> {t('common.saving')}

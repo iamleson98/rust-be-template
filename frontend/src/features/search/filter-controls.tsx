@@ -24,7 +24,7 @@ export function SortTabs() {
     <div
       role="radiogroup"
       aria-label={t('searchPage.sort')}
-      className="flex min-w-0 gap-1.5 overflow-x-auto scrollbar-none"
+      className="-m-1 flex min-w-0 gap-1.5 overflow-x-auto p-1 scrollbar-none"
     >
       {SORTS.map((o) => {
         const active = search.sort === o.key
