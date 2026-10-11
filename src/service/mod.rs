@@ -65,6 +65,7 @@ pub(crate) mod test_support;
 mod ticket_tests;
 pub mod trip_stops;
 pub mod trip_time;
+pub mod trip_warmer;
 pub mod users_service;
 
 pub use admin_service::AdminService;

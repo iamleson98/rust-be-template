@@ -28,6 +28,7 @@ use crate::error::{AppError, AppResult};
 use crate::service::fares::{self, ChildPolicy, Fare, FareTable};
 use crate::service::place_service::haversine_km;
 use crate::service::seat_plan;
+use crate::service::trip_warmer;
 use crate::service::{trip_stops, trip_time};
 use crate::store::CompositeStore;
 use crate::store::PickupPointWithRoute;
@@ -213,19 +214,25 @@ fn amenity_label(key: &str) -> &'static str {
 
 pub struct PublicService {
     store: Arc<CompositeStore>,
-    /// Serializes on-demand trip generation. The generator is
-    /// check-then-insert (idempotent by `(schedule_id, date)`); the lock
-    /// closes the concurrent-search duplicate window inside this
-    /// process — the backend runs as a single replica.
-    trip_gen_lock: tokio::sync::Mutex<()>,
+    /// The trip-materialization subsystem handle (see
+    /// `service::trip_warmer`): gap notifications go to the background
+    /// warmer, and the shared fill lock keeps the inline fill idempotent.
+    /// `Warmer::detached()` (tests, embedded harnesses) fills inline
+    /// without a background task.
+    warmer: trip_warmer::Warmer,
 }
 
 impl PublicService {
     pub fn new(store: Arc<CompositeStore>) -> Self {
         Self {
             store,
-            trip_gen_lock: tokio::sync::Mutex::new(()),
+            warmer: trip_warmer::Warmer::detached(),
         }
+    }
+
+    /// `new` + a live warmer (see [`trip_warmer::spawn`]).
+    pub fn with_warmer(store: Arc<CompositeStore>, warmer: trip_warmer::Warmer) -> Self {
+        Self { store, warmer }
     }
 
     // ── Brands ──────────────────────────────────────────────────
@@ -411,208 +418,50 @@ impl PublicService {
 
     // ── Trips ───────────────────────────────────────────────────
 
-    /// Does this schedule operate on `date`?
+    /// Fill missing trips for a search — bounded and non-blocking.
     ///
-    /// Rules (matching the admin UI semantics):
-    /// * `effective_from` / `effective_to` (optional `YYYY-MM-DD`)
-    ///   bound the operating window — lexicographic compare is safe
-    ///   for this fixed format.
-    /// * `days_of_week` is a 7-char `0`/`1` mask, index 0 = Monday
-    ///   (`T2`), index 6 = Sunday (`CN`) — the same order as the
-    ///   admin form. `None` (or a malformed mask) means DAILY, the
-    ///   form's default `1111111`.
-    fn schedule_runs_on(s: &schedule::Model, date: chrono::NaiveDate) -> bool {
-        use chrono::Datelike;
-        let d = date.format("%Y-%m-%d").to_string();
-        if let Some(from) = s.effective_from.as_deref() {
-            if d.as_str() < from {
-                return false;
-            }
-        }
-        if let Some(to) = s.effective_to.as_deref() {
-            if d.as_str() > to {
-                return false;
-            }
-        }
-        match s.days_of_week.as_deref() {
-            Some(mask) if mask.len() == 7 && mask.bytes().all(|c| c == b'0' || c == b'1') => {
-                // chrono: Mon=0 … Sun=6 — exactly the mask's index order.
-                let idx = date.weekday().number_from_monday() as usize - 1;
-                mask.as_bytes()[idx] == b'1'
-            }
-            // No (valid) mask → runs every day.
-            _ => true,
-        }
-    }
-
-    /// Materialize trips for every schedule that runs on `date`
-    /// (idempotent): for each schedule matching the date that has no
-    /// `trip_session` row yet, insert the trip + its per-seat
-    /// inventory. Returns how many trips were created.
+    /// * notifies the background warmer (full repair + fill for the
+    ///   date), then
+    /// * fills the schedules this search found missing inline under a
+    ///   strict [`trip_warmer::INLINE_FILL_BUDGET`] wall-clock budget,
+    ///   skipping entirely when the warmer already holds the fill lock
+    ///   (the 2026-10-11 outage pattern was searches queueing behind a
+    ///   long fill).
     ///
-    /// Capacity resolution (in order):
-    ///   1. `schedule.bus_layout_id` → the layout's `seat` rows (also
-    ///      produce the bookable seat inventory),
-    ///   2. `schedule.vehicle_type_id` → `vehicle_type.total_seats`
-    ///      (display-only fallback: the trip appears in search, but has
-    ///      no seat map until an admin attaches a layout),
-    ///   3. otherwise the schedule is skipped (no bookable capacity at
-    ///      all).
-    ///
-    /// Generation never throws to the caller's request path — the
-    /// search falls back to serving whatever rows already exist.
-    async fn ensure_trips_for_schedules_on_date(
-        &self,
-        schedules: &[schedule::Model],
-        date: &str,
-    ) -> AppResult<usize> {
-        // Validate the date format — a garbage date must not 500 the
-        // search (the trip query would simply match nothing anyway).
-        let parsed_date = chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d")
-            .map_err(|e| AppError::Validation(format!("invalid date: {e}")))?;
-
-        // Past dates are never generated (searches for them serve
-        // whatever exists). Lexicographic compare works for YYYY-MM-DD.
-        let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
-        if date < today.as_str() {
-            return Ok(0);
+    /// `schedules` should be the schedules the search found missing —
+    /// passing just the subset avoids a redundant existence query inside
+    /// the materializer. Failures degrade to serving whatever rows
+    /// already exist; nothing here ever fails the search itself.
+    async fn fill_trips_inline(&self, schedules: &[schedule::Model], date: &str) {
+        self.warmer.notify(date);
+        if schedules.is_empty() {
+            return;
         }
-
-        // Batch-load vehicle-type capacities for layout-less schedules.
-        let vt_ids: Vec<Uuid> = schedules
-            .iter()
-            .filter(|s| s.bus_layout_id.is_none())
-            .filter_map(|s| s.vehicle_type_id)
-            .collect();
-        let vt_map: HashMap<Uuid, vehicle_type::Model> = if vt_ids.is_empty() {
-            HashMap::new()
-        } else {
-            self.store
-                .vehicle_type_store()
-                .find_vehicle_types_by_ids(vt_ids)
-                .await
-                .map_err(|e| AppError::Internal(e.to_string()))?
-                .into_iter()
-                .map(|v| (v.id, v))
-                .collect()
-        };
-
-        // Each seat is priced by its class (one query for every schedule).
-        let fare_rows = self
-            .store
-            .schedule_store()
-            .list_fares(schedules.iter().map(|s| s.id).collect())
+        let deadline = Some(std::time::Instant::now() + trip_warmer::INLINE_FILL_BUDGET);
+        match self
+            .warmer
+            .try_fill(self.store.as_ref(), schedules, date, deadline)
             .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-
-        let mut created = 0usize;
-        let trip_store = self.store.trip_store();
-        // Serialize concurrent searches: the check-then-insert pair is
-        // not atomic; the mutex keeps parallel requests from racing the
-        // same (schedule, date) pair into duplicates.
-        let _guard = self.trip_gen_lock.lock().await;
-
-        for s in schedules {
-            if !Self::schedule_runs_on(s, parsed_date) {
-                continue;
+        {
+            Ok(n) if n > 0 => {
+                tracing::info!(n, %date, "search: inline trip fill");
             }
-            if trip_store
-                .find_trip_by_schedule_and_date(s.id, date)
-                .await
-                .map_err(|e| AppError::Internal(e.to_string()))?
-                .is_some()
-            {
-                continue; // already materialized
+            Ok(_) => {}
+            Err(e) => {
+                tracing::warn!(%e, %date, "search: inline fill failed — serving existing rows");
             }
-
-            // Resolve capacity + seats.
-            let seats: Vec<crate::entity::seat::Model> = match s.bus_layout_id {
-                Some(lid) => trip_store
-                    .list_seats_by_bus_layout_id(&lid.to_string())
-                    .await
-                    .map_err(|e| AppError::Internal(e.to_string()))?,
-                None => Vec::new(),
-            };
-            let capacity: i64 = if !seats.is_empty() {
-                seats.len() as i64
-            } else {
-                s.vehicle_type_id
-                    .as_ref()
-                    .and_then(|vt| vt_map.get(vt))
-                    .and_then(|v| v.total_seats)
-                    .map(i64::from)
-                    .unwrap_or(0)
-            };
-            if capacity <= 0 {
-                // No bookable capacity at all — nothing to sell.
-                continue;
-            }
-
-            let now = crate::store::now_iso();
-            let trip_id = Uuid::new_v4();
-            let trip_model = trip_session::ActiveModel {
-                id: sea_orm::Set(trip_id),
-                schedule_id: sea_orm::Set(s.id),
-                departure_date: sea_orm::Set(date.to_string()),
-                actual_departure_at: sea_orm::Set(None),
-                driver_name: sea_orm::Set(None),
-                driver_phone: sea_orm::Set(None),
-                status: sea_orm::Set("scheduled".into()),
-                total_seats: sea_orm::Set(capacity),
-                available_seats: sea_orm::Set(capacity),
-                created_at: sea_orm::Set(now.clone()),
-                updated_at: sea_orm::Set(now),
-            };
-            trip_store
-                .insert_trip_session(trip_model)
-                .await
-                .map_err(|e| AppError::Internal(e.to_string()))?;
-
-            // Per-seat inventory (only when actual seat rows exist —
-            // the vehicle-type fallback has no seat map).
-            if !seats.is_empty() {
-                let fare_table = FareTable::new(s, &fare_rows);
-                let inv: Vec<seat_inventory::ActiveModel> = seats
-                    .iter()
-                    .map(|seat| {
-                        let price = fare_table.fare(Some(&fares::class_of(seat))).adult;
-                        seat_inventory::ActiveModel {
-                            id: sea_orm::Set(Uuid::new_v4()),
-                            trip_session_id: sea_orm::Set(trip_id),
-                            seat_id: sea_orm::Set(seat.id),
-                            status: sea_orm::Set("available".into()),
-                            base_price: sea_orm::Set(price),
-                            final_price: sea_orm::Set(price),
-                            currency: sea_orm::Set("VND".into()),
-                            held_until: sea_orm::Set(None),
-                            held_by_booking_id: sea_orm::Set(None),
-                            created_at: sea_orm::Set(crate::store::now_iso()),
-                            updated_at: sea_orm::Set(crate::store::now_iso()),
-                        }
-                    })
-                    .collect();
-                trip_store
-                    .insert_seat_inventories_batch(inv)
-                    .await
-                    .map_err(|e| AppError::Internal(e.to_string()))?;
-            }
-
-            created += 1;
-            tracing::info!(
-                schedule_id = %s.id,
-                date = %date,
-                capacity,
-                seats = seats.len(),
-                "materialized trip session on demand"
-            );
         }
-        Ok(created)
     }
 
     /// Search trips by from/to/date with optional vehicle-type filter.
     ///
-    /// This is a simplified version that uses SeaORM queries instead of
-    /// the raw SQL JOIN in booking-rs. It searches by place names and date.
+    /// Read-first: the query loads existing trips BEFORE any fill; only
+    /// schedules that are actually missing get materialized — bounded,
+    /// off the request path when possible (see `fill_trips_inline` and
+    /// [`trip_warmer`]). In the steady state (the warmer has the sell
+    /// window covered) this is a handful of indexed queries and zero
+    /// writes; price ranges load for just the returned page unless the
+    /// sort itself needs them.
     #[allow(clippy::too_many_arguments)]
     pub async fn search_trips(
         &self,
@@ -683,24 +532,11 @@ impl PublicService {
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
-        // Materialize trips for the searched date (idempotent — trips
-        // are generated on demand from schedules, so the search works
-        // the moment a schedule exists). Failures degrade gracefully:
-        // the query below serves whatever rows already exist.
-        if let Err(error) = self
-            .ensure_trips_for_schedules_on_date(&schedules, date)
-            .await
-        {
-            tracing::warn!(?error, %date, "on-demand trip generation failed — serving existing rows");
-        }
-
-        let schedule_ids: Vec<String> = schedules.iter().map(|s| s.id.to_string()).collect();
-        let schedule_uuids: Vec<Uuid> = schedule_ids
-            .iter()
-            .filter_map(|s| Uuid::parse_str(s).ok())
-            .collect();
-
-        // Find trip sessions for these schedules on the given date.
+        // READ the trips that already exist BEFORE any fill — indexed
+        // and cheap, and the basis for the in-memory gap detection
+        // below. (The old flow materialized unconditionally BEFORE
+        // reading, which put a per-schedule write loop on the read path
+        // — the 2026-10-11 outage.)
         //
         // SORTING CONTRACT: fetch a wider page than `limit` because the
         // sort happens AFTER two Rust-side stages — the vehicle-type
@@ -710,72 +546,98 @@ impl PublicService {
         // hiding cheaper trips. 500 is plenty for a day's departures on
         // a from/to pair; the final truncate enforces the real limit.
         let fetch_cap: u64 = 500;
-        let trips = self
+        let schedule_uuids: Vec<Uuid> = schedules.iter().map(|s| s.id).collect();
+        let mut trips = self
             .store
             .trip_store()
-            .list_trips_by_schedule_ids(schedule_uuids, date, min_seats, fetch_cap)
+            .list_trips_by_schedule_ids(schedule_uuids.clone(), date, min_seats, fetch_cap)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
-        let price_ranges = self.price_ranges(&trips).await?;
 
-        // Batch fetch related data
-        let trip_sched_uuids: Vec<Uuid> = trips.iter().map(|t| t.schedule_id).collect();
-        let sched_map: std::collections::HashMap<String, schedule::Model> = self
-            .store
-            .schedule_store()
-            .list_schedules_by_ids(trip_sched_uuids)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?
-            .into_iter()
-            .map(|s| (s.id.to_string(), s))
-            .collect();
+        // ── Gap detection + bounded inline fill ──────────────────────
+        // Missing = schedules that run on the date but have no trip row
+        // yet — computed from data already in hand (no extra query). A
+        // cold date self-serves immediately (see `fill_trips_inline`);
+        // a warmed date — the steady state — fills nothing.
+        let today = trip_warmer::vn_today(chrono::Utc::now());
+        if let (Some(parsed_date), true) = (
+            chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d").ok(),
+            date >= today.as_str(),
+        ) {
+            let have: std::collections::HashSet<Uuid> =
+                trips.iter().map(|t| t.schedule_id).collect();
+            let missing: Vec<schedule::Model> = schedules
+                .iter()
+                .filter(|s| trip_warmer::schedule_runs_on(s, parsed_date))
+                .filter(|s| !have.contains(&s.id))
+                .cloned()
+                .collect();
+            if !missing.is_empty() {
+                self.fill_trips_inline(&missing, date).await;
+                // Pick up whatever the fill just wrote (a skipped or
+                // partially-budgeted fill still serves existing rows).
+                trips = self
+                    .store
+                    .trip_store()
+                    .list_trips_by_schedule_ids(schedule_uuids, date, min_seats, fetch_cap)
+                    .await
+                    .map_err(|e| AppError::Internal(e.to_string()))?;
+            }
+        }
 
-        let sched_route_uuids: Vec<Uuid> = sched_map.values().map(|s| s.route_id).collect();
-        let route_map: std::collections::HashMap<String, route::Model> = self
-            .store
-            .route_store()
-            .list_routes_by_ids(sched_route_uuids)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?
-            .into_iter()
-            .map(|r| (r.id.to_string(), r))
-            .collect();
+        // Price ranges: only `sort=price` needs the full candidate set —
+        // every other sort prices JUST the returned page further down
+        // (one indexed query over ≤ limit trips instead of ≤ 500 — the
+        // single heaviest read in the search on a big seat-inventory
+        // table). Items are built with the schedule base fare in the
+        // meantime, which is exactly `CardPrices::of`'s fallback for
+        // trips without seat inventory.
+        let full_ranges = if sort_key == "price" {
+            self.price_ranges(trips.iter().map(|t| t.id).collect())
+                .await?
+        } else {
+            HashMap::new()
+        };
 
-        let route_brand_uuids: Vec<Uuid> = route_map.values().filter_map(|r| r.brand_id).collect();
-        let brand_map: std::collections::HashMap<String, brand::Model> = self
+        // Maps from data already in hand — the old code re-fetched the
+        // schedules and routes it had just loaded (two extra queries
+        // per search).
+        let sched_map: HashMap<Uuid, &schedule::Model> =
+            schedules.iter().map(|s| (s.id, s)).collect();
+        let route_map: HashMap<Uuid, &route::Model> =
+            matching_routes.iter().map(|r| (r.id, r)).collect();
+
+        let route_brand_uuids: Vec<Uuid> =
+            matching_routes.iter().filter_map(|r| r.brand_id).collect();
+        let brand_map: HashMap<Uuid, brand::Model> = self
             .store
             .brand_store()
             .list_brands_by_ids(route_brand_uuids)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?
             .into_iter()
-            .map(|b| (b.id.to_string(), b))
+            .map(|b| (b.id, b))
             .collect();
 
-        // Fetch bus layouts for vehicle type filtering. `bus_layout_id`
-        // is `Uuid` on the schedule entity — collect directly (the old
-        // String→Uuid parse workaround is gone with the type fix).
+        // Fetch bus layouts for vehicle type filtering — one batched
+        // query (the old code fetched them one-by-one).
         let bus_layout_uuids: Vec<Uuid> =
-            sched_map.values().filter_map(|s| s.bus_layout_id).collect();
-        let layout_map: std::collections::HashMap<String, bus_layout::Model> = {
-            // No batch method on ScheduleStore for IDs; fetch one-by-one (small N)
-            let mut m = std::collections::HashMap::new();
-            for uid in bus_layout_uuids {
-                if let Ok(Some(l)) = self.store.schedule_store().find_bus_layout_by_id(uid).await {
-                    m.insert(l.id.to_string(), l);
-                }
-            }
-            m
-        };
+            schedules.iter().filter_map(|s| s.bus_layout_id).collect();
+        let layout_map: HashMap<Uuid, bus_layout::Model> = self
+            .store
+            .schedule_store()
+            .list_bus_layouts_by_ids(bus_layout_uuids)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?
+            .into_iter()
+            .map(|l| (l.id, l))
+            .collect();
 
         // Batch-load the schedules' explicit vehicle types (the
         // admin-managed catalog) — `resolve_vehicle_type` prefers them
         // over the bus-layout fallback.
         let vt_map: HashMap<Uuid, vehicle_type::Model> = {
-            let ids: Vec<Uuid> = sched_map
-                .values()
-                .filter_map(|s| s.vehicle_type_id)
-                .collect();
+            let ids: Vec<Uuid> = schedules.iter().filter_map(|s| s.vehicle_type_id).collect();
             if ids.is_empty() {
                 HashMap::new()
             } else {
@@ -791,14 +653,8 @@ impl PublicService {
         };
 
         // Resolve start/end location slugs to city records via the
-        // hardcoded city table (no DB round-trip). Replaces the previous
-        // batched `place_store().find_places_by_ids(place_uuids)` lookup
-        // — `route.start_location_id` is now a slug string, not a UUID
-        // FK to `place`. We collect into a HashMap so the per-trip
-        // closure can do `O(1)` lookups by slug. Both columns are NOT
-        // NULL, so we always have a slug to look up — `find_by_slug`
-        // returns `None` only if the slug doesn't match any hardcoded
-        // city (data corruption case).
+        // hardcoded city table (no DB round-trip) — see `find_by_slug`
+        // for the data-corruption fallback.
         let place_map: std::collections::HashMap<&str, &crate::cities::City> = route_map
             .values()
             .flat_map(|r| [r.start_location_id.as_str(), r.end_location_id.as_str()])
@@ -816,7 +672,7 @@ impl PublicService {
         let schedule_point_rows = self
             .store
             .address_store()
-            .list_points_by_schedules(sched_map.values().map(|s| s.id).collect::<Vec<Uuid>>())
+            .list_points_by_schedules(schedules.iter().map(|s| s.id).collect::<Vec<Uuid>>())
             .await
             .unwrap_or_default();
         let mut arrival_map: std::collections::HashMap<Uuid, String> =
@@ -831,20 +687,14 @@ impl PublicService {
         let items: Vec<TripResult> = trips
             .iter()
             .filter_map(|t| {
-                let sched = sched_map.get(&t.schedule_id.to_string())?;
-                let route = route_map.get(&sched.route_id.to_string())?;
+                let sched = *sched_map.get(&t.schedule_id)?;
+                let route = *route_map.get(&sched.route_id)?;
                 if !on_sale(t, sched) {
                     return None;
                 }
-                let brand = route
-                    .brand_id
-                    .map(|id| id.to_string())
-                    .as_deref()
-                    .and_then(|bid| brand_map.get(bid));
-                let prices = CardPrices::of(&price_ranges, t.id, sched, brand);
-                let layout = sched
-                    .bus_layout_id
-                    .and_then(|lid| layout_map.get(&lid.to_string()));
+                let brand = route.brand_id.and_then(|bid| brand_map.get(&bid));
+                let prices = CardPrices::of(&full_ranges, t.id, sched, brand);
+                let layout = sched.bus_layout_id.and_then(|lid| layout_map.get(&lid));
 
                 // Vehicle type: schedule catalog row first, bus-layout
                 // fallback, "standard" default — then the filter.
@@ -956,11 +806,27 @@ impl PublicService {
         // derived from it so the client's "load more" button never has
         // to guess from an empty page.
         let total = items.len() as u64;
-        let page: Vec<TripResult> = items
+        let mut page: Vec<TripResult> = items
             .into_iter()
             .skip(offset as usize)
             .take(limit as usize)
             .collect();
+
+        // ── Page-level price fill ───────────────────────────────────
+        // The non-price sorts didn't need full-candidate price ranges;
+        // overwrite the base-fare placeholders with the real
+        // for-sale ranges for JUST this page.
+        if sort_key != "price" && !page.is_empty() {
+            let page_ranges = self
+                .price_ranges(page.iter().map(|t| t.trip_id).collect())
+                .await?;
+            for item in &mut page {
+                if let Some(&(min, max)) = page_ranges.get(&item.trip_id) {
+                    item.min_price = min;
+                    item.max_price = max;
+                }
+            }
+        }
 
         Ok(TripSearchResponse::paged(page, total, limit, offset))
     }
@@ -1136,25 +1002,41 @@ impl PublicService {
             return Ok(TripSearchResponse::paged_empty(limit, offset));
         }
 
-        // On-demand trip materialization — same contract as the text
-        // search: a brand-new schedule must be findable the FIRST time
-        // somebody runs a geo search, not only after a city-to-city
-        // search happened to materialize its trips. Failures degrade
-        // gracefully (the query below serves existing rows).
-        if let Err(error) = self
-            .ensure_trips_for_schedules_on_date(&schedules, date)
-            .await
-        {
-            tracing::warn!(?error, %date, "geo on-demand trip generation failed — serving existing rows");
-        }
-
+        // READ first, then fill only the gaps — same read-first contract
+        // as the text search (see `search_trips`): the steady state is
+        // pure indexed reads; a cold date self-serves under the bounded
+        // inline budget while the background warmer catches up.
         let schedule_uuids: Vec<Uuid> = schedules.iter().map(|s| s.id).collect();
-        let trips = self
+        let mut trips = self
             .store
             .trip_store()
-            .list_trips_by_schedule_ids(schedule_uuids, date, min_seats, 1000)
+            .list_trips_by_schedule_ids(schedule_uuids.clone(), date, min_seats, 1000)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
+
+        let today = trip_warmer::vn_today(chrono::Utc::now());
+        if let (Some(parsed_date), true) = (
+            chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d").ok(),
+            date >= today.as_str(),
+        ) {
+            let have: std::collections::HashSet<Uuid> =
+                trips.iter().map(|t| t.schedule_id).collect();
+            let missing: Vec<schedule::Model> = schedules
+                .iter()
+                .filter(|s| trip_warmer::schedule_runs_on(s, parsed_date))
+                .filter(|s| !have.contains(&s.id))
+                .cloned()
+                .collect();
+            if !missing.is_empty() {
+                self.fill_trips_inline(&missing, date).await;
+                trips = self
+                    .store
+                    .trip_store()
+                    .list_trips_by_schedule_ids(schedule_uuids, date, min_seats, 1000)
+                    .await
+                    .map_err(|e| AppError::Internal(e.to_string()))?;
+            }
+        }
 
         if trips.is_empty() {
             return Ok(TripSearchResponse::paged_empty(limit, offset));
@@ -1265,7 +1147,11 @@ impl PublicService {
         // route's rank; the old code iterated the DB-ordered trip list,
         // so the response wasn't actually distance-sorted despite the
         // matches being sorted).
-        let price_ranges = self.price_ranges(&trips).await?;
+        //
+        // Prices: geo ALWAYS ranks by distance, so items are built with
+        // the schedule base fare and the real for-sale ranges are filled
+        // for just the returned PAGE below — one indexed query over
+        // ≤ limit trips instead of the whole ≤ 1000-trip candidate set.
         let mut scored: Vec<(TripResult, f64)> = Vec::new();
         for trip in &trips {
             let schedule = match schedule_map.get(&trip.schedule_id) {
@@ -1292,7 +1178,6 @@ impl PublicService {
             }
 
             let brand = m.brand_id.and_then(|bid| brand_map.get(&bid)).cloned();
-            let prices = CardPrices::of(&price_ranges, trip.id, schedule, brand);
 
             // Route's own start/end cities (fall back to the raw
             // coordinates only when the slug doesn't resolve — data
@@ -1352,10 +1237,16 @@ impl PublicService {
                         compute_arrival_iso(&trip.departure_date, &schedule.departure_time, hhmm)
                     }),
                 bus_layout_id: schedule.bus_layout_id.map(|u| u.to_string()),
-                min_price: prices.min,
-                max_price: prices.max,
+                // Base-fare placeholders — the page-level fill below
+                // overwrites them with the real for-sale ranges
+                // (identical fallback semantics to `CardPrices::of`).
+                min_price: schedule.base_price_adult,
+                max_price: schedule.base_price_adult,
                 price_adult: schedule.base_price_adult,
-                price_child: prices.child,
+                price_child: standard_child_price(
+                    schedule,
+                    brand.as_ref().and_then(ChildPolicy::of),
+                ),
                 vehicle_type,
                 vehicle_type_label: vt_label,
                 capacity: None,
@@ -1380,25 +1271,40 @@ impl PublicService {
             scored.retain(|(t, _)| departure_minutes(t) >= after);
         }
         let total = scored.len() as u64;
-        let page: Vec<TripResult> = scored
+        let mut page: Vec<TripResult> = scored
             .into_iter()
             .skip(offset as usize)
             .take(limit as usize)
             .map(|(item, _rank)| item)
             .collect();
 
+        // ── Page-level price fill ───────────────────────────────────
+        // Real for-sale ranges for just this page (see the scored-build
+        // comment above).
+        if !page.is_empty() {
+            let page_ranges = self
+                .price_ranges(page.iter().map(|t| t.trip_id).collect())
+                .await?;
+            for item in &mut page {
+                if let Some(&(min, max)) = page_ranges.get(&item.trip_id) {
+                    item.min_price = min;
+                    item.max_price = max;
+                }
+            }
+        }
+
         Ok(TripSearchResponse::paged(page, total, limit, offset))
     }
 
     /// Trip detail by id — full enriched TripDetail shape.
-    /// Cheapest and dearest seat for sale on each trip.
+    /// Cheapest and dearest seat for sale on each of these trips.
     async fn price_ranges(
         &self,
-        trips: &[trip_session::Model],
+        trip_ids: Vec<Uuid>,
     ) -> AppResult<HashMap<Uuid, (i64, i64)>> {
         self.store
             .trip_store()
-            .available_price_ranges(trips.iter().map(|t| t.id).collect())
+            .available_price_ranges(trip_ids)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))
     }
@@ -1745,21 +1651,33 @@ impl PublicService {
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
         // Self-healing homepage: when no upcoming trips exist at all,
-        // materialize the next 7 days from every schedule (idempotent)
-        // and re-query. Without this the carousel stays empty until
-        // somebody happens to run a search for a specific date.
+        // fill the next 7 days from every schedule — bounded by the
+        // inline budget, today first — and re-query. The background
+        // warmer (notified here for the full sell window) owns the bulk
+        // work; without it the carousel would still empty on a cold
+        // database until a search happened.
         if trips.is_empty() {
-            if let Ok(all_schedules) = self.store.schedule_store().list_all_schedules(1000).await {
-                for offset in 0..7 {
-                    if let Some(d) = chrono::NaiveDate::parse_from_str(&today, "%Y-%m-%d")
-                        .ok()
-                        .and_then(|t| t.checked_add_signed(chrono::Duration::days(offset)))
-                    {
-                        let date = d.format("%Y-%m-%d").to_string();
-                        let _ = self
-                            .ensure_trips_for_schedules_on_date(&all_schedules, &date)
-                            .await;
+            if let Ok(all_schedules) = self
+                .store
+                .schedule_store()
+                .list_all_schedules(trip_warmer::SCHEDULE_SCAN_LIMIT)
+                .await
+            {
+                let today_vn = trip_warmer::vn_today(chrono::Utc::now());
+                let deadline = Some(std::time::Instant::now() + trip_warmer::INLINE_FILL_BUDGET);
+                for date in trip_warmer::sell_window(&today_vn, 7) {
+                    let _ = self
+                        .warmer
+                        .try_fill(self.store.as_ref(), &all_schedules, &date, deadline)
+                        .await;
+                    if deadline.is_some_and(|dl| std::time::Instant::now() >= dl) {
+                        break;
                     }
+                }
+                for date in
+                    trip_warmer::sell_window(&today_vn, trip_warmer::SELL_WINDOW_DAYS)
+                {
+                    self.warmer.notify(&date);
                 }
             }
             trips = self
@@ -1771,7 +1689,9 @@ impl PublicService {
         }
 
         // Reuse search_trips serialization logic
-        let price_ranges = self.price_ranges(&trips).await?;
+        let price_ranges = self
+            .price_ranges(trips.iter().map(|t| t.id).collect())
+            .await?;
         let items: Vec<TripResult> = {
             let trip_sched_uuids: Vec<Uuid> = trips.iter().map(|t| t.schedule_id).collect();
             let sched_map: std::collections::HashMap<String, schedule::Model> = self
@@ -2046,92 +1966,6 @@ fn standard_child_price(schedule: &schedule::Model, policy: Option<ChildPolicy>)
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// Bare-minimum schedule model for `schedule_runs_on` tests — only
-    /// the effective-window + days-of-week fields matter.
-    fn sched(
-        effective_from: Option<&str>,
-        effective_to: Option<&str>,
-        days_of_week: Option<&str>,
-    ) -> schedule::Model {
-        schedule::Model {
-            id: Uuid::new_v4(),
-            route_id: Uuid::new_v4(),
-            departure_time: "08:00".into(),
-            effective_from: effective_from.map(String::from),
-            effective_to: effective_to.map(String::from),
-            days_of_week: days_of_week.map(String::from),
-            bus_layout_id: None,
-            base_price_adult: 100_000,
-            base_price_child: None,
-            amenities: None,
-            created_at: "2026-01-01T00:00:00Z".into(),
-            vehicle_type_id: None,
-        }
-    }
-
-    /// 2026-09-09 is a Wednesday (T4 — mask index 2).
-    fn d(s: &str) -> chrono::NaiveDate {
-        chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").unwrap()
-    }
-
-    #[test]
-    fn schedule_runs_on_daily_when_mask_missing() {
-        // No mask, no window → runs EVERY day.
-        let s = sched(None, None, None);
-        assert!(PublicService::schedule_runs_on(&s, d("2026-09-09")));
-        assert!(PublicService::schedule_runs_on(&s, d("2026-01-01")));
-    }
-
-    #[test]
-    fn schedule_runs_on_respects_monday_first_mask() {
-        // '1111111' — every day.
-        let s = sched(None, None, Some("1111111"));
-        assert!(PublicService::schedule_runs_on(&s, d("2026-09-09"))); // Wed
-                                                                       // '1000000' — Monday only. 2026-09-07 is a Monday.
-        let s = sched(None, None, Some("1000000"));
-        assert!(PublicService::schedule_runs_on(&s, d("2026-09-07"))); // Mon
-        assert!(!PublicService::schedule_runs_on(&s, d("2026-09-09"))); // Wed
-                                                                        // '0000001' — Sunday only. 2026-09-13 is a Sunday.
-        let s = sched(None, None, Some("0000001"));
-        assert!(PublicService::schedule_runs_on(&s, d("2026-09-13"))); // Sun
-        assert!(!PublicService::schedule_runs_on(&s, d("2026-09-12"))); // Sat
-                                                                        // '0100000' — Tuesday only. 2026-09-08 is a Tuesday.
-        let s = sched(None, None, Some("0100000"));
-        assert!(PublicService::schedule_runs_on(&s, d("2026-09-08"))); // Tue
-    }
-
-    #[test]
-    fn schedule_runs_on_bounds_effective_window() {
-        // Window [2026-09-01, 2026-09-10].
-        let s = sched(Some("2026-09-01"), Some("2026-09-10"), None);
-        assert!(PublicService::schedule_runs_on(&s, d("2026-09-01"))); // inclusive start
-        assert!(PublicService::schedule_runs_on(&s, d("2026-09-10"))); // inclusive end
-        assert!(!PublicService::schedule_runs_on(&s, d("2026-08-31"))); // before
-        assert!(!PublicService::schedule_runs_on(&s, d("2026-09-11"))); // after
-    }
-
-    #[test]
-    fn schedule_runs_on_open_ended_windows() {
-        // From-only window.
-        let s = sched(Some("2026-09-01"), None, None);
-        assert!(!PublicService::schedule_runs_on(&s, d("2026-08-31")));
-        assert!(PublicService::schedule_runs_on(&s, d("2026-12-31")));
-        // To-only window.
-        let s = sched(None, Some("2026-09-10"), None);
-        assert!(PublicService::schedule_runs_on(&s, d("2026-01-01")));
-        assert!(!PublicService::schedule_runs_on(&s, d("2026-09-11")));
-    }
-
-    #[test]
-    fn schedule_runs_on_ignores_malformed_mask() {
-        // Malformed masks (wrong length / bad chars) degrade to daily
-        // instead of silently blacking out the schedule.
-        let s = sched(None, None, Some("1111"));
-        assert!(PublicService::schedule_runs_on(&s, d("2026-09-09")));
-        let s = sched(None, None, Some("12x4567"));
-        assert!(PublicService::schedule_runs_on(&s, d("2026-09-09")));
-    }
 
     #[test]
     fn parse_amenities_handles_json_array() {

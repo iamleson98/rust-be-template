@@ -34,6 +34,7 @@ static ENGINE_LINK: fn() -> &'static str = sqlite3::engine_version;
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
+use std::sync::Arc;
 use tower::ServiceExt;
 
 /// Helper: build a minimal AppState with a SQLite in-memory DB.
@@ -1406,5 +1407,661 @@ async fn geo_search_ranks_by_proximity_and_paginates() -> anyhow::Result<()> {
     assert_eq!(page2.has_more, Some(false));
     assert_eq!(page2.items[0].route_name, "Far Route");
 
+    Ok(())
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  Trip materialization — the 2026-10-11 search outage regressions.
+//
+//  Every search used to materialize missing trips inline, one schedule
+//  at a time behind a global mutex; after a DB reset the backfill of
+//  ~900 trips ran ~4.5 minutes while requests timed out and retried,
+//  so search hung in BOTH city and geo modes. The batched materializer
+//  + background warmer (service/trip_warmer.rs) must keep the request
+//  path cheap — these tests pin that contract.
+// ══════════════════════════════════════════════════════════════════
+
+/// Migrated in-memory DB + CompositeStore over the plain Db* stores —
+/// direct store access for the warmer fns without the full service
+/// graph (same shape as tests/loyalty.rs's harness).
+async fn migrated_store() -> anyhow::Result<Arc<backend::store::CompositeStore>> {
+    use backend::store::{
+        DbAddressStore, DbAuditStore, DbBookingStore, DbBrandStore, DbChatStore,
+        DbNotificationStore, DbPaymentStore, DbPlaceStore, DbPostStore, DbPriceAlertStore,
+        DbRbacStore, DbRefreshTokenStore, DbReviewStore, DbRouteStore, DbScheduleStore,
+        DbStaffPresenceStore, DbTripStore, DbUserStore, DbVehicleTypeStore,
+    };
+    use std::sync::Once;
+    static INIT: Once = Once::new();
+    INIT.call_once(|| {
+        let _ = dotenvy::dotenv();
+        std::env::set_var("DATABASE_URL", "sqlite::memory:");
+    });
+
+    let mut opts = sea_orm::ConnectOptions::new("sqlite::memory:");
+    opts.max_connections(1);
+    let db: Arc<sea_orm::DatabaseConnection> = Arc::new(sea_orm::Database::connect(opts).await?);
+    migrator::Migrator::up(db.as_ref(), None).await?;
+
+    Ok(Arc::new(backend::store::CompositeStore::new(
+        db.clone(),
+        Arc::new(DbUserStore::new(db.clone())),
+        Arc::new(DbPostStore::new(db.clone())),
+        Arc::new(DbRbacStore::new(db.clone())),
+        Arc::new(DbRefreshTokenStore::new(db.clone())),
+        Arc::new(DbBrandStore::new(db.clone())),
+        Arc::new(DbChatStore::new(db.clone())),
+        Arc::new(DbBookingStore::new(db.clone())),
+        Arc::new(DbReviewStore::new(db.clone())),
+        Arc::new(DbRouteStore::new(db.clone())),
+        Arc::new(DbStaffPresenceStore::new(db.clone())),
+        Arc::new(DbScheduleStore::new(db.clone())),
+        Arc::new(DbTripStore::new(db.clone())),
+        Arc::new(DbPlaceStore::new(db.clone())),
+        Arc::new(DbPriceAlertStore::new(db.clone())),
+        Arc::new(DbAuditStore::new(db.clone())),
+        Arc::new(DbNotificationStore::new(db.clone())),
+        Arc::new(DbPaymentStore::new(db.clone())),
+        Arc::new(DbAddressStore::new(db.clone())),
+        Arc::new(DbVehicleTypeStore::new(db.clone())),
+    )))
+}
+
+/// Seed one route + N daily schedules through the admin service graph
+/// — the data shape the outage was about (one popular pair, many
+/// departures).
+async fn seed_many_schedules(
+    st: &backend::state::AppState,
+    route_name: &str,
+    n: usize,
+) -> anyhow::Result<String> {
+    let vt = st
+        .admin
+        .list_vehicle_types(Some("limousine"), Some(1), 0)
+        .await?;
+    let vt_id = vt
+        .items
+        .first()
+        .map(|v| v.id)
+        .ok_or_else(|| anyhow::anyhow!("seeded vehicle types missing"))?;
+
+    let route = st
+        .admin
+        .create_route(&backend::dto::admin::UpsertRouteRequest {
+            name: Some(route_name.into()),
+            brand_id: None,
+            start_location_id: Some("ha-noi".into()),
+            end_location_id: Some("da-nang".into()),
+            status: None,
+        })
+        .await?;
+
+    let date = travel_date();
+    for i in 0..n {
+        st.admin
+            .create_schedule(&backend::dto::admin::UpsertScheduleRequest {
+                route_id: Some(route.id),
+                departure_time: Some(format!("{:02}:{:02}", 5 + i / 12, (i % 12) * 5)),
+                effective_from: None,
+                effective_to: None,
+                days_of_week: Some("1111111".into()),
+                bus_layout_id: None,
+                vehicle_type_id: Some(vt_id),
+                base_price_adult: Some(350_000),
+                base_price_child: None,
+                class_fares: None,
+                amenities: None,
+                points: None,
+            })
+            .await?;
+    }
+    Ok(date)
+}
+
+/// The outage, verbatim: a search over a route with MANY schedules must
+/// complete in seconds (the old per-schedule fill loop took minutes at
+/// this scale and hung every request behind the mutex) and must return
+/// every trip exactly once.
+#[tokio::test]
+async fn search_backfills_a_large_schedule_set_quickly() -> anyhow::Result<()> {
+    let st = boot_state().await?;
+    let date = seed_many_schedules(&st, "Hà Nội - Đà Nẵng", 120).await?;
+
+    let res = tokio::time::timeout(
+        std::time::Duration::from_secs(30),
+        st.public
+            .search_trips("hà nội", "đà nẵng", &date, 100, 0, vec![], "departure", 1, None),
+    )
+    .await??;
+    assert_eq!(res.total, Some(120), "every schedule becomes exactly one trip");
+    assert_eq!(res.items.len(), 100, "limit is honored");
+    assert_eq!(res.has_more, Some(true));
+
+    // Second page (the server clamps limit to 100).
+    let res2 = tokio::time::timeout(
+        std::time::Duration::from_secs(30),
+        st.public
+            .search_trips("hà nội", "đà nẵng", &date, 100, 100, vec![], "departure", 1, None),
+    )
+    .await??;
+    assert_eq!(res2.items.len(), 20, "the tail page completes the set");
+    assert_eq!(res2.has_more, Some(false));
+
+    // Idempotency + uniqueness on the repeat (no duplicates even though
+    // the search re-runs its gap detection).
+    let mut ids: Vec<_> = res
+        .items
+        .iter()
+        .chain(res2.items.iter())
+        .map(|t| t.trip_id)
+        .collect();
+    ids.sort();
+    ids.dedup();
+    assert_eq!(ids.len(), 120, "trip ids are unique (schedule×date uniq)");
+    Ok(())
+}
+
+/// The exact mechanism that turned the outage into a permanent hang: a
+/// search may NOT queue behind the fill lock. While the warmer holds it,
+/// `try_fill` skips (returning 0 — no writes) and the search serves the
+/// rows that already exist, promptly.
+#[tokio::test]
+async fn search_serves_existing_rows_while_the_warmer_holds_the_lock() -> anyhow::Result<()> {
+    use backend::entity::{route, schedule, vehicle_type};
+    use backend::service::trip_warmer::Warmer;
+    use backend::service::PublicService;
+    use sea_orm::Set;
+
+    let store = migrated_store().await?;
+    let now = "2026-01-01T00:00:00Z".to_string();
+    let date = (chrono::Utc::now() + chrono::Duration::days(2))
+        .format("%Y-%m-%d")
+        .to_string();
+
+    // Route + 5 layout-less schedules with vehicle-type capacity.
+    let vt_id = uuid::Uuid::new_v4();
+    store
+        .vehicle_type_store()
+        .insert_vehicle_type(vehicle_type::ActiveModel {
+            id: Set(vt_id),
+            code: Set("lock-test".into()),
+            label: Set("Lock Test".into()),
+            description: Set(None),
+            total_seats: Set(Some(11)),
+            sort_order: Set(0),
+            status: Set("active".into()),
+            created_at: Set(now.clone()),
+            updated_at: Set(now.clone()),
+        })
+        .await?;
+    let route_id = uuid::Uuid::new_v4();
+    store
+        .route_store()
+        .insert_route(route::ActiveModel {
+            id: Set(route_id),
+            brand_id: Set(None),
+            name: Set("Hà Nội - Đà Nẵng".into()),
+            start_location_id: Set("ha-noi".into()),
+            end_location_id: Set("da-nang".into()),
+            status: Set("active".into()),
+            created_at: Set(now.clone()),
+            updated_at: Set(now.clone()),
+        })
+        .await?;
+    for i in 0..5 {
+        store
+            .schedule_store()
+            .insert_schedule(schedule::ActiveModel {
+                id: Set(uuid::Uuid::new_v4()),
+                route_id: Set(route_id),
+                departure_time: Set(format!("0{i}:00")),
+                effective_from: Set(None),
+                effective_to: Set(None),
+                days_of_week: Set(Some("1111111".into())),
+                bus_layout_id: Set(None),
+                base_price_adult: Set(350_000),
+                base_price_child: Set(None),
+                amenities: Set(None),
+                created_at: Set(now.clone()),
+                vehicle_type_id: Set(Some(vt_id)),
+            })
+            .await?;
+    }
+
+    // A service whose warmer lock we control. The guard is OWNED (no
+    // borrow of the warmer), so the warmer can still move into the
+    // service while the lock is held.
+    let warmer = Warmer::detached();
+    let _guard = warmer.acquire_fill_lock().await;
+    let public = PublicService::with_warmer(store.clone(), warmer);
+
+    // While the lock is held: the search must complete promptly, its
+    // inline fill skipped (lock busy), and it serves the rows that
+    // already exist — none yet, so an empty result, NOT a hang.
+    let blocked = tokio::time::timeout(
+        std::time::Duration::from_secs(10),
+        public.search_trips("hà nội", "đà nẵng", &date, 20, 0, vec![], "departure", 1, None),
+    )
+    .await??;
+    assert_eq!(
+        blocked.items.len(),
+        0,
+        "lock held: fill skipped, existing rows served"
+    );
+
+    // Release the lock — a second search fills the date inline.
+    drop(_guard);
+    let filled = tokio::time::timeout(
+        std::time::Duration::from_secs(10),
+        public.search_trips("hà nội", "đà nẵng", &date, 20, 0, vec![], "departure", 1, None),
+    )
+    .await??;
+    assert_eq!(filled.items.len(), 5, "lock released: fill succeeds");
+    Ok(())
+}
+
+/// "Runtime in the future" contract: a search for TODAY must not sell
+/// departures that have already left, while a search for tomorrow sells
+/// the whole day (`on_sale` enforces this; the materializer creates
+/// date-granular rows).
+#[tokio::test]
+async fn search_today_excludes_already_departed_trips() -> anyhow::Result<()> {
+    let st = boot_state().await?;
+    let vt = st
+        .admin
+        .list_vehicle_types(Some("limousine"), Some(1), 0)
+        .await?;
+    let vt_id = vt
+        .items
+        .first()
+        .map(|v| v.id)
+        .ok_or_else(|| anyhow::anyhow!("seeded vehicle types missing"))?;
+
+    let route = st
+        .admin
+        .create_route(&backend::dto::admin::UpsertRouteRequest {
+            name: Some("Hà Nội - Đà Nẵng".into()),
+            brand_id: None,
+            start_location_id: Some("ha-noi".into()),
+            end_location_id: Some("da-nang".into()),
+            status: None,
+        })
+        .await?;
+    for time in ["00:05", "23:55"] {
+        st.admin
+            .create_schedule(&backend::dto::admin::UpsertScheduleRequest {
+                route_id: Some(route.id),
+                departure_time: Some(time.into()),
+                effective_from: None,
+                effective_to: None,
+                days_of_week: Some("1111111".into()),
+                bus_layout_id: None,
+                vehicle_type_id: Some(vt_id),
+                base_price_adult: Some(350_000),
+                base_price_child: None,
+                class_fares: None,
+                amenities: None,
+                points: None,
+            })
+            .await?;
+    }
+
+    let today = backend::service::trip_warmer::vn_today(chrono::Utc::now());
+    // Minutes since VN midnight — guards the two edge windows where the
+    // "00:05" or "23:55" departure hasn't (yet) unambiguously departed.
+    let vn_minutes = ((chrono::Utc::now().timestamp() + 7 * 3600) % 86_400) / 60;
+
+    let res = st
+        .public
+        .search_trips("hà nội", "đà nẵng", &today, 20, 0, vec![], "departure", 1, None)
+        .await?;
+    let times: Vec<String> = res
+        .items
+        .iter()
+        .map(|t| t.departure_time.clone().unwrap_or_default())
+        .collect();
+    if vn_minutes >= 3 {
+        assert!(
+            !times.contains(&"00:05".to_string()),
+            "a departure before 'now' must not be sold"
+        );
+    }
+    if vn_minutes <= 23 * 60 + 50 {
+        assert!(
+            times.contains(&"23:55".to_string()),
+            "a future departure today must be sold"
+        );
+    }
+
+    // Tomorrow: the whole day is in the future — both departures sell.
+    let tomorrow = (chrono::Utc::now() + chrono::Duration::seconds(7 * 3600)
+        + chrono::Duration::days(1))
+        .format("%Y-%m-%d")
+        .to_string();
+    let res2 = st
+        .public
+        .search_trips("hà nội", "đà nẵng", &tomorrow, 20, 0, vec![], "departure", 1, None)
+        .await?;
+    let times2: Vec<String> = res2
+        .items
+        .iter()
+        .map(|t| t.departure_time.clone().unwrap_or_default())
+        .collect();
+    assert!(times2.contains(&"00:05".to_string()));
+    assert!(times2.contains(&"23:55".to_string()));
+    Ok(())
+}
+
+/// materialize_missing: idempotent across repeats, strictly bounded by
+/// its deadline, and a no-op for past dates.
+#[tokio::test]
+async fn warmer_materialize_is_idempotent_and_bounded() -> anyhow::Result<()> {
+    use backend::entity::{schedule, vehicle_type};
+    use backend::service::trip_warmer;
+    use sea_orm::Set;
+
+    let store = migrated_store().await?;
+    let now = "2026-01-01T00:00:00Z".to_string();
+
+    // A vehicle type for layout-less capacity.
+    let vt_id = uuid::Uuid::new_v4();
+    store
+        .vehicle_type_store()
+        .insert_vehicle_type(vehicle_type::ActiveModel {
+            id: Set(vt_id),
+            code: Set("warmer-test".into()),
+            label: Set("Warmer Test".into()),
+            description: Set(None),
+            total_seats: Set(Some(11)),
+            sort_order: Set(0),
+            status: Set("active".into()),
+            created_at: Set(now.clone()),
+            updated_at: Set(now.clone()),
+        })
+        .await?;
+
+    let route_id = uuid::Uuid::new_v4();
+    store
+        .route_store()
+        .insert_route(backend::entity::route::ActiveModel {
+            id: Set(route_id),
+            brand_id: Set(None),
+            name: Set("Hà Nội - Đà Nẵng".into()),
+            start_location_id: Set("ha-noi".into()),
+            end_location_id: Set("da-nang".into()),
+            status: Set("active".into()),
+            created_at: Set(now.clone()),
+            updated_at: Set(now.clone()),
+        })
+        .await?;
+
+    let mut schedules = Vec::new();
+    for i in 0..3 {
+        let s = schedule::ActiveModel {
+            id: Set(uuid::Uuid::new_v4()),
+            route_id: Set(route_id),
+            departure_time: Set(format!("0{i}:00")),
+            effective_from: Set(None),
+            effective_to: Set(None),
+            days_of_week: Set(Some("1111111".into())),
+            bus_layout_id: Set(None),
+            base_price_adult: Set(350_000),
+            base_price_child: Set(None),
+            amenities: Set(None),
+            created_at: Set(now.clone()),
+            vehicle_type_id: Set(Some(vt_id)),
+        };
+        store.schedule_store().insert_schedule(s.clone()).await?;
+        schedules.push(s);
+    }
+    let schedule_models: Vec<schedule::Model> = schedules
+        .into_iter()
+        .map(|m| m.try_into())
+        .collect::<Result<_, _>>()?;
+
+    let date = (chrono::Utc::now() + chrono::Duration::days(3))
+        .format("%Y-%m-%d")
+        .to_string();
+
+    // An already-expired budget fills nothing — the request still
+    // completes (partial progress is never forced).
+    let zero = trip_warmer::materialize_missing(
+        store.as_ref(),
+        &schedule_models,
+        &date,
+        Some(std::time::Instant::now() - std::time::Duration::from_secs(1)),
+    )
+    .await?;
+    assert_eq!(zero, 0, "an expired budget must fill nothing");
+
+    // Full fill.
+    let created = trip_warmer::materialize_missing(store.as_ref(), &schedule_models, &date, None)
+        .await?;
+    assert_eq!(created, 3);
+
+    // Idempotent: the repeat finds nothing missing.
+    let again = trip_warmer::materialize_missing(store.as_ref(), &schedule_models, &date, None)
+        .await?;
+    assert_eq!(again, 0, "second pass must create nothing");
+
+    // Past dates are never filled.
+    let yesterday = (chrono::Utc::now() - chrono::Duration::days(1))
+        .format("%Y-%m-%d")
+        .to_string();
+    let past = trip_warmer::materialize_missing(store.as_ref(), &schedule_models, &yesterday, None)
+        .await?;
+    assert_eq!(past, 0, "past dates are never filled");
+    Ok(())
+}
+
+/// The storm's OTHER scar: fills that died between the trip INSERT and
+/// the seat INSERT left trips that displayed fine but could not be
+/// booked. `repair_seat_inventories` must re-seed their seats — without
+/// duplicating anything.
+#[tokio::test]
+async fn warmer_repairs_trips_missing_seat_inventory() -> anyhow::Result<()> {
+    use backend::entity::{bus_layout, schedule, seat, trip_session};
+    use backend::service::trip_warmer;
+    use sea_orm::Set;
+
+    let store = migrated_store().await?;
+    let now = "2026-01-01T00:00:00Z".to_string();
+    let date = (chrono::Utc::now() + chrono::Duration::days(2))
+        .format("%Y-%m-%d")
+        .to_string();
+
+    // Route + layout + 4 seats.
+    let route_id = uuid::Uuid::new_v4();
+    store
+        .route_store()
+        .insert_route(backend::entity::route::ActiveModel {
+            id: Set(route_id),
+            brand_id: Set(None),
+            name: Set("Hà Nội - Đà Nẵng".into()),
+            start_location_id: Set("ha-noi".into()),
+            end_location_id: Set("da-nang".into()),
+            status: Set("active".into()),
+            created_at: Set(now.clone()),
+            updated_at: Set(now.clone()),
+        })
+        .await?;
+    let layout_id = uuid::Uuid::new_v4();
+    {
+        use sea_orm::EntityTrait;
+        bus_layout::Entity::insert(bus_layout::ActiveModel {
+            id: Set(layout_id),
+            brand_id: Set(None),
+            name: Set("Test layout".into()),
+            vehicle_type: Set(Some("sleeper".into())),
+            total_seats: Set(Some(4)),
+            layout_data: Set(None),
+            created_at: Set(now.clone()),
+            updated_at: Set(now.clone()),
+        })
+        .exec(store.db())
+        .await?;
+        for i in 0..4 {
+            seat::Entity::insert(seat::ActiveModel {
+                id: Set(uuid::Uuid::new_v4()),
+                bus_layout_id: Set(layout_id),
+                seat_label: Set(format!("A{i}")),
+                seat_class: Set(None),
+                row_num: Set(Some(i as i16)),
+                col_num: Set(Some(0)),
+                is_window: Set(false),
+                floor: Set(0),
+                created_at: Set(now.clone()),
+            })
+            .exec(store.db())
+            .await?;
+        }
+    }
+
+    // A schedule on that layout.
+    let sched_id = uuid::Uuid::new_v4();
+    let sched_model = schedule::ActiveModel {
+        id: Set(sched_id),
+        route_id: Set(route_id),
+        departure_time: Set("08:00".into()),
+        effective_from: Set(None),
+        effective_to: Set(None),
+        days_of_week: Set(Some("1111111".into())),
+        bus_layout_id: Set(Some(layout_id)),
+        base_price_adult: Set(350_000),
+        base_price_child: Set(None),
+        amenities: Set(None),
+        created_at: Set(now.clone()),
+        vehicle_type_id: Set(None),
+    };
+    store
+        .schedule_store()
+        .insert_schedule(sched_model.clone())
+        .await?;
+    let sched: schedule::Model = sched_model.try_into()?;
+
+    // THE STORM SCAR: a trip row with NO seat inventory.
+    let trip_id = uuid::Uuid::new_v4();
+    store
+        .trip_store()
+        .insert_trip_session(trip_session::ActiveModel {
+            id: Set(trip_id),
+            schedule_id: Set(sched_id),
+            departure_date: Set(date.clone()),
+            actual_departure_at: Set(None),
+            driver_name: Set(None),
+            driver_phone: Set(None),
+            status: Set("scheduled".into()),
+            total_seats: Set(4),
+            available_seats: Set(4),
+            created_at: Set(now.clone()),
+            updated_at: Set(now.clone()),
+        })
+        .await?;
+
+    // Repair: seats are re-seeded, exactly once per seat.
+    let healed = trip_warmer::repair_seat_inventories(
+        store.as_ref(),
+        std::slice::from_ref(&sched),
+        &date,
+    )
+    .await?;
+    assert_eq!(healed, 1, "the orphaned trip is healed");
+
+    let seats = store
+        .trip_store()
+        .list_seat_inventories_by_trip(&trip_id.to_string())
+        .await?;
+    assert_eq!(seats.len(), 4, "all four layout seats are re-seeded");
+    assert!(seats.iter().all(|s| s.status == "available"));
+
+    // Repair is idempotent — a second pass finds nothing broken and
+    // must not duplicate the seats it just wrote.
+    let healed2 = trip_warmer::repair_seat_inventories(
+        store.as_ref(),
+        std::slice::from_ref(&sched),
+        &date,
+    )
+    .await?;
+    assert_eq!(healed2, 0, "second repair pass is a no-op");
+    let seats2 = store
+        .trip_store()
+        .list_seat_inventories_by_trip(&trip_id.to_string())
+        .await?;
+    assert_eq!(seats2.len(), 4, "no duplicate seat rows");
+    Ok(())
+}
+
+/// The full sell-window pass: every date in the window gets exactly one
+/// trip per running schedule — the steady state searches rely on to be
+/// pure reads.
+#[tokio::test]
+async fn warmer_fills_the_whole_sell_window() -> anyhow::Result<()> {
+    use backend::entity::{schedule, vehicle_type};
+    use backend::service::trip_warmer;
+    use sea_orm::Set;
+
+    let store = migrated_store().await?;
+    let now = "2026-01-01T00:00:00Z".to_string();
+
+    let vt_id = uuid::Uuid::new_v4();
+    store
+        .vehicle_type_store()
+        .insert_vehicle_type(vehicle_type::ActiveModel {
+            id: Set(vt_id),
+            code: Set("warmer-window".into()),
+            label: Set("Warmer Window".into()),
+            description: Set(None),
+            total_seats: Set(Some(11)),
+            sort_order: Set(0),
+            status: Set("active".into()),
+            created_at: Set(now.clone()),
+            updated_at: Set(now.clone()),
+        })
+        .await?;
+
+    let route_id = uuid::Uuid::new_v4();
+    store
+        .route_store()
+        .insert_route(backend::entity::route::ActiveModel {
+            id: Set(route_id),
+            brand_id: Set(None),
+            name: Set("Hà Nội - Đà Nẵng".into()),
+            start_location_id: Set("ha-noi".into()),
+            end_location_id: Set("da-nang".into()),
+            status: Set("active".into()),
+            created_at: Set(now.clone()),
+            updated_at: Set(now.clone()),
+        })
+        .await?;
+
+    let sched = schedule::ActiveModel {
+        id: Set(uuid::Uuid::new_v4()),
+        route_id: Set(route_id),
+        departure_time: Set("08:00".into()),
+        effective_from: Set(None),
+        effective_to: Set(None),
+        days_of_week: Set(Some("1111111".into())),
+        bus_layout_id: Set(None),
+        base_price_adult: Set(350_000),
+        base_price_child: Set(None),
+        amenities: Set(None),
+        created_at: Set(now.clone()),
+        vehicle_type_id: Set(Some(vt_id)),
+    };
+    store
+        .schedule_store()
+        .insert_schedule(sched.clone())
+        .await?;
+    let sched: schedule::Model = sched.try_into()?;
+
+    let today = trip_warmer::vn_today(chrono::Utc::now());
+    let one = std::slice::from_ref(&sched);
+    for date in trip_warmer::sell_window(&today, trip_warmer::SELL_WINDOW_DAYS) {
+        let created = trip_warmer::materialize_missing(store.as_ref(), one, &date, None).await?;
+        assert_eq!(created, 1, "{date}: one trip for the running schedule");
+        // And the window pass is repeatable.
+        let repeat = trip_warmer::materialize_missing(store.as_ref(), one, &date, None).await?;
+        assert_eq!(repeat, 0, "{date}: no duplicates on the repeat");
+    }
     Ok(())
 }

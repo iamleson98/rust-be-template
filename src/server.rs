@@ -375,7 +375,20 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
     crate::service::booking_service::spawn_hold_sweeper(booking_service.clone());
     let loyalty_service = Arc::new(LoyaltyService::new(store.clone()));
     let campaign_service = Arc::new(CampaignService::new(store.clone(), cache.clone()));
-    let public_service = Arc::new(PublicService::new(store.clone()));
+    // Trip warmer — background materialization of the sell window so
+    // trip search reads rows that already exist instead of writing
+    // them on the request path (see service/trip_warmer.rs for the
+    // 2026-10-11 outage this prevents). Searches notify it through the
+    // channel when they observe gaps. Gated on the same background-
+    // subsystem switch as the job scheduler — the one-shot test harness
+    // runs with SCHEDULER_ENABLED=false and exercises the inline fill
+    // through a detached warmer instead.
+    let warmer = if config.scheduler.enabled {
+        crate::service::trip_warmer::spawn(store.clone())
+    } else {
+        crate::service::trip_warmer::Warmer::detached()
+    };
+    let public_service = Arc::new(PublicService::with_warmer(store.clone(), warmer));
     let routing_service = Arc::new(RoutingService::new(&config));
     let place_service = Arc::new(PlaceService::with_searcher(store.clone(), place_searcher));
     let price_alert_service = Arc::new(PriceAlertService::new(store.clone()));
