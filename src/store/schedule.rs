@@ -312,10 +312,7 @@ impl ScheduleStore for DbScheduleStore {
         Ok(bus_layout::Entity::find().all(self.db.as_ref()).await?)
     }
 
-    async fn list_bus_layouts_by_ids(
-        &self,
-        ids: Vec<Uuid>,
-    ) -> StoreResult<Vec<bus_layout::Model>> {
+    async fn list_bus_layouts_by_ids(&self, ids: Vec<Uuid>) -> StoreResult<Vec<bus_layout::Model>> {
         if ids.is_empty() {
             return Ok(Vec::new());
         }
