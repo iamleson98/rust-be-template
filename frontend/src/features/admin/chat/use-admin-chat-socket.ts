@@ -89,7 +89,9 @@ export function useAdminChatSocket(
         case 'channel_assigned':
         case 'channel_released':
         case 'channel_closed':
-          void invalidateResources(queryClient, 'chat')
+          // Which channels are open, and whose, changed: the online snapshot too.
+          // (Messages leave it alone — the queue's fresher copy wins, see onlineFirst.)
+          void invalidateResources(queryClient, 'chat', 'chatPresence')
           break
         case 'staff_presence':
           if (Array.isArray(event.staff)) {

@@ -49,6 +49,9 @@ const newestFirst = (a: ChatChannelOut, b: ChatChannelOut) => activity(b) - acti
  * customers' channels, which may not be loaded yet), online customers first,
  * each group most recent activity first. `onlineCount` is where the online
  * group ends.
+ *
+ * A loaded channel keeps the pages' copy: those refetch on every message,
+ * while the online snapshot is only refreshed when channels change.
  */
 export function onlineFirst(
   pages: readonly ChatChannelOut[],
@@ -56,7 +59,7 @@ export function onlineFirst(
   online: ReadonlySet<string>,
 ) {
   const byId = new Map(pages.map((c) => [c.id, c]))
-  for (const c of onlineChannels) byId.set(c.id, c)
+  for (const c of onlineChannels) if (!byId.has(c.id)) byId.set(c.id, c)
   const all = [...byId.values()]
   const first = all.filter((c) => online.has(c.userId)).sort(newestFirst)
   const rest = all.filter((c) => !online.has(c.userId)).sort(newestFirst)

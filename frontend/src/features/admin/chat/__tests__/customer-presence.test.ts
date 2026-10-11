@@ -54,12 +54,13 @@ describe('onlineFirst', () => {
     ]
     const onlineOnly = [
       ch('9', 'u9', '2026-10-01T00:00:00Z'),
-      ch('3', 'u3', '2026-10-10T07:30:00Z'),
+      ch('3', 'u3', '2026-10-10T06:30:00Z'),
     ]
     const { channels, onlineCount } = onlineFirst(pages, onlineOnly, new Set(['u3', 'u9']))
     expect(channels.map((c) => c.id)).toEqual(['3', '9', '1', '2'])
     expect(onlineCount).toBe(2)
-    expect(channels[0].lastMessageAt).toBe('2026-10-10T07:30:00Z') // the fresher copy
+    // The loaded copy (refetched on every message), not the snapshot's.
+    expect(channels[0].lastMessageAt).toBe('2026-10-10T07:00:00Z')
   })
 
   it('keeps a channel that went offline, among the rest', () => {

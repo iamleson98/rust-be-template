@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ChatEvent } from '@/features/chat/events'
 import { useSession } from '@/stores/session'
+import { onlineChannelsQueryKey } from '@/api'
 import { useAdminChatSocket } from '../use-admin-chat-socket'
 
 const mocks = vi.hoisted(() => ({
@@ -138,6 +139,19 @@ describe('useAdminChatSocket', () => {
     fire({ type: 'customer_presence', userId: 'c', online: true, seq: 4, channelIds: ['new'] })
     await vi.waitFor(() => expect(mocks.online).toHaveBeenCalledTimes(2))
     await vi.waitFor(() => expect([...result.current.onlineUserIds]).toEqual(['b', 'c']))
+  })
+
+  it('leaves the online list alone on messages, refreshes it when channels change', async () => {
+    setup()
+    await vi.waitFor(() => expect(mocks.online).toHaveBeenCalledTimes(1))
+
+    fire({ type: 'message', channelId: 'c1', senderType: 'user' } as ChatEvent)
+    fire({ type: 'channel_message', channelId: 'c1' } as ChatEvent)
+    // The queue refreshes; the costly online snapshot is not even marked stale.
+    expect(queryClient.getQueryState(onlineChannelsQueryKey())?.isInvalidated).toBe(false)
+
+    fire({ type: 'channel_closed', channelId: 'c1' } as ChatEvent)
+    expect(queryClient.getQueryState(onlineChannelsQueryKey())?.isInvalidated).toBe(true)
   })
 
   it('keeps the latest staff presence snapshot, defaulting what the hub omits', () => {

@@ -2206,7 +2206,7 @@ export const createChannelMutation = (options?: Partial<Options<CreateChannelDat
     return mutationOptions;
 };
 
-export const onlineChannelsQueryKey = (options?: Options<OnlineChannelsData>) => createQueryKey('onlineChannels', options, false, ['chat']);
+export const onlineChannelsQueryKey = (options?: Options<OnlineChannelsData>) => createQueryKey('onlineChannels', options, false, ['chatPresence']);
 
 /**
  * `GET /api/chat/channels/online` — who is online, for the staff channel
