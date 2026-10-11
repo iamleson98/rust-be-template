@@ -38,6 +38,14 @@ services:
 
       # ── Database (rust-sql engine file on the data volume) ──────
       - DATABASE_URL=${DATABASE_URL:-sqlite:/app/data/app.db?mode=rwc}
+      # Shared engine page cache (KiB). The production DB crossed
+      # ~650 MB during the 2026-10-11 sell-window backfill against the
+      # 64 MiB default — index maintenance thrashed and 64-row inserts
+      # degraded from ~100 ms to seconds, starving the request path
+      # behind the engine's single write lock. 512 MiB keeps the hot
+      # B-tree pages resident (host has ~11.6 GiB; backend RSS stays
+      # well under 1 GiB).
+      - DATABASE_CACHE_KIB=${DATABASE_CACHE_KIB:-524288}
 
       # ── JWT (generated on first run, see deploy.sh) ────────────
       - JWT_SECRET=${JWT_SECRET:?JWT_SECRET is required in .env}
