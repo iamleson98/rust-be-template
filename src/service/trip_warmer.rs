@@ -73,7 +73,22 @@ pub const INLINE_FILL_BUDGET: Duration = Duration::from_secs(2);
 
 /// Pause between dates during a window pass so the single-writer
 /// engine stays available to live traffic.
-const WARM_DATE_YIELD: Duration = Duration::from_millis(50);
+const WARM_DATE_YIELD: Duration = Duration::from_millis(150);
+
+/// Pause after every insert batch during fills. The first production
+/// pass ran its hundreds-of-statements-per-date loops back-to-back and
+/// starved the connection pool for live traffic (worker/presence job
+/// claims hit pool timeouts, reads slowed to seconds). A few ms of
+/// yield per 64-row statement keeps the pool and the single-writer
+/// engine available to requests; the fill rate ceiling it implies
+/// (~12k seat rows/s before engine costs) is still far beyond what the
+/// engine can actually sustain, so the window pass loses nothing.
+const WARM_STATEMENT_YIELD: Duration = Duration::from_millis(5);
+
+/// Rows per paced insert batch in the fill loops. Must not exceed the
+/// store batch methods' internal chunk size semantics (64 × 11 columns
+/// = 704 bound parameters).
+const FILL_CHUNK: usize = 64;
 
 /// Vietnam is UTC+7 with no daylight-saving time — a fixed offset is
 /// exact year-round.
@@ -312,20 +327,41 @@ pub async fn materialize_missing(
         }
     }
 
-    let created = trip_models.len();
-    if created == 0 {
+    if trip_models.is_empty() {
         return Ok(0);
     }
-    store
-        .trip_store()
-        .insert_trip_sessions_batch(trip_models)
-        .await
-        .map_err(|e| AppError::Internal(e.to_string()))?;
-    store
-        .trip_store()
-        .insert_seat_inventories_batch(seat_models)
-        .await
-        .map_err(|e| AppError::Internal(e.to_string()))?;
+    // Paced chunked inserts: each batch is a single multi-row statement
+    // (one fsync under fullfsync), and the yield between batches keeps
+    // the pool + single-writer engine available to live traffic.
+    //
+    // The deadline bounds the INSERT phase too, not just the build: an
+    // inline fill must never run past its budget on a loaded engine.
+    // Stopping mid-way can leave freshly-inserted trips without their
+    // seat rows — the warmer's repair pass re-seeds exactly that case.
+    let mut created = 0usize;
+    for chunk in trip_models.chunks(FILL_CHUNK) {
+        if deadline.is_some_and(|dl| Instant::now() >= dl) {
+            break;
+        }
+        store
+            .trip_store()
+            .insert_trip_sessions_batch(chunk.to_vec())
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        created += chunk.len();
+        tokio::time::sleep(WARM_STATEMENT_YIELD).await;
+    }
+    for chunk in seat_models.chunks(FILL_CHUNK) {
+        if deadline.is_some_and(|dl| Instant::now() >= dl) {
+            break;
+        }
+        store
+            .trip_store()
+            .insert_seat_inventories_batch(chunk.to_vec())
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        tokio::time::sleep(WARM_STATEMENT_YIELD).await;
+    }
     tracing::info!(created, %date, "materialized trip sessions (batched)");
     Ok(created)
 }
@@ -429,11 +465,17 @@ pub async fn repair_seat_inventories(
         }
     }
     let healed = broken.len();
-    store
-        .trip_store()
-        .insert_seat_inventories_batch(inv)
-        .await
-        .map_err(|e| AppError::Internal(e.to_string()))?;
+    // Paced chunked inserts (same rationale as `materialize_missing`):
+    // storm residue can mean a million seat rows — never let that
+    // monopolize the pool.
+    for chunk in inv.chunks(FILL_CHUNK) {
+        store
+            .trip_store()
+            .insert_seat_inventories_batch(chunk.to_vec())
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        tokio::time::sleep(WARM_STATEMENT_YIELD).await;
+    }
     tracing::info!(healed, %date, "repaired seat inventories on orphaned trips");
     Ok(healed)
 }
