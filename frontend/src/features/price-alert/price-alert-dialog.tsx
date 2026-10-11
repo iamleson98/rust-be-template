@@ -163,7 +163,7 @@ export function PriceAlertDialog() {
 
   return (
     <Dialog open={priceAlertOpen} onOpenChange={(o) => !o && closePriceAlert()}>
-      <DialogContent className="max-w-lg w-[95vw] max-h-[92dvh] overflow-y-auto">
+      <DialogContent className="max-w-lg">
         <DialogHeader icon={<Bell />}>
           <DialogTitle>{t('priceAlert.dialogTitle')}</DialogTitle>
           <DialogDescription>{t('priceAlert.dialogDesc')}</DialogDescription>

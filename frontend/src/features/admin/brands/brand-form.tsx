@@ -176,7 +176,7 @@ export function BrandFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !saving && onOpenChange(o)}>
-      <DialogContent className="max-w-xl max-h-[92dvh] overflow-y-auto">
+      <DialogContent className="max-w-xl">
         <DialogHeader icon={<Building2 />}>
           <DialogTitle>
             {isEdit ? t('brandForm.editTitle') : t('brandForm.createTitle')}

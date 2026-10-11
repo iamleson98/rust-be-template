@@ -88,7 +88,8 @@ function Column({
   onPick: (item: string) => void
 }) {
   const listRef = useRef<HTMLDivElement>(null)
-  // Open on the chosen value, not at 00 (scrolls the column only, never the page).
+  // Open on the chosen value, not at 00 (scrolls the column only, never the page;
+  // the list is `relative`, so offsetTop is measured from it).
   useEffect(() => {
     const list = listRef.current
     const el = list?.querySelector<HTMLElement>('[aria-selected="true"]')
@@ -102,7 +103,7 @@ function Column({
         ref={listRef}
         role="listbox"
         aria-label={label}
-        className="flex-1 space-y-0.5 overflow-y-auto overscroll-contain px-1 scrollbar-none"
+        className="relative flex-1 space-y-0.5 overflow-y-auto overscroll-contain px-1 scrollbar-none"
       >
         {items.map((item) => {
           const active = item === selected
@@ -177,11 +178,12 @@ export function TimePicker({
       className={cn(
         'h-9 w-full justify-start font-normal tabular-nums',
         !time && 'text-muted-foreground',
+        clearable && time && 'pr-8',
         triggerClassName,
       )}
     >
       <Clock className="h-4 w-4 shrink-0 opacity-70" />
-      {time || label}
+      <span className="truncate">{time || label}</span>
     </Button>
   )
 
@@ -198,7 +200,8 @@ export function TimePicker({
   )
 
   return (
-    <div className={cn('flex items-center gap-1.5', className)}>
+    // The clear button sits inside the field, so the picker is never wider than its column.
+    <div className={cn('relative min-w-0', className)}>
       {isMobile ? (
         <>
           {trigger}
@@ -226,7 +229,7 @@ export function TimePicker({
           type="button"
           aria-label={t('ui.clearTime')}
           onClick={() => onChange(null)}
-          className="flex size-8 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
+          className="absolute top-1/2 right-1 grid size-7 -translate-y-1/2 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
         >
           <X className="h-3.5 w-3.5" />
         </button>

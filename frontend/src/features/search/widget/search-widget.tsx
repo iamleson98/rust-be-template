@@ -65,6 +65,7 @@ export function SearchWidget({ compact = false }: { compact?: boolean }) {
       cur.from !== searchParams.from ||
       cur.to !== searchParams.to ||
       cur.date !== searchParams.date ||
+      cur.time !== searchParams.time ||
       cur.returnDate !== searchParams.returnDate ||
       cur.adults !== searchParams.adults ||
       cur.children !== searchParams.children ||
@@ -112,6 +113,7 @@ export function SearchWidget({ compact = false }: { compact?: boolean }) {
         from: values.from,
         to: values.to,
         date: values.date,
+        time: values.time,
         adults: values.adults,
         children: values.children,
         sort: values.sort,
@@ -133,6 +135,7 @@ export function SearchWidget({ compact = false }: { compact?: boolean }) {
             from: values.from,
             to: values.to,
             date: values.date,
+            time: values.time,
             adults: values.adults,
             children: values.children,
             sort: values.sort,
@@ -189,71 +192,47 @@ export function SearchWidget({ compact = false }: { compact?: boolean }) {
       className={cn(
         'relative z-50 bg-white',
         compact
-          ? 'rounded-2xl border border-slate-200 p-2.5 md:p-3'
+          ? 'rounded-2xl border border-slate-200 p-3'
           : 'rounded-3xl p-4 shadow-float ring-1 ring-slate-900/5 sm:p-5 md:p-6',
       )}
     >
       <Form {...form}>
         <form onSubmit={onSubmit} className="contents" noValidate aria-label={t('search.title')}>
           {compact ? (
-            /* ── Compact bar (results page, ≥ md): one dense row.
-                Vehicle-type pills are intentionally omitted here — they
-                remain fully available in the results-page filter sidebar /
-                mobile filter sheet, so no functionality is lost. Every
-                field reserves a fixed-height message slot so a validation
-                error on ONE field never staggers the row alignment. ── */
-            <>
-              <div
-                className={cn(
-                  'grid grid-cols-1 gap-2 md:gap-2.5 md:items-end',
-                  searchParams.roundTrip
-                    ? 'lg:grid-cols-[minmax(0,1.1fr)_auto_minmax(0,1.1fr)_minmax(0,0.75fr)_minmax(0,0.75fr)_minmax(0,0.75fr)_auto]'
-                    : 'lg:grid-cols-[minmax(0,1.15fr)_auto_minmax(0,1.15fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_auto]',
-                )}
+            /* ── Compact bar (results page, ≥ lg): one row. Every field has
+                the same label and 44px control (see field-style.ts), so
+                `items-end` lines them all up — the swap and search buttons
+                too. Vehicle types stay in the results filters. ── */
+            <div className="grid grid-cols-1 gap-2.5 lg:grid-cols-[minmax(0,1.25fr)_auto_minmax(0,1.25fr)_minmax(0,1.15fr)_minmax(0,1fr)_minmax(0,0.65fr)_auto] lg:items-end">
+              <SearchRouteFields form={form} swap={swap} />
+              <SearchDateFields
+                form={form}
+                searchParams={searchParams}
+                setSearchParams={setSearchParams}
+              />
+              <SearchPassengerPicker
+                form={form}
+                searchParams={searchParams}
+                setSearchParams={setSearchParams}
+                paxOpen={paxOpen}
+                setPaxOpen={setPaxOpen}
+              />
+              <Button
+                type="submit"
+                disabled={submitting}
+                className="h-11 w-full shrink-0 gap-2 rounded-xl px-5 md:h-11 lg:w-auto"
               >
-                <SearchRouteFields form={form} swap={swap} compact />
-
-                <SearchDateFields
-                  form={form}
-                  searchParams={searchParams}
-                  setSearchParams={setSearchParams}
-                  compact
-                />
-
-                <SearchPassengerPicker
-                  form={form}
-                  searchParams={searchParams}
-                  setSearchParams={setSearchParams}
-                  paxOpen={paxOpen}
-                  setPaxOpen={setPaxOpen}
-                  compact
-                />
-
-                <Button
-                  type="submit"
-                  disabled={submitting}
-                  // Level with the inputs: the fields reserve a message line below them.
-                  className="h-10 w-full shrink-0 gap-2 px-5 lg:mb-5 lg:w-auto lg:min-w-36"
-                >
-                  <Search className="h-4 w-4" />
-                  <span>{submitting ? t('home.searching') : t('search.btn')}</span>
-                </Button>
-              </div>
-            </>
+                <Search className="h-4 w-4" />
+                <span>{submitting ? t('home.searching') : t('search.btn')}</span>
+              </Button>
+            </div>
           ) : (
             /* ── Full widget (home page) ── */
             <>
-              <div
-                className={cn(
-                  'grid grid-cols-1 gap-3 items-start',
-                  searchParams.roundTrip
-                    ? 'md:grid-cols-[1fr_auto_1fr_1fr_1fr_1fr]'
-                    : 'md:grid-cols-[1fr_auto_1fr_1fr_1fr]',
-                )}
-              >
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1.2fr)_auto_minmax(0,1.2fr)_minmax(0,1.15fr)_minmax(0,1fr)_minmax(0,0.7fr)] md:items-end">
                 <SearchRouteFields form={form} swap={swap} layout="auto" />
 
-                {/* Phones: date and passengers side by side; md: grid cells. */}
+                {/* Phones: the two days side by side, then passengers; md: grid cells. */}
                 <div className="grid grid-cols-2 gap-3 md:contents">
                   <SearchDateFields
                     form={form}

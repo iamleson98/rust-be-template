@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useT } from '@/lib/i18n'
@@ -8,6 +8,7 @@ import { authLoginMutation } from '@/api'
 import { useSession } from '@/stores/session'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { PasswordInput } from '@/components/ui/password-input'
 import {
   Form,
   FormField,
@@ -16,23 +17,12 @@ import {
   FormControl,
   FormMessage,
 } from '@/components/ui/form'
-import {
-  ShieldCheck,
-  Loader2,
-  ChevronRight,
-  Mail,
-  Lock,
-  Sparkles,
-  TrendingUp,
-  Eye,
-  EyeOff,
-} from 'lucide-react'
+import { ShieldCheck, Loader2, ChevronRight, Mail, Sparkles, TrendingUp } from 'lucide-react'
 import { makeCustomerSchema, type CustomerFormValues } from './_shared'
 import { SocialAuthButtons } from './social-buttons'
 
 export function CustomerLogin() {
   const t = useT()
-  const [showPwd, setShowPwd] = useState(false)
   const customerSchema = useMemo(() => makeCustomerSchema(t), [t])
 
   const form = useForm<CustomerFormValues>({
@@ -97,26 +87,15 @@ export function CustomerLogin() {
               <FormLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 {t('auth.password')} <span className="text-destructive">*</span>
               </FormLabel>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
-                <FormControl>
-                  <Input
-                    {...field}
-                    placeholder="••••••••"
-                    type={showPwd ? 'text' : 'password'}
-                    className="pl-10 pr-10 h-11"
-                  />
-                </FormControl>
-                <button
-                  type="button"
-                  onClick={() => setShowPwd((s) => !s)}
-                  aria-label={showPwd ? t('authPage.hidePassword') : t('authPage.showPassword')}
-                  aria-pressed={showPwd}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  {showPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
+              <FormControl>
+                <PasswordInput
+                  {...field}
+                  placeholder="••••••••"
+                  autoComplete="current-password"
+                  withIcon
+                  className="h-11"
+                />
+              </FormControl>
               <FormMessage />
             </FormItem>
           )}

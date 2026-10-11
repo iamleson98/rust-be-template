@@ -56,7 +56,7 @@ export function BrandDetailDialog({ slug, onClose }: { slug: string; onClose: ()
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent
         mobile="fullscreen"
-        className="flex max-h-[92dvh] w-[95vw] max-w-3xl flex-col gap-0 overflow-hidden p-0"
+        className="flex max-w-3xl flex-col gap-0 overflow-clip p-0"
       >
         {!brand ? (
           <>

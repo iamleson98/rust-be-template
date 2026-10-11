@@ -17,7 +17,15 @@ export type TripSearchParams = Pick<SearchParams, 'from' | 'to' | 'date'> &
   Partial<
     Pick<
       SearchParams,
-      'adults' | 'children' | 'sort' | 'vehicleTypes' | 'fromLat' | 'fromLon' | 'toLat' | 'toLon'
+      | 'time'
+      | 'adults'
+      | 'children'
+      | 'sort'
+      | 'vehicleTypes'
+      | 'fromLat'
+      | 'fromLon'
+      | 'toLat'
+      | 'toLon'
     >
   >
 
@@ -44,17 +52,27 @@ const canSearch = (p: TripSearchParams | null) => !!p && !!(p.from || p.to) && !
 function endpointQuery(p: TripSearchParams, limit?: number) {
   const minSeats = (p.adults ?? 1) + (p.children ?? 0)
   const vehicleTypes = p.vehicleTypes?.length ? p.vehicleTypes.join(',') : undefined
+  const departAfter = p.time || undefined
   if (isPrecise(p)) {
     const { fromLat, fromLon, toLat, toLon, date } = p
     return {
       geo: true as const,
-      query: { fromLat, fromLon, toLat, toLon, date, minSeats, vehicleTypes, limit },
+      query: { fromLat, fromLon, toLat, toLon, date, departAfter, minSeats, vehicleTypes, limit },
     }
   }
   const { from, to, date } = p
   return {
     geo: false as const,
-    query: { from, to, date, sort: p.sort ?? 'departure', minSeats, vehicleTypes, limit },
+    query: {
+      from,
+      to,
+      date,
+      departAfter,
+      sort: p.sort ?? 'departure',
+      minSeats,
+      vehicleTypes,
+      limit,
+    },
   }
 }
 

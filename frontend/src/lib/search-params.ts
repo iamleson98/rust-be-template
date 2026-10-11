@@ -9,17 +9,24 @@
 export const SORT_KEYS = ['departure', 'price', 'rating'] as const
 export type SortKey = (typeof SORT_KEYS)[number]
 
+export type Leg = 'out' | 'return'
+
 export type SearchParams = {
   from: string
   to: string
   /** `YYYY-MM-DD`, or '' when no date is picked. */
   date: string
+  /** `HH:MM`: only trips leaving at or after it; '' = the whole day. */
+  time: string
   adults: number
   children: number
   sort: SortKey
   vehicleTypes: string[]
+  /** Set exactly when there is a return day (older links may carry the flag alone). */
   roundTrip: boolean
   returnDate: string
+  /** Which leg the results show on a round trip: `return` searches back from `to` on `returnDate`. */
+  leg: Leg
   /** Precise-pick coordinates: all four together switch to the geo search. */
   fromLat?: number
   fromLon?: number
@@ -47,19 +54,22 @@ export const SEARCH_DEFAULTS = {
   from: '',
   to: '',
   date: '',
+  time: '',
   adults: 1,
   children: 0,
   sort: 'departure',
   vt: '',
   roundTrip: false,
   returnDate: '',
+  leg: 'out',
 } satisfies Partial<SearchQuery>
 
 const YMD = /^\d{4}-\d{2}-\d{2}$/
+const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/
 
 const text = (v: unknown) => (typeof v === 'string' ? v : '')
 const day = (v: unknown) => (typeof v === 'string' && YMD.test(v) ? v : '')
-const flag = (v: unknown) => v === true || v === '1' || v === 'true'
+const clock = (v: unknown) => (typeof v === 'string' && HHMM.test(v) ? v : '')
 
 function num(v: unknown): number | undefined {
   if (typeof v !== 'number' && (typeof v !== 'string' || v.trim() === '')) return undefined
@@ -90,16 +100,19 @@ export function parseSearch(raw: Record<string, unknown>): SearchParams {
   const coords = [raw.fromLat, raw.fromLon, raw.toLat, raw.toLon].map(num)
   const precise = coords.every((c) => c !== undefined)
   const [fromLat, fromLon, toLat, toLon] = precise ? coords : []
+  const returnDate = day(raw.returnDate)
   return {
     from: text(raw.from),
     to: text(raw.to),
     date: day(raw.date),
+    time: clock(raw.time),
     adults: atLeast(raw.adults, 1),
     children: atLeast(raw.children, 0),
     sort,
     vehicleTypes: list(raw.vehicleTypes ?? raw.vt),
-    roundTrip: flag(raw.roundTrip),
-    returnDate: day(raw.returnDate),
+    roundTrip: !!returnDate,
+    returnDate,
+    leg: returnDate && raw.leg === 'return' ? 'return' : 'out',
     fromLat,
     fromLon,
     toLat,
@@ -139,5 +152,27 @@ export function buildSearchInput(input: SearchInput): SearchInput {
 
 const VN_DAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' })
 
-/** `YYYY-MM-DD` in Vietnam, `days` after today (searches default to tomorrow). */
-export const vnDate = (days = 0) => VN_DAY.format(new Date(Date.now() + days * 86_400_000))
+/** `YYYY-MM-DD` in Vietnam, `days` after `from` (default today; searches default to tomorrow). */
+export const vnDate = (days = 0, from = new Date()) =>
+  VN_DAY.format(new Date(from.getTime() + days * 86_400_000))
+
+/**
+ * The search for the leg on screen. The return leg runs back from `to` on
+ * the return day (at any time: "leaving from" is about the outbound day).
+ */
+export function legSearch(p: SearchParams): SearchParams {
+  if (p.leg !== 'return' || !p.returnDate) return p
+  return {
+    ...p,
+    from: p.to,
+    to: p.from,
+    fromLat: p.toLat,
+    fromLon: p.toLon,
+    toLat: p.fromLat,
+    toLon: p.fromLon,
+    fromCity: p.toCity,
+    toCity: p.fromCity,
+    date: p.returnDate,
+    time: '',
+  }
+}

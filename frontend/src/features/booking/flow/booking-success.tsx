@@ -2,11 +2,13 @@
 
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { CheckCircle2, Copy, Ticket } from 'lucide-react'
+import { ArrowLeftRight, CheckCircle2, Copy, Ticket } from 'lucide-react'
 import type { TripDetail } from '@/api'
-import { formatDateTimeVN, useMoney } from '@/lib/format'
+import { formatDateTimeVN, formatDateVN, useMoney } from '@/lib/format'
 import { useT } from '@/lib/i18n'
 import { useNavigate } from '@tanstack/react-router'
+import { buildSearchInput, vnDate } from '@/lib/search-params'
+import { forgetReturnLeg, pendingReturnLeg } from '@/features/search/return-leg'
 import type { SelectedSeat } from './booking-form'
 
 export type LastBooking = {
@@ -35,6 +37,10 @@ export function BookingSuccess({
   const money = useMoney()
   const [copied, setCopied] = useState(false)
   const navigate = useNavigate()
+  // The outbound leg of a round trip: the way back is still to book.
+  const [roundTrip] = useState(() =>
+    trip?.trip.departureAt ? pendingReturnLeg(vnDate(0, new Date(trip.trip.departureAt))) : null,
+  )
 
   return (
     <div className="p-5">
@@ -136,6 +142,38 @@ export function BookingSuccess({
           {t('bookingFlow.ticketStubQrNote')}
         </p>
       </div>
+
+      {roundTrip && (
+        <div className="mx-auto mt-4 flex max-w-md items-center gap-3 rounded-2xl border border-primary/20 bg-primary/5 p-3">
+          <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary text-primary-foreground">
+            <ArrowLeftRight className="size-4" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-semibold text-slate-900">
+              {t('bookingFlow.returnLegTitle')}
+            </div>
+            <div className="truncate text-xs text-slate-600">
+              {roundTrip.to} → {roundTrip.from} ·{' '}
+              {formatDateVN(roundTrip.returnDate, {
+                weekday: 'short',
+                day: '2-digit',
+                month: '2-digit',
+              })}
+            </div>
+          </div>
+          <Button
+            size="sm"
+            className="h-9 shrink-0 rounded-xl"
+            onClick={() => {
+              forgetReturnLeg()
+              onClose()
+              navigate({ to: '/search', search: buildSearchInput({ ...roundTrip, leg: 'return' }) })
+            }}
+          >
+            {t('bookingFlow.returnLegAction')}
+          </Button>
+        </div>
+      )}
 
       <div className="mx-auto mt-5 flex max-w-md gap-2">
         <Button variant="outline" className="h-11 flex-1 gap-1 rounded-xl" onClick={onClose}>

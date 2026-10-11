@@ -8,6 +8,7 @@ import { useMutation } from '@tanstack/react-query'
 import { authRegisterMutation } from '@/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { PasswordInput } from '@/components/ui/password-input'
 import {
   Form,
   FormField,
@@ -17,27 +18,15 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { toast } from 'sonner'
-import {
-  Loader2,
-  ChevronRight,
-  Check,
-  Mail,
-  Lock,
-  User,
-  UserPlus,
-  Eye,
-  EyeOff,
-  Phone,
-} from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { Loader2, ChevronRight, Check, Mail, User, UserPlus, Phone } from 'lucide-react'
 import { SocialAuthButtons } from './social-buttons'
-import { makeRegisterSchema, scorePassword, type RegisterFormValues } from './_shared'
+import { makeRegisterSchema, type RegisterFormValues } from './_shared'
+import { PasswordStrength } from './password-strength'
 
 export function RegisterForm() {
   const setUser = useSession((s) => s.setUser)
   const navigate = useNavigate()
   const t = useT()
-  const [showPwd, setShowPwd] = useState(false)
   const [success, setSuccess] = useState(false)
   const registerSchema = useMemo(() => makeRegisterSchema(t), [t])
 
@@ -59,9 +48,6 @@ export function RegisterForm() {
   const password = watch('password')
   const confirm = watch('confirm')
   const email = watch('email')
-
-  // Live password strength meter
-  const pwdStrength = scorePassword(password)
 
   const registerMut = useMutation({
     ...authRegisterMutation(),
@@ -188,46 +174,16 @@ export function RegisterForm() {
               <FormLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 {t('auth.password')} <span className="text-destructive">*</span>
               </FormLabel>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
-                <FormControl>
-                  <Input
-                    {...field}
-                    placeholder={t('authPage.passwordMinHint')}
-                    type={showPwd ? 'text' : 'password'}
-                    className="pl-10 pr-10 h-11"
-                  />
-                </FormControl>
-                <button
-                  type="button"
-                  onClick={() => setShowPwd((s) => !s)}
-                  aria-label={showPwd ? t('authPage.hidePassword') : t('authPage.showPassword')}
-                  aria-pressed={showPwd}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  {showPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-              {password && (
-                <div className="flex items-center gap-1">
-                  {[0, 1, 2, 3].map((i) => (
-                    <div
-                      key={i}
-                      className={cn(
-                        'h-1 flex-1 rounded-full transition-colors',
-                        i < pwdStrength.score
-                          ? pwdStrength.score <= 2
-                            ? 'bg-amber-400'
-                            : 'bg-blue-500'
-                          : 'bg-slate-200',
-                      )}
-                    />
-                  ))}
-                  <span className="ml-2 text-[11px] text-muted-foreground w-16 text-right">
-                    {pwdStrength.label}
-                  </span>
-                </div>
-              )}
+              <FormControl>
+                <PasswordInput
+                  {...field}
+                  placeholder={t('authPage.passwordMinHint')}
+                  autoComplete="new-password"
+                  withIcon
+                  className="h-11"
+                />
+              </FormControl>
+              <PasswordStrength password={password} />
               <FormMessage />
             </FormItem>
           )}
@@ -241,17 +197,15 @@ export function RegisterForm() {
               <FormLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 {t('auth.confirmPassword')} <span className="text-destructive">*</span>
               </FormLabel>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
-                <FormControl>
-                  <Input
-                    {...field}
-                    placeholder={t('authPage.confirmPasswordPh')}
-                    type={showPwd ? 'text' : 'password'}
-                    className="pl-10 h-11"
-                  />
-                </FormControl>
-              </div>
+              <FormControl>
+                <PasswordInput
+                  {...field}
+                  placeholder={t('authPage.confirmPasswordPh')}
+                  autoComplete="new-password"
+                  withIcon
+                  className="h-11"
+                />
+              </FormControl>
               {confirm && password !== confirm && (
                 <p className="text-[11px] text-red-500">{t('validation.passwordMatch')}</p>
               )}

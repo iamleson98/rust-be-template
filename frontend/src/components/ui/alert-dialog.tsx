@@ -11,6 +11,8 @@ import {
   MODAL_FOOTER,
   MODAL_OVERLAY,
   MODAL_SHEET_ON_PHONE,
+  MODAL_VIEWPORT,
+  MODAL_VIEWPORT_SHEET_ON_PHONE,
   MODAL_SURFACE,
   MODAL_TITLE,
 } from './modal-styles'
@@ -102,21 +104,25 @@ function AlertDialogContent({
   return (
     <AlertDialogPortal>
       <AlertDialogOverlay />
-      <AlertDialogPrimitive.Popup
-        data-slot="alert-dialog-content"
-        render={(componentProps, state) => (
-          <div {...componentProps} data-state={state.open ? 'open' : 'closed'} />
-        )}
-        // A confirmation: the modal look, narrower, a bottom sheet on phones.
-        className={cn(
-          MODAL_SURFACE,
-          MODAL_CENTERED,
-          MODAL_SHEET_ON_PHONE,
-          'sm:max-w-md',
-          className,
-        )}
-        {...props}
-      />
+      <AlertDialogPrimitive.Viewport className={cn(MODAL_VIEWPORT, MODAL_VIEWPORT_SHEET_ON_PHONE)}>
+        <AlertDialogPrimitive.Popup
+          data-slot="alert-dialog-content"
+          render={(componentProps, state) => (
+            <div {...componentProps} data-state={state.open ? 'open' : 'closed'} />
+          )}
+          // A confirmation: the modal look, narrower, a bottom sheet on phones.
+          className={cn(
+            MODAL_SURFACE,
+            MODAL_CENTERED,
+            MODAL_SHEET_ON_PHONE,
+            MODAL_VIEWPORT,
+            MODAL_VIEWPORT_SHEET_ON_PHONE,
+            'sm:max-w-md',
+            className,
+          )}
+          {...props}
+        />
+      </AlertDialogPrimitive.Viewport>
     </AlertDialogPortal>
   )
 }

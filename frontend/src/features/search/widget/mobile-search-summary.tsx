@@ -120,13 +120,12 @@ export function MobileSearchSummary({
                 aria-label={t('search.title')}
               >
                 {/* Stacked: one compact group, the swap button between the fields. */}
-                <SearchRouteFields form={form} swap={swap} compact layout="stacked" />
+                <SearchRouteFields form={form} swap={swap} layout="stacked" />
                 <div className="grid grid-cols-2 gap-3">
                   <SearchDateFields
                     form={form}
                     searchParams={searchParams}
                     setSearchParams={setSearchParams}
-                    compact
                   />
                   <SearchPassengerPicker
                     form={form}
@@ -134,7 +133,6 @@ export function MobileSearchSummary({
                     setSearchParams={setSearchParams}
                     paxOpen={paxOpen}
                     setPaxOpen={setPaxOpen}
-                    compact
                   />
                 </div>
                 <Button type="submit" disabled={submitting} size="lg" className="h-11 w-full gap-2">

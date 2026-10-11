@@ -72,7 +72,7 @@ export function BookingDetailDialog({
 
   return (
     <Dialog open={!!bookingId} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="flex max-h-[90dvh] max-w-2xl flex-col overflow-hidden">
+      <DialogContent className="flex max-w-2xl flex-col overflow-clip">
         <DialogHeader icon={<TicketIcon />}>
           <DialogTitle className="flex flex-wrap items-center gap-2">
             {ticket

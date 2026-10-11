@@ -15,6 +15,9 @@ import {
   MODAL_SHEET_ON_PHONE,
   MODAL_SURFACE,
   MODAL_TITLE,
+  MODAL_VIEWPORT,
+  MODAL_VIEWPORT_FULLSCREEN_ON_PHONE,
+  MODAL_VIEWPORT_SHEET_ON_PHONE,
 } from './modal-styles'
 import { resolveNativeButton } from './resolve-native-button'
 
@@ -130,6 +133,9 @@ function DialogOverlay({ className, ...props }: ComponentProps<typeof DialogPrim
 /**
  * A centred dialog (see `modal-styles.ts`). On phones it is a bottom sheet,
  * or with `mobile="fullscreen"` it takes the whole screen (multi-step flows).
+ * A tall dialog scrolls with the page: it grows with its content inside a
+ * scrolling viewport. (One that needs a fixed height, e.g. around a map, sets
+ * its own `max-h-*` and scrolls a part of itself.)
  */
 function DialogContent({
   className,
@@ -144,31 +150,39 @@ function DialogContent({
   return (
     <DialogPortal>
       <DialogOverlay />
-      <DialogPrimitive.Popup
-        data-slot="dialog-content"
-        render={(componentProps, state) => (
-          <div {...componentProps} data-state={state.open ? 'open' : 'closed'} />
-        )}
+      <DialogPrimitive.Viewport
+        data-slot="dialog-viewport"
         className={cn(
-          MODAL_SURFACE,
-          MODAL_CENTERED,
-          mobile === 'sheet' ? MODAL_SHEET_ON_PHONE : MODAL_FULLSCREEN_ON_PHONE,
-          className,
+          MODAL_VIEWPORT,
+          mobile === 'sheet' ? MODAL_VIEWPORT_SHEET_ON_PHONE : MODAL_VIEWPORT_FULLSCREEN_ON_PHONE,
         )}
-        {...props}
       >
-        {children}
-        {showCloseButton && (
-          <DialogPrimitive.Close
-            data-slot="dialog-close"
-            render={(componentProps) => <button {...componentProps} data-state="open" />}
-            className={MODAL_CLOSE}
-          >
-            <XIcon />
-            <span className="sr-only">Close</span>
-          </DialogPrimitive.Close>
-        )}
-      </DialogPrimitive.Popup>
+        <DialogPrimitive.Popup
+          data-slot="dialog-content"
+          render={(componentProps, state) => (
+            <div {...componentProps} data-state={state.open ? 'open' : 'closed'} />
+          )}
+          className={cn(
+            MODAL_SURFACE,
+            MODAL_CENTERED,
+            mobile === 'sheet' ? MODAL_SHEET_ON_PHONE : MODAL_FULLSCREEN_ON_PHONE,
+            className,
+          )}
+          {...props}
+        >
+          {children}
+          {showCloseButton && (
+            <DialogPrimitive.Close
+              data-slot="dialog-close"
+              render={(componentProps) => <button {...componentProps} data-state="open" />}
+              className={MODAL_CLOSE}
+            >
+              <XIcon />
+              <span className="sr-only">Close</span>
+            </DialogPrimitive.Close>
+          )}
+        </DialogPrimitive.Popup>
+      </DialogPrimitive.Viewport>
     </DialogPortal>
   )
 }

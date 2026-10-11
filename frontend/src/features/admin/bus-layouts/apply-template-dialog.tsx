@@ -51,7 +51,7 @@ export function ApplyTemplateDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !fit.isPending && onOpenChange(o)}>
-      <DialogContent className="max-h-[90dvh] max-w-4xl overflow-y-auto">
+      <DialogContent className="max-w-4xl">
         <DialogHeader>
           <DialogTitle>{t('seatPlan.presets.title')}</DialogTitle>
           <DialogDescription>

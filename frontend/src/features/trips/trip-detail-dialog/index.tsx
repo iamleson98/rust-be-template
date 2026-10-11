@@ -64,10 +64,11 @@ export function TripDetailDialog({ tripId, onClose }: { tripId: string; onClose:
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      {/* Full screen on phones (a multi-step flow needs the whole height). */}
+      {/* A booking workspace (seat map beside a pinned summary): a fixed height that
+          scrolls inside, unlike other dialogs. Full screen on phones. */}
       <DialogContent
         mobile="fullscreen"
-        className="flex max-h-[92dvh] w-[97vw] max-w-7xl flex-col gap-0 overflow-hidden p-0 2xl:max-w-[88rem]"
+        className="flex max-h-[92dvh] max-w-7xl flex-col gap-0 overflow-hidden p-0 max-md:h-dvh max-md:max-h-dvh 2xl:max-w-[88rem]"
       >
         {bookingStep !== 'idle' ? (
           <>
@@ -122,6 +123,9 @@ function TripView({ detail }: { detail: TripDetail }) {
   const canProceed =
     bookable && selected.length > 0 && (points.length === 0 || (!!boardingId && !!droppingId))
   const { stops, timetable } = tripStops(detail)
+  // The map shows the stops the timeline lists: the timetable, else the route's points.
+  const mapStops = detail.schedulePoints.length > 0 ? detail.schedulePoints : detail.pickupPoints
+  const located = mapStops.filter((p) => p.lat != null && p.lon != null)
 
   const toggleSeat = ({ id }: TripSeat) =>
     setPicked((prev) =>
@@ -238,11 +242,17 @@ function TripView({ detail }: { detail: TripDetail }) {
 
               <TabsContent value="route" className="m-0 space-y-5 p-4">
                 <RouteScheduleMap
-                  geometry={[
-                    [detail.from.lat, detail.from.lon],
-                    [detail.to.lat, detail.to.lon],
-                  ]}
-                  pickupPoints={detail.pickupPoints}
+                  // No road geometry: the map joins the stops in order, first to last.
+                  // Just the two cities only when the stops have no coordinates.
+                  geometry={
+                    located.length >= 2
+                      ? null
+                      : [
+                          [detail.from.lat, detail.from.lon],
+                          [detail.to.lat, detail.to.lon],
+                        ]
+                  }
+                  pickupPoints={mapStops}
                   fromName={detail.from.name ?? ''}
                   toName={detail.to.name ?? ''}
                 />

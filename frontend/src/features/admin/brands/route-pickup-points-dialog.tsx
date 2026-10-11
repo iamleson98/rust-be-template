@@ -90,7 +90,7 @@ export function RoutePickupPointsDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={(o) => !deleting && onOpenChange(o)}>
-        <DialogContent className="max-w-lg max-h-[85dvh] overflow-y-auto">
+        <DialogContent className="max-w-lg">
           <DialogHeader icon={<MapPin />}>
             <DialogTitle>{t('adminBrands.pickupPointsTitle')}</DialogTitle>
             <DialogDescription className="truncate">

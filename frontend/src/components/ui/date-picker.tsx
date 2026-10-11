@@ -101,11 +101,16 @@ export function DatePicker({
       className={cn(
         'w-full justify-start text-left font-normal h-9',
         !selected && 'text-muted-foreground',
+        clearable && selected && 'pr-8',
         triggerClassName,
       )}
     >
       <CalendarIcon className="h-4 w-4 shrink-0 opacity-70" />
-      {selected ? format(selected, effectiveFormat, { locale: dateLocale }) : effectivePlaceholder}
+      <span className="truncate">
+        {selected
+          ? format(selected, effectiveFormat, { locale: dateLocale })
+          : effectivePlaceholder}
+      </span>
     </Button>
   )
 
@@ -133,7 +138,8 @@ export function DatePicker({
   )
 
   return (
-    <div className={cn('flex items-center gap-1.5', className)}>
+    // The clear button sits inside the field, so the picker is never wider than its column.
+    <div className={cn('relative min-w-0', className)}>
       {/* Phones: a bottom sheet with a full-width calendar (a popover runs
           off the screen); larger screens: a popover under the field. */}
       {isMobile ? (
@@ -166,7 +172,7 @@ export function DatePicker({
           type="button"
           aria-label={t('ui.clearDate')}
           onClick={() => onChange(null)}
-          className="size-8 shrink-0 rounded text-muted-foreground hover:text-foreground hover:bg-accent flex items-center justify-center"
+          className="absolute top-1/2 right-1 grid size-7 -translate-y-1/2 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
         >
           <X className="h-3.5 w-3.5" />
         </button>

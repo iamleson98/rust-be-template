@@ -5,6 +5,10 @@
  *
  * On phones a centred dialog becomes a bottom sheet: full width, anchored to
  * the bottom edge where the thumb is, sliding up, clear of the home bar.
+ *
+ * A dialog taller than the screen scrolls with the page, not inside itself:
+ * the popup sits in a full-screen scrolling viewport and grows with its
+ * content (centred while it fits, from the top once it does not).
  */
 
 export const MODAL_OVERLAY =
@@ -14,17 +18,31 @@ export const MODAL_OVERLAY =
 export const MODAL_SURFACE =
   'bg-background text-foreground ring-1 ring-slate-900/5 shadow-[0_24px_64px_-12px_rgb(15_23_42/0.32)] dark:ring-white/10'
 
+/**
+ * The full-screen layer that holds the popup and scrolls when it is taller
+ * than the screen. One grid cell: as tall as the screen while the popup fits
+ * (centring it), as tall as the popup once it does not (scrolling from the top).
+ */
+export const MODAL_VIEWPORT =
+  'fixed inset-0 z-50 grid place-items-center overflow-y-auto overscroll-contain p-4 sm:p-8'
+
+/** The viewport of a phone bottom sheet: the sheet sits on the bottom edge. */
+export const MODAL_VIEWPORT_SHEET_ON_PHONE = 'max-sm:place-items-end max-sm:p-0 max-sm:pt-6'
+
+/** The viewport of a full-screen phone dialog: edge to edge. */
+export const MODAL_VIEWPORT_FULLSCREEN_ON_PHONE = 'max-md:p-0'
+
 /** A centred dialog from `sm` up. */
 export const MODAL_CENTERED =
-  'fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] max-h-[calc(100dvh-2rem)] -translate-x-1/2 -translate-y-1/2 gap-5 overflow-y-auto overscroll-contain rounded-2xl p-6 duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95'
+  'relative grid w-full gap-5 rounded-2xl p-6 duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95'
 
 /** …that is a bottom sheet on phones. */
 export const MODAL_SHEET_ON_PHONE =
-  'max-sm:top-auto max-sm:bottom-0 max-sm:left-0 max-sm:w-full max-sm:max-w-none max-sm:max-h-[calc(100dvh-1.5rem)] max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-b-none max-sm:rounded-t-[1.75rem] max-sm:p-5 max-sm:pb-[max(1.25rem,env(safe-area-inset-bottom))] max-sm:data-[state=open]:zoom-in-100 max-sm:data-[state=closed]:zoom-out-100 max-sm:data-[state=open]:slide-in-from-bottom max-sm:data-[state=closed]:slide-out-to-bottom'
+  'max-sm:w-full max-sm:max-w-none max-sm:rounded-b-none max-sm:rounded-t-[1.75rem] max-sm:p-5 max-sm:pb-[max(1.25rem,env(safe-area-inset-bottom))] max-sm:data-[state=open]:zoom-in-100 max-sm:data-[state=closed]:zoom-out-100 max-sm:data-[state=open]:slide-in-from-bottom max-sm:data-[state=closed]:slide-out-to-bottom'
 
 /** …or takes the whole screen on phones and small tablets (multi-step flows). */
 export const MODAL_FULLSCREEN_ON_PHONE =
-  'max-md:inset-0 max-md:top-0 max-md:left-0 max-md:h-dvh max-md:max-h-dvh max-md:w-screen max-md:max-w-none max-md:translate-x-0 max-md:translate-y-0 max-md:rounded-none max-md:ring-0 max-md:data-[state=open]:zoom-in-100 max-md:data-[state=closed]:zoom-out-100 max-md:data-[state=open]:slide-in-from-bottom max-md:data-[state=closed]:slide-out-to-bottom'
+  'max-md:min-h-dvh max-md:w-full max-md:max-w-none max-md:rounded-none max-md:ring-0 max-md:data-[state=open]:zoom-in-100 max-md:data-[state=closed]:zoom-out-100 max-md:data-[state=open]:slide-in-from-bottom max-md:data-[state=closed]:slide-out-to-bottom'
 
 /** The round close button in a modal's top-right corner. */
 export const MODAL_CLOSE =

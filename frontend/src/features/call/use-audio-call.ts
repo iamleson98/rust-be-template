@@ -102,6 +102,8 @@ export function useAudioCall() {
     client.on('_close', () => setPresence(NO_PRESENCE))
     client.on('incoming', (call) => {
       setIncoming(call)
+      // Staff have no call button while idle: a ringing call opens the panel itself.
+      if (isAgent) setOpen(true)
       // Desktop notification when the tab is hidden: lead with who is calling.
       notifyIncomingCall(call.callerName ?? (isAgent ? t('users.roleUser') : t('chat.agentName')))
     })
@@ -119,7 +121,7 @@ export function useAudioCall() {
     clientRef.current = client
     ownerRef.current = owner
     return client
-  }, [user, isAgent, t, flashError])
+  }, [user, isAgent, t, flashError, setOpen])
 
   const resetAttempt = useCallback(() => {
     setError(null)

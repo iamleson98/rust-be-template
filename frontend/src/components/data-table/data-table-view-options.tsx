@@ -6,6 +6,7 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -43,21 +44,24 @@ export function DataTableViewOptions<TData extends RowData>({
         {t('dataTable.columns')}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-44">
-        <DropdownMenuLabel>{t('dataTable.showColumns')}</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        {hideableColumns.map((column) => {
-          const meta = column.columnDef.meta as DataTableColumnMeta | undefined
-          return (
-            <DropdownMenuCheckboxItem
-              key={column.id}
-              checked={column.getIsVisible()}
-              onCheckedChange={(value) => column.toggleVisibility(!!value)}
-              className="cursor-pointer"
-            >
-              {meta?.label ?? column.id}
-            </DropdownMenuCheckboxItem>
-          )
-        })}
+        {/* A group label needs its group (Base UI throws without one); it also names the list. */}
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>{t('dataTable.showColumns')}</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          {hideableColumns.map((column) => {
+            const meta = column.columnDef.meta as DataTableColumnMeta | undefined
+            return (
+              <DropdownMenuCheckboxItem
+                key={column.id}
+                checked={column.getIsVisible()}
+                onCheckedChange={(value) => column.toggleVisibility(!!value)}
+                className="cursor-pointer"
+              >
+                {meta?.label ?? column.id}
+              </DropdownMenuCheckboxItem>
+            )
+          })}
+        </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   )
