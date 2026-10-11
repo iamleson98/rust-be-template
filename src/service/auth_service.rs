@@ -14,6 +14,29 @@ use crate::error::{AppError, AppResult};
 use crate::nullclaw::NULLCLAW_BOT_EMAIL;
 use crate::store::CompositeStore;
 
+/// Which client a session is for: the mobile app's sessions last longer
+/// (`JwtConfig::mobile_refresh_ttl_secs`), renewed on every refresh.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SessionKind {
+    Browser,
+    Mobile,
+}
+
+impl SessionKind {
+    /// The mobile app says so with `X-Client: mobile`.
+    pub fn of(headers: &axum::http::HeaderMap) -> Self {
+        let mobile = headers
+            .get("x-client")
+            .and_then(|v| v.to_str().ok())
+            .is_some_and(|v| v.trim().eq_ignore_ascii_case("mobile"));
+        if mobile {
+            Self::Mobile
+        } else {
+            Self::Browser
+        }
+    }
+}
+
 /// Result of a successful login or refresh — what the route handler needs
 /// to build the response + cookies.
 pub struct AuthSession {
@@ -178,7 +201,12 @@ impl AuthService {
     }
 
     /// Exchange credentials for an auth session (access + refresh).
-    pub async fn login(&self, email: String, password: String) -> AppResult<AuthSession> {
+    pub async fn login(
+        &self,
+        email: String,
+        password: String,
+        kind: SessionKind,
+    ) -> AppResult<AuthSession> {
         let user = self
             .store
             .user_store()
@@ -206,7 +234,7 @@ impl AuthService {
             return Err(AppError::Unauthorized("invalid credentials".into()));
         }
 
-        self.issue_session(user).await
+        self.issue_session(user, kind).await
     }
 
     /// Change the signed-in user's password. The current one must match;
@@ -243,7 +271,7 @@ impl AuthService {
             .refresh_token_store()
             .revoke_all_refresh_tokens_for_user(user_id)
             .await?;
-        self.issue_session(user).await
+        self.issue_session(user, SessionKind::Browser).await
     }
 
     /// Rotate a refresh token: revoke the old, issue a new one + new access.
@@ -253,7 +281,11 @@ impl AuthService {
     /// — the second `rows_affected == 0` and returns `None`, which we
     /// surface as a 401. This closes the replay-attack window that the
     /// previous `get_refresh_token` + `revoke_refresh_token` pair had.
-    pub async fn refresh(&self, refresh_token: String) -> AppResult<AuthSession> {
+    pub async fn refresh(
+        &self,
+        refresh_token: String,
+        kind: SessionKind,
+    ) -> AppResult<AuthSession> {
         let (value, _model) = self.verified_refresh_token(&refresh_token).await?;
 
         // Atomically claim the token: only the first concurrent caller wins.
@@ -268,7 +300,7 @@ impl AuthService {
             .ok_or_else(|| AppError::Unauthorized("refresh token already used".into()))?;
 
         let user = self.store.user_store().get_user(user_id).await?;
-        self.issue_session(user).await
+        self.issue_session(user, kind).await
     }
 
     /// Logout — multi-session aware.
@@ -585,7 +617,11 @@ impl AuthService {
 
     /// Issue a fresh auth session: new access JWT + new refresh token
     /// (persisted).
-    pub async fn issue_session(&self, user: user::Model) -> AppResult<AuthSession> {
+    pub async fn issue_session(
+        &self,
+        user: user::Model,
+        kind: SessionKind,
+    ) -> AppResult<AuthSession> {
         let id = user.id;
         let access = self
             .jwt
@@ -593,7 +629,13 @@ impl AuthService {
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
         let refresh_value = RefreshTokenValue::generate();
-        let refresh_model = self.refresh.build_model(&refresh_value, id, None, None);
+        let refresh_model = self.refresh.build_model_for(
+            &refresh_value,
+            id,
+            None,
+            None,
+            kind == SessionKind::Mobile,
+        );
         self.store
             .refresh_token_store()
             .save_refresh_token(refresh_model)

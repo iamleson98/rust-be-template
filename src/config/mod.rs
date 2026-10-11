@@ -160,7 +160,16 @@ pub struct JwtConfig {
     pub secret: String,
     pub access_ttl_secs: u64,
     pub refresh_ttl_secs: u64,
+    /// Refresh lifetime for the mobile app (`X-Client: mobile`), renewed on
+    /// every refresh: an agent stays signed in like in any other app, and
+    /// only a phone left unopened this long has to sign in again.
+    #[serde(default = "default_mobile_refresh_ttl")]
+    pub mobile_refresh_ttl_secs: u64,
     pub issuer: String,
+}
+
+fn default_mobile_refresh_ttl() -> u64 {
+    90 * 24 * 3600
 }
 
 impl Default for JwtConfig {
@@ -170,6 +179,8 @@ impl Default for JwtConfig {
                 .unwrap_or_else(|| "change-me-in-production-please-use-32-bytes-or-more".into()),
             access_ttl_secs: env_parse("JWT_ACCESS_TTL_SECS").unwrap_or(900),
             refresh_ttl_secs: env_parse("JWT_REFRESH_TTL_SECS").unwrap_or(7 * 24 * 3600),
+            mobile_refresh_ttl_secs: env_parse("JWT_MOBILE_REFRESH_TTL_SECS")
+                .unwrap_or_else(default_mobile_refresh_ttl),
             issuer: env_var("JWT_ISSUER").unwrap_or_else(|| "backend".into()),
         }
     }

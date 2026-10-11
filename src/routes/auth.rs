@@ -9,6 +9,7 @@ use validator::Validate;
 use crate::entity::user;
 use crate::error::{AppError, AppResult};
 use crate::middleware::{AuthUser, MaybeAuthUser};
+use crate::service::auth_service::SessionKind;
 use crate::state::AppState;
 
 #[derive(Debug, Deserialize, Validate, ToSchema)]
@@ -134,7 +135,10 @@ pub async fn register(
 
     // Auto-login: issue a session immediately so the user doesn't need
     // to call /login separately after registering.
-    let session = state.auth.issue_session(user).await?;
+    let session = state
+        .auth
+        .issue_session(user, SessionKind::of(&headers))
+        .await?;
     let jar = session.set_cookies(jar, state.auth.cookie_config(), state.auth.jwt_config());
     Ok((
         jar,
@@ -164,7 +168,10 @@ pub async fn login(
 ) -> AppResult<(axum_extra::extract::CookieJar, Json<AuthResponse>)> {
     body.validate()
         .map_err(|e| AppError::Validation(e.to_string()))?;
-    let session = state.auth.login(body.email, body.password).await?;
+    let session = state
+        .auth
+        .login(body.email, body.password, SessionKind::of(&headers))
+        .await?;
     let jar = session.set_cookies(jar, state.auth.cookie_config(), state.auth.jwt_config());
     Ok((
         jar,
@@ -231,7 +238,10 @@ pub async fn employee_login(
 ) -> AppResult<(axum_extra::extract::CookieJar, Json<AuthResponse>)> {
     body.validate()
         .map_err(|e| AppError::Validation(e.to_string()))?;
-    let session = state.auth.login(body.email, body.password).await?;
+    let session = state
+        .auth
+        .login(body.email, body.password, SessionKind::of(&headers))
+        .await?;
 
     // Only allow employees (must have at least one role that isn't "user").
     // The role check lives in AuthService — keeps the store access
@@ -288,7 +298,10 @@ pub async fn refresh(
     let refresh_token = cookie_refresh
         .or(body.refresh_token)
         .ok_or_else(|| AppError::Unauthorized("missing refresh token".into()))?;
-    let session = state.auth.refresh(refresh_token).await?;
+    let session = state
+        .auth
+        .refresh(refresh_token, SessionKind::of(&headers))
+        .await?;
     let jar = session.set_cookies(jar, state.auth.cookie_config(), state.auth.jwt_config());
     Ok((
         jar,

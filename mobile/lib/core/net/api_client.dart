@@ -46,7 +46,7 @@ class ApiClient {
 
   /// Guards against parallel refreshes: while set, other 401s await the
   /// in-flight rotation instead of firing their own.
-  Future<bool>? _refreshing;
+  Future<RefreshOutcome>? _refreshing;
 
   // ── Interceptors ───────────────────────────────────────────────────
   //
@@ -79,9 +79,11 @@ class ApiClient {
       return handler.next(res);
     }
 
-    final refreshed = await _refreshTokens();
-    if (!refreshed) {
-      onSessionExpired?.call();
+    final outcome = await _refreshTokens();
+    if (outcome != RefreshOutcome.refreshed) {
+      // Only a refused refresh ends the session; a network or server
+      // failure keeps it, and the next request tries again.
+      if (outcome == RefreshOutcome.rejected) onSessionExpired?.call();
       return handler.next(res); // surface the 401 to the caller
     }
 
@@ -97,7 +99,7 @@ class ApiClient {
     }
   }
 
-  Future<bool> _refreshTokens() {
+  Future<RefreshOutcome> _refreshTokens() {
     // Single-flight: concurrent 401s share one rotation.
     return _refreshing ??= _doRefresh().whenComplete(() => _refreshing = null);
   }
@@ -108,27 +110,34 @@ class ApiClient {
   /// reconnect attempt carries a fresh JWT. The current attempt still
   /// proceeds with the cached token (fail fast is fine — the 1s..30s
   /// backoff retry picks up the new one).
-  Future<bool> refreshNow() => _refreshTokens();
+  Future<RefreshOutcome> refreshNow() => _refreshTokens();
 
-  Future<bool> _doRefresh() async {
+  Future<RefreshOutcome> _doRefresh() async {
     final refresh = tokens.cachedRefresh;
-    if (refresh == null || refresh.isEmpty) return false;
+    if (refresh == null || refresh.isEmpty) return RefreshOutcome.rejected;
     try {
       final res = await dio.post(
         '/api/auth/refresh',
         data: {'refresh_token': refresh},
         options: Options(extra: {'skipAuth': true}),
       );
-      if (res.statusCode != 200) return false;
+      final status = res.statusCode ?? 0;
+      // 401/403: the server refused this refresh token — the session is over.
+      if (status == 401 || status == 403) return RefreshOutcome.rejected;
+      if (status != 200) return RefreshOutcome.failed;
       final rawTokens = res.data['tokens'];
-      if (rawTokens is! Map) return false;
+      if (rawTokens is! Map) return RefreshOutcome.failed;
       final newAccess = rawTokens['access_token'];
       final newRefresh = rawTokens['refresh_token'];
-      if (newAccess is! String || newRefresh is! String) return false;
+      if (newAccess is! String || newRefresh is! String) {
+        return RefreshOutcome.failed;
+      }
       await tokens.saveTokens(accessToken: newAccess, refreshToken: newRefresh);
-      return true;
+      return RefreshOutcome.refreshed;
     } catch (_) {
-      return false;
+      // Offline, timed out, server restarting: nothing says the session is
+      // gone, so keep it (a phone on a bad network must not be logged out).
+      return RefreshOutcome.failed;
     }
   }
 
@@ -348,4 +357,16 @@ class ApiException implements Exception {
 
   @override
   String toString() => message;
+}
+
+/// What a token refresh came to.
+enum RefreshOutcome {
+  /// New tokens are stored.
+  refreshed,
+
+  /// The server refused the refresh token: the session is over.
+  rejected,
+
+  /// Network or server trouble: the session may well be fine — keep it.
+  failed,
 }

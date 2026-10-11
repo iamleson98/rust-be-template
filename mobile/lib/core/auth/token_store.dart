@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io' show Platform;
 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
@@ -18,9 +19,21 @@ class TokenStore {
           const FlutterSecureStorage(
             // v11: AES-GCM keystore encryption is the default; no opts needed.
             aOptions: AndroidOptions(),
+            // Readable from the first unlock after a reboot until the next
+            // reboot — so a VoIP push that wakes the app on a LOCKED phone
+            // still finds the session (the default, `unlocked`, does not,
+            // and the call could not connect). Never synced off the device.
+            iOptions: IOSOptions(
+              accessibility: KeychainAccessibility.first_unlock_this_device,
+            ),
           );
 
   final FlutterSecureStorage _storage;
+
+  /// Where earlier versions kept the session (iOS default accessibility,
+  /// `unlocked`). The keychain lookup includes the accessibility, so those
+  /// items are invisible to [_storage]: [load] moves them over once.
+  static const _legacy = FlutterSecureStorage(aOptions: AndroidOptions());
 
   static const _kAccess = 'datxevui.access_token';
   static const _kRefresh = 'datxevui.refresh_token';
@@ -69,6 +82,7 @@ class TokenStore {
   }
 
   Future<(SessionUser?, String?, String?)> load() async {
+    await _migrateLegacy();
     final access = await _storage.read(key: _kAccess);
     final refresh = await _storage.read(key: _kRefresh);
     final rawUser = await _storage.read(key: _kUser);
@@ -86,6 +100,26 @@ class TokenStore {
     _cachedRefresh = refresh;
     _cachedUser = user;
     return (user, access, refresh);
+  }
+
+  /// Moves a session saved by an earlier version (other keychain
+  /// accessibility) to [_storage], so updating the app keeps the agent
+  /// signed in. A no-op on Android and once migrated.
+  Future<void> _migrateLegacy() async {
+    if (!Platform.isIOS || identical(_storage, _legacy)) return;
+    try {
+      final values = {
+        for (final key in [_kAccess, _kRefresh, _kUser])
+          key: await _legacy.read(key: key),
+      };
+      if (values.values.every((v) => v == null)) return;
+      for (final MapEntry(:key, :value) in values.entries) {
+        await _legacy.delete(key: key);
+        if (value != null) await _storage.write(key: key, value: value);
+      }
+    } catch (_) {
+      // Unreadable (e.g. a background launch before first unlock): try again next start.
+    }
   }
 
   Future<void> save({

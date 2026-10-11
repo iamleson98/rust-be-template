@@ -41,6 +41,7 @@ use utoipa::{IntoParams, ToSchema};
 
 use crate::auth::oauth::{self, OAuthProvider};
 use crate::error::{AppError, AppResult};
+use crate::service::auth_service::SessionKind;
 use crate::state::AppState;
 
 /// Cookie TTL for the OAuth state — 10 minutes.
@@ -269,7 +270,7 @@ pub async fn oauth_callback(
         )
         .await?;
 
-    let session = st.auth.issue_session(user).await?;
+    let session = st.auth.issue_session(user, SessionKind::Browser).await?;
     let jar = session.set_cookies(jar, st.auth.cookie_config(), st.auth.jwt_config());
 
     // Clear the state cookie (one-shot).

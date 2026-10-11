@@ -79,8 +79,26 @@ impl RefreshTokenManager {
         user_agent: Option<String>,
         ip: Option<String>,
     ) -> refresh_tokens::Model {
+        self.build_model_for(token, user_id, user_agent, ip, false)
+    }
+
+    /// [`Self::build_model`] with the mobile app's longer lifetime when
+    /// `mobile` (see `JwtConfig::mobile_refresh_ttl_secs`).
+    pub fn build_model_for(
+        &self,
+        token: &RefreshTokenValue,
+        user_id: Uuid,
+        user_agent: Option<String>,
+        ip: Option<String>,
+        mobile: bool,
+    ) -> refresh_tokens::Model {
         let now = Utc::now();
-        let exp = now + Duration::seconds(self.cfg.refresh_ttl_secs as i64);
+        let ttl = if mobile {
+            self.cfg.mobile_refresh_ttl_secs
+        } else {
+            self.cfg.refresh_ttl_secs
+        };
+        let exp = now + Duration::seconds(ttl as i64);
         refresh_tokens::Model {
             id: token.id,
             user_id,

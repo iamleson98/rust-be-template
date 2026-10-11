@@ -85,6 +85,7 @@ mod tests {
             issuer: "test-issuer".into(),
             access_ttl_secs: 900,
             refresh_ttl_secs: 7 * 24 * 3600,
+            mobile_refresh_ttl_secs: 90 * 24 * 3600,
         }
     }
 
