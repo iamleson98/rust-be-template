@@ -99,26 +99,38 @@ jobs:
 
             echo "== stopping datxevui_backend =="
             docker service scale datxevui_backend=0 --detach
+            # From here on the backend comes back up however this script
+            # ends: a failed backup or REINDEX must not leave the site down.
+            trap 'chown 1000:999 "$DB_VOLUME_DIR"/app.db* 2>/dev/null || true; echo "== starting datxevui_backend =="; docker service scale datxevui_backend=1 --detach' EXIT
+            stopped=""
             for i in $(seq 1 60); do
               n=$(docker service ls --filter name=datxevui_backend --format '{{.Replicas}}' || true)
-              if [ "$n" = "0/0" ]; then break; fi
+              if [ "$n" = "0/0" ]; then stopped=1; break; fi
               sleep 2
             done
-            echo "service scaled to 0 (replicas: $(docker service ls --filter name=datxevui_backend --format '{{.Replicas}}' || true))"
+            if [ -z "$stopped" ]; then
+              echo "!! backend still running — not touching the database"
+              exit 1
+            fi
 
-            echo "== before =="
+            # No backup, no reindex: the db with its WAL and shm, size-checked.
+            echo "== backup =="
             ls -la "$DB_VOLUME_DIR" | grep app.db || true
-            cp -a "$DB_VOLUME_DIR/app.db" "$DEPLOY_DIR/backups/app.db.pre-reindex.$(date -u +%Y%m%dT%H%M%SZ).bak" 2>/dev/null || true
+            BK="$DEPLOY_DIR/backups/pre-reindex.$(date -u +%Y%m%dT%H%M%SZ)"
+            mkdir -p "$BK"
+            cp -a "$DB_VOLUME_DIR"/app.db* "$BK"/
+            [ "$(stat -c %s "$DB_VOLUME_DIR/app.db")" = "$(stat -c %s "$BK/app.db")" ]
+            echo "backup at $BK"
 
             echo "== REINDEX (as the app user) =="
             setpriv --reuid 1000 --regid 999 --clear-groups \
               sh -c "printf 'REINDEX;\n' | '$CLI' '$DB_VOLUME_DIR/app.db'"
-            echo "reindex exit: $?"
+            echo "reindex ok"
 
-            chown 1000:999 "$DB_VOLUME_DIR"/app.db* 2>/dev/null || true
-
-            echo "== starting datxevui_backend =="
-            docker service scale datxevui_backend=1 --detach
+            echo "== integrity check (informational) =="
+            setpriv --reuid 1000 --regid 999 --clear-groups \
+              sh -c "printf 'PRAGMA integrity_check;\n' | '$CLI' '$DB_VOLUME_DIR/app.db'" || true
+            # The EXIT trap fixes ownership and restarts the backend.
 
       - name: Health gate — backend must serve /health again
         uses: appleboy/ssh-action@v1.2.0
