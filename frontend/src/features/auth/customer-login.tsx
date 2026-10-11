@@ -131,6 +131,9 @@ export function CustomerLogin() {
           <ChevronRight className="h-4 w-4" />
         </Button>
 
+        {/* Links, not buttons: they never submit the form. */}
+        <SocialAuthButtons />
+
         <div className="pt-4 border-t border-slate-100 space-y-2">
           <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
             {t('authPage.benefitsTitle')}
@@ -151,8 +154,6 @@ export function CustomerLogin() {
           </div>
         </div>
       </form>
-
-      <SocialAuthButtons />
     </Form>
   )
 }

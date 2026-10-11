@@ -2051,6 +2051,7 @@ export const vi: TranslationMap = {
   'adminSchedules.priceChildFor': 'Giá trẻ em – {cls}',
   'adminSchedules.faresHint':
     'Để trống giá một hạng ghế để dùng giá ghế thường; để trống giá trẻ em để áp dụng mức giảm của nhà xe. Giá mới áp dụng cho các ghế chưa bán của các chuyến sắp chạy.',
+  'adminSchedules.checkFields': 'Kiểm tra lại các ô được đánh dấu đỏ',
   'scheduleSchema.childAboveAdult': 'Giá trẻ em không được cao hơn giá người lớn',
   'adminTickets.childUpTo': 'Trẻ em ≤ {age} tuổi',
   'tripDetail.signInToBook': 'Đăng nhập để đặt vé',

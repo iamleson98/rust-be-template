@@ -2059,6 +2059,7 @@ export const en: TranslationMap = {
   'adminSchedules.priceChildFor': 'Child price – {cls}',
   'adminSchedules.faresHint':
     'Leave a class empty to charge the standard price, and a child price empty to apply the operator discount. New prices apply to unsold seats on upcoming trips.',
+  'adminSchedules.checkFields': 'Check the fields marked in red',
   'scheduleSchema.childAboveAdult': 'A child price cannot be higher than the adult price',
   'adminTickets.childUpTo': 'Child ≤ {age}',
   'tripDetail.signInToBook': 'Sign in to book',

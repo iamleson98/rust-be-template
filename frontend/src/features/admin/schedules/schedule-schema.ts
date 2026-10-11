@@ -19,11 +19,18 @@ const optionalTime = z
   .regex(HHMM, { error: () => tSync('scheduleSchema.timeInvalid') })
   .nullish()
 
-/** A price in VND; 0 (or empty) = "not set". */
-const price = z.coerce
-  .number({ error: () => tSync('scheduleSchema.priceNumber') })
-  .min(0, { error: () => tSync('scheduleSchema.priceMin') })
-  .max(1_000_000_000, { error: () => tSync('scheduleSchema.priceMax') })
+/**
+ * A price in VND; 0 (or empty) = "not set". A field never touched is
+ * `undefined` (a new seat-class row, or a child price the brand does not
+ * show): that is "not set" too, not a number error the admin cannot see.
+ */
+const price = z.preprocess(
+  (v) => (v === undefined || v === null || v === '' ? 0 : v),
+  z.coerce
+    .number({ error: () => tSync('scheduleSchema.priceNumber') })
+    .min(0, { error: () => tSync('scheduleSchema.priceMin') })
+    .max(1_000_000_000, { error: () => tSync('scheduleSchema.priceMax') }),
+)
 
 /** One seat class: 0 adult = the standard price, 0 child = the brand's discount. */
 const classFare = z.object({ priceAdult: price, priceChild: price })

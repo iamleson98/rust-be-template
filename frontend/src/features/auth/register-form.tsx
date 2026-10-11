@@ -103,6 +103,9 @@ export function RegisterForm() {
   return (
     <Form {...form}>
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-3.5" noValidate>
+        {/* The quick way in first: one tap instead of the whole form. */}
+        <SocialAuthButtons dividerAt="after" />
+
         <FormField
           control={control}
           name="fullName"
@@ -280,8 +283,6 @@ export function RegisterForm() {
           {t('authPage.agreeAfter')}
         </p>
       </form>
-
-      <SocialAuthButtons />
     </Form>
   )
 }

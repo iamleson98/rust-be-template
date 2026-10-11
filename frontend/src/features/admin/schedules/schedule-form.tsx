@@ -345,7 +345,13 @@ export function ScheduleFormDialog({
           </DialogHeader>
 
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4">
+            <form
+              // A failed check always says so, even when the field is off screen.
+              onSubmit={form.handleSubmit(onSubmit, () =>
+                toast.error(t('adminSchedules.checkFields')),
+              )}
+              className="grid gap-4"
+            >
               {/* Point sequence stays full-width — the wide modal exists
                   precisely so the pickup/drop-off selects render on one
                   line with their arrival-time pickers instead of

@@ -51,8 +51,10 @@ const BUTTONS: Record<
 /**
  * Sign in with Google / Facebook — only the providers the server has
  * set up, so no button ends in an error; nothing at all when none are.
+ * The "or" divider goes `before` the buttons (under a form) or `after`
+ * them (above a form, where they are the quick way in).
  */
-export function SocialAuthButtons() {
+export function SocialAuthButtons({ dividerAt = 'before' }: { dividerAt?: 'before' | 'after' }) {
   const t = useT()
   const { data } = useQuery({ ...oauthProvidersOptions(), staleTime: 5 * 60_000 })
   const providers = (data?.providers ?? []).filter((p): p is Provider => p in BUTTONS)
@@ -72,16 +74,19 @@ export function SocialAuthButtons() {
 
   if (providers.length === 0) return null
 
+  const divider = (
+    <div className="flex items-center gap-3 py-1">
+      <div className="h-px flex-1 bg-border" />
+      <span className="text-[11px] tracking-wider text-muted-foreground uppercase">
+        {t('authPage.or')}
+      </span>
+      <div className="h-px flex-1 bg-border" />
+    </div>
+  )
+
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-3 py-1">
-        <div className="h-px flex-1 bg-border" />
-        <span className="text-[11px] tracking-wider text-muted-foreground uppercase">
-          {t('authPage.or')}
-        </span>
-        <div className="h-px flex-1 bg-border" />
-      </div>
-
+      {dividerAt === 'before' && divider}
       <div
         className={cn(
           'grid gap-2',
@@ -112,6 +117,7 @@ export function SocialAuthButtons() {
       </div>
 
       <p className="text-center text-[11px] text-muted-foreground">{t('authPage.socialNote')}</p>
+      {dividerAt === 'after' && divider}
     </div>
   )
 }
