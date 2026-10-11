@@ -337,6 +337,44 @@ impl SessionManager {
         })
     }
 
+    /// Does THIS socket carry an ANSWERED call? Its drop then gets a
+    /// grace period instead of ending the call at once: a network switch
+    /// (Wi-Fi ↔ 4G) kills the socket while the audio still flows peer to
+    /// peer or comes back with an ICE restart, and the client reconnects
+    /// and takes the call over ([`resume_on_socket`](Self::resume_on_socket)).
+    pub fn socket_carries_active_call(&self, user_id: &str, sid: u64) -> bool {
+        self.sessions.iter().any(|s| {
+            (s.customer_id == user_id || s.agent_id == user_id)
+                && s.state == CallState::Active
+                && (s.offerer_sid == Some(sid) || s.answered_on == Some(sid))
+        })
+    }
+
+    /// The user reconnected with their call still running (a network
+    /// switch: new address, new socket) and asked to resume it: from now
+    /// on THIS socket carries their side of the call, so the old socket's
+    /// late drop no longer ends it. Returns whether a call was taken over.
+    pub fn resume_on_socket(&self, user_id: &str, sid: u64) -> bool {
+        for mut entry in self.sessions.iter_mut() {
+            let s = entry.value_mut();
+            let is_customer = s.customer_id == user_id;
+            if !is_customer && s.agent_id != user_id {
+                continue;
+            }
+            let is_offerer = (s.initiator == Initiator::Customer) == is_customer;
+            if is_offerer {
+                s.offerer_sid = Some(sid);
+                return true;
+            }
+            if s.state == CallState::Active && s.answered_on.is_some() {
+                s.answered_on = Some(sid);
+                return true;
+            }
+            return false;
+        }
+        false
+    }
+
     /// The live call session this user is part of (either role), for
     /// the `registered` frame's `activeCall` field. Clients use it to
     /// reconcile after a reconnect: a client whose local UI still shows
@@ -1108,6 +1146,43 @@ mod tests {
         let ended = m.end_sessions_of_socket("cust-2", 5);
         assert_eq!(ended.len(), 1);
         assert_eq!(ended[0].notify_user_id, "a1");
+        m.clear();
+    }
+
+    #[test]
+    fn a_resumed_call_survives_its_old_sockets_drop() {
+        let _g = TEST_LOCK.lock().unwrap();
+        let m = sessions();
+        m.clear();
+        // Customer socket 1 offers, agent socket 9 answers.
+        m.begin_customer_offer(
+            "cust-1",
+            offer(),
+            None,
+            Some(1),
+            picker_pick("a1"),
+            CallerProfile::anon(),
+        );
+        // Ringing: no grace, a drop ends it (the caller vanished).
+        assert!(!m.socket_carries_active_call("cust-1", 1));
+        assert!(m.on_answer("a1", "cust-1", Some(9)).is_some());
+        assert!(m.socket_carries_active_call("cust-1", 1));
+        assert!(m.socket_carries_active_call("a1", 9));
+        assert!(!m.socket_carries_active_call("a1", 10));
+
+        // The agent's phone switches network: socket 11 resumes the call.
+        assert!(m.resume_on_socket("a1", 11));
+        assert!(m.end_sessions_of_socket("a1", 9).is_empty());
+        assert!(m.is_user_in_call("cust-1"));
+        // So does the customer's, on socket 2.
+        assert!(m.resume_on_socket("cust-1", 2));
+        assert!(m.end_sessions_of_socket("cust-1", 1).is_empty());
+
+        // The new sockets carry it now: their drop ends it.
+        assert_eq!(m.end_sessions_of_socket("a1", 11).len(), 1);
+        assert!(!m.is_user_in_call("cust-1"));
+        // Nothing to resume without a call.
+        assert!(!m.resume_on_socket("a1", 12));
         m.clear();
     }
 

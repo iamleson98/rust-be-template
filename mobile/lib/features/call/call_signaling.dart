@@ -88,6 +88,9 @@ class CallSignalingService {
         'role': 'agent',
         'userId': _userId(),
         'channelId': contextChannel,
+        // Back mid-call (a network switch): this socket takes the call
+        // over, so the old socket's drop no longer ends it server-side.
+        if (hasLiveCall()) 'resume': true,
       });
       // Candidates buffered while the socket was down ride along with
       // the register: the server relays them to the live session's peer

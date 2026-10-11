@@ -16,8 +16,9 @@
  * - Resilience for office NATs / IP churn: outbound ICE candidates are
  *   buffered while the socket is down and re-sent on reconnect; inbound
  *   ones are buffered until the peer connection and remote description
- *   exist; and the original offerer retries once with an ICE restart
- *   (`renegotiate` frames) when the media path fails.
+ *   exist; and when the media path drops (a network switch, the edge of
+ *   Wi-Fi) the original offerer restarts ICE (`renegotiate` frames) while
+ *   the answerer waits for it, before either gives up.
  */
 import { tSync } from '@/lib/i18n'
 import { classifyQuality, summarizeStats, type QualityStats } from './call-quality'
@@ -85,6 +86,14 @@ const CALL_TIMEOUT_MS = 30_000 // outbound call rings this long
 const RING_TIMEOUT_MS = 30_000 // inbound call rings this long before auto-reject
 /** Media must connect this soon after the SDP exchange (both sides), else a clear network error. */
 const CONNECT_TIMEOUT_MS = 20_000
+/** Media dropped mid-call: how long ICE gets to recover by itself before a restart. */
+const ICE_RECOVERY_MS = 3_000
+/** How long each ICE restart gets to bring the media back before the next one. */
+const ICE_RESTART_GRACE_MS = 10_000
+/** Restarts per outage; the count resets once media is back, so a later switch gets its own. */
+const MAX_ICE_RESTARTS = 2
+/** An outage this long ends the call (the answerer, which cannot restart, waits this long). */
+const MEDIA_LOSS_LIMIT_MS = 25_000
 const QUALITY_POLL_MS = 2500
 const MAX_PENDING_ICE = 64
 const MAX_INBOUND_ICE = 128
@@ -138,6 +147,7 @@ export class AudioCallClient {
   private readonly callTimer = new Timer()
   private readonly ringTimer = new Timer()
   private readonly connectTimer = new Timer()
+  private readonly recoveryTimer = new Timer()
   private qualityTimer: ReturnType<typeof setInterval> | null = null
 
   private pc: RTCPeerConnection | null = null
@@ -152,8 +162,10 @@ export class AudioCallClient {
   private peerId: string | null = null
   /** Only the original offerer may drive an ICE restart (WebRTC glare rule). */
   private isOfferer = false
-  /** One restart per call: a second one on the same dead path is noise. */
+  /** ICE restarts sent in the current outage (see MAX_ICE_RESTARTS). */
   private iceRestarts = 0
+  /** When the media path dropped; null while it is up. */
+  private mediaDownSince: number | null = null
 
   /** Candidates produced while the socket was down; a lost one leaves the peer with an
    *  incomplete set ("stuck on connecting"), so they are re-sent on reconnect. */
@@ -175,6 +187,9 @@ export class AudioCallClient {
           role: cfg.role,
           userId: cfg.userId,
           channelId: cfg.channelId,
+          // Back mid-call (a network switch): this socket takes the call over,
+          // so the old socket's drop no longer ends it on the server.
+          ...(this.pc && this.isCallLive() ? { resume: true } : {}),
         })
         // Candidates buffered while the socket was down ride along.
         for (const msg of this.pendingIce.splice(0)) this.socket.send(msg)
@@ -200,7 +215,8 @@ export class AudioCallClient {
   dispose(): void {
     this.disposed = true
     this.stopQualitySampler()
-    for (const timer of [this.callTimer, this.ringTimer, this.connectTimer]) timer.clear()
+    for (const timer of [this.callTimer, this.ringTimer, this.connectTimer, this.recoveryTimer])
+      timer.clear()
     this.hangup()
     this.socket.close()
     this.events.clear()
@@ -399,7 +415,8 @@ export class AudioCallClient {
     // still exists. Gone + a live local call = zombie: the hangup went to the other side.
     // (A blip that reconnects with the session alive keeps the call: audio is peer to peer.)
     if (!this.disposed && this.isCallLive() && !msg.activeCall) {
-      for (const timer of [this.callTimer, this.ringTimer, this.connectTimer]) timer.clear()
+      for (const timer of [this.callTimer, this.ringTimer, this.connectTimer, this.recoveryTimer])
+        timer.clear()
       this.cleanupCall()
       this.endCall()
       this.events.emit('error', { code: 'call-gone', message: tSync('call.ended') })
@@ -576,13 +593,7 @@ export class AudioCallClient {
       this.events.emit('connection-state', { state: pc.connectionState })
       if (pc.connectionState === 'connected') this.onMediaConnected()
       if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
-        // Give ICE a moment to recover, then restart once (offerer only) or hang up.
-        setTimeout(() => {
-          const stillDown = this.pc && ['failed', 'disconnected'].includes(this.pc.connectionState)
-          if (!stillDown) return
-          if (this.isOfferer && this.iceRestarts < 1 && this.isCallLive()) void this.restartIce()
-          else this.hangup()
-        }, 3000)
+        this.onMediaLost()
       }
     }
     pc.oniceconnectionstatechange = () => {
@@ -595,13 +606,43 @@ export class AudioCallClient {
   private onMediaConnected(): void {
     this.mediaConnected = true
     this.connectTimer.clear()
+    // Back after an outage: the next one gets its own restarts.
+    this.recoveryTimer.clear()
+    this.mediaDownSince = null
+    this.iceRestarts = 0
     if (this.state === 'connecting') this.setState('active')
+  }
+
+  /** The media path dropped (a network switch, the edge of Wi-Fi): recover it, or end the call. */
+  private onMediaLost(): void {
+    if (this.mediaDownSince !== null) return // already recovering
+    this.mediaDownSince = Date.now()
+    this.recoveryTimer.set(ICE_RECOVERY_MS, () => this.recoverMedia())
+  }
+
+  /**
+   * Still no media. The offerer restarts ICE, spaced and capped; the answerer
+   * cannot (glare rule), so it waits for the offerer's restart. Either way an
+   * outage of MEDIA_LOSS_LIMIT_MS ends the call.
+   */
+  private recoverMedia(): void {
+    if (!this.pc || !this.isCallLive() || this.mediaDownSince === null) return
+    const downFor = Date.now() - this.mediaDownSince
+    if (
+      downFor >= MEDIA_LOSS_LIMIT_MS ||
+      (this.isOfferer && this.iceRestarts >= MAX_ICE_RESTARTS)
+    ) {
+      this.hangup()
+    } else if (this.isOfferer) {
+      void this.restartIce()
+    } else {
+      this.recoveryTimer.set(MEDIA_LOSS_LIMIT_MS - downFor, () => this.recoverMedia())
+    }
   }
 
   /** Re-offer with `iceRestart` for fresh candidates and a fresh media deadline. */
   private async restartIce(): Promise<void> {
     if (!this.pc || !this.isOfferer) return
-    this.iceRestarts++
     this.connectTimer.clear()
     try {
       const offer = await this.pc.createOffer({
@@ -612,7 +653,7 @@ export class AudioCallClient {
       await this.pc.setLocalDescription(offer)
       const to = this.peerAddress()
       if (!to) throw new Error('no peer to restart toward')
-      this.socket.send({
+      const sent = this.socket.send({
         type: 'call',
         to,
         from: this.cfg.userId,
@@ -620,7 +661,15 @@ export class AudioCallClient {
         iceRestart: true,
         sdp: offer,
       })
+      if (!sent) {
+        // The same switch took the signalling socket down: try again once it is back,
+        // without using up an attempt.
+        this.recoveryTimer.set(ICE_RECOVERY_MS, () => this.recoverMedia())
+        return
+      }
+      this.iceRestarts++
       this.startConnectTimeout()
+      this.recoveryTimer.set(ICE_RESTART_GRACE_MS, () => this.recoverMedia())
       this.events.emit('ice-restart', { attempts: this.iceRestarts })
     } catch (e) {
       this.events.emit('error', { code: 'ice-restart', message: String(e) })
@@ -672,6 +721,7 @@ export class AudioCallClient {
     this.peerId = null
     this.isOfferer = false
     this.iceRestarts = 0
+    this.mediaDownSince = null
     this.mediaConnected = false
     this.pendingIce = []
     this.inboundIce = []
@@ -679,6 +729,7 @@ export class AudioCallClient {
     this.callTimer.clear()
     this.ringTimer.clear()
     this.connectTimer.clear()
+    this.recoveryTimer.clear()
     this.stopQualitySampler()
     if (this.remoteAudioElement) {
       try {
