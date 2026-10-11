@@ -1431,6 +1431,7 @@ async fn migrated_store() -> anyhow::Result<Arc<backend::store::CompositeStore>>
         DbRbacStore, DbRefreshTokenStore, DbReviewStore, DbRouteStore, DbScheduleStore,
         DbStaffPresenceStore, DbTripStore, DbUserStore, DbVehicleTypeStore,
     };
+    use sea_orm_migration::MigratorTrait;
     use std::sync::Once;
     static INIT: Once = Once::new();
     INIT.call_once(|| {
@@ -1529,19 +1530,41 @@ async fn search_backfills_a_large_schedule_set_quickly() -> anyhow::Result<()> {
 
     let res = tokio::time::timeout(
         std::time::Duration::from_secs(30),
-        st.public
-            .search_trips("hà nội", "đà nẵng", &date, 100, 0, vec![], "departure", 1, None),
+        st.public.search_trips(
+            "hà nội",
+            "đà nẵng",
+            &date,
+            100,
+            0,
+            vec![],
+            "departure",
+            1,
+            None,
+        ),
     )
     .await??;
-    assert_eq!(res.total, Some(120), "every schedule becomes exactly one trip");
+    assert_eq!(
+        res.total,
+        Some(120),
+        "every schedule becomes exactly one trip"
+    );
     assert_eq!(res.items.len(), 100, "limit is honored");
     assert_eq!(res.has_more, Some(true));
 
     // Second page (the server clamps limit to 100).
     let res2 = tokio::time::timeout(
         std::time::Duration::from_secs(30),
-        st.public
-            .search_trips("hà nội", "đà nẵng", &date, 100, 100, vec![], "departure", 1, None),
+        st.public.search_trips(
+            "hà nội",
+            "đà nẵng",
+            &date,
+            100,
+            100,
+            vec![],
+            "departure",
+            1,
+            None,
+        ),
     )
     .await??;
     assert_eq!(res2.items.len(), 20, "the tail page completes the set");
@@ -1640,7 +1663,17 @@ async fn search_serves_existing_rows_while_the_warmer_holds_the_lock() -> anyhow
     // already exist — none yet, so an empty result, NOT a hang.
     let blocked = tokio::time::timeout(
         std::time::Duration::from_secs(10),
-        public.search_trips("hà nội", "đà nẵng", &date, 20, 0, vec![], "departure", 1, None),
+        public.search_trips(
+            "hà nội",
+            "đà nẵng",
+            &date,
+            20,
+            0,
+            vec![],
+            "departure",
+            1,
+            None,
+        ),
     )
     .await??;
     assert_eq!(
@@ -1653,7 +1686,17 @@ async fn search_serves_existing_rows_while_the_warmer_holds_the_lock() -> anyhow
     drop(_guard);
     let filled = tokio::time::timeout(
         std::time::Duration::from_secs(10),
-        public.search_trips("hà nội", "đà nẵng", &date, 20, 0, vec![], "departure", 1, None),
+        public.search_trips(
+            "hà nội",
+            "đà nẵng",
+            &date,
+            20,
+            0,
+            vec![],
+            "departure",
+            1,
+            None,
+        ),
     )
     .await??;
     assert_eq!(filled.items.len(), 5, "lock released: fill succeeds");
@@ -1713,7 +1756,17 @@ async fn search_today_excludes_already_departed_trips() -> anyhow::Result<()> {
 
     let res = st
         .public
-        .search_trips("hà nội", "đà nẵng", &today, 20, 0, vec![], "departure", 1, None)
+        .search_trips(
+            "hà nội",
+            "đà nẵng",
+            &today,
+            20,
+            0,
+            vec![],
+            "departure",
+            1,
+            None,
+        )
         .await?;
     let times: Vec<String> = res
         .items
@@ -1734,13 +1787,23 @@ async fn search_today_excludes_already_departed_trips() -> anyhow::Result<()> {
     }
 
     // Tomorrow: the whole day is in the future — both departures sell.
-    let tomorrow = (chrono::Utc::now() + chrono::Duration::seconds(7 * 3600)
-        + chrono::Duration::days(1))
-        .format("%Y-%m-%d")
-        .to_string();
+    let tomorrow =
+        (chrono::Utc::now() + chrono::Duration::seconds(7 * 3600) + chrono::Duration::days(1))
+            .format("%Y-%m-%d")
+            .to_string();
     let res2 = st
         .public
-        .search_trips("hà nội", "đà nẵng", &tomorrow, 20, 0, vec![], "departure", 1, None)
+        .search_trips(
+            "hà nội",
+            "đà nẵng",
+            &tomorrow,
+            20,
+            0,
+            vec![],
+            "departure",
+            1,
+            None,
+        )
         .await?;
     let times2: Vec<String> = res2
         .items
@@ -1835,13 +1898,13 @@ async fn warmer_materialize_is_idempotent_and_bounded() -> anyhow::Result<()> {
     assert_eq!(zero, 0, "an expired budget must fill nothing");
 
     // Full fill.
-    let created = trip_warmer::materialize_missing(store.as_ref(), &schedule_models, &date, None)
-        .await?;
+    let created =
+        trip_warmer::materialize_missing(store.as_ref(), &schedule_models, &date, None).await?;
     assert_eq!(created, 3);
 
     // Idempotent: the repeat finds nothing missing.
-    let again = trip_warmer::materialize_missing(store.as_ref(), &schedule_models, &date, None)
-        .await?;
+    let again =
+        trip_warmer::materialize_missing(store.as_ref(), &schedule_models, &date, None).await?;
     assert_eq!(again, 0, "second pass must create nothing");
 
     // Past dates are never filled.
@@ -1891,7 +1954,7 @@ async fn warmer_repairs_trips_missing_seat_inventory() -> anyhow::Result<()> {
         bus_layout::Entity::insert(bus_layout::ActiveModel {
             id: Set(layout_id),
             brand_id: Set(None),
-            name: Set("Test layout".into()),
+            name: Set(Some("Test layout".into())),
             vehicle_type: Set(Some("sleeper".into())),
             total_seats: Set(Some(4)),
             layout_data: Set(None),
@@ -1959,12 +2022,9 @@ async fn warmer_repairs_trips_missing_seat_inventory() -> anyhow::Result<()> {
         .await?;
 
     // Repair: seats are re-seeded, exactly once per seat.
-    let healed = trip_warmer::repair_seat_inventories(
-        store.as_ref(),
-        std::slice::from_ref(&sched),
-        &date,
-    )
-    .await?;
+    let healed =
+        trip_warmer::repair_seat_inventories(store.as_ref(), std::slice::from_ref(&sched), &date)
+            .await?;
     assert_eq!(healed, 1, "the orphaned trip is healed");
 
     let seats = store
@@ -1976,12 +2036,9 @@ async fn warmer_repairs_trips_missing_seat_inventory() -> anyhow::Result<()> {
 
     // Repair is idempotent — a second pass finds nothing broken and
     // must not duplicate the seats it just wrote.
-    let healed2 = trip_warmer::repair_seat_inventories(
-        store.as_ref(),
-        std::slice::from_ref(&sched),
-        &date,
-    )
-    .await?;
+    let healed2 =
+        trip_warmer::repair_seat_inventories(store.as_ref(), std::slice::from_ref(&sched), &date)
+            .await?;
     assert_eq!(healed2, 0, "second repair pass is a no-op");
     let seats2 = store
         .trip_store()

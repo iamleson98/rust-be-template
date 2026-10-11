@@ -1243,10 +1243,7 @@ impl PublicService {
                 min_price: schedule.base_price_adult,
                 max_price: schedule.base_price_adult,
                 price_adult: schedule.base_price_adult,
-                price_child: standard_child_price(
-                    schedule,
-                    brand.as_ref().and_then(ChildPolicy::of),
-                ),
+                price_child: standard_child_price(schedule, brand.and_then(ChildPolicy::of)),
                 vehicle_type,
                 vehicle_type_label: vt_label,
                 capacity: None,
@@ -1298,10 +1295,7 @@ impl PublicService {
 
     /// Trip detail by id — full enriched TripDetail shape.
     /// Cheapest and dearest seat for sale on each of these trips.
-    async fn price_ranges(
-        &self,
-        trip_ids: Vec<Uuid>,
-    ) -> AppResult<HashMap<Uuid, (i64, i64)>> {
+    async fn price_ranges(&self, trip_ids: Vec<Uuid>) -> AppResult<HashMap<Uuid, (i64, i64)>> {
         self.store
             .trip_store()
             .available_price_ranges(trip_ids)
@@ -1674,9 +1668,7 @@ impl PublicService {
                         break;
                     }
                 }
-                for date in
-                    trip_warmer::sell_window(&today_vn, trip_warmer::SELL_WINDOW_DAYS)
-                {
+                for date in trip_warmer::sell_window(&today_vn, trip_warmer::SELL_WINDOW_DAYS) {
                     self.warmer.notify(&date);
                 }
             }
@@ -1966,6 +1958,29 @@ fn standard_child_price(schedule: &schedule::Model, policy: Option<ChildPolicy>)
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Bare-minimum schedule model for tests — only the
+    /// effective-window + days-of-week fields matter.
+    fn sched(
+        effective_from: Option<&str>,
+        effective_to: Option<&str>,
+        days_of_week: Option<&str>,
+    ) -> schedule::Model {
+        schedule::Model {
+            id: Uuid::new_v4(),
+            route_id: Uuid::new_v4(),
+            departure_time: "08:00".into(),
+            effective_from: effective_from.map(String::from),
+            effective_to: effective_to.map(String::from),
+            days_of_week: days_of_week.map(String::from),
+            bus_layout_id: None,
+            base_price_adult: 100_000,
+            base_price_child: None,
+            amenities: None,
+            created_at: "2026-01-01T00:00:00Z".into(),
+            vehicle_type_id: None,
+        }
+    }
 
     #[test]
     fn parse_amenities_handles_json_array() {

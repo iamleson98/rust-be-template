@@ -149,7 +149,7 @@ pub fn schedule_runs_on(s: &schedule::Model, date: NaiveDate) -> bool {
 /// many trips were created.
 ///
 /// Callers serialize on a [`Warmer`]'s lock — see [`Warmer::try_fill`]
-/// and [`Warmer::spawn`]; this function itself does not lock so the
+/// and [`spawn`]; this function itself does not lock so the
 /// inline and background paths share it without double-acquiring.
 ///
 /// `deadline` bounds the work: the build loop stops adding trips once
@@ -446,7 +446,7 @@ pub async fn repair_seat_inventories(
 /// notify gaps on, plus the fill lock shared by every fill path of the
 /// service graph that owns it.
 ///
-/// * [`Warmer::spawn`] starts the background task (boot pass + 6-hourly
+/// * [`spawn`] starts the background task (boot pass + 6-hourly
 ///   window pass + on-request date fills).
 /// * [`Warmer::detached`] is a no-task handle for tests and embedded
 ///   harnesses: the lock still serializes that instance's inline fills,
@@ -601,8 +601,12 @@ mod tests {
 
     #[test]
     fn vn_today_rolls_at_17utc() {
-        let pre = chrono::Utc.with_ymd_and_hms(2026, 10, 11, 16, 59, 59).unwrap();
-        let post = chrono::Utc.with_ymd_and_hms(2026, 10, 11, 17, 0, 0).unwrap();
+        let pre = chrono::Utc
+            .with_ymd_and_hms(2026, 10, 11, 16, 59, 59)
+            .unwrap();
+        let post = chrono::Utc
+            .with_ymd_and_hms(2026, 10, 11, 17, 0, 0)
+            .unwrap();
         assert_eq!(vn_today(pre), "2026-10-11");
         assert_eq!(vn_today(post), "2026-10-12");
     }
@@ -653,7 +657,10 @@ mod tests {
     #[test]
     fn schedule_runs_on_daily_without_mask() {
         // 2026-10-12 is a Monday.
-        assert!(schedule_runs_on(&sched(None, None, None), date(2026, 10, 12)));
+        assert!(schedule_runs_on(
+            &sched(None, None, None),
+            date(2026, 10, 12)
+        ));
     }
 
     #[test]
