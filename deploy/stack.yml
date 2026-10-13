@@ -38,14 +38,13 @@ services:
 
       # ── Database (rust-sql engine file on the data volume) ──────
       - DATABASE_URL=${DATABASE_URL:-sqlite:/app/data/app.db?mode=rwc}
-      # Shared engine page cache (KiB). 512 MiB was sized for the
-      # 2026-10-11 backfill that pre-created ~40 seat rows per trip for
-      # the whole sell window (app.db past 650 MB, inserts thrashing).
-      # Seats are now created when a trip is first opened and departed
-      # trips' unsold seats are pruned, so the hot set is the trip,
-      # schedule and route rows plus the seats of trips people open:
-      # 128 MiB holds it with room, and RSS follows the cache.
-      - DATABASE_CACHE_KIB=${DATABASE_CACHE_KIB:-131072}
+      # Shared engine page cache (KiB). The DB is still ~650 MB: the seat
+      # rows the old warmer pre-created for the whole sell window only age
+      # out over two weeks (seats are now created on demand and departed
+      # trips' unsold seats pruned). 128 MiB thrashed on that file (every
+      # read 25-55 s on 2026-10-13), so keep 512 MiB until a VACUUM after
+      # the prune has shrunk it; then lower this.
+      - DATABASE_CACHE_KIB=${DATABASE_CACHE_KIB:-524288}
 
       # ── JWT (generated on first run, see deploy.sh) ────────────
       - JWT_SECRET=${JWT_SECRET:?JWT_SECRET is required in .env}
