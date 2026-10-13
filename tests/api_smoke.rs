@@ -1917,12 +1917,11 @@ async fn warmer_materialize_is_idempotent_and_bounded() -> anyhow::Result<()> {
     Ok(())
 }
 
-/// The storm's OTHER scar: fills that died between the trip INSERT and
-/// the seat INSERT left trips that displayed fine but could not be
-/// booked. `repair_seat_inventories` must re-seed their seats — without
-/// duplicating anything.
+/// Trips are created ahead without seat rows; `ensure_seats` creates a
+/// trip's seats the first time it is opened or booked — once, without
+/// duplicating anything on a second call.
 #[tokio::test]
-async fn warmer_repairs_trips_missing_seat_inventory() -> anyhow::Result<()> {
+async fn a_trips_seats_are_created_on_first_use_exactly_once() -> anyhow::Result<()> {
     use backend::entity::{bus_layout, schedule, seat, trip_session};
     use backend::service::trip_warmer;
     use sea_orm::Set;
@@ -2002,7 +2001,7 @@ async fn warmer_repairs_trips_missing_seat_inventory() -> anyhow::Result<()> {
         .await?;
     let sched: schedule::Model = sched_model.try_into()?;
 
-    // THE STORM SCAR: a trip row with NO seat inventory.
+    // A trip row as the warmer creates it: no seat rows yet.
     let trip_id = uuid::Uuid::new_v4();
     store
         .trip_store()
@@ -2021,25 +2020,23 @@ async fn warmer_repairs_trips_missing_seat_inventory() -> anyhow::Result<()> {
         })
         .await?;
 
-    // Repair: seats are re-seeded, exactly once per seat.
-    let healed =
-        trip_warmer::repair_seat_inventories(store.as_ref(), std::slice::from_ref(&sched), &date)
-            .await?;
-    assert_eq!(healed, 1, "the orphaned trip is healed");
+    // First use: every layout seat is created, for sale.
+    let trip = store
+        .trip_store()
+        .find_trip_by_id(trip_id)
+        .await?
+        .expect("trip");
+    trip_warmer::ensure_seats(store.as_ref(), &trip, &sched).await?;
 
     let seats = store
         .trip_store()
         .list_seat_inventories_by_trip(&trip_id.to_string())
         .await?;
-    assert_eq!(seats.len(), 4, "all four layout seats are re-seeded");
+    assert_eq!(seats.len(), 4, "all four layout seats are created");
     assert!(seats.iter().all(|s| s.status == "available"));
 
-    // Repair is idempotent — a second pass finds nothing broken and
-    // must not duplicate the seats it just wrote.
-    let healed2 =
-        trip_warmer::repair_seat_inventories(store.as_ref(), std::slice::from_ref(&sched), &date)
-            .await?;
-    assert_eq!(healed2, 0, "second repair pass is a no-op");
+    // Idempotent: a second call must not duplicate the seats.
+    trip_warmer::ensure_seats(store.as_ref(), &trip, &sched).await?;
     let seats2 = store
         .trip_store()
         .list_seat_inventories_by_trip(&trip_id.to_string())
@@ -2284,15 +2281,12 @@ async fn seat_inventory_batch_insert_is_conflict_tolerant() -> anyhow::Result<()
     Ok(())
 }
 
-/// The same contract at the service level: two repair passes racing on
-/// the same broken trip (the restart-overlap shape observed in
-/// production, where a draining task's warmer overlapped the
-/// replacement's boot pass) must BOTH succeed and must leave exactly
-/// one inventory row per seat. Whichever interleaving the runtime
-/// picks — serialized, overlapped, or fully concurrent — the outcome
-/// is the same: never a UNIQUE abort, never a duplicate row.
+/// Two first uses of the same trip racing (two customers opening it at
+/// once) must BOTH succeed and leave exactly one inventory row per seat,
+/// whichever way they interleave: never a UNIQUE abort, never a
+/// duplicate row.
 #[tokio::test]
-async fn warmer_repair_survives_concurrent_duplicate_passes() -> anyhow::Result<()> {
+async fn concurrent_first_uses_create_each_seat_once() -> anyhow::Result<()> {
     use backend::entity::{bus_layout, schedule, seat, trip_session};
     use backend::service::trip_warmer;
     use sea_orm::Set;
@@ -2371,7 +2365,7 @@ async fn warmer_repair_survives_concurrent_duplicate_passes() -> anyhow::Result<
         .await?;
     let sched: schedule::Model = sched_model.try_into()?;
 
-    // The storm scar both passes will try to heal.
+    // A trip row as the warmer creates it: no seat rows yet.
     let trip_id = uuid::Uuid::new_v4();
     store
         .trip_store()
@@ -2390,19 +2384,21 @@ async fn warmer_repair_survives_concurrent_duplicate_passes() -> anyhow::Result<
         })
         .await?;
 
-    // Two repair passes over the same broken state at the same time.
+    // Two first uses of the same trip at the same time (two customers
+    // opening it at once).
+    let trip = store
+        .trip_store()
+        .find_trip_by_id(trip_id)
+        .await?
+        .expect("trip");
     let (r0, r1) = tokio::join!(
-        trip_warmer::repair_seat_inventories(store.as_ref(), std::slice::from_ref(&sched), &date),
-        trip_warmer::repair_seat_inventories(store.as_ref(), std::slice::from_ref(&sched), &date),
+        trip_warmer::ensure_seats(store.as_ref(), &trip, &sched),
+        trip_warmer::ensure_seats(store.as_ref(), &trip, &sched),
     );
-    // Neither pass may error — the UNIQUE abort of the 2026-10-11
-    // incident is exactly the failure this forbids.
-    let healed0 = r0?;
-    let healed1 = r1?;
-    assert!(
-        healed0 + healed1 >= 1,
-        "at least one pass did the healing work"
-    );
+    // Neither may error — the UNIQUE abort of the 2026-10-11 incident is
+    // exactly the failure this forbids.
+    r0?;
+    r1?;
 
     // Exactly one inventory row per seat, whichever way the passes
     // interleaved.

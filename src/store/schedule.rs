@@ -14,7 +14,9 @@ use sea_orm::{
 use store_macros::retry;
 use uuid::Uuid;
 
-use crate::entity::{booking_seat, bus_layout, schedule, schedule_fare, seat, seat_inventory};
+use crate::entity::{
+    booking_seat, bus_layout, schedule, schedule_fare, seat, seat_inventory, trip_session,
+};
 
 use super::error::{StoreError, StoreResult};
 use super::retry::RetryPolicy;
@@ -120,6 +122,8 @@ pub trait ScheduleStore: Send + Sync {
     /// Number of `seat_inventory` rows referencing any seat of this
     /// layout (i.e. materialized trips used it) — such layouts cannot
     /// be deleted without destroying trip history.
+    /// Trips created for schedules that use this layout.
+    async fn count_trips_by_bus_layout(&self, id: Uuid) -> StoreResult<usize>;
     async fn count_seat_inventory_by_bus_layout(&self, id: Uuid) -> StoreResult<usize>;
 
     /// Number of `booking_seat` rows referencing any seat of this
@@ -416,6 +420,19 @@ impl ScheduleStore for DbScheduleStore {
     async fn count_schedules_by_bus_layout(&self, id: Uuid) -> StoreResult<usize> {
         Ok(schedule::Entity::find()
             .filter(schedule::Column::BusLayoutId.eq(id))
+            .count(self.db.as_ref())
+            .await? as usize)
+    }
+
+    async fn count_trips_by_bus_layout(&self, id: Uuid) -> StoreResult<usize> {
+        use sea_orm::sea_query::Query;
+        let schedules = Query::select()
+            .column(schedule::Column::Id)
+            .from(schedule::Entity)
+            .and_where(schedule::Column::BusLayoutId.eq(id))
+            .to_owned();
+        Ok(trip_session::Entity::find()
+            .filter(trip_session::Column::ScheduleId.in_subquery(schedules))
             .count(self.db.as_ref())
             .await? as usize)
     }

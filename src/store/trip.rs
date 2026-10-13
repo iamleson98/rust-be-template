@@ -195,6 +195,10 @@ pub trait TripStore: Send + Sync {
     /// Distinct trip ids that have at least one seat-inventory row
     /// (any status) — the repair scan's "is this trip complete" check.
     async fn list_trip_ids_with_seats(&self, trip_ids: Vec<Uuid>) -> StoreResult<Vec<Uuid>>;
+
+    /// Delete the `available` seat rows of these trips (departed ones:
+    /// unsold seats there can never be sold). How many rows went.
+    async fn delete_unsold_seats_of_trips(&self, trip_ids: Vec<Uuid>) -> StoreResult<u64>;
     /// Scheduled trips departing on `date_gte` (`YYYY-MM-DD`) or later.
     async fn count_upcoming_trips(&self, date_gte: &str) -> StoreResult<u64>;
     async fn list_upcoming_trips(
@@ -394,6 +398,18 @@ impl TripStore for DbTripStore {
             .filter(trip_session::Column::DepartureDate.eq(date.to_string()))
             .all(self.db.as_ref())
             .await?)
+    }
+
+    async fn delete_unsold_seats_of_trips(&self, trip_ids: Vec<Uuid>) -> StoreResult<u64> {
+        if trip_ids.is_empty() {
+            return Ok(0);
+        }
+        Ok(seat_inventory::Entity::delete_many()
+            .filter(seat_inventory::Column::TripSessionId.is_in(trip_ids))
+            .filter(seat_inventory::Column::Status.eq("available"))
+            .exec(self.db.as_ref())
+            .await?
+            .rows_affected)
     }
 
     async fn list_trip_ids_with_seats(&self, trip_ids: Vec<Uuid>) -> StoreResult<Vec<Uuid>> {

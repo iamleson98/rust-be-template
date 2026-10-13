@@ -245,6 +245,10 @@ impl BookingService {
         let point_id =
             |stop: Option<&trip_stops::Stop>| stop.filter(|s| s.pickup_point).map(|s| s.id);
 
+        // Seats exist once the trip was opened; a hold straight from a
+        // link creates them here (see `trip_warmer::ensure_seats`).
+        crate::service::trip_warmer::ensure_seats(&self.store, &trip, &schedule).await?;
+
         // Fetch seat inventories
         let seat_uuids: Vec<String> = req.seat_ids.iter().map(|s| s.to_string()).collect();
         let seat_invs = self

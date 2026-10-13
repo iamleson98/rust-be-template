@@ -19,9 +19,13 @@ use crate::entity::{bus_layout, seat};
 use crate::service::seat_plan::{self, SeatSpec, SeatSync};
 use crate::store::{ScheduleStore, StoreResult};
 
-/// Trips have been materialized (or tickets sold) from this layout's
-/// seats: the seat set is frozen, seats may only be moved or relabelled.
+/// Trips were created on this layout (their capacity is its seat count;
+/// seat rows follow on demand) or tickets sold from its seats: the seat
+/// set is frozen, seats may only be moved or relabelled.
 pub async fn layout_in_use(store: &dyn ScheduleStore, layout_id: Uuid) -> StoreResult<bool> {
+    if store.count_trips_by_bus_layout(layout_id).await? > 0 {
+        return Ok(true);
+    }
     let inventory = store.count_seat_inventory_by_bus_layout(layout_id).await?;
     let sold = store.count_booking_seats_by_bus_layout(layout_id).await?;
     Ok(inventory + sold > 0)

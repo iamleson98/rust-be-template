@@ -1423,6 +1423,10 @@ impl PublicService {
             })
             .collect();
 
+        // Seats are created when a trip is first opened (see
+        // `trip_warmer::ensure_seats`).
+        trip_warmer::ensure_seats(&self.store, &trip, &schedule).await?;
+
         // Seat map — fetch all seats for the bus layout + their inventory
         let seat_rows = if let Some(blid) = schedule.bus_layout_id {
             self.store

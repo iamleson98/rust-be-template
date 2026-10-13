@@ -28,9 +28,17 @@
 //!    the background warmer. A search never queues behind a long write
 //!    again.
 //! 3. **The warmer owns the bulk work.** A boot pass + 6-hourly tick
-//!    materializes the whole sell window (today + 13 days) and repairs
-//!    storm residue (trips whose seat inventory never landed), so the
-//!    steady-state search is pure indexed reads.
+//!    creates the trip rows of the whole sell window (today + 13 days),
+//!    so the steady-state search is pure indexed reads, and prunes the
+//!    unsold seats of departed trips.
+//!
+//! ## Trips ahead, seats on demand
+//!
+//! Only trip rows are created ahead: one small row per schedule and day,
+//! carrying the capacity and the seats left — all search needs. A trip's
+//! ~40 priced seat rows are created the first time its seat map is shown
+//! or a booking holds it ([`ensure_seats`]). Creating them ahead for the
+//! whole window grew the database past 650 MB for trips nobody opened.
 //!
 //! ## Concurrency contract
 //!
@@ -222,9 +230,9 @@ pub async fn materialize_missing(
         return Ok(0);
     }
 
-    // Batch context: vehicle-type capacities (layout-less schedules),
-    // per-class fares, and every referenced layout's seats — one query
-    // each instead of the old per-schedule round trips.
+    // Batch context: vehicle-type capacities (layout-less schedules) and
+    // every referenced layout's seats (their count is the capacity) —
+    // one query each instead of per-schedule round trips.
     let vt_map: HashMap<Uuid, vehicle_type::Model> = {
         let vt_ids: Vec<Uuid> = missing
             .iter()
@@ -244,11 +252,6 @@ pub async fn materialize_missing(
                 .collect()
         }
     };
-    let fare_rows = store
-        .schedule_store()
-        .list_fares(missing.iter().map(|s| s.id).collect())
-        .await
-        .map_err(|e| AppError::Internal(e.to_string()))?;
     let seats_by_layout: HashMap<Uuid, Vec<seat::Model>> = {
         let layout_ids: Vec<Uuid> = missing.iter().filter_map(|s| s.bus_layout_id).collect();
         if layout_ids.is_empty() {
@@ -271,7 +274,6 @@ pub async fn materialize_missing(
     // insert in chunks. The deadline only guards the build loop — the
     // final chunked inserts are a handful of statements.
     let mut trip_models: Vec<crate::entity::trip_session::ActiveModel> = Vec::new();
-    let mut seat_models: Vec<seat_inventory::ActiveModel> = Vec::new();
     for s in &missing {
         if deadline.is_some_and(|dl| Instant::now() >= dl) {
             break;
@@ -307,26 +309,6 @@ pub async fn materialize_missing(
             created_at: sea_orm::Set(now.clone()),
             updated_at: sea_orm::Set(now),
         });
-
-        if let Some(seats) = seats.filter(|v| !v.is_empty()) {
-            let fare_table = FareTable::new(s, &fare_rows);
-            for seat in seats {
-                let price = fare_table.fare(Some(&fares::class_of(seat))).adult;
-                seat_models.push(seat_inventory::ActiveModel {
-                    id: sea_orm::Set(Uuid::new_v4()),
-                    trip_session_id: sea_orm::Set(trip_id),
-                    seat_id: sea_orm::Set(seat.id),
-                    status: sea_orm::Set("available".into()),
-                    base_price: sea_orm::Set(price),
-                    final_price: sea_orm::Set(price),
-                    currency: sea_orm::Set("VND".into()),
-                    held_until: sea_orm::Set(None),
-                    held_by_booking_id: sea_orm::Set(None),
-                    created_at: sea_orm::Set(crate::store::now_iso()),
-                    updated_at: sea_orm::Set(crate::store::now_iso()),
-                });
-            }
-        }
     }
 
     if trip_models.is_empty() {
@@ -338,8 +320,6 @@ pub async fn materialize_missing(
     //
     // The deadline bounds the INSERT phase too, not just the build: an
     // inline fill must never run past its budget on a loaded engine.
-    // Stopping mid-way can leave freshly-inserted trips without their
-    // seat rows — the warmer's repair pass re-seeds exactly that case.
     let mut created = 0usize;
     for chunk in trip_models.chunks(FILL_CHUNK) {
         if deadline.is_some_and(|dl| Instant::now() >= dl) {
@@ -353,116 +333,56 @@ pub async fn materialize_missing(
         created += chunk.len();
         tokio::time::sleep(WARM_STATEMENT_YIELD).await;
     }
-    for chunk in seat_models.chunks(FILL_CHUNK) {
-        if deadline.is_some_and(|dl| Instant::now() >= dl) {
-            break;
-        }
-        store
-            .trip_store()
-            .insert_seat_inventories_batch(chunk.to_vec())
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-        tokio::time::sleep(WARM_STATEMENT_YIELD).await;
-    }
     tracing::info!(created, %date, "materialized trip sessions (batched)");
     Ok(created)
 }
 
-/// Repair trips that exist but lost their seat inventory — the
-/// signature of a fill interrupted between the trip `INSERT` and the
-/// seat `INSERT` (the 2026-10-11 storm's partial writes left trips that
-/// displayed fine but could not be booked). Re-seeds the missing seat
-/// rows; returns how many trips were healed. Layout-less schedules
-/// (vehicle-type capacity) legitimately have no seat rows and are
-/// skipped.
+/// Create `trip`'s seat rows if it has none yet.
 ///
-/// The re-seed inserts are conflict-tolerant (`ON CONFLICT DO NOTHING`
-/// on the trip+seat unique index): a second pass that races a first one
-/// — or one whose seat-existence read went stale — skips the rows the
-/// other pass already wrote instead of aborting the batch. Before that
-/// semantics existed, duplicate materialization aborted the repair with
-/// `UNIQUE constraint failed` on six consecutive dates (2026-10-11),
-/// and each aborted multi-row statement's rollback queued every reader
-/// behind the single-writer engine until the pool stopped serving
-/// traffic. A repair may now duplicate work under overlap, but can
-/// never error, never wedge the engine, and always converges.
-pub async fn repair_seat_inventories(
+/// Seats are not created ahead of time: a trip row (one small row per
+/// schedule and day) is all search needs — it carries the capacity and
+/// the seats left — while ~40 priced seat rows per trip, for every trip
+/// of the sell window, made the database grow past 650 MB for trips
+/// nobody opened. A trip's seats are created here the first time its
+/// seat map is shown or a booking holds it, priced from the current
+/// fares. Idempotent and race-safe: the insert skips seats another
+/// request created meanwhile (the trip+seat unique index). Layout-less
+/// schedules sell by count and have no seat rows.
+pub async fn ensure_seats(
     store: &CompositeStore,
-    schedules: &[schedule::Model],
-    date: &str,
-) -> AppResult<usize> {
-    chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d")
-        .map_err(|e| AppError::Validation(format!("invalid date: {e}")))?;
-
-    let trips = store
-        .trip_store()
-        .list_trips_for_date(date)
+    trip: &crate::entity::trip_session::Model,
+    schedule: &schedule::Model,
+) -> AppResult<()> {
+    let Some(layout_id) = schedule.bus_layout_id else {
+        return Ok(());
+    };
+    let trips = store.trip_store();
+    let seated = trips
+        .list_trip_ids_with_seats(vec![trip.id])
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
-    if trips.is_empty() {
-        return Ok(0);
+    if !seated.is_empty() {
+        return Ok(());
     }
-
-    // Which trips already have at least one seat row (any status —
-    // held/sold seats count; only an ABSENCE of rows is a repair case).
-    let trip_ids: Vec<Uuid> = trips.iter().map(|t| t.id).collect();
-    let seated: HashSet<Uuid> = store
-        .trip_store()
-        .list_trip_ids_with_seats(trip_ids)
+    let seats = trips
+        .list_seats_by_layout_ids(vec![layout_id])
         .await
-        .map_err(|e| AppError::Internal(e.to_string()))?
-        .into_iter()
-        .collect();
-
-    let sched_map: HashMap<Uuid, &schedule::Model> = schedules.iter().map(|s| (s.id, s)).collect();
-    // Trips whose schedule expects a seat map but which have no seat
-    // rows at all. Orphaned trips (schedule deleted) can't be repaired
-    // here and are left alone.
-    let broken: Vec<(&crate::entity::trip_session::Model, &schedule::Model)> = trips
-        .iter()
-        .filter(|t| !seated.contains(&t.id))
-        .filter_map(|t| sched_map.get(&t.schedule_id).map(|s| (t, *s)))
-        .filter(|(_, s)| s.bus_layout_id.is_some())
-        .collect();
-    if broken.is_empty() {
-        return Ok(0);
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+    if seats.is_empty() {
+        return Ok(());
     }
-
     let fare_rows = store
         .schedule_store()
-        .list_fares(broken.iter().map(|(_, s)| s.id).collect())
+        .list_fares(vec![schedule.id])
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
-    let seats_by_layout: HashMap<Uuid, Vec<seat::Model>> = {
-        let layout_ids: Vec<Uuid> = broken.iter().filter_map(|(_, s)| s.bus_layout_id).collect();
-        if layout_ids.is_empty() {
-            HashMap::new()
-        } else {
-            let mut m: HashMap<Uuid, Vec<seat::Model>> = HashMap::new();
-            for seat in store
-                .trip_store()
-                .list_seats_by_layout_ids(layout_ids)
-                .await
-                .map_err(|e| AppError::Internal(e.to_string()))?
-            {
-                m.entry(seat.bus_layout_id).or_default().push(seat);
-            }
-            m
-        }
-    };
-
-    let mut inv: Vec<seat_inventory::ActiveModel> = Vec::new();
-    for (trip, s) in &broken {
-        let Some(lid) = s.bus_layout_id else {
-            continue;
-        };
-        let Some(seats) = seats_by_layout.get(&lid) else {
-            continue;
-        };
-        let fare_table = FareTable::new(s, &fare_rows);
-        for seat in seats {
+    let fare_table = FareTable::new(schedule, &fare_rows);
+    let now = crate::store::now_iso();
+    let rows: Vec<seat_inventory::ActiveModel> = seats
+        .iter()
+        .map(|seat| {
             let price = fare_table.fare(Some(&fares::class_of(seat))).adult;
-            inv.push(seat_inventory::ActiveModel {
+            seat_inventory::ActiveModel {
                 id: sea_orm::Set(Uuid::new_v4()),
                 trip_session_id: sea_orm::Set(trip.id),
                 seat_id: sea_orm::Set(seat.id),
@@ -472,25 +392,61 @@ pub async fn repair_seat_inventories(
                 currency: sea_orm::Set("VND".into()),
                 held_until: sea_orm::Set(None),
                 held_by_booking_id: sea_orm::Set(None),
-                created_at: sea_orm::Set(crate::store::now_iso()),
-                updated_at: sea_orm::Set(crate::store::now_iso()),
-            });
-        }
-    }
-    let healed = broken.len();
-    // Paced chunked inserts (same rationale as `materialize_missing`):
-    // storm residue can mean a million seat rows — never let that
-    // monopolize the pool.
-    for chunk in inv.chunks(FILL_CHUNK) {
-        store
-            .trip_store()
+                created_at: sea_orm::Set(now.clone()),
+                updated_at: sea_orm::Set(now.clone()),
+            }
+        })
+        .collect();
+    for chunk in rows.chunks(FILL_CHUNK) {
+        trips
             .insert_seat_inventories_batch(chunk.to_vec())
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
-        tokio::time::sleep(WARM_STATEMENT_YIELD).await;
     }
-    tracing::info!(healed, %date, "repaired seat inventories on orphaned trips");
-    Ok(healed)
+    Ok(())
+}
+
+/// How far back the prune looks for trips that already left. Older
+/// dates were pruned by earlier passes.
+const PRUNE_LOOKBACK_DAYS: i64 = 30;
+
+/// Delete the unsold seat rows of trips that left before yesterday:
+/// they can never be sold, and before seats were created on demand they
+/// were most of the database. Sold and held seats stay (booking
+/// history). Small paced statements keep the engine free for traffic.
+pub async fn prune_departed_seats(store: &CompositeStore, today: &str) -> AppResult<u64> {
+    let Ok(today) = NaiveDate::parse_from_str(today, "%Y-%m-%d") else {
+        return Ok(0);
+    };
+    let mut deleted = 0u64;
+    for back in 2..=PRUNE_LOOKBACK_DAYS {
+        let date = (today - chrono::Duration::days(back))
+            .format("%Y-%m-%d")
+            .to_string();
+        let trip_ids: Vec<Uuid> = store
+            .trip_store()
+            .list_trips_for_date(&date)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?
+            .into_iter()
+            .map(|t| t.id)
+            .collect();
+        for chunk in trip_ids.chunks(FILL_CHUNK) {
+            let n = store
+                .trip_store()
+                .delete_unsold_seats_of_trips(chunk.to_vec())
+                .await
+                .map_err(|e| AppError::Internal(e.to_string()))?;
+            deleted += n;
+            if n > 0 {
+                tokio::time::sleep(WARM_STATEMENT_YIELD).await;
+            }
+        }
+    }
+    if deleted > 0 {
+        tracing::info!(deleted, "pruned unsold seats of departed trips");
+    }
+    Ok(deleted)
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -523,8 +479,7 @@ impl Warmer {
         }
     }
 
-    /// Ask the background warmer for a full pass on `date` (repair +
-    /// fill). Fire-and-forget by design: the sender never blocks and a
+    /// Ask the background warmer for a full pass on `date`. Fire-and-forget by design: the sender never blocks and a
     /// duplicate date is cheap — the pass is idempotent.
     pub fn notify(&self, date: &str) {
         let _ = self.tx.send(date.to_string());
@@ -606,9 +561,9 @@ pub fn spawn(store: Arc<CompositeStore>) -> Warmer {
     Warmer { tx, lock }
 }
 
-/// One date's full maintenance pass: repair storm residue, then fill
-/// every missing trip. Holds the fill lock so inline fills can't
-/// interleave (they degrade to "serve existing" while this runs).
+/// One date's maintenance pass: create every missing trip row. Holds
+/// the fill lock so inline fills can't interleave (they degrade to
+/// "serve existing" while this runs).
 async fn warm_date(store: &Arc<CompositeStore>, lock: &Mutex<()>, date: &str) {
     let schedules = match store
         .schedule_store()
@@ -622,13 +577,6 @@ async fn warm_date(store: &Arc<CompositeStore>, lock: &Mutex<()>, date: &str) {
         }
     };
     let _guard = lock.lock().await;
-    let repaired = match repair_seat_inventories(store.as_ref(), &schedules, date).await {
-        Ok(n) => n,
-        Err(e) => {
-            tracing::warn!(%e, %date, "trip warmer: seat repair failed");
-            0
-        }
-    };
     let created = match materialize_missing(store.as_ref(), &schedules, date, None).await {
         Ok(n) => n,
         Err(e) => {
@@ -636,16 +584,20 @@ async fn warm_date(store: &Arc<CompositeStore>, lock: &Mutex<()>, date: &str) {
             0
         }
     };
-    if repaired + created > 0 {
-        tracing::info!(repaired, created, %date, "trip warmer: date filled");
+    if created > 0 {
+        tracing::info!(created, %date, "trip warmer: date filled");
     }
 }
 
 async fn warm_window(store: &Arc<CompositeStore>, lock: &Mutex<()>) {
-    for date in sell_window(&vn_today(chrono::Utc::now()), SELL_WINDOW_DAYS) {
+    let today = vn_today(chrono::Utc::now());
+    for date in sell_window(&today, SELL_WINDOW_DAYS) {
         warm_date(store, lock, &date).await;
         // Yield the single-writer engine to live traffic between dates.
         tokio::time::sleep(WARM_DATE_YIELD).await;
+    }
+    if let Err(e) = prune_departed_seats(store.as_ref(), &today).await {
+        tracing::warn!(%e, "trip warmer: seat prune failed");
     }
 }
 
