@@ -28,10 +28,11 @@ export function TripInfo({ detail, onShare }: { detail: TripDetail; onShare: () 
             .toUpperCase()}
         </span>
         <div className="min-w-0 flex-1">
-          <DialogTitle className="flex flex-wrap items-center gap-x-2 text-lg leading-snug font-bold tracking-tight text-slate-900 sm:text-xl">
-            {detail.from.name}
+          {/* Long place names wrap anywhere rather than push the dialog wider. */}
+          <DialogTitle className="flex flex-wrap items-center gap-x-2 text-lg leading-snug font-bold tracking-tight text-slate-900 [overflow-wrap:anywhere] sm:text-xl">
+            <span className="min-w-0">{detail.from.name}</span>
             <ArrowRight className="size-4 shrink-0 text-slate-400" aria-hidden />
-            {detail.to.name}
+            <span className="min-w-0">{detail.to.name}</span>
           </DialogTitle>
           <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-sm text-slate-500">
             <span className="truncate font-medium text-slate-700">{brandName}</span>

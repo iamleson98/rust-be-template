@@ -184,8 +184,9 @@ function TripView({ detail }: { detail: TripDetail }) {
         }
       />
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden md:grid-cols-[1fr_320px] lg:grid-cols-[1.3fr_420px]">
-        <div className="flex min-h-0 flex-col overflow-hidden md:border-r">
+      {/* minmax(0, …): a long stop name or address truncates instead of widening the pane. */}
+      <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden md:grid-cols-[minmax(0,1fr)_320px] lg:grid-cols-[minmax(0,1.3fr)_420px]">
+        <div className="flex min-h-0 min-w-0 flex-col overflow-hidden md:border-r">
           <Tabs defaultValue="seats" className="flex min-h-0 flex-1 flex-col">
             <TabsList className="grid h-auto w-full shrink-0 grid-cols-5 rounded-none border-b border-slate-200/80 bg-white p-0 px-2 md:grid-cols-4">
               <TabsTrigger value="seats" className={TAB}>
@@ -307,7 +308,7 @@ function TripView({ detail }: { detail: TripDetail }) {
           </Tabs>
         </div>
 
-        <aside className="hidden min-h-0 flex-col bg-canvas md:flex">
+        <aside className="hidden min-h-0 min-w-0 flex-col bg-canvas md:flex">
           <ScrollArea className="min-h-0 flex-1">
             <div className="space-y-5 p-4 md:p-5">
               {timeline}

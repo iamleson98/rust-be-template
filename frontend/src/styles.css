@@ -212,6 +212,12 @@
     @apply bg-background text-foreground;
   }
 
+  /* Browsers size a fieldset to its min-content: one long, truncating stop name
+     inside widened the trip dialog's side pane past the dialog. */
+  fieldset {
+    min-width: 0;
+  }
+
   /* ── Interactive elements: cursor pointer ───────────────────────────
    * All clickable elements show a pointer cursor on hover so users
    * immediately know they're interactive. This covers <button>, <a>,
