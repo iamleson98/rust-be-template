@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Navigation2 } from 'lucide-react'
 import { toast } from 'sonner'
 import type { TripResult } from '@/api'
@@ -18,6 +18,7 @@ import { MobileFilters } from './mobile-filters'
 import { RouteDirectory } from './route-directory'
 import { SavedSearchesList } from './saved-searches'
 import { useTripSearchInfinite } from './api'
+import { filterQuery, NO_FILTERS, type Filters } from './filters'
 import { TripResultsList } from './trip-results-list'
 import { useResultFilters } from './use-result-filters'
 import { useSavedSearches, type SavedSearch } from './use-saved-searches'
@@ -41,20 +42,25 @@ export function SearchResults() {
   }, [urlSearch, returning])
 
   const browsing = !search.from || !search.to
-  const query = useTripSearchInfinite(browsing ? null : search)
+  // The results page's filters, applied by the server over every match.
+  const [filters, setFilters] = useState<Filters>(NO_FILTERS)
+  const params = useMemo(() => ({ ...search, filters: filterQuery(filters) }), [search, filters])
+  const query = useTripSearchInfinite(browsing ? null : params)
   // `keepPreviousData` keeps the old list on screen during a re-search, so `isLoading`
   // stays false; without this the new search would give no feedback at all.
   const loading = query.isLoading || query.isPlaceholderData || (query.isFetching && !query.data)
   // A search without a date is idle: ignore the previous search's trips that the cache still holds.
   const pages = search.date ? query.data?.pages : undefined
   const results = useMemo(() => pages?.flatMap((page) => page.items) ?? NO_RESULTS, [pages])
-  // The server's total across all pages, or what is loaded when it sent no page metadata.
+  // Trips the filters leave, across all pages, and every match before them.
   const total = pages?.at(-1)?.total ?? results.length
-  const rf = useResultFilters(results)
+  const facets = pages?.[0]?.facets ?? undefined
+  const matches = facets?.matches ?? total
+  const rf = useResultFilters(filters, setFilters, facets)
 
   const brandNames = useMemo(
-    () => Object.fromEntries(results.map((r) => [r.brandSlug, r.brandName || r.brandSlug])),
-    [results],
+    () => Object.fromEntries((facets?.brands ?? []).map((b) => [b.key, b.label])),
+    [facets],
   )
 
   const saveSearch = () => {
@@ -119,7 +125,7 @@ export function SearchResults() {
             ))}
 
           <div className="mt-5 flex gap-6">
-            <FiltersSidebar results={results} rf={rf} />
+            <FiltersSidebar rf={rf} />
 
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
@@ -130,7 +136,7 @@ export function SearchResults() {
                   <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-sm text-slate-500">
                     {loading
                       ? t('searchPage.searchingTrips')
-                      : t('searchPage.tripsFound', { found: rf.filtered.length, total })}
+                      : t('searchPage.tripsFound', { found: total, total: matches })}
                     {precise && (
                       <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700">
                         <Navigation2 className="size-3" />
@@ -139,14 +145,19 @@ export function SearchResults() {
                     )}
                   </p>
                 </div>
-                <ResultsActions search={search} results={results} onSave={saveSearch} />
+                <ResultsActions
+                  search={search}
+                  cheapest={facets?.priceMin ?? 0}
+                  canSave={matches > 0}
+                  onSave={saveSearch}
+                />
               </div>
 
               {/* Sort for everyone; the filters button below lg (the sidebar takes over above). */}
               <div className="mt-4 flex items-center gap-2">
                 <SortTabs />
                 <div className="ml-auto shrink-0">
-                  <MobileFilters results={results} rf={rf} />
+                  <MobileFilters rf={rf} found={total} />
                 </div>
               </div>
 
@@ -166,7 +177,8 @@ export function SearchResults() {
                 <TripResultsList
                   loading={loading}
                   results={results}
-                  filtered={rf.filtered}
+                  matches={matches}
+                  cheapest={facets?.priceMin}
                   hasActiveFilters={rf.activeCount > 0}
                   onResetFilters={rf.reset}
                   awaitingDate={!search.date}

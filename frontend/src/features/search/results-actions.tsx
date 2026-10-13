@@ -1,5 +1,4 @@
 import { Bell, GitCompare, Heart } from 'lucide-react'
-import type { TripResult } from '@/api'
 import { useT } from '@/lib/i18n'
 import type { SearchParams } from '@/lib/search-params'
 import { useUi } from '@/stores/ui'
@@ -10,24 +9,26 @@ const ICON_BUTTON =
 /** Save this search, watch the route's fares, open the comparison. */
 export function ResultsActions({
   search,
-  results,
+  cheapest,
+  canSave,
   onSave,
 }: {
   search: SearchParams
-  results: TripResult[]
+  /** Cheapest seat among every match (VND). */
+  cheapest: number
+  canSave: boolean
   onSave: () => void
 }) {
   const t = useT()
   const compareCount = useUi((s) => s.compareList.length)
   const setCompareOpen = useUi((s) => s.setCompareOpen)
   const openPriceAlert = useUi((s) => s.openPriceAlert)
-  const cheapest = results.length ? Math.min(...results.map((r) => r.minPrice)) : 0
 
   return (
     <div className="flex shrink-0 items-center gap-2">
       <button
         onClick={onSave}
-        disabled={results.length === 0}
+        disabled={!canSave}
         className={ICON_BUTTON}
         title={t('searchPage.saveThisSearch')}
         aria-label={t('searchPage.saveThisSearch')}

@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import {
   Building2,
   Droplet,
@@ -15,22 +15,13 @@ import {
   Wifi,
   Zap,
 } from 'lucide-react'
-import type { TripResult } from '@/api'
 import { Slider } from '@/components/ui/slider'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { formatCurrency } from '@/lib/format'
 import { useT } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 import { usePrefs } from '@/stores/prefs'
-import {
-  brandOptions,
-  count,
-  departureHour,
-  FEW_SEATS,
-  inTimeRange,
-  toggle,
-  type TimeRange,
-} from './filters'
+import { facetCount, toggle, type TimeRange } from './filters'
 import { CheckRow, FilterSection } from './filter-ui'
 import type { ResultFilters } from './use-result-filters'
 
@@ -53,19 +44,15 @@ export const AMENITIES: { key: string; labelKey: string; icon: ReactNode }[] = [
 
 const RATINGS = [0, 4.0, 4.5, 4.8]
 
-/** The client-side filters: price, departure time, rating, brand, availability, amenities. */
-export function FilterPanel({
-  results,
-  rf,
-  mobile,
-}: {
-  results: TripResult[]
-  rf: ResultFilters
-  mobile?: boolean
-}) {
+/**
+ * Price, boarding time, rating, operator, seats left and amenities. Each
+ * option's count covers every match of the search (the server's facets), not
+ * just the loaded page.
+ */
+export function FilterPanel({ rf, mobile }: { rf: ResultFilters; mobile?: boolean }) {
   const t = useT()
-  const { filters, setFilters } = rf
-  const brands = useMemo(() => brandOptions(results), [results])
+  const { filters, setFilters, facets } = rf
+  const brands = facets?.brands ?? []
   const set = (patch: Partial<typeof filters>) => setFilters({ ...filters, ...patch })
 
   return (
@@ -80,7 +67,7 @@ export function FilterPanel({
               checked={filters.timeRanges.includes(o.key)}
               onChange={() => set({ timeRanges: toggle(filters.timeRanges, o.key) })}
               icon={o.icon}
-              count={count(results, (r) => inTimeRange(departureHour(r), o.key))}
+              count={facetCount(facets?.hours, o.key)}
             >
               {t(o.labelKey)}
             </CheckRow>
@@ -95,8 +82,6 @@ export function FilterPanel({
           className="grid grid-cols-2 gap-1.5"
         >
           {RATINGS.map((min) => {
-            const n =
-              min === 0 ? results.length : count(results, (r) => (r.brandRating ?? 0) >= min)
             return (
               <label
                 key={min}
@@ -114,7 +99,6 @@ export function FilterPanel({
                 />
                 {min > 0 && <Star className="h-3 w-3 fill-amber-400 text-amber-400" />}
                 <span className="flex-1">{min === 0 ? t('common.all') : `${min.toFixed(1)}+`}</span>
-                {n > 0 && <span className="text-[10px] text-muted-foreground">{n}</span>}
               </label>
             )
           })}
@@ -126,14 +110,14 @@ export function FilterPanel({
           <div className="max-h-44 space-y-1 overflow-y-auto pr-1">
             {brands.map((b) => (
               <CheckRow
-                key={b.slug}
+                key={b.key}
                 boxed
-                checked={filters.brands.includes(b.slug)}
-                onChange={() => set({ brands: toggle(filters.brands, b.slug) })}
+                checked={filters.brands.includes(b.key)}
+                onChange={() => set({ brands: toggle(filters.brands, b.key) })}
                 icon={<Building2 className="h-3.5 w-3.5" />}
                 count={b.count}
               >
-                {b.name}
+                {b.label}
               </CheckRow>
             ))}
           </div>
@@ -145,7 +129,7 @@ export function FilterPanel({
           checked={filters.availableOnly}
           onChange={() => set({ availableOnly: !filters.availableOnly })}
           icon={<Users className="h-3.5 w-3.5" />}
-          count={count(results, (r) => r.availableSeats > FEW_SEATS)}
+          count={facets?.plentyOfSeats ?? 0}
         >
           {t('searchPage.availableOnlyLabel')}
         </CheckRow>
@@ -160,7 +144,7 @@ export function FilterPanel({
               checked={filters.amenities.includes(o.key)}
               onChange={() => set({ amenities: toggle(filters.amenities, o.key) })}
               icon={o.icon}
-              count={count(results, (r) => (r.amenities ?? []).includes(o.key))}
+              count={facetCount(facets?.amenities, o.key)}
             >
               {t(o.labelKey)}
             </CheckRow>

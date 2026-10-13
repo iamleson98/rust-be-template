@@ -2994,6 +2994,10 @@ export type SearchFacets = {
      */
     hours: Array<FacetCount>;
     /**
+     * How many trips match before the customer's filters.
+     */
+    matches: number;
+    /**
      * Matches with plenty of seats left (more than 5).
      */
     plentyOfSeats: number;

@@ -1,12 +1,11 @@
 import { SlidersHorizontal } from 'lucide-react'
-import type { TripResult } from '@/api'
 import { useT } from '@/lib/i18n'
 import { FilterPanel } from './filter-panel'
 import { UrlFilters } from './filter-controls'
 import type { ResultFilters } from './use-result-filters'
 
 /** Desktop (lg+) filters beside the results, kept in view while scrolling. */
-export function FiltersSidebar({ results, rf }: { results: TripResult[]; rf: ResultFilters }) {
+export function FiltersSidebar({ rf }: { rf: ResultFilters }) {
   const t = useT()
   return (
     <aside className="hidden w-72 shrink-0 lg:block">
@@ -31,8 +30,8 @@ export function FiltersSidebar({ results, rf }: { results: TripResult[]; rf: Res
           )}
         </div>
         <div className="space-y-4">
-          <UrlFilters results={results} />
-          <FilterPanel results={results} rf={rf} />
+          <UrlFilters facets={rf.facets} />
+          <FilterPanel rf={rf} />
         </div>
       </div>
     </aside>

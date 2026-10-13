@@ -490,6 +490,7 @@ fn facets(built: &[Built]) -> SearchFacets {
     };
     let items = || built.iter().map(|b| &b.item);
     SearchFacets {
+        matches: built.len() as u64,
         price_min: items().map(|t| t.min_price).min().unwrap_or(0),
         price_max: items().map(|t| t.max_price).max().unwrap_or(0),
         brands: count(

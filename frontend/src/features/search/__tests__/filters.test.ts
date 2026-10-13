@@ -1,144 +1,95 @@
 import { describe, expect, it } from 'vitest'
-import type { TripResult } from '@/api'
+import type { SearchFacets } from '@/api'
 import {
   activeFilterCount,
-  applyFilters,
-  brandOptions,
-  departureHour,
   effectiveRange,
-  inTimeRange,
+  facetCount,
+  filterQuery,
   NO_FILTERS,
   priceBounds,
   toggle,
   type Filters,
 } from '../filters'
 
-const trip = (over: Partial<TripResult>): TripResult =>
-  ({
-    tripId: 't',
-    minPrice: 200_000,
-    maxPrice: 260_000,
-    brandRating: 4.5,
-    brandSlug: 'a',
-    brandName: 'A',
-    availableSeats: 12,
-    amenities: ['wifi'],
-    departureTime: '08:30',
-    ...over,
-  }) as TripResult
+const facets = (over: Partial<SearchFacets> = {}): SearchFacets => ({
+  matches: 3,
+  priceMin: 180_000,
+  priceMax: 420_000,
+  brands: [],
+  vehicleTypes: [],
+  hours: [
+    { key: '0-6', label: '0-6', count: 1 },
+    { key: '6-12', label: '6-12', count: 2 },
+  ],
+  amenities: [],
+  plentyOfSeats: 2,
+  ...over,
+})
 
-const results = [
-  trip({
-    tripId: '1',
-    minPrice: 180_000,
-    maxPrice: 220_000,
-    departureTime: '05:10',
-    brandSlug: 'a',
-  }),
-  trip({
-    tripId: '2',
-    minPrice: 320_000,
-    maxPrice: 410_000,
-    departureTime: '14:00',
-    brandSlug: 'b',
-    brandName: 'B',
-    brandRating: 4.8,
-    availableSeats: 3,
-  }),
-  trip({
-    tripId: '3',
-    minPrice: 250_000,
-    maxPrice: 300_000,
-    departureTime: '21:45',
-    brandSlug: 'b',
-    brandName: 'B',
-    amenities: ['wifi', 'ac'],
-  }),
-]
-const bounds = priceBounds(results)
-const run = (f: Partial<Filters>) => {
-  const filters = { ...NO_FILTERS, ...f }
-  return applyFilters(results, filters, effectiveRange(filters, bounds)).map((r) => r.tripId)
-}
-
-describe('price range', () => {
-  it('rounds the bounds out to the slider step', () => {
-    expect(bounds).toEqual([150_000, 450_000])
-    expect(priceBounds([])).toEqual([0, 1_000_000])
+describe('priceBounds', () => {
+  it('spans every match, rounded out to the slider step', () => {
+    expect(priceBounds(facets())).toEqual([150_000, 450_000])
   })
 
-  it('follows the bounds until the user picks a range, and clamps stale picks', () => {
-    expect(effectiveRange(NO_FILTERS, bounds)).toEqual(bounds)
-    expect(effectiveRange({ ...NO_FILTERS, priceMin: 200_000, priceMax: 300_000 }, bounds)).toEqual(
-      [200_000, 300_000],
-    )
-    expect(effectiveRange({ ...NO_FILTERS, priceMin: 100_000, priceMax: 900_000 }, bounds)).toEqual(
-      bounds,
-    )
+  it('falls back to a fixed range before results or without matches', () => {
+    expect(priceBounds(undefined)).toEqual([0, 1_000_000])
+    expect(priceBounds(facets({ matches: 0, priceMin: 0, priceMax: 0 }))).toEqual([0, 1_000_000])
   })
 })
 
-describe('applyFilters', () => {
-  it('keeps everything without filters', () => {
-    expect(run({})).toEqual(['1', '2', '3'])
+describe('effectiveRange', () => {
+  it('follows the bounds until a range is picked, and clamps a picked one', () => {
+    expect(effectiveRange(NO_FILTERS, [150_000, 450_000])).toEqual([150_000, 450_000])
+    const picked: Filters = { ...NO_FILTERS, priceMin: 100_000, priceMax: 300_000 }
+    expect(effectiveRange(picked, [150_000, 450_000])).toEqual([150_000, 300_000])
+  })
+})
+
+describe('filterQuery', () => {
+  it('sends nothing for no filters', () => {
+    expect(Object.values(filterQuery(NO_FILTERS)).every((v) => v === undefined)).toBe(true)
   })
 
-  it('filters by the price range on the cheapest fare', () => {
-    expect(run({ priceMin: 200_000, priceMax: 300_000 })).toEqual(['3'])
+  it('sends every picked filter in the API form', () => {
+    const f: Filters = {
+      priceMin: 200_000,
+      priceMax: 300_000,
+      timeRanges: ['6-12', '18-24'],
+      minRating: 4.5,
+      availableOnly: true,
+      amenities: ['wifi', 'water'],
+      brands: ['nha-xe-an'],
+    }
+    expect(filterQuery(f)).toEqual({
+      brands: 'nha-xe-an',
+      priceMin: 200_000,
+      priceMax: 300_000,
+      hours: '6-12,18-24',
+      minRating: 4.5,
+      plentyOfSeats: true,
+      amenities: 'wifi,water',
+    })
   })
+})
 
-  it('filters by departure time-of-day, any of the chosen ranges', () => {
-    expect(run({ timeRanges: ['0-6'] })).toEqual(['1'])
-    expect(run({ timeRanges: ['0-6', '18-24'] })).toEqual(['1', '3'])
-  })
-
-  it('filters by rating, brand, availability and amenities (all required)', () => {
-    expect(run({ minRating: 4.8 })).toEqual(['2'])
-    expect(run({ brands: ['b'] })).toEqual(['2', '3'])
-    expect(run({ availableOnly: true })).toEqual(['1', '3'])
-    expect(run({ amenities: ['wifi', 'ac'] })).toEqual(['3'])
-  })
-
-  it('combines filters', () => {
-    expect(run({ brands: ['b'], availableOnly: true })).toEqual(['3'])
+describe('activeFilterCount', () => {
+  it('counts a narrowed price range once and every other value', () => {
+    const bounds: [number, number] = [150_000, 450_000]
+    const f: Filters = { ...NO_FILTERS, timeRanges: ['6-12'], brands: ['a', 'b'] }
+    expect(activeFilterCount(f, bounds, bounds)).toBe(3)
+    expect(activeFilterCount(f, [200_000, 450_000], bounds)).toBe(4)
   })
 })
 
 describe('helpers', () => {
-  it('reads the departure hour from the timestamp or the HH:mm text', () => {
-    expect(departureHour(trip({ departureTime: '07:05' }))).toBe(7)
-    expect(departureHour(trip({ departureTime: undefined }))).toBe(12)
-    expect(departureHour(trip({ departureAt: new Date(2026, 9, 10, 22, 30).toISOString() }))).toBe(
-      22,
-    )
+  it('reads a facet count, 0 when absent', () => {
+    expect(facetCount(facets().hours, '6-12')).toBe(2)
+    expect(facetCount(facets().hours, '18-24')).toBe(0)
+    expect(facetCount(undefined, '6-12')).toBe(0)
   })
 
-  it('treats time ranges as [start, end)', () => {
-    expect(inTimeRange(6, '6-12')).toBe(true)
-    expect(inTimeRange(12, '6-12')).toBe(false)
-  })
-
-  it('counts a price range once and everything else per value', () => {
-    const f: Filters = {
-      ...NO_FILTERS,
-      priceMin: 200_000,
-      timeRanges: ['0-6', '6-12'],
-      brands: ['a'],
-      availableOnly: true,
-    }
-    expect(activeFilterCount(f, effectiveRange(f, bounds), bounds)).toBe(5)
-    expect(activeFilterCount(NO_FILTERS, bounds, bounds)).toBe(0)
-  })
-
-  it('toggles list membership', () => {
+  it('toggles a value in and out of a list', () => {
     expect(toggle(['a'], 'b')).toEqual(['a', 'b'])
     expect(toggle(['a', 'b'], 'a')).toEqual(['b'])
-  })
-
-  it('lists brands busiest first', () => {
-    expect(brandOptions(results)).toEqual([
-      { slug: 'b', name: 'B', count: 2 },
-      { slug: 'a', name: 'A', count: 1 },
-    ])
   })
 })

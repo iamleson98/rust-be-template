@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { SlidersHorizontal } from 'lucide-react'
-import type { TripResult } from '@/api'
 import { Button } from '@/components/ui/button'
 import {
   Sheet,
@@ -17,9 +16,9 @@ import type { ResultFilters } from './use-result-filters'
 
 /**
  * Below lg: the Filter button (with how many are on) and the sheet it opens.
- * The sheet's footer says how many trips the filters leave and closes it.
+ * The sheet's footer says how many trips the filters leave (`found`) and closes it.
  */
-export function MobileFilters({ results, rf }: { results: TripResult[]; rf: ResultFilters }) {
+export function MobileFilters({ rf, found }: { rf: ResultFilters; found: number }) {
   const t = useT()
   const [open, setOpen] = useState(false)
   return (
@@ -41,8 +40,8 @@ export function MobileFilters({ results, rf }: { results: TripResult[]; rf: Resu
           <SheetDescription className="sr-only">{t('searchPage.filters')}</SheetDescription>
         </SheetHeader>
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-5 py-4">
-          <UrlFilters results={results} />
-          <FilterPanel results={results} rf={rf} mobile />
+          <UrlFilters facets={rf.facets} />
+          <FilterPanel rf={rf} mobile />
         </div>
         <div className="flex gap-2 border-t bg-white px-5 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
           {rf.activeCount > 0 && (
@@ -51,7 +50,7 @@ export function MobileFilters({ results, rf }: { results: TripResult[]; rf: Resu
             </Button>
           )}
           <Button onClick={() => setOpen(false)} className="h-11 flex-1 rounded-xl">
-            {t('searchPage.showTrips', { count: rf.filtered.length })}
+            {t('searchPage.showTrips', { count: found })}
           </Button>
         </div>
       </SheetContent>

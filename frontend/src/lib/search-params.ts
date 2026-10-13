@@ -6,7 +6,8 @@
  * back so URLs stay clean.
  */
 
-export const SORT_KEYS = ['departure', 'price', 'rating'] as const
+/** `distance` (nearest stops first) only applies to a search between exact places. */
+export const SORT_KEYS = ['departure', 'price', 'rating', 'distance'] as const
 export type SortKey = (typeof SORT_KEYS)[number]
 
 export type Leg = 'out' | 'return'

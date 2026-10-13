@@ -20,6 +20,17 @@ import { SearchActionsRow } from './actions-row'
 import { PopularRoutesQuickSelect } from './popular-routes-quick-select'
 import { MobileSearchSummary } from './mobile-search-summary'
 
+/**
+ * The order a submitted search starts in: between exact places, nearest stops
+ * first unless the customer picked another order; "nearest" means nothing
+ * between cities.
+ */
+function searchSort(v: SearchFormValues): SearchFormValues['sort'] {
+  const exact = [v.fromLat, v.fromLon, v.toLat, v.toLon].every((n) => typeof n === 'number')
+  if (exact) return v.sort === 'departure' ? 'distance' : v.sort
+  return v.sort === 'distance' ? 'departure' : v.sort
+}
+
 export function SearchWidget({ compact = false }: { compact?: boolean }) {
   const t = useT()
   const searchParams = useSearchForm((s) => s.searchParams)
@@ -104,7 +115,8 @@ export function SearchWidget({ compact = false }: { compact?: boolean }) {
   ])
 
   const onValid = useCallback(
-    async (values: SearchFormValues) => {
+    async (submitted: SearchFormValues) => {
+      const values = { ...submitted, sort: searchSort(submitted) }
       // Navigate to the /search route with typed search params — the route's
       // `validateSearch` parses them and `useTripSearch` runs the actual fetch.
       // We still call `setSearchParams` so the form stays in sync with the

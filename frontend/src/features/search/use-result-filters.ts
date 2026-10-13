@@ -1,30 +1,29 @@
 import { useMemo, useState } from 'react'
-import type { TripResult } from '@/api'
-import {
-  activeFilterCount,
-  applyFilters,
-  effectiveRange,
-  NO_FILTERS,
-  priceBounds,
-  type Filters,
-} from './filters'
+import type { SearchFacets } from '@/api'
+import { activeFilterCount, effectiveRange, NO_FILTERS, priceBounds, type Filters } from './filters'
 
-/** Client-side filtering of one result set: the selection, the derived price range and the filtered list. */
-export function useResultFilters(results: TripResult[]) {
-  const bounds = useMemo(() => priceBounds(results), [results])
-  const [filters, setFilters] = useState<Filters>(NO_FILTERS)
+/**
+ * The results page's filters: what is picked, and the price range the slider
+ * shows against every match's prices (`facets`). The server does the
+ * filtering; the state lives in the page so the query can read it before the
+ * results (and their facets) arrive.
+ */
+export function useResultFilters(
+  filters: Filters,
+  setFilters: (filters: Filters) => void,
+  facets: SearchFacets | undefined,
+) {
+  const bounds = useMemo(() => priceBounds(facets), [facets])
 
   // A new search moves the price bounds: forget the old price pick (render-phase sync).
   const boundsKey = bounds.join('-')
   const [lastKey, setLastKey] = useState(boundsKey)
   if (boundsKey !== lastKey) {
     setLastKey(boundsKey)
-    if (filters.priceMin || filters.priceMax)
-      setFilters((f) => ({ ...f, priceMin: 0, priceMax: 0 }))
+    if (filters.priceMin || filters.priceMax) setFilters({ ...filters, priceMin: 0, priceMax: 0 })
   }
 
   const range = useMemo(() => effectiveRange(filters, bounds), [filters, bounds])
-  const filtered = useMemo(() => applyFilters(results, filters, range), [results, filters, range])
 
   return {
     filters,
@@ -32,7 +31,7 @@ export function useResultFilters(results: TripResult[]) {
     reset: () => setFilters(NO_FILTERS),
     bounds,
     range,
-    filtered,
+    facets,
     activeCount: activeFilterCount(filters, range, bounds),
   }
 }

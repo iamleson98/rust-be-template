@@ -13552,6 +13552,7 @@
         "type": "object",
         "description": "The filter options of a search, counted over ALL its matches (before\nthe customer's filters), so the sidebar never depends on what page\nis loaded.",
         "required": [
+          "matches",
           "priceMin",
           "priceMax",
           "brands",
@@ -13580,6 +13581,12 @@
               "$ref": "#/components/schemas/FacetCount"
             },
             "description": "Boarding hour bands `0-6`, `6-12`, `12-18`, `18-24`."
+          },
+          "matches": {
+            "type": "integer",
+            "format": "int64",
+            "description": "How many trips match before the customer's filters.",
+            "minimum": 0
           },
           "plentyOfSeats": {
             "type": "integer",

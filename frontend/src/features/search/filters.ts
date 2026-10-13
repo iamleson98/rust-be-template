@@ -1,14 +1,20 @@
-import type { TripResult } from '@/api'
+import type { SearchFacets } from '@/api'
 
 export type TimeRange = '0-6' | '6-12' | '12-18' | '18-24'
 
-/** Client-side result filters (the URL carries only sort, vehicle types and the query itself). */
+/**
+ * The results page's filters. The server applies them over every match (so a
+ * match on a later page is never missed) and counts the options in `facets`;
+ * the URL carries only sort, vehicle types and the query itself.
+ */
 export type Filters = {
-  /** 0 means "no lower bound chosen" — the range then follows the results. */
+  /** 0 means "no lower bound chosen" — the range then follows the matches. */
   priceMin: number
   priceMax: number
+  /** Boarding hour bands. */
   timeRanges: TimeRange[]
   minRating: number
+  /** More than 5 seats left. */
   availableOnly: boolean
   amenities: string[]
   /** Brand slugs to include (empty = all brands). */
@@ -27,30 +33,15 @@ export const NO_FILTERS: Filters = {
   brands: [],
 }
 
-/** "Plenty of seats" threshold of the availability filter. */
-export const FEW_SEATS = 5
 const PRICE_STEP = 50_000
 
-export function departureHour(trip: TripResult): number {
-  if (trip.departureAt) {
-    const hour = new Date(trip.departureAt).getHours()
-    if (!Number.isNaN(hour)) return hour
-  }
-  const m = /(\d{1,2}):(\d{2})/.exec(trip.departureTime ?? '')
-  return m ? parseInt(m[1], 10) : 12
-}
-
-export function inTimeRange(hour: number, range: TimeRange): boolean {
-  const [start, end] = range.split('-').map(Number)
-  return hour >= start && hour < end
-}
-
-/** Cheapest/dearest price across the results, rounded out to the slider step. */
-export function priceBounds(results: TripResult[]): PriceRange {
-  if (results.length === 0) return [0, 1_000_000]
-  const min = Math.min(...results.map((r) => r.minPrice))
-  const max = Math.max(...results.map((r) => r.maxPrice))
-  return [Math.floor(min / PRICE_STEP) * PRICE_STEP, Math.ceil(max / PRICE_STEP) * PRICE_STEP]
+/** Every match's cheapest to dearest seat, rounded out to the slider step. */
+export function priceBounds(facets: SearchFacets | undefined): PriceRange {
+  if (!facets?.matches) return [0, 1_000_000]
+  return [
+    Math.floor(facets.priceMin / PRICE_STEP) * PRICE_STEP,
+    Math.ceil(facets.priceMax / PRICE_STEP) * PRICE_STEP,
+  ]
 }
 
 /** The selected price range, clamped into the bounds. */
@@ -61,22 +52,21 @@ export function effectiveRange(f: Filters, [lo, hi]: PriceRange): PriceRange {
   ]
 }
 
-export function applyFilters(
-  results: TripResult[],
-  f: Filters,
-  [pLo, pHi]: PriceRange,
-): TripResult[] {
-  return results.filter((r) => {
-    if (r.minPrice < pLo || r.minPrice > pHi) return false
-    if (f.timeRanges.length && !f.timeRanges.some((t) => inTimeRange(departureHour(r), t)))
-      return false
-    if (f.minRating > 0 && (r.brandRating ?? 0) < f.minRating) return false
-    if (f.brands.length && !f.brands.includes(r.brandSlug)) return false
-    if (f.availableOnly && r.availableSeats <= FEW_SEATS) return false
-    // `?? []`: minimal trip rows may arrive before enrichment fills amenities.
-    return f.amenities.every((a) => (r.amenities ?? []).includes(a))
-  })
+/** The search query's filter parameters: only what narrows the search. */
+export function filterQuery(f: Filters) {
+  const list = (values: string[]) => (values.length ? values.join(',') : undefined)
+  return {
+    brands: list(f.brands),
+    priceMin: f.priceMin || undefined,
+    priceMax: f.priceMax || undefined,
+    hours: list(f.timeRanges),
+    minRating: f.minRating || undefined,
+    plentyOfSeats: f.availableOnly || undefined,
+    amenities: list(f.amenities),
+  }
 }
+
+export type FilterQuery = ReturnType<typeof filterQuery>
 
 /** How many filter chips are active (a price range counts once, the rest per value). */
 export function activeFilterCount(f: Filters, range: PriceRange, bounds: PriceRange): number {
@@ -94,16 +84,6 @@ export function activeFilterCount(f: Filters, range: PriceRange, bounds: PriceRa
 export const toggle = <T>(list: T[], item: T): T[] =>
   list.includes(item) ? list.filter((x) => x !== item) : [...list, item]
 
-/** Distinct brands of the results, busiest first. */
-export function brandOptions(results: TripResult[]) {
-  const bySlug = new Map<string, { slug: string; name: string; count: number }>()
-  for (const r of results) {
-    if (!r.brandSlug) continue
-    const entry = bySlug.get(r.brandSlug)
-    if (entry) entry.count++
-    else bySlug.set(r.brandSlug, { slug: r.brandSlug, name: r.brandName || r.brandSlug, count: 1 })
-  }
-  return [...bySlug.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
-}
-
-export const count = <T>(items: T[], pred: (item: T) => boolean) => items.filter(pred).length
+/** A facet's count for `key` (0 when no match has it). */
+export const facetCount = (counts: { key: string; count: number }[] | undefined, key: string) =>
+  counts?.find((c) => c.key === key)?.count ?? 0

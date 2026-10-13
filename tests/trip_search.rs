@@ -177,6 +177,7 @@ async fn a_city_search_keeps_its_direction_and_filters_every_match() -> anyhow::
         .collect();
     assert_eq!(hours, [("0-6", 0), ("6-12", 1), ("12-18", 1), ("18-24", 1)]);
     assert_eq!((facets.price_min, facets.price_max), (300_000, 450_000));
+    assert_eq!(facets.matches, 3);
 
     // A filter sees every match, not one page: Bình's only trip is the
     // second by time, yet a one-trip page filtered to Bình finds it.
@@ -195,11 +196,9 @@ async fn a_city_search_keeps_its_direction_and_filters_every_match() -> anyhow::
     let page = search(only_binh).await?;
     assert_eq!(page.total, Some(1));
     assert_eq!(page.items[0].departure_time.as_deref(), Some("13:00"));
-    assert_eq!(
-        page.facets.unwrap().brands.len(),
-        2,
-        "options stay complete"
-    );
+    let page_facets = page.facets.unwrap();
+    assert_eq!(page_facets.brands.len(), 2, "options stay complete");
+    assert_eq!(page_facets.matches, 3, "and count every match");
 
     let cheap = Filters {
         price_max: Some(320_000),

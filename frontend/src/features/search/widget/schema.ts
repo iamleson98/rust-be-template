@@ -34,7 +34,7 @@ export const searchSchema = z
       .int()
       .min(1, { error: () => tSync('searchSchema.adultsMin') }),
     children: z.number().int().min(0),
-    sort: z.enum(['departure', 'price', 'rating']),
+    sort: z.enum(['departure', 'price', 'rating', 'distance']),
     vehicleTypes: z.array(z.string()),
     // Smart-search coordinates (optional): set when the user picks a
     // precise place (autocomplete hit or map click) instead of a city.

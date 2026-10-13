@@ -203,6 +203,8 @@ pub struct FacetCount {
 #[derive(Debug, Clone, Default, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SearchFacets {
+    /// How many trips match before the customer's filters.
+    pub matches: u64,
     /// Cheapest seat for sale among the matches (VND); 0 without matches.
     pub price_min: i64,
     /// Dearest seat for sale among the matches (VND); 0 without matches.

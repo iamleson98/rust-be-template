@@ -12,6 +12,7 @@ import {
   type TripSearchResponse,
 } from '@/api'
 import type { SearchParams } from '@/lib/search-params'
+import type { FilterQuery } from './filters'
 
 export type TripSearchParams = Pick<SearchParams, 'from' | 'to' | 'date'> &
   Partial<
@@ -27,7 +28,10 @@ export type TripSearchParams = Pick<SearchParams, 'from' | 'to' | 'date'> &
       | 'toLat'
       | 'toLon'
     >
-  >
+  > & {
+    /** The results page's filters, applied by the server over every match. */
+    filters?: FilterQuery
+  }
 
 /** Trips per page of the results list; ten keeps the first paint quick on phones. */
 export const TRIP_SEARCH_PAGE_SIZE = 10
@@ -53,11 +57,25 @@ function endpointQuery(p: TripSearchParams, limit?: number) {
   const minSeats = (p.adults ?? 1) + (p.children ?? 0)
   const vehicleTypes = p.vehicleTypes?.length ? p.vehicleTypes.join(',') : undefined
   const departAfter = p.time || undefined
+  const filters = p.filters ?? {}
   if (isPrecise(p)) {
     const { fromLat, fromLon, toLat, toLon, date } = p
     return {
       geo: true as const,
-      query: { fromLat, fromLon, toLat, toLon, date, departAfter, minSeats, vehicleTypes, limit },
+      query: {
+        fromLat,
+        fromLon,
+        toLat,
+        toLon,
+        date,
+        departAfter,
+        // Nearest stops first unless the customer picked another order.
+        sort: p.sort ?? 'distance',
+        minSeats,
+        vehicleTypes,
+        limit,
+        ...filters,
+      },
     }
   }
   const { from, to, date } = p
@@ -68,10 +86,12 @@ function endpointQuery(p: TripSearchParams, limit?: number) {
       to,
       date,
       departAfter,
-      sort: p.sort ?? 'departure',
+      // "Nearest" only means something with exact places.
+      sort: p.sort === 'distance' || !p.sort ? 'departure' : p.sort,
       minSeats,
       vehicleTypes,
       limit,
+      ...filters,
     },
   }
 }

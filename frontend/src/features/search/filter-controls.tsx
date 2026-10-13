@@ -1,33 +1,41 @@
 'use client'
 
-import { ArrowDownWideNarrow, Clock, Star, type LucideIcon } from 'lucide-react'
+import { ArrowDownWideNarrow, Clock, Navigation2, Star, type LucideIcon } from 'lucide-react'
 import { useT } from '@/lib/i18n'
 import { VEHICLE_TYPES } from '@/lib/vehicle-types'
-import { toggle, count } from './filters'
+import { facetCount, toggle } from './filters'
 import { cn } from '@/lib/utils'
-import type { TripResult } from '@/api'
+import type { SearchFacets } from '@/api'
 import type { SortKey } from '@/lib/search-params'
 import { CheckRow, FilterSection } from './filter-ui'
 import { useSearchUrl } from './use-search-url'
 
 const SORTS: { key: SortKey; labelKey: string; Icon: LucideIcon }[] = [
+  { key: 'distance', labelKey: 'searchPage.sortNearest', Icon: Navigation2 },
   { key: 'departure', labelKey: 'searchPage.departureTime', Icon: Clock },
   { key: 'price', labelKey: 'searchPage.sortCheapest', Icon: ArrowDownWideNarrow },
   { key: 'rating', labelKey: 'searchPage.rating', Icon: Star },
 ]
 
-/** Sort order, as a row of pills above the results (it lives in the URL and re-runs the query). */
+/**
+ * Sort order, as a row of pills above the results (it lives in the URL and
+ * re-runs the query). "Nearest" only between exact places, where it is the
+ * default.
+ */
 export function SortTabs() {
   const t = useT()
   const { search, update } = useSearchUrl()
+  const exact = search.fromLat !== undefined
+  const sorts = exact ? SORTS : SORTS.filter((o) => o.key !== 'distance')
+  const current = !exact && search.sort === 'distance' ? 'departure' : search.sort
   return (
     <div
       role="radiogroup"
       aria-label={t('searchPage.sort')}
       className="-m-1 flex min-w-0 gap-1.5 overflow-x-auto p-1 scrollbar-none"
     >
-      {SORTS.map((o) => {
-        const active = search.sort === o.key
+      {sorts.map((o) => {
+        const active = current === o.key
         return (
           <button
             key={o.key}
@@ -51,8 +59,8 @@ export function SortTabs() {
   )
 }
 
-/** Vehicle type: the filter that lives in the URL (and so re-runs the query). */
-export function UrlFilters({ results }: { results: TripResult[] }) {
+/** Vehicle type: the filter that lives in the URL. Counts cover every match. */
+export function UrlFilters({ facets }: { facets: SearchFacets | undefined }) {
   const t = useT()
   const { search, update } = useSearchUrl()
   return (
@@ -64,7 +72,7 @@ export function UrlFilters({ results }: { results: TripResult[] }) {
             checked={search.vehicleTypes.includes(v.key)}
             onChange={() => update({ vehicleTypes: toggle(search.vehicleTypes, v.key) })}
             icon={<v.Icon className="h-3.5 w-3.5" />}
-            count={count(results, (r) => (r.vehicleType ?? null) === v.key)}
+            count={facetCount(facets?.vehicleTypes, v.key)}
           >
             {t(v.labelKey)}
           </CheckRow>

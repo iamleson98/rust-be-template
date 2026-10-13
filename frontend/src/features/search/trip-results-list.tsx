@@ -60,9 +60,12 @@ function LoadMore({ pagination, showing }: { pagination: Pagination; showing: nu
 type Props = {
   /** First fetch, or a re-search while the previous results are still on screen. */
   loading: boolean
-  /** Every trip loaded so far, before the client-side filters. */
+  /** The trips loaded so far (the server applied the filters). */
   results: TripResult[]
-  filtered: TripResult[]
+  /** Trips the search found before the filters. */
+  matches: number
+  /** Cheapest seat among every match, for the "cheapest" badge. */
+  cheapest?: number
   hasActiveFilters: boolean
   onResetFilters: () => void
   /** from/to are set but no date: the query is idle. */
@@ -72,14 +75,14 @@ type Props = {
 
 /**
  * The results column: skeletons while loading, an explanatory empty state, or the trip cards,
- * each followed by "load more" while the server has further pages. The list is free height and
- * the page scrolls. Filters apply to the loaded trips only, so the empty state offers the next
- * page too: it may hold matches.
+ * followed by "load more" while the server has further pages. The list is free height and the
+ * page scrolls.
  */
 export function TripResultsList({
   loading,
   results,
-  filtered,
+  matches,
+  cheapest,
   hasActiveFilters,
   onResetFilters,
   awaitingDate,
@@ -98,12 +101,13 @@ export function TripResultsList({
     )
   }
 
-  if (filtered.length === 0) {
+  if (results.length === 0) {
+    const filteredOut = matches > 0 && hasActiveFilters
     const [title, hint] = awaitingDate
       ? ['searchPage.pickDateTitle', 'searchPage.pickDateHint']
-      : results.length === 0
-        ? ['searchPage.noTripsFound', 'searchPage.noTripsHint']
-        : ['searchPage.noTripsMatchFilters', 'searchPage.noMatchHint']
+      : filteredOut
+        ? ['searchPage.noTripsMatchFilters', 'searchPage.noMatchHint']
+        : ['searchPage.noTripsFound', 'searchPage.noTripsHint']
     return (
       <div className="rounded-2xl bg-white px-6 py-12 text-center shadow-soft ring-1 ring-slate-200/80">
         <span className="mx-auto mb-4 grid size-14 place-items-center rounded-full bg-amber-50 text-amber-500">
@@ -111,7 +115,7 @@ export function TripResultsList({
         </span>
         <h3 className="text-lg font-semibold text-slate-900">{t(title)}</h3>
         <p className="mx-auto mt-1 max-w-sm text-sm text-slate-500">{t(hint)}</p>
-        {results.length > 0 && hasActiveFilters && (
+        {filteredOut && (
           <Button
             onClick={onResetFilters}
             variant="outline"
@@ -121,23 +125,17 @@ export function TripResultsList({
             {t('searchPage.clearAllFilters')}
           </Button>
         )}
-        {pagination.hasMore && (
-          <div className="mt-4">
-            <LoadMore pagination={pagination} showing={results.length} />
-          </div>
-        )}
       </div>
     )
   }
 
-  // "Cheapest" only when one trip alone has the lowest fare among several.
-  const lowest = Math.min(...filtered.map((r) => r.minPrice))
-  const atLowest = filtered.filter((r) => r.minPrice === lowest)
-  const cheapestId = filtered.length > 1 && atLowest.length === 1 ? atLowest[0].tripId : null
+  // "Cheapest" for the one loaded trip at the lowest fare of every match.
+  const atLowest = results.filter((r) => r.minPrice === cheapest)
+  const cheapestId = matches > 1 && atLowest.length === 1 ? atLowest[0].tripId : null
 
   return (
     <div className="space-y-3">
-      {filtered.map((trip) => (
+      {results.map((trip) => (
         <TripCard
           key={trip.tripId}
           trip={trip}

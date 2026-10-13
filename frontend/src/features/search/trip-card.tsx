@@ -1,9 +1,20 @@
 import { memo, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { ChevronRight, Droplet, GitCompare, Share2, Snowflake, Star, Wifi, Zap } from 'lucide-react'
+import {
+  ChevronRight,
+  Droplet,
+  Flag,
+  GitCompare,
+  MapPin,
+  Share2,
+  Snowflake,
+  Star,
+  Wifi,
+  Zap,
+} from 'lucide-react'
 import { toast } from 'sonner'
-import { tripDetailOptions, type TripResult } from '@/api'
+import { tripDetailOptions, type TripResult, type TripStopMatch } from '@/api'
 import { formatCurrency, formatDuration, formatTimeVN, parseDateSafe } from '@/lib/format'
 import { useT } from '@/lib/i18n'
 import { AMENITY_LABELS } from '@/lib/labels'
@@ -224,6 +235,14 @@ export const TripCard = memo(function TripCard({
             </div>
           </div>
 
+          {/* Smart search: where the customer gets on and off, and how far that is. */}
+          {trip.pickup && (
+            <div className="mt-3 space-y-1 rounded-xl bg-emerald-50/70 px-3 py-2">
+              <StopLine kind="pickup" stop={trip.pickup} />
+              {trip.dropoff && <StopLine kind="dropoff" stop={trip.dropoff} />}
+            </div>
+          )}
+
           {/* Comfort */}
           {trip.amenities.length > 0 && (
             <div className="mt-4 flex flex-wrap items-center gap-1.5">
@@ -295,3 +314,22 @@ export const TripCard = memo(function TripCard({
     </article>
   )
 })
+
+/** "Board at Long Biên · 06:40 · 0.4 km away", one line, the name truncating first. */
+function StopLine({ kind, stop }: { kind: 'pickup' | 'dropoff'; stop: TripStopMatch }) {
+  const t = useT()
+  const Icon = kind === 'pickup' ? MapPin : Flag
+  return (
+    <div className="flex min-w-0 items-center gap-1.5 text-xs text-slate-700">
+      <Icon className="size-3.5 shrink-0 text-emerald-600" />
+      <span className="shrink-0 text-slate-500">
+        {t(kind === 'pickup' ? 'searchPage.boardAt' : 'searchPage.alightAt')}
+      </span>
+      <span className="min-w-0 truncate font-medium text-slate-900">{stop.name}</span>
+      {stop.time && <span className="shrink-0 font-semibold tabular-nums">{stop.time}</span>}
+      <span className="shrink-0 text-slate-500">
+        · {t('searchPage.kmAway', { km: stop.distanceKm })}
+      </span>
+    </div>
+  )
+}
