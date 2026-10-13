@@ -63,6 +63,7 @@ pub mod seat_plan_presets;
 pub(crate) mod test_support;
 #[cfg(test)]
 mod ticket_tests;
+pub mod trip_search;
 pub mod trip_stops;
 pub mod trip_time;
 pub mod trip_warmer;

@@ -1811,6 +1811,18 @@ export type EngineTransactionsOut = {
 };
 
 /**
+ * How many of a search's matches have one value of a filter.
+ */
+export type FacetCount = {
+    count: number;
+    key: string;
+    /**
+     * Display name (operators, vehicle types); the key otherwise.
+     */
+    label: string;
+};
+
+/**
  * Body of `POST /api/admin/bus-layouts/{id}/plan/fit`.
  */
 export type FitSeatPlanRequest = {
@@ -2967,6 +2979,36 @@ export type RoutePicturesBulkDeleteResponse = {
 };
 
 /**
+ * The filter options of a search, counted over ALL its matches (before
+ * the customer's filters), so the sidebar never depends on what page
+ * is loaded.
+ */
+export type SearchFacets = {
+    amenities: Array<FacetCount>;
+    /**
+     * Operators, by slug, busiest first.
+     */
+    brands: Array<FacetCount>;
+    /**
+     * Boarding hour bands `0-6`, `6-12`, `12-18`, `18-24`.
+     */
+    hours: Array<FacetCount>;
+    /**
+     * Matches with plenty of seats left (more than 5).
+     */
+    plentyOfSeats: number;
+    /**
+     * Dearest seat for sale among the matches (VND); 0 without matches.
+     */
+    priceMax: number;
+    /**
+     * Cheapest seat for sale among the matches (VND); 0 without matches.
+     */
+    priceMin: number;
+    vehicleTypes: Array<FacetCount>;
+};
+
+/**
  * How many seats of one class a layout has.
  */
 export type SeatClassCount = {
@@ -3444,6 +3486,7 @@ export type TripResult = {
     departureAt?: string | null;
     departureDate: string;
     departureTime?: string | null;
+    dropoff?: null | TripStopMatch;
     fromLat: number;
     fromLon: number;
     fromName: string;
@@ -3455,6 +3498,7 @@ export type TripResult = {
      * Cheapest seat still for sale (VND).
      */
     minPrice: number;
+    pickup?: null | TripStopMatch;
     /**
      * Standard-seat price for an adult.
      */
@@ -3512,6 +3556,7 @@ export type TripSchedulePoint = {
  * Response of `GET /api/search`, `GET /api/search/geo` and `GET /api/recommendations`. The search endpoints are paginated; `/api/recommendations` omits the page metadata.
  */
 export type TripSearchResponse = {
+    facets?: null | SearchFacets;
     /**
      * True when more matching trips exist past this page — the signal for the frontend's "load more" button. Omitted on non-paginated responses.
      */
@@ -3564,6 +3609,21 @@ export type TripSeatMap = {
 export type TripSeatRow = {
     row: number;
     seats: Array<TripSeat>;
+};
+
+/**
+ * A trip's stop matched to a place the customer searched from or to.
+ */
+export type TripStopMatch = {
+    /**
+     * Straight-line distance from the searched place (km).
+     */
+    distanceKm: number;
+    name: string;
+    /**
+     * When the bus is there (`HH:MM`), when the timetable says.
+     */
+    time?: string | null;
 };
 
 /**
@@ -8462,6 +8522,34 @@ export type SearchTripsData = {
          * Only trips leaving at or after this time of day (`HH:MM`).
          */
         departAfter?: string | null;
+        /**
+         * Operator slugs, comma-separated.
+         */
+        brands?: string | null;
+        /**
+         * Cheapest seat at least this (VND).
+         */
+        priceMin?: number | null;
+        /**
+         * Cheapest seat at most this (VND).
+         */
+        priceMax?: number | null;
+        /**
+         * Boarding hour bands, comma-separated: `0-6`, `6-12`, `12-18`, `18-24`.
+         */
+        hours?: string | null;
+        /**
+         * Operators rated at least this (1–5).
+         */
+        minRating?: number | null;
+        /**
+         * Only trips with more than 5 seats left.
+         */
+        plentyOfSeats?: boolean | null;
+        /**
+         * Amenity keys the trip must all have, comma-separated.
+         */
+        amenities?: string | null;
     };
     url: '/api/search';
 };
@@ -8490,9 +8578,42 @@ export type SearchTripsGeoData = {
         vehicleTypes?: string | null;
         maxDistanceKm?: number | null;
         /**
-         * Only trips leaving at or after this time of day (`HH:MM`).
+         * Only trips boarding at or after this time of day (`HH:MM`).
          */
         departAfter?: string | null;
+        /**
+         * `distance` (default: nearest stops first), `departure`, `price`
+         * or `rating`.
+         */
+        sort?: string | null;
+        /**
+         * Operator slugs, comma-separated.
+         */
+        brands?: string | null;
+        /**
+         * Cheapest seat at least this (VND).
+         */
+        priceMin?: number | null;
+        /**
+         * Cheapest seat at most this (VND).
+         */
+        priceMax?: number | null;
+        /**
+         * Boarding hour bands, comma-separated: `0-6`, `6-12`, `12-18`, `18-24`.
+         */
+        hours?: string | null;
+        /**
+         * Operators rated at least this (1–5).
+         */
+        minRating?: number | null;
+        /**
+         * Only trips with more than 5 seats left.
+         */
+        plentyOfSeats?: boolean | null;
+        /**
+         * Amenity keys the trip must all have, comma-separated.
+         */
+        amenities?: string | null;
     };
     url: '/api/search/geo';
 };

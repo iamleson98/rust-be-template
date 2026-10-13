@@ -23,6 +23,62 @@
 //! test routes that bypass the rate limiter (health, ready, SEO, SW).
 //! For rate-limited routes, use the inline unit tests in `src/`.
 
+/// Search options from the positional arguments the search took before
+/// the filters moved to the server.
+#[allow(dead_code)]
+fn city_opts(
+    date: &str,
+    limit: u64,
+    offset: u64,
+    vehicle_types: Vec<String>,
+    sort: &str,
+    min_seats: i64,
+    depart_after: Option<&str>,
+) -> backend::service::trip_search::Options {
+    use backend::service::trip_search::{Filters, Options, Sort};
+    let filters = Filters {
+        vehicle_types,
+        ..Default::default()
+    };
+    Options::new(
+        date,
+        Some(limit),
+        Some(offset),
+        Sort::parse(Some(sort), false),
+        Some(min_seats),
+        depart_after,
+        filters,
+    )
+    .expect("valid search options")
+}
+
+/// The coordinate search's options, likewise.
+#[allow(dead_code)]
+fn geo_opts(
+    date: &str,
+    limit: u64,
+    offset: u64,
+    min_seats: i64,
+    vehicle_types: Vec<String>,
+    depart_after: Option<&str>,
+) -> backend::service::trip_search::Options {
+    use backend::service::trip_search::{Filters, Options, Sort};
+    let filters = Filters {
+        vehicle_types,
+        ..Default::default()
+    };
+    Options::new(
+        date,
+        Some(limit),
+        Some(offset),
+        Sort::parse(None, true),
+        Some(min_seats),
+        depart_after,
+        filters,
+    )
+    .expect("valid search options")
+}
+
 // Link anchor: rustc only places an rlib on a TEST binary's link line
 // when the test's own code references the crate. The rustqlite engine
 // (`sqlite3` crate — the sqlite3_* C ABI) is otherwise dropped and
@@ -439,13 +495,7 @@ async fn search_generates_trips_on_demand() -> anyhow::Result<()> {
         .search_trips(
             "hà nội",
             "đà nẵng",
-            &date,
-            20,
-            0,
-            vec![],
-            "departure",
-            1,
-            None,
+            &city_opts(&date, 20, 0, vec![], "departure", 1, None),
         )
         .await?;
     assert_eq!(
@@ -465,13 +515,7 @@ async fn search_generates_trips_on_demand() -> anyhow::Result<()> {
         .search_trips(
             "hà nội",
             "đà nẵng",
-            &date,
-            20,
-            0,
-            vec![],
-            "departure",
-            1,
-            None,
+            &city_opts(&date, 20, 0, vec![], "departure", 1, None),
         )
         .await?;
     assert_eq!(
@@ -489,13 +533,7 @@ async fn search_generates_trips_on_demand() -> anyhow::Result<()> {
         .search_trips(
             "hà nội",
             "đà nẵng",
-            &yesterday,
-            20,
-            0,
-            vec![],
-            "departure",
-            1,
-            None,
+            &city_opts(&yesterday, 20, 0, vec![], "departure", 1, None),
         )
         .await?;
     assert!(res_past.items.is_empty(), "past dates are never generated");
@@ -763,13 +801,7 @@ async fn search_matches_routes_by_city_slugs_not_just_name() -> anyhow::Result<(
         .search_trips(
             "Hà Nội",
             "Đà Nẵng",
-            &date,
-            20,
-            0,
-            vec![],
-            "departure",
-            1,
-            None,
+            &city_opts(&date, 20, 0, vec![], "departure", 1, None),
         )
         .await?;
     assert_eq!(
@@ -822,13 +854,7 @@ async fn search_matches_routes_by_city_slugs_not_just_name() -> anyhow::Result<(
         .search_trips(
             "Sài Gòn",
             "Cần Thơ",
-            &date,
-            20,
-            0,
-            vec![],
-            "departure",
-            1,
-            None,
+            &city_opts(&date, 20, 0, vec![], "departure", 1, None),
         )
         .await?;
     assert_eq!(
@@ -843,13 +869,7 @@ async fn search_matches_routes_by_city_slugs_not_just_name() -> anyhow::Result<(
         .search_trips(
             "Đà Nẵng",
             "Hà Nội",
-            &date,
-            20,
-            0,
-            vec![],
-            "departure",
-            1,
-            None,
+            &city_opts(&date, 20, 0, vec![], "departure", 1, None),
         )
         .await?;
     assert!(
@@ -975,7 +995,11 @@ async fn search_sorts_by_price_and_rating() -> anyhow::Result<()> {
     // sort=price → ascending min_price.
     let res = st
         .public
-        .search_trips("Hà Nội", "Đà Nẵng", &date, 20, 0, vec![], "price", 1, None)
+        .search_trips(
+            "Hà Nội",
+            "Đà Nẵng",
+            &city_opts(&date, 20, 0, vec![], "price", 1, None),
+        )
         .await?;
     let prices: Vec<i64> = res.items.iter().map(|t| t.min_price).collect();
     let mut sorted = prices.clone();
@@ -987,7 +1011,11 @@ async fn search_sorts_by_price_and_rating() -> anyhow::Result<()> {
     // cities via name or slugs — Huế route only matches by name here).
     let res = st
         .public
-        .search_trips("Hà Nội", "Đà Nẵng", &date, 20, 0, vec![], "rating", 1, None)
+        .search_trips(
+            "Hà Nội",
+            "Đà Nẵng",
+            &city_opts(&date, 20, 0, vec![], "rating", 1, None),
+        )
         .await?;
     if let Some(first) = res.items.first() {
         assert_eq!(first.brand_slug, "sort-test-b", "highest rating first");
@@ -999,13 +1027,7 @@ async fn search_sorts_by_price_and_rating() -> anyhow::Result<()> {
         .search_trips(
             "Hà Nội",
             "Đà Nẵng",
-            &date,
-            20,
-            0,
-            vec![],
-            "departure",
-            1,
-            None,
+            &city_opts(&date, 20, 0, vec![], "departure", 1, None),
         )
         .await?;
     let times: Vec<&str> = res
@@ -1024,13 +1046,7 @@ async fn search_sorts_by_price_and_rating() -> anyhow::Result<()> {
         .search_trips(
             "Hà Nội",
             "Đà Nẵng",
-            &date,
-            20,
-            0,
-            vec![],
-            "departure",
-            1,
-            Some("12:00"),
+            &city_opts(&date, 20, 0, vec![], "departure", 1, Some("12:00")),
         )
         .await?;
     assert!(
@@ -1042,21 +1058,18 @@ async fn search_sorts_by_price_and_rating() -> anyhow::Result<()> {
         .iter()
         .all(|t| t.departure_time.as_deref().unwrap_or("") >= "12:00"));
     assert_eq!(late.total, Some(late.items.len() as u64));
-    assert!(st
-        .public
-        .search_trips(
-            "Hà Nội",
-            "Đà Nẵng",
-            &date,
-            20,
-            0,
-            vec![],
-            "departure",
-            1,
-            Some("25:00")
-        )
-        .await
-        .is_err());
+    // An impossible time is refused with the request's other checks.
+    use backend::service::trip_search::{Filters, Options, Sort};
+    assert!(Options::new(
+        &date,
+        None,
+        None,
+        Sort::Departure,
+        None,
+        Some("25:00"),
+        Filters::default(),
+    )
+    .is_err());
 
     Ok(())
 }
@@ -1119,13 +1132,7 @@ async fn search_paginates_with_offset_and_has_more() -> anyhow::Result<()> {
         .search_trips(
             "Hà Nội",
             "Đà Nẵng",
-            &date,
-            2,
-            0,
-            vec![],
-            "departure",
-            1,
-            None,
+            &city_opts(&date, 2, 0, vec![], "departure", 1, None),
         )
         .await?;
     assert_eq!(page1.items.len(), 2, "page 1 returns exactly limit items");
@@ -1140,13 +1147,7 @@ async fn search_paginates_with_offset_and_has_more() -> anyhow::Result<()> {
         .search_trips(
             "Hà Nội",
             "Đà Nẵng",
-            &date,
-            2,
-            2,
-            vec![],
-            "departure",
-            1,
-            None,
+            &city_opts(&date, 2, 2, vec![], "departure", 1, None),
         )
         .await?;
     assert_eq!(page2.items.len(), 1, "page 2 returns the last trip only");
@@ -1177,13 +1178,7 @@ async fn search_paginates_with_offset_and_has_more() -> anyhow::Result<()> {
         .search_trips(
             "Hà Nội",
             "Đà Nẵng",
-            &date,
-            2,
-            10,
-            vec![],
-            "departure",
-            1,
-            None,
+            &city_opts(&date, 2, 10, vec![], "departure", 1, None),
         )
         .await?;
     assert!(past.items.is_empty());
@@ -1201,13 +1196,7 @@ async fn search_paginates_with_offset_and_has_more() -> anyhow::Result<()> {
         .search_trips(
             "Hà Nội",
             "Cà Mau",
-            &date,
-            2,
-            0,
-            vec![],
-            "departure",
-            1,
-            None,
+            &city_opts(&date, 2, 0, vec![], "departure", 1, None),
         )
         .await?;
     assert!(none.items.is_empty());
@@ -1342,17 +1331,10 @@ async fn geo_search_ranks_by_proximity_and_paginates() -> anyhow::Result<()> {
     let ranked = st
         .public
         .search_trips_geo(
-            from_lat,
-            from_lon,
-            to_lat,
-            to_lon,
-            &date,
-            10,
-            0,
-            1,
-            vec![],
+            (from_lat, from_lon),
+            (to_lat, to_lon),
             50.0,
-            None,
+            &geo_opts(&date, 10, 0, 1, vec![], None),
         )
         .await?;
     assert_eq!(ranked.items.len(), 3, "both routes' trips must match");
@@ -1369,17 +1351,10 @@ async fn geo_search_ranks_by_proximity_and_paginates() -> anyhow::Result<()> {
     let page1 = st
         .public
         .search_trips_geo(
-            from_lat,
-            from_lon,
-            to_lat,
-            to_lon,
-            &date,
-            2,
-            0,
-            1,
-            vec![],
+            (from_lat, from_lon),
+            (to_lat, to_lon),
             50.0,
-            None,
+            &geo_opts(&date, 2, 0, 1, vec![], None),
         )
         .await?;
     assert_eq!(page1.items.len(), 2);
@@ -1390,17 +1365,10 @@ async fn geo_search_ranks_by_proximity_and_paginates() -> anyhow::Result<()> {
     let page2 = st
         .public
         .search_trips_geo(
-            from_lat,
-            from_lon,
-            to_lat,
-            to_lon,
-            &date,
-            2,
-            2,
-            1,
-            vec![],
+            (from_lat, from_lon),
+            (to_lat, to_lon),
             50.0,
-            None,
+            &geo_opts(&date, 2, 2, 1, vec![], None),
         )
         .await?;
     assert_eq!(page2.items.len(), 1);
@@ -1533,13 +1501,7 @@ async fn search_backfills_a_large_schedule_set_quickly() -> anyhow::Result<()> {
         st.public.search_trips(
             "hà nội",
             "đà nẵng",
-            &date,
-            100,
-            0,
-            vec![],
-            "departure",
-            1,
-            None,
+            &city_opts(&date, 100, 0, vec![], "departure", 1, None),
         ),
     )
     .await??;
@@ -1557,13 +1519,7 @@ async fn search_backfills_a_large_schedule_set_quickly() -> anyhow::Result<()> {
         st.public.search_trips(
             "hà nội",
             "đà nẵng",
-            &date,
-            100,
-            100,
-            vec![],
-            "departure",
-            1,
-            None,
+            &city_opts(&date, 100, 100, vec![], "departure", 1, None),
         ),
     )
     .await??;
@@ -1666,13 +1622,7 @@ async fn search_serves_existing_rows_while_the_warmer_holds_the_lock() -> anyhow
         public.search_trips(
             "hà nội",
             "đà nẵng",
-            &date,
-            20,
-            0,
-            vec![],
-            "departure",
-            1,
-            None,
+            &city_opts(&date, 20, 0, vec![], "departure", 1, None),
         ),
     )
     .await??;
@@ -1689,13 +1639,7 @@ async fn search_serves_existing_rows_while_the_warmer_holds_the_lock() -> anyhow
         public.search_trips(
             "hà nội",
             "đà nẵng",
-            &date,
-            20,
-            0,
-            vec![],
-            "departure",
-            1,
-            None,
+            &city_opts(&date, 20, 0, vec![], "departure", 1, None),
         ),
     )
     .await??;
@@ -1759,13 +1703,7 @@ async fn search_today_excludes_already_departed_trips() -> anyhow::Result<()> {
         .search_trips(
             "hà nội",
             "đà nẵng",
-            &today,
-            20,
-            0,
-            vec![],
-            "departure",
-            1,
-            None,
+            &city_opts(&today, 20, 0, vec![], "departure", 1, None),
         )
         .await?;
     let times: Vec<String> = res
@@ -1796,13 +1734,7 @@ async fn search_today_excludes_already_departed_trips() -> anyhow::Result<()> {
         .search_trips(
             "hà nội",
             "đà nẵng",
-            &tomorrow,
-            20,
-            0,
-            vec![],
-            "departure",
-            1,
-            None,
+            &city_opts(&tomorrow, 20, 0, vec![], "departure", 1, None),
         )
         .await?;
     let times2: Vec<String> = res2
@@ -2407,5 +2339,146 @@ async fn concurrent_first_uses_create_each_seat_once() -> anyhow::Result<()> {
         .list_seat_inventories_by_trip(&trip_id.to_string())
         .await?;
     assert_eq!(seats.len(), 4, "no duplicate seat rows after the race");
+    Ok(())
+}
+
+/// A route, a four-seat layout, a daily 08:00 schedule on it and its trip
+/// on `date` (no seat rows yet, as the warmer creates trips).
+async fn trip_on_four_seats(
+    store: &backend::store::CompositeStore,
+    date: &str,
+) -> anyhow::Result<(
+    backend::entity::trip_session::Model,
+    backend::entity::schedule::Model,
+)> {
+    use backend::entity::{bus_layout, route, schedule, seat, trip_session};
+    use sea_orm::{EntityTrait, Set};
+    let now = "2026-01-01T00:00:00Z".to_string();
+    let route_id = uuid::Uuid::new_v4();
+    store
+        .route_store()
+        .insert_route(route::ActiveModel {
+            id: Set(route_id),
+            brand_id: Set(None),
+            name: Set("Hà Nội - Đà Nẵng".into()),
+            start_location_id: Set("ha-noi".into()),
+            end_location_id: Set("da-nang".into()),
+            status: Set("active".into()),
+            created_at: Set(now.clone()),
+            updated_at: Set(now.clone()),
+        })
+        .await?;
+    let layout_id = uuid::Uuid::new_v4();
+    bus_layout::Entity::insert(bus_layout::ActiveModel {
+        id: Set(layout_id),
+        brand_id: Set(None),
+        name: Set(Some("Four seats".into())),
+        vehicle_type: Set(Some("sleeper".into())),
+        total_seats: Set(Some(4)),
+        layout_data: Set(None),
+        created_at: Set(now.clone()),
+        updated_at: Set(now.clone()),
+    })
+    .exec(store.db())
+    .await?;
+    for i in 0..4 {
+        seat::Entity::insert(seat::ActiveModel {
+            id: Set(uuid::Uuid::new_v4()),
+            bus_layout_id: Set(layout_id),
+            seat_label: Set(format!("A{i}")),
+            seat_class: Set(None),
+            row_num: Set(Some(i as i16)),
+            col_num: Set(Some(0)),
+            is_window: Set(false),
+            floor: Set(0),
+            created_at: Set(now.clone()),
+        })
+        .exec(store.db())
+        .await?;
+    }
+    let schedule_model = schedule::ActiveModel {
+        id: Set(uuid::Uuid::new_v4()),
+        route_id: Set(route_id),
+        departure_time: Set("08:00".into()),
+        effective_from: Set(None),
+        effective_to: Set(None),
+        days_of_week: Set(Some("1111111".into())),
+        bus_layout_id: Set(Some(layout_id)),
+        base_price_adult: Set(350_000),
+        base_price_child: Set(None),
+        amenities: Set(None),
+        created_at: Set(now.clone()),
+        vehicle_type_id: Set(None),
+    };
+    store
+        .schedule_store()
+        .insert_schedule(schedule_model.clone())
+        .await?;
+    let schedule: schedule::Model = schedule_model.try_into()?;
+    let trip_model = trip_session::ActiveModel {
+        id: Set(uuid::Uuid::new_v4()),
+        schedule_id: Set(schedule.id),
+        departure_date: Set(date.to_string()),
+        actual_departure_at: Set(None),
+        driver_name: Set(None),
+        driver_phone: Set(None),
+        status: Set("scheduled".into()),
+        total_seats: Set(4),
+        available_seats: Set(4),
+        created_at: Set(now.clone()),
+        updated_at: Set(now),
+    };
+    store
+        .trip_store()
+        .insert_trip_session(trip_model.clone())
+        .await?;
+    Ok((trip_model.try_into()?, schedule))
+}
+
+/// The unsold seats of a trip that left days ago go; its sold seat stays
+/// (booking history), and an upcoming trip's seats are untouched.
+#[tokio::test]
+async fn departed_trips_lose_their_unsold_seats() -> anyhow::Result<()> {
+    use backend::service::trip_warmer;
+    use sea_orm::{ActiveModelTrait, Set};
+
+    let store = migrated_store().await?;
+    let day = |offset: i64| {
+        (chrono::Utc::now() + chrono::Duration::days(offset))
+            .format("%Y-%m-%d")
+            .to_string()
+    };
+    let (gone, gone_schedule) = trip_on_four_seats(&store, &day(-3)).await?;
+    trip_warmer::ensure_seats(&store, &gone, &gone_schedule).await?;
+    let (soon, soon_schedule) = trip_on_four_seats(&store, &day(2)).await?;
+    trip_warmer::ensure_seats(&store, &soon, &soon_schedule).await?;
+
+    // One seat of the departed trip was sold.
+    let seats_of = |trip: uuid::Uuid| {
+        let store = store.clone();
+        async move {
+            store
+                .trip_store()
+                .list_seat_inventories_by_trip(&trip.to_string())
+                .await
+        }
+    };
+    let mut sold: backend::entity::seat_inventory::ActiveModel =
+        seats_of(gone.id).await?.remove(0).into();
+    sold.status = Set("booked".into());
+    sold.update(store.db()).await?;
+
+    let deleted = trip_warmer::prune_departed_seats(&store, &day(0)).await?;
+    assert_eq!(deleted, 3, "the departed trip's three unsold seats");
+    let left = seats_of(gone.id).await?;
+    assert_eq!(left.len(), 1);
+    assert_eq!(left[0].status, "booked");
+    assert_eq!(
+        seats_of(soon.id).await?.len(),
+        4,
+        "upcoming trips keep theirs"
+    );
+    // Nothing more to do on a second pass.
+    assert_eq!(trip_warmer::prune_departed_seats(&store, &day(0)).await?, 0);
     Ok(())
 }

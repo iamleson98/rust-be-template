@@ -33,6 +33,62 @@ use backend::dto::admin::{
 use backend::dto::seat_plan::{CellKind, SeatPlan};
 use backend::service::seat_plan_presets;
 
+/// Search options from the positional arguments the search took before
+/// the filters moved to the server.
+#[allow(dead_code)]
+fn city_opts(
+    date: &str,
+    limit: u64,
+    offset: u64,
+    vehicle_types: Vec<String>,
+    sort: &str,
+    min_seats: i64,
+    depart_after: Option<&str>,
+) -> backend::service::trip_search::Options {
+    use backend::service::trip_search::{Filters, Options, Sort};
+    let filters = Filters {
+        vehicle_types,
+        ..Default::default()
+    };
+    Options::new(
+        date,
+        Some(limit),
+        Some(offset),
+        Sort::parse(Some(sort), false),
+        Some(min_seats),
+        depart_after,
+        filters,
+    )
+    .expect("valid search options")
+}
+
+/// The coordinate search's options, likewise.
+#[allow(dead_code)]
+fn geo_opts(
+    date: &str,
+    limit: u64,
+    offset: u64,
+    min_seats: i64,
+    vehicle_types: Vec<String>,
+    depart_after: Option<&str>,
+) -> backend::service::trip_search::Options {
+    use backend::service::trip_search::{Filters, Options, Sort};
+    let filters = Filters {
+        vehicle_types,
+        ..Default::default()
+    };
+    Options::new(
+        date,
+        Some(limit),
+        Some(offset),
+        Sort::parse(None, true),
+        Some(min_seats),
+        depart_after,
+        filters,
+    )
+    .expect("valid search options")
+}
+
 /// Boot the AppState directly (see `api_smoke::boot_state` for the env
 /// contract — same values, duplicated so the two files stay
 /// independently runnable).
@@ -183,13 +239,7 @@ async fn bus_layout_create_generates_seats_and_drives_trip_capacity() -> anyhow:
         .search_trips(
             "sài gòn",
             "cần thơ",
-            &day,
-            20,
-            0,
-            vec![],
-            "departure",
-            1,
-            None,
+            &city_opts(&day, 20, 0, vec![], "departure", 1, None),
         )
         .await?;
     let trip = res
@@ -439,13 +489,7 @@ async fn trip_on_layout(
         .search_trips(
             "sài gòn",
             "cần thơ",
-            &day,
-            20,
-            0,
-            vec![],
-            "departure",
-            1,
-            None,
+            &city_opts(&day, 20, 0, vec![], "departure", 1, None),
         )
         .await?;
     Ok(res

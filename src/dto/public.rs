@@ -166,6 +166,55 @@ pub struct TripResult {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub capacity: Option<i16>,
     pub amenities: Vec<String>,
+    /// Coordinate search only: the trip's stop nearest the customer's
+    /// pickup — where and when they board, and how far it is.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pickup: Option<TripStopMatch>,
+    /// Coordinate search only: the stop nearest their drop-off.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dropoff: Option<TripStopMatch>,
+}
+
+/// A trip's stop matched to a place the customer searched from or to.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct TripStopMatch {
+    pub name: String,
+    /// When the bus is there (`HH:MM`), when the timetable says.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub time: Option<String>,
+    /// Straight-line distance from the searched place (km).
+    pub distance_km: f64,
+}
+
+/// How many of a search's matches have one value of a filter.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct FacetCount {
+    pub key: String,
+    /// Display name (operators, vehicle types); the key otherwise.
+    pub label: String,
+    pub count: u64,
+}
+
+/// The filter options of a search, counted over ALL its matches (before
+/// the customer's filters), so the sidebar never depends on what page
+/// is loaded.
+#[derive(Debug, Clone, Default, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchFacets {
+    /// Cheapest seat for sale among the matches (VND); 0 without matches.
+    pub price_min: i64,
+    /// Dearest seat for sale among the matches (VND); 0 without matches.
+    pub price_max: i64,
+    /// Operators, by slug, busiest first.
+    pub brands: Vec<FacetCount>,
+    pub vehicle_types: Vec<FacetCount>,
+    /// Boarding hour bands `0-6`, `6-12`, `12-18`, `18-24`.
+    pub hours: Vec<FacetCount>,
+    pub amenities: Vec<FacetCount>,
+    /// Matches with plenty of seats left (more than 5).
+    pub plenty_of_seats: u64,
 }
 
 /// Response of `GET /api/search`, `GET /api/search/geo` and `GET /api/recommendations`. The search endpoints are paginated; `/api/recommendations` omits the page metadata.
@@ -185,6 +234,10 @@ pub struct TripSearchResponse {
     /// True when more matching trips exist past this page — the signal for the frontend's "load more" button. Omitted on non-paginated responses.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub has_more: Option<bool>,
+    /// The search's filter options over all its matches (search
+    /// endpoints only).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub facets: Option<SearchFacets>,
 }
 
 impl TripSearchResponse {
@@ -198,6 +251,7 @@ impl TripSearchResponse {
             limit: None,
             offset: None,
             has_more: None,
+            facets: None,
         }
     }
 
@@ -211,7 +265,14 @@ impl TripSearchResponse {
             limit: Some(limit),
             offset: Some(offset),
             has_more: Some(has_more),
+            facets: None,
         }
+    }
+
+    /// The same response with the search's filter options.
+    pub fn with_facets(mut self, facets: SearchFacets) -> Self {
+        self.facets = Some(facets);
+        self
     }
 
     /// Paginated EMPTY response — early returns (no matching routes, no
@@ -483,4 +544,19 @@ pub struct SearchTripsQuery {
     pub min_seats: Option<i64>,
     /// Only trips leaving at or after this time of day (`HH:MM`).
     pub depart_after: Option<String>,
+    // The results page's filters, applied over every match.
+    /// Operator slugs, comma-separated.
+    pub brands: Option<String>,
+    /// Cheapest seat at least this (VND).
+    pub price_min: Option<i64>,
+    /// Cheapest seat at most this (VND).
+    pub price_max: Option<i64>,
+    /// Boarding hour bands, comma-separated: `0-6`, `6-12`, `12-18`, `18-24`.
+    pub hours: Option<String>,
+    /// Operators rated at least this (1–5).
+    pub min_rating: Option<f64>,
+    /// Only trips with more than 5 seats left.
+    pub plenty_of_seats: Option<bool>,
+    /// Amenity keys the trip must all have, comma-separated.
+    pub amenities: Option<String>,
 }

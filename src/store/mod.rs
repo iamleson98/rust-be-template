@@ -13,7 +13,7 @@
 //! - `CompositeStore`: combines per-entity stores into one object used by
 //!   services as `Arc<dyn Store>`.
 
-pub use self::address::{AddressStore, DbAddressStore};
+pub use self::address::{AddressStore, DbAddressStore, GeoBox};
 pub use self::ads_conversion::{AdConversionStore, DbAdConversionStore, NewAdConversion};
 pub use self::audit::{AuditStore, DbAuditStore};
 pub use self::booking::{

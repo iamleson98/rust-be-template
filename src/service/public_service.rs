@@ -9,7 +9,7 @@
 //! - Returns typed DTOs from [`crate::dto::public`] (no `serde_json::Value`).
 //! - Pure helpers (vehicle_type_label, parse_amenities, etc.) are ported as-is.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
 
 use uuid::Uuid;
@@ -19,7 +19,7 @@ use crate::dto::public::{
     RouteListResponse, RouteOut, StatsResponse, TripAmenity, TripBrandDetail, TripBusLayout,
     TripCore, TripDeckPlan, TripDetail, TripEndpoint, TripFare, TripPickupPoint, TripPricing,
     TripResult, TripRouteDetail, TripSchedulePoint, TripSearchResponse, TripSeat, TripSeatDeck,
-    TripSeatMap, TripSeatRow,
+    TripSeatMap, TripSeatRow, TripStopMatch,
 };
 use crate::entity::{
     brand, bus_layout, route, schedule, seat_inventory, trip_session, vehicle_type,
@@ -28,14 +28,102 @@ use crate::error::{AppError, AppResult};
 use crate::service::fares::{self, ChildPolicy, Fare, FareTable};
 use crate::service::place_service::haversine_km;
 use crate::service::seat_plan;
+use crate::service::trip_search;
 use crate::service::trip_warmer;
 use crate::service::{trip_stops, trip_time};
 use crate::store::CompositeStore;
-use crate::store::PickupPointWithRoute;
+use crate::store::GeoBox;
 
 // ────────────────────────────────────────────────────────────────
 //  Pure helpers
 // ────────────────────────────────────────────────────────────────
+
+/// Most trips of one day a city search considers.
+const CITY_TRIP_CAP: u64 = 500;
+/// Most trips of one day a coordinate search considers.
+const GEO_TRIP_CAP: u64 = 1000;
+
+/// Does `route` run from the searched origin to the searched destination?
+///
+/// By its endpoint cities whenever both it and the search name known
+/// cities; by its name mentioning the origin before the destination only
+/// otherwise. (The SQL name match is order-blind: "Hà Nội - Đà Nẵng"
+/// also matched a search from Đà Nẵng to Hà Nội.)
+fn runs_between(
+    route: &route::Model,
+    from_slugs: &[String],
+    to_slugs: &[String],
+    from_lower: &str,
+    to_lower: &str,
+) -> bool {
+    let known = |slug: &str| crate::cities::find_by_slug(slug).is_some();
+    if !from_slugs.is_empty()
+        && !to_slugs.is_empty()
+        && known(&route.start_location_id)
+        && known(&route.end_location_id)
+    {
+        return from_slugs.contains(&route.start_location_id)
+            && to_slugs.contains(&route.end_location_id);
+    }
+    let name = route.name.to_lowercase();
+    matches!((name.find(from_lower), name.find(to_lower)), (Some(a), Some(b)) if a < b)
+}
+
+/// A stop of a trip near a searched place.
+struct StopHit {
+    order: i64,
+    name: String,
+    /// `HH:MM` the bus is there, when the timetable says.
+    time: Option<String>,
+    lat: f64,
+    lon: f64,
+}
+
+/// The box around `center` that holds every point within `km` (degrees;
+/// a little wider, the exact distance is measured afterwards).
+fn geo_box((lat, lon): (f64, f64), km: f64) -> GeoBox {
+    let lat_delta = km / 111.0 * 1.2;
+    let lon_delta = km / (111.0 * lat.to_radians().cos().abs().max(0.01)) * 1.2;
+    GeoBox {
+        lat_min: lat - lat_delta,
+        lat_max: lat + lat_delta,
+        lon_min: lon - lon_delta,
+        lon_max: lon + lon_delta,
+    }
+}
+
+/// The pickup stop near `from` and a later drop-off stop near `to` (both
+/// within `max` km) with the smallest total distance; none when the trip
+/// does not serve both in that order.
+fn nearest_pair(
+    hits: &[StopHit],
+    from: (f64, f64),
+    to: (f64, f64),
+    max: f64,
+) -> Option<(TripStopMatch, TripStopMatch)> {
+    let near = |place: (f64, f64)| -> Vec<(&StopHit, f64)> {
+        hits.iter()
+            .map(|h| (h, haversine_km(place.0, place.1, h.lat, h.lon)))
+            .filter(|(_, d)| *d <= max)
+            .collect()
+    };
+    let (pickups, dropoffs) = (near(from), near(to));
+    let (pickup, dropoff) = pickups
+        .iter()
+        .flat_map(|p| {
+            dropoffs
+                .iter()
+                .filter(move |d| d.0.order > p.0.order)
+                .map(move |d| (*p, *d))
+        })
+        .min_by(|a, b| (a.0 .1 + a.1 .1).total_cmp(&(b.0 .1 + b.1 .1)))?;
+    let stop = |(hit, km): (&StopHit, f64)| TripStopMatch {
+        name: hit.name.clone(),
+        time: hit.time.clone(),
+        distance_km: (km * 10.0).round() / 10.0,
+    };
+    Some((stop(pickup), stop(dropoff)))
+}
 
 /// Vietnamese label for a vehicle type.
 fn vehicle_type_label(vt: &str) -> &'static str {
@@ -56,7 +144,7 @@ fn vehicle_type_label(vt: &str) -> &'static str {
 ///
 /// Legacy codes get their label from the catalog when one matches
 /// (e.g. a bus layout still saying `limousine`), else the static map.
-fn resolve_vehicle_type(
+pub(crate) fn resolve_vehicle_type(
     sched: &schedule::Model,
     layout: Option<&bus_layout::Model>,
     vt_map: &HashMap<Uuid, vehicle_type::Model>,
@@ -76,7 +164,7 @@ fn resolve_vehicle_type(
 }
 
 /// Parse a Schedule.amenities JSON string into a `Vec<String>`.
-fn parse_amenities(raw: &Option<String>) -> Vec<String> {
+pub(crate) fn parse_amenities(raw: &Option<String>) -> Vec<String> {
     match raw {
         None => Vec::new(),
         Some(s) if s.trim().is_empty() => Vec::new(),
@@ -98,50 +186,7 @@ fn parse_amenities(raw: &Option<String>) -> Vec<String> {
 /// since the route entity no longer carries a `duration_min`. Callers
 /// that need an arrival estimate should derive it from a Valhalla
 /// directions request between the route's start/end points.
-/// Minutes-since-midnight of a trip's departure, for sorting.
-///
-/// Prefers the schedule's `HH:mm` string; falls back to the ISO
-/// `departure_at`. Unparseable/missing values sort last (i32::MAX) so
-/// incomplete data never shadows complete data.
-/// The search form's optional "leaving after" time (`HH:MM`) in minutes
-/// past midnight; `None` when absent or blank.
-fn parse_depart_after(value: Option<&str>) -> AppResult<Option<i32>> {
-    let Some(v) = value.map(str::trim).filter(|v| !v.is_empty()) else {
-        return Ok(None);
-    };
-    let invalid = || AppError::BadRequest("departAfter must be HH:MM".into());
-    let (h, m) = v.split_once(':').ok_or_else(invalid)?;
-    let (h, m): (i32, i32) = (
-        h.parse().map_err(|_| invalid())?,
-        m.parse().map_err(|_| invalid())?,
-    );
-    if !(0..24).contains(&h) || !(0..60).contains(&m) {
-        return Err(invalid());
-    }
-    Ok(Some(h * 60 + m))
-}
-
-fn departure_minutes(t: &TripResult) -> i32 {
-    let src = t
-        .departure_time
-        .as_deref()
-        .filter(|s| !s.is_empty())
-        .or(t.departure_at.as_deref());
-    let Some(s) = src else { return i32::MAX };
-    // Take "HH:mm" from the front — works for both "08:30" and
-    // "2026-01-02T08:30:00" (the time follows the last 'T').
-    let hm = s.rsplit('T').next().unwrap_or(s);
-    let mut parts = hm.split(':');
-    let h: i32 = parts.next().and_then(|p| p.parse().ok()).unwrap_or(-1);
-    let m: i32 = parts.next().and_then(|p| p.parse().ok()).unwrap_or(-1);
-    if h < 0 || m < 0 {
-        i32::MAX
-    } else {
-        h * 60 + m
-    }
-}
-
-fn compute_iso_timestamps(
+pub(crate) fn compute_iso_timestamps(
     departure_date: &Option<String>,
     departure_time: &Option<String>,
 ) -> (Option<String>, Option<String>) {
@@ -173,7 +218,7 @@ fn compute_iso_timestamps(
 /// client flag "overnight" and show the correct arrival date. Returns
 /// `None` when the schedule has no arrival times configured at all
 /// (the frontend shows an honest "view detail" hint for that gap).
-fn compute_arrival_iso(
+pub(crate) fn compute_arrival_iso(
     departure_date: &str,
     departure_hhmm: &str,
     arrival_hhmm: &str,
@@ -197,7 +242,7 @@ fn compute_arrival_iso(
 }
 
 /// Amenity key → Vietnamese label.
-fn amenity_label(key: &str) -> &'static str {
+pub(crate) fn amenity_label(key: &str) -> &'static str {
     match key {
         "wifi" => "WiFi",
         "ac" => "Điều hòa",
@@ -463,22 +508,57 @@ impl PublicService {
     /// writes; price ranges load for just the returned page unless the
     /// sort itself needs them.
     #[allow(clippy::too_many_arguments)]
+    /// Trips on `date` for `schedules` with at least `min_seats` left:
+    /// the rows the warmer created, after filling any gap inline under
+    /// a strict budget (see `fill_trips_inline`). Gaps are judged on ALL
+    /// trips — a sold-out trip exists and is not a gap to fill.
+    async fn trips_on(
+        &self,
+        schedules: &[schedule::Model],
+        date: &str,
+        min_seats: i64,
+        cap: u64,
+    ) -> AppResult<Vec<trip_session::Model>> {
+        let ids: Vec<Uuid> = schedules.iter().map(|s| s.id).collect();
+        let trip_store = self.store.trip_store();
+        let mut trips = trip_store
+            .list_trips_by_schedule_ids(ids.clone(), date, 0, cap)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        let today = trip_warmer::vn_today(chrono::Utc::now());
+        if let (Ok(day), true) = (
+            chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d"),
+            date >= today.as_str(),
+        ) {
+            let have: HashSet<Uuid> = trips.iter().map(|t| t.schedule_id).collect();
+            let missing: Vec<schedule::Model> = schedules
+                .iter()
+                .filter(|s| trip_warmer::schedule_runs_on(s, day) && !have.contains(&s.id))
+                .cloned()
+                .collect();
+            if !missing.is_empty() {
+                self.fill_trips_inline(&missing, date).await;
+                trips = trip_store
+                    .list_trips_by_schedule_ids(ids, date, 0, cap)
+                    .await
+                    .map_err(|e| AppError::Internal(e.to_string()))?;
+            }
+        }
+        trips.retain(|t| t.available_seats >= min_seats);
+        Ok(trips)
+    }
+
+    /// City search: trips on `opts.date` of the active routes from `from`
+    /// to `to` (city names, accents and aliases like "Sài Gòn" resolved),
+    /// in that direction, still to leave — filtered, sorted and paged by
+    /// `trip_search::results`.
     pub async fn search_trips(
         &self,
         from: &str,
         to: &str,
-        date: &str,
-        limit: u64,
-        offset: u64,
-        vehicle_types: Vec<String>,
-        sort: &str,
-        min_seats: i64,
-        depart_after: Option<&str>,
+        opts: &trip_search::Options,
     ) -> AppResult<TripSearchResponse> {
-        let depart_after = parse_depart_after(depart_after)?;
-        let from = from.trim();
-        let to = to.trim();
-        let date = date.trim();
+        let (from, to) = (from.trim(), to.trim());
         if from.is_empty() {
             return Err(AppError::BadRequest(
                 "missing departure location (from)".into(),
@@ -487,810 +567,203 @@ impl PublicService {
         if to.is_empty() {
             return Err(AppError::BadRequest("missing arrival location (to)".into()));
         }
-        if date.is_empty() {
-            return Err(AppError::BadRequest("missing departure date".into()));
-        }
-        let limit = limit.clamp(1, 100);
-        let sort_key = if sort.is_empty() { "departure" } else { sort };
-        let min_seats = min_seats.max(1);
-
-        // SQL-side route search — two OR'd strategies:
-        // 1. Name path: `LOWER(name) LIKE '%from%' AND LOWER(name) LIKE '%to%'`.
-        // 2. Slug path: the query is resolved to city slugs
-        //    (`cities::match_city_slugs` handles diacritics + colloquial
-        //    aliases like "Sài Gòn" → `ho-chi-minh`) and matched against
-        //    the route's structured `start_location_id`/`end_location_id`.
-        //    This is what makes search find trips for users who type a
-        //    city name that doesn't literally appear in the route name.
         let from_lower = from.to_lowercase();
         let to_lower = to.to_lowercase();
-        let from_slugs: Vec<String> = crate::cities::match_city_slugs(from)
-            .into_iter()
-            .map(|s| s.to_string())
-            .collect();
-        let to_slugs: Vec<String> = crate::cities::match_city_slugs(to)
-            .into_iter()
-            .map(|s| s.to_string())
-            .collect();
-        let matching_routes = self
+        let slugs = |q: &str| -> Vec<String> {
+            crate::cities::match_city_slugs(q)
+                .into_iter()
+                .map(str::to_string)
+                .collect()
+        };
+        let (from_slugs, to_slugs) = (slugs(from), slugs(to));
+        let mut routes = self
             .store
             .route_store()
             .search_active_routes(&from_lower, &to_lower, &from_slugs, &to_slugs, 1000)
             .await?;
-
-        if matching_routes.is_empty() {
-            return Ok(TripSearchResponse::paged_empty(limit, offset));
+        routes.retain(|r| runs_between(r, &from_slugs, &to_slugs, &from_lower, &to_lower));
+        if routes.is_empty() {
+            return trip_search::results(&self.store, Vec::new(), opts).await;
         }
 
-        let route_uuids: Vec<Uuid> = matching_routes.iter().map(|r| r.id).collect();
-
-        // Find schedules for these routes
         let schedules = self
             .store
             .schedule_store()
-            .list_schedules_by_routes(route_uuids)
+            .list_schedules_by_routes(routes.iter().map(|r| r.id).collect())
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
+        let trips = self
+            .trips_on(&schedules, &opts.date, opts.min_seats, CITY_TRIP_CAP)
+            .await?;
 
-        // READ the trips that already exist BEFORE any fill — indexed
-        // and cheap, and the basis for the in-memory gap detection
-        // below. (The old flow materialized unconditionally BEFORE
-        // reading, which put a per-schedule write loop on the read path
-        // — the 2026-10-11 outage.)
-        //
-        // SORTING CONTRACT: fetch a wider page than `limit` because the
-        // sort happens AFTER two Rust-side stages — the vehicle-type
-        // filter (drops rows the SQL can't see) and the comparator
-        // below. Fetching exactly `limit` rows in DB order would make
-        // `sort=price` rank only the first-N-by-insertion, silently
-        // hiding cheaper trips. 500 is plenty for a day's departures on
-        // a from/to pair; the final truncate enforces the real limit.
-        let fetch_cap: u64 = 500;
-        let schedule_uuids: Vec<Uuid> = schedules.iter().map(|s| s.id).collect();
-        let mut trips = self
-            .store
-            .trip_store()
-            .list_trips_by_schedule_ids(schedule_uuids.clone(), date, min_seats, fetch_cap)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-
-        // ── Gap detection + bounded inline fill ──────────────────────
-        // Missing = schedules that run on the date but have no trip row
-        // yet — computed from data already in hand (no extra query). A
-        // cold date self-serves immediately (see `fill_trips_inline`);
-        // a warmed date — the steady state — fills nothing.
-        let today = trip_warmer::vn_today(chrono::Utc::now());
-        if let (Some(parsed_date), true) = (
-            chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d").ok(),
-            date >= today.as_str(),
-        ) {
-            let have: std::collections::HashSet<Uuid> =
-                trips.iter().map(|t| t.schedule_id).collect();
-            let missing: Vec<schedule::Model> = schedules
-                .iter()
-                .filter(|s| trip_warmer::schedule_runs_on(s, parsed_date))
-                .filter(|s| !have.contains(&s.id))
-                .cloned()
-                .collect();
-            if !missing.is_empty() {
-                self.fill_trips_inline(&missing, date).await;
-                // Pick up whatever the fill just wrote (a skipped or
-                // partially-budgeted fill still serves existing rows).
-                trips = self
-                    .store
-                    .trip_store()
-                    .list_trips_by_schedule_ids(schedule_uuids, date, min_seats, fetch_cap)
-                    .await
-                    .map_err(|e| AppError::Internal(e.to_string()))?;
-            }
-        }
-
-        // Price ranges: only `sort=price` needs the full candidate set —
-        // every other sort prices JUST the returned page further down
-        // (one indexed query over ≤ limit trips instead of ≤ 500 — the
-        // single heaviest read in the search on a big seat-inventory
-        // table). Items are built with the schedule base fare in the
-        // meantime, which is exactly `CardPrices::of`'s fallback for
-        // trips without seat inventory.
-        let full_ranges = if sort_key == "price" {
-            self.price_ranges(trips.iter().map(|t| t.id).collect())
-                .await?
-        } else {
-            HashMap::new()
-        };
-
-        // Maps from data already in hand — the old code re-fetched the
-        // schedules and routes it had just loaded (two extra queries
-        // per search).
-        let sched_map: HashMap<Uuid, &schedule::Model> =
+        let schedule_map: HashMap<Uuid, &schedule::Model> =
             schedules.iter().map(|s| (s.id, s)).collect();
-        let route_map: HashMap<Uuid, &route::Model> =
-            matching_routes.iter().map(|r| (r.id, r)).collect();
-
-        let route_brand_uuids: Vec<Uuid> =
-            matching_routes.iter().filter_map(|r| r.brand_id).collect();
-        let brand_map: HashMap<Uuid, brand::Model> = self
-            .store
-            .brand_store()
-            .list_brands_by_ids(route_brand_uuids)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?
+        let route_map: HashMap<Uuid, &route::Model> = routes.iter().map(|r| (r.id, r)).collect();
+        let candidates = trips
             .into_iter()
-            .map(|b| (b.id, b))
-            .collect();
-
-        // Fetch bus layouts for vehicle type filtering — one batched
-        // query (the old code fetched them one-by-one).
-        let bus_layout_uuids: Vec<Uuid> =
-            schedules.iter().filter_map(|s| s.bus_layout_id).collect();
-        let layout_map: HashMap<Uuid, bus_layout::Model> = self
-            .store
-            .schedule_store()
-            .list_bus_layouts_by_ids(bus_layout_uuids)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?
-            .into_iter()
-            .map(|l| (l.id, l))
-            .collect();
-
-        // Batch-load the schedules' explicit vehicle types (the
-        // admin-managed catalog) — `resolve_vehicle_type` prefers them
-        // over the bus-layout fallback.
-        let vt_map: HashMap<Uuid, vehicle_type::Model> = {
-            let ids: Vec<Uuid> = schedules.iter().filter_map(|s| s.vehicle_type_id).collect();
-            if ids.is_empty() {
-                HashMap::new()
-            } else {
-                self.store
-                    .vehicle_type_store()
-                    .find_vehicle_types_by_ids(ids)
-                    .await
-                    .unwrap_or_default()
-                    .into_iter()
-                    .map(|v| (v.id, v))
-                    .collect()
-            }
-        };
-
-        // Resolve start/end location slugs to city records via the
-        // hardcoded city table (no DB round-trip) — see `find_by_slug`
-        // for the data-corruption fallback.
-        let place_map: std::collections::HashMap<&str, &crate::cities::City> = route_map
-            .values()
-            .flat_map(|r| [r.start_location_id.as_str(), r.end_location_id.as_str()])
-            .filter_map(|slug| crate::cities::find_by_slug(slug).map(|c| (c.slug, c)))
-            .collect();
-
-        // Batch-load the schedules' stop timetables — the LAST stop's
-        // arrival time becomes the trip's `arrival_at` so the result
-        // cards show real "start city + start time / end city + end
-        // time" pairs instead of a destination name with no time.
-        // Rows arrive ordered by stop_order asc, so inserting only on
-        // non-empty times leaves each schedule's LATEST timed stop in
-        // the map (a trailing stop without a time falls back to the
-        // previous one that has it).
-        let schedule_point_rows = self
-            .store
-            .address_store()
-            .list_points_by_schedules(schedules.iter().map(|s| s.id).collect::<Vec<Uuid>>())
-            .await
-            .unwrap_or_default();
-        let mut arrival_map: std::collections::HashMap<Uuid, String> =
-            std::collections::HashMap::new();
-        for p in &schedule_point_rows {
-            if let Some(t) = p.arrival_time.as_deref().filter(|t| !t.is_empty()) {
-                arrival_map.insert(p.schedule_id, t.to_string());
-            }
-        }
-
-        // Build trip results
-        let items: Vec<TripResult> = trips
-            .iter()
-            .filter_map(|t| {
-                let sched = *sched_map.get(&t.schedule_id)?;
-                let route = *route_map.get(&sched.route_id)?;
-                if !on_sale(t, sched) {
-                    return None;
-                }
-                let brand = route.brand_id.and_then(|bid| brand_map.get(&bid));
-                let prices = CardPrices::of(&full_ranges, t.id, sched, brand);
-                let layout = sched.bus_layout_id.and_then(|lid| layout_map.get(&lid));
-
-                // Vehicle type: schedule catalog row first, bus-layout
-                // fallback, "standard" default — then the filter.
-                let (vehicle_type, vt_label) = resolve_vehicle_type(sched, layout, &vt_map);
-                if !vehicle_types.is_empty() && !vehicle_types.contains(&vehicle_type) {
-                    return None;
-                }
-
-                let from_place = place_map.get(route.start_location_id.as_str());
-                let to_place = place_map.get(route.end_location_id.as_str());
-
-                let amenities = parse_amenities(&sched.amenities);
-                let (dep_iso, _) = compute_iso_timestamps(
-                    &Some(t.departure_date.clone()),
-                    &Some(sched.departure_time.clone()),
-                );
-                // Real arrival from the last configured stop; overnight
-                // crossings roll the date +1 inside compute_arrival_iso.
-                let arr_iso = arrival_map
-                    .get(&sched.id)
-                    .filter(|t| !t.is_empty())
-                    .and_then(|hhmm| {
-                        compute_arrival_iso(&t.departure_date, &sched.departure_time, hhmm)
-                    });
-
-                Some(TripResult {
-                    trip_id: t.id,
-                    schedule_id: sched.id,
-                    departure_date: t.departure_date.clone(),
-                    status: t.status.clone(),
-                    available_seats: t.available_seats,
-                    total_seats: t.total_seats,
-                    route_id: route.id,
-                    route_name: route.name.clone(),
-                    brand_id: route.brand_id,
-                    brand_name: brand.map(|b| b.name.clone()).unwrap_or_default(),
-                    brand_slug: brand.map(|b| b.slug.clone()).unwrap_or_default(),
-                    brand_logo: brand.and_then(|b| b.logo_url.clone()),
-                    brand_rating: brand.and_then(|b| b.rating),
-                    from_name: from_place.map(|p| p.name.to_string()).unwrap_or_default(),
-                    from_lat: from_place.map(|p| p.lat).unwrap_or(0.0),
-                    from_lon: from_place.map(|p| p.lon).unwrap_or(0.0),
-                    to_name: to_place.map(|p| p.name.to_string()).unwrap_or_default(),
-                    to_lat: to_place.map(|p| p.lat).unwrap_or(0.0),
-                    to_lon: to_place.map(|p| p.lon).unwrap_or(0.0),
-                    departure_time: Some(sched.departure_time.clone()),
-                    departure_at: dep_iso,
-                    arrival_at: arr_iso,
-                    bus_layout_id: sched.bus_layout_id.map(|u| u.to_string()),
-                    min_price: prices.min,
-                    max_price: prices.max,
-                    price_adult: sched.base_price_adult,
-                    price_child: prices.child,
-                    vehicle_type,
-                    vehicle_type_label: vt_label,
-                    capacity: layout.and_then(|l| l.total_seats),
-                    amenities,
+            .filter_map(|trip| {
+                let schedule = *schedule_map.get(&trip.schedule_id)?;
+                let route = *route_map.get(&schedule.route_id)?;
+                Some(trip_search::Candidate {
+                    trip,
+                    schedule: schedule.clone(),
+                    route: route.clone(),
+                    pickup: None,
+                    dropoff: None,
                 })
             })
             .collect();
-
-        // ── Sort (server-side, the REAL implementation) ─────────────
-        //
-        // `sort` used to be parsed into `_sort` and silently ignored —
-        // the UI offered price/rating sorts that did nothing. Now the
-        // fetched page (see the fetch_cap note above) is sorted by the
-        // requested key with deterministic tie-breaks (departure time,
-        // then trip_id), then sliced to the requested page.
-        //
-        // The trip_id tie-break is what makes OFFSET pagination stable:
-        // two trips with the same price AND departure time must always
-        // land in the same relative order across pages, otherwise
-        // "load more" could skip or duplicate rows at page seams.
-        //
-        // No "duration" key: the schedule model has no arrival time,
-        // so trip duration is genuinely unknowable — the frontend no
-        // longer offers that option rather than pretending to sort by
-        // it.
-        let mut items = items;
-        match sort_key {
-            "price" => items.sort_by(|a, b| {
-                a.min_price
-                    .cmp(&b.min_price)
-                    .then_with(|| departure_minutes(a).cmp(&departure_minutes(b)))
-                    .then_with(|| a.trip_id.cmp(&b.trip_id))
-            }),
-            "rating" => items.sort_by(|a, b| {
-                b.brand_rating
-                    .partial_cmp(&a.brand_rating)
-                    .unwrap_or(std::cmp::Ordering::Equal)
-                    .then_with(|| departure_minutes(a).cmp(&departure_minutes(b)))
-                    .then_with(|| a.trip_id.cmp(&b.trip_id))
-            }),
-            _ => items.sort_by(|a, b| {
-                departure_minutes(a)
-                    .cmp(&departure_minutes(b))
-                    .then_with(|| a.trip_id.cmp(&b.trip_id))
-            }),
-        }
-
-        // "Leaving after" (the search form's optional time) narrows the day.
-        if let Some(after) = depart_after {
-            items.retain(|t| departure_minutes(t) >= after);
-        }
-
-        // ── Paginate ───────────────────────────────────────────────
-        // `total` counts every matching trip BEFORE the offset window
-        // is applied (capped by fetch_cap upstream); `has_more` is
-        // derived from it so the client's "load more" button never has
-        // to guess from an empty page.
-        let total = items.len() as u64;
-        let mut page: Vec<TripResult> = items
-            .into_iter()
-            .skip(offset as usize)
-            .take(limit as usize)
-            .collect();
-
-        // ── Page-level price fill ───────────────────────────────────
-        // The non-price sorts didn't need full-candidate price ranges;
-        // overwrite the base-fare placeholders with the real
-        // for-sale ranges for JUST this page.
-        if sort_key != "price" && !page.is_empty() {
-            let page_ranges = self
-                .price_ranges(page.iter().map(|t| t.trip_id).collect())
-                .await?;
-            for item in &mut page {
-                if let Some(&(min, max)) = page_ranges.get(&item.trip_id) {
-                    item.min_price = min;
-                    item.max_price = max;
-                }
-            }
-        }
-
-        Ok(TripSearchResponse::paged(page, total, limit, offset))
+        trip_search::results(&self.store, candidates, opts).await
     }
 
-    /// Geospatial trip search — find routes where pickup points are closest
-    /// to the user's desired pickup location AND drop points are closest to
-    /// the desired drop location.
+    /// Coordinate search: trips on `opts.date` that stop within
+    /// `max_distance_km` of both the customer's pickup and drop-off (in
+    /// that order), each with the stop pair nearest them.
     ///
-    /// Uses a bounding-box SQL query to find candidate pickup_points,
-    /// then computes haversine distances in Rust + sorts by combined
-    /// distance. This avoids needing PostGIS or SQLite math functions.
-    ///
-    /// Parameters:
-    /// - `from_lat, from_lon` — desired pickup coordinates
-    /// - `to_lat, to_lon` — desired drop coordinates
-    /// - `date` — departure date "YYYY-MM-DD"
-    /// - `limit, offset` — pagination over the distance-ranked TRIP list
-    ///   (a route with 3 schedules that day contributes 3 ranked items)
-    /// - `min_seats` — minimum available seats (default 1)
-    /// - `vehicle_types` — filter by vehicle type (empty = all)
-    /// - `max_distance_km` — max distance from desired pickup/drop to
-    ///   nearest route stop (default 50 km). Routes with no stop within
-    ///   this radius are excluded.
-    #[allow(clippy::too_many_arguments)] // geo search has an inherently wide signature
+    /// A schedule with a timetable of its own is matched on ITS stops
+    /// (with the time the bus is there); one without on its route's
+    /// pickup points. Stops are found through the `(lat, lon)` indexes
+    /// inside a box around each place, then measured exactly.
     pub async fn search_trips_geo(
         &self,
-        from_lat: f64,
-        from_lon: f64,
-        to_lat: f64,
-        to_lon: f64,
-        date: &str,
-        limit: u64,
-        offset: u64,
-        min_seats: i64,
-        vehicle_types: Vec<String>,
+        from: (f64, f64),
+        to: (f64, f64),
         max_distance_km: f64,
-        depart_after: Option<&str>,
+        opts: &trip_search::Options,
     ) -> AppResult<TripSearchResponse> {
-        let depart_after = parse_depart_after(depart_after)?;
-        let limit = limit.clamp(1, 100);
-        let min_seats = min_seats.max(1);
-        let max_dist = max_distance_km.max(1.0);
+        let max = max_distance_km.clamp(1.0, 200.0);
+        let boxes = [geo_box(from, max), geo_box(to, max)];
 
-        // ── Bounding box ──────────────────────────────────────────
-        //
-        // Convert km to degrees: ~1° latitude ≈ 111 km.
-        // For longitude, divide by cos(lat) to account for Earth's curvature.
-        // We use a generous box (max_dist * 1.2) to catch edge cases.
-        let lat_delta = (max_dist / 111.0) * 1.2;
-        let lon_delta = (max_dist / (111.0 * from_lat.to_radians().cos().abs().max(0.01))) * 1.2;
-        let to_lon_delta = (max_dist / (111.0 * to_lat.to_radians().cos().abs().max(0.01))) * 1.2;
+        // 1. Schedules whose own stops are near both places.
+        let mut stops_by_schedule: HashMap<Uuid, Vec<StopHit>> = HashMap::new();
+        for (point, address) in self
+            .store
+            .address_store()
+            .find_schedule_stops_in_boxes(&boxes)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?
+        {
+            stops_by_schedule
+                .entry(point.schedule_id)
+                .or_default()
+                .push(StopHit {
+                    order: point.stop_order,
+                    name: address.name,
+                    time: point.arrival_time.filter(|t| !t.is_empty()),
+                    lat: address.lat,
+                    lon: address.lon,
+                });
+        }
+        let mut boarding: HashMap<Uuid, (TripStopMatch, TripStopMatch)> = stops_by_schedule
+            .iter()
+            .filter_map(|(id, hits)| Some((*id, nearest_pair(hits, from, to, max)?)))
+            .collect();
 
-        let candidates = self
+        // 2. Routes whose pickup points are near both places — for their
+        //    schedules without a timetable of their own.
+        let [a, b] = boxes;
+        let mut points_by_route: HashMap<Uuid, Vec<StopHit>> = HashMap::new();
+        for p in self
             .store
             .route_store()
             .find_pickup_points_in_bbox(
-                from_lat - lat_delta,
-                from_lat + lat_delta,
-                from_lon - lon_delta,
-                from_lon + lon_delta,
-                to_lat - lat_delta,
-                to_lat + lat_delta,
-                to_lon - to_lon_delta,
-                to_lon + to_lon_delta,
+                a.lat_min, a.lat_max, a.lon_min, a.lon_max, b.lat_min, b.lat_max, b.lon_min,
+                b.lon_max,
             )
             .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-
-        if candidates.is_empty() {
-            return Ok(TripSearchResponse::paged_empty(limit, offset));
-        }
-
-        // ── Group by route_id + find closest pickup/drop per route ──────
-        use std::collections::HashMap;
-        let mut route_map: HashMap<Uuid, Vec<&PickupPointWithRoute>> = HashMap::new();
-        for c in &candidates {
-            route_map.entry(c.route_id).or_default().push(c);
-        }
-
-        // For each route, find:
-        // - The pickup_point closest to (from_lat, from_lon)
-        // - The pickup_point closest to (to_lat, to_lon)
-        // - Check direction: pickup.stop_order < drop.stop_order
-        // - Combined distance = pickup_dist + drop_dist
-        #[derive(Clone)]
-        #[allow(dead_code)] // debug fields kept for future diagnostics
-        struct RouteMatch {
-            route_id: Uuid,
-            route_name: String,
-            brand_id: Option<Uuid>,
-            pickup_point_id: Uuid,
-            drop_point_id: Uuid,
-            pickup_distance_km: f64,
-            drop_distance_km: f64,
-            combined_distance_km: f64,
-        }
-
-        let mut matches: Vec<RouteMatch> = Vec::new();
-        for (route_id, points) in &route_map {
-            // Find closest pickup (near `from`)
-            let mut best_pickup: Option<(&PickupPointWithRoute, f64)> = None;
-            for p in points {
-                if let (Some(p_lat), Some(p_lon)) = (p.lat, p.lon) {
-                    let dist = haversine_km(from_lat, from_lon, p_lat, p_lon);
-                    if dist <= max_dist && (best_pickup.is_none() || dist < best_pickup.unwrap().1)
-                    {
-                        best_pickup = Some((p, dist));
-                    }
-                }
-            }
-            let pickup = match best_pickup {
-                Some((p, d)) => (p, d),
-                None => continue, // No pickup point within range
+            .map_err(|e| AppError::Internal(e.to_string()))?
+        {
+            let (Some(lat), Some(lon)) = (p.lat, p.lon) else {
+                continue;
             };
-
-            // Find closest drop (near `to`) with stop_order > pickup's stop_order
-            let mut best_drop: Option<(&PickupPointWithRoute, f64)> = None;
-            for p in points {
-                if p.stop_order <= pickup.0.stop_order {
-                    continue; // Must be AFTER the pickup in route order
-                }
-                if let (Some(p_lat), Some(p_lon)) = (p.lat, p.lon) {
-                    let dist = haversine_km(to_lat, to_lon, p_lat, p_lon);
-                    if dist <= max_dist && (best_drop.is_none() || dist < best_drop.unwrap().1) {
-                        best_drop = Some((p, dist));
-                    }
-                }
-            }
-            let drop = match best_drop {
-                Some((p, d)) => (p, d),
-                None => continue, // No drop point within range or in the right direction
-            };
-
-            matches.push(RouteMatch {
-                route_id: *route_id,
-                route_name: pickup.0.route_name.clone(),
-                brand_id: pickup.0.brand_id,
-                pickup_point_id: pickup.0.pickup_id,
-                drop_point_id: drop.0.pickup_id,
-                pickup_distance_km: pickup.1,
-                drop_distance_km: drop.1,
-                combined_distance_km: pickup.1 + drop.1,
-            });
+            points_by_route
+                .entry(p.route_id)
+                .or_default()
+                .push(StopHit {
+                    order: p.stop_order,
+                    name: p.name.unwrap_or_default(),
+                    time: None,
+                    lat,
+                    lon,
+                });
         }
-
-        if matches.is_empty() {
-            return Ok(TripSearchResponse::paged_empty(limit, offset));
-        }
-
-        // Sort routes by combined distance (closest first) — the RANK
-        // every trip on that route inherits in the final list.
-        matches.sort_by(|a, b| {
-            a.combined_distance_km
-                .partial_cmp(&b.combined_distance_km)
-                .unwrap_or(std::cmp::Ordering::Equal)
-                .then_with(|| a.route_id.cmp(&b.route_id))
-        });
-
-        // Load schedules + trips for ALL matched routes — pagination
-        // happens at the TRIP level further down. The old route-level
-        // skip/take produced short or EMPTY pages whenever a route page
-        // had no trips on the date (a whole page of routes with zero
-        // departures read as "no more results" while trips remained).
-        let route_uuids: Vec<Uuid> = matches.iter().map(|m| m.route_id).collect();
-        let schedules = self
-            .store
-            .schedule_store()
-            .list_schedules_by_routes(route_uuids)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-
-        if schedules.is_empty() {
-            return Ok(TripSearchResponse::paged_empty(limit, offset));
-        }
-
-        // READ first, then fill only the gaps — same read-first contract
-        // as the text search (see `search_trips`): the steady state is
-        // pure indexed reads; a cold date self-serves under the bounded
-        // inline budget while the background warmer catches up.
-        let schedule_uuids: Vec<Uuid> = schedules.iter().map(|s| s.id).collect();
-        let mut trips = self
-            .store
-            .trip_store()
-            .list_trips_by_schedule_ids(schedule_uuids.clone(), date, min_seats, 1000)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-
-        let today = trip_warmer::vn_today(chrono::Utc::now());
-        if let (Some(parsed_date), true) = (
-            chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d").ok(),
-            date >= today.as_str(),
-        ) {
-            let have: std::collections::HashSet<Uuid> =
-                trips.iter().map(|t| t.schedule_id).collect();
-            let missing: Vec<schedule::Model> = schedules
-                .iter()
-                .filter(|s| trip_warmer::schedule_runs_on(s, parsed_date))
-                .filter(|s| !have.contains(&s.id))
-                .cloned()
-                .collect();
-            if !missing.is_empty() {
-                self.fill_trips_inline(&missing, date).await;
-                trips = self
-                    .store
-                    .trip_store()
-                    .list_trips_by_schedule_ids(schedule_uuids, date, min_seats, 1000)
-                    .await
-                    .map_err(|e| AppError::Internal(e.to_string()))?;
-            }
-        }
-
-        if trips.is_empty() {
-            return Ok(TripSearchResponse::paged_empty(limit, offset));
-        }
-
-        // Build schedule lookup: schedule_id → schedule
-        let schedule_map: HashMap<Uuid, &crate::entity::schedule::Model> =
-            schedules.iter().map(|s| (s.id, s)).collect();
-
-        // Build route match lookup: route_id → RouteMatch
-        let match_map: HashMap<Uuid, &RouteMatch> =
-            matches.iter().map(|m| (m.route_id, m)).collect();
-
-        // Build route lookup — the PickupPointWithRoute already has route_name
-        // + brand_id, so we don't need to re-fetch routes. Use the candidate data.
-        use std::collections::HashSet;
-        let route_info_map: HashMap<Uuid, &PickupPointWithRoute> = matches
+        let route_boarding: HashMap<Uuid, (TripStopMatch, TripStopMatch)> = points_by_route
             .iter()
-            .map(|m| {
-                (m.route_id, {
-                    // Find the first candidate that matches this route
-                    candidates
-                        .iter()
-                        .find(|c| c.route_id == m.route_id)
-                        .unwrap()
+            .filter_map(|(id, hits)| Some((*id, nearest_pair(hits, from, to, max)?)))
+            .collect();
+
+        // 3. The schedules.
+        let schedule_store = self.store.schedule_store();
+        let mut schedules = schedule_store
+            .list_schedules_by_ids(boarding.keys().copied().collect())
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        if !route_boarding.is_empty() {
+            let by_route = schedule_store
+                .list_schedules_by_routes(route_boarding.keys().copied().collect())
+                .await
+                .map_err(|e| AppError::Internal(e.to_string()))?;
+            let timed: HashSet<Uuid> = self
+                .store
+                .address_store()
+                .list_points_by_schedules(by_route.iter().map(|s| s.id).collect())
+                .await
+                .map_err(|e| AppError::Internal(e.to_string()))?
+                .into_iter()
+                .map(|p| p.schedule_id)
+                .collect();
+            for s in by_route {
+                if timed.contains(&s.id) || boarding.contains_key(&s.id) {
+                    continue; // boards only at its own stops
+                }
+                if let Some(pair) = route_boarding.get(&s.route_id) {
+                    boarding.insert(s.id, pair.clone());
+                    schedules.push(s);
+                }
+            }
+        }
+
+        // 4. Active routes only.
+        let routes: HashMap<Uuid, route::Model> = self
+            .store
+            .route_store()
+            .list_routes_by_ids(
+                schedules
+                    .iter()
+                    .map(|s| s.route_id)
+                    .collect::<HashSet<_>>()
+                    .into_iter()
+                    .collect(),
+            )
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?
+            .into_iter()
+            .filter(|r| r.status == "active")
+            .map(|r| (r.id, r))
+            .collect();
+        schedules.retain(|s| routes.contains_key(&s.route_id));
+
+        let trips = self
+            .trips_on(&schedules, &opts.date, opts.min_seats, GEO_TRIP_CAP)
+            .await?;
+        let schedule_map: HashMap<Uuid, &schedule::Model> =
+            schedules.iter().map(|s| (s.id, s)).collect();
+        let candidates = trips
+            .into_iter()
+            .filter_map(|trip| {
+                let schedule = *schedule_map.get(&trip.schedule_id)?;
+                let route = routes.get(&schedule.route_id)?;
+                let (pickup, dropoff) = boarding.get(&schedule.id)?.clone();
+                Some(trip_search::Candidate {
+                    trip,
+                    schedule: schedule.clone(),
+                    route: route.clone(),
+                    pickup: Some(pickup),
+                    dropoff: Some(dropoff),
                 })
             })
             .collect();
-
-        // Build brand lookup — fetch by IDs using raw SQL
-        let brand_ids: Vec<Uuid> = matches
-            .iter()
-            .filter_map(|m| m.brand_id)
-            .collect::<HashSet<_>>()
-            .into_iter()
-            .collect();
-        let brands = if !brand_ids.is_empty() {
-            use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
-            brand::Entity::find()
-                .filter(brand::Column::Id.is_in(brand_ids.clone()))
-                .all(self.store.db())
-                .await
-                .unwrap_or_default()
-        } else {
-            Vec::new()
-        };
-        let brand_map: HashMap<Uuid, &brand::Model> = brands.iter().map(|b| (b.id, b)).collect();
-
-        // Batch-load the schedules' explicit vehicle types (see
-        // `resolve_vehicle_type` — the catalog row wins over the
-        // bus-layout fallback).
-        let vt_map: HashMap<Uuid, vehicle_type::Model> = {
-            let ids: Vec<Uuid> = schedule_map
-                .values()
-                .filter_map(|s| s.vehicle_type_id)
-                .collect();
-            if ids.is_empty() {
-                HashMap::new()
-            } else {
-                self.store
-                    .vehicle_type_store()
-                    .find_vehicle_types_by_ids(ids)
-                    .await
-                    .unwrap_or_default()
-                    .into_iter()
-                    .map(|v| (v.id, v))
-                    .collect()
-            }
-        };
-
-        // Resolve the matched routes' start/end cities — the result cards
-        // show real city names ("Hà Nội → Đà Nẵng"), NOT the user's raw
-        // search coordinates which used to leak into from_name/to_name.
-        let geo_route_map: HashMap<Uuid, route::Model> = self
-            .store
-            .route_store()
-            .list_routes_by_ids(matches.iter().map(|m| m.route_id).collect())
-            .await
-            .unwrap_or_default()
-            .into_iter()
-            .map(|r| (r.id, r))
-            .collect();
-        let geo_city_map: std::collections::HashMap<&str, &crate::cities::City> = geo_route_map
-            .values()
-            .flat_map(|r| [r.start_location_id.as_str(), r.end_location_id.as_str()])
-            .filter_map(|slug| crate::cities::find_by_slug(slug).map(|c| (c.slug, c)))
-            .collect();
-
-        // Last-stop arrival times per schedule (same rule as the text
-        // search — see the arrival_map comment there).
-        let geo_arrival_rows = self
-            .store
-            .address_store()
-            .list_points_by_schedules(schedule_map.values().map(|s| s.id).collect::<Vec<Uuid>>())
-            .await
-            .unwrap_or_default();
-        let mut geo_arrival_map: std::collections::HashMap<Uuid, String> =
-            std::collections::HashMap::new();
-        for p in &geo_arrival_rows {
-            if let Some(t) = p.arrival_time.as_deref().filter(|t| !t.is_empty()) {
-                geo_arrival_map.insert(p.schedule_id, t.to_string());
-            }
-        }
-
-        // Build items WITH their route's proximity score — the final list
-        // must rank TRIPS closest → least-close (a route with several
-        // departures that day contributes one item per departure at the
-        // route's rank; the old code iterated the DB-ordered trip list,
-        // so the response wasn't actually distance-sorted despite the
-        // matches being sorted).
-        //
-        // Prices: geo ALWAYS ranks by distance, so items are built with
-        // the schedule base fare and the real for-sale ranges are filled
-        // for just the returned PAGE below — one indexed query over
-        // ≤ limit trips instead of the whole ≤ 1000-trip candidate set.
-        let mut scored: Vec<(TripResult, f64)> = Vec::new();
-        for trip in &trips {
-            let schedule = match schedule_map.get(&trip.schedule_id) {
-                Some(s) => *s,
-                None => continue,
-            };
-            if !on_sale(trip, schedule) {
-                continue;
-            }
-            let m = match match_map.get(&schedule.route_id) {
-                Some(m) => *m,
-                None => continue,
-            };
-            let route_info = match route_info_map.get(&schedule.route_id) {
-                Some(r) => *r,
-                None => continue,
-            };
-
-            // Vehicle type filter (schedule catalog row first, bus-layout
-            // fallback, "standard" default — same as the text search).
-            let (vehicle_type, vt_label) = resolve_vehicle_type(schedule, None, &vt_map);
-            if !vehicle_types.is_empty() && !vehicle_types.contains(&vehicle_type) {
-                continue;
-            }
-
-            let brand = m.brand_id.and_then(|bid| brand_map.get(&bid)).cloned();
-
-            // Route's own start/end cities (fall back to the raw
-            // coordinates only when the slug doesn't resolve — data
-            // corruption case, same contract as the text search).
-            let route_model = geo_route_map.get(&schedule.route_id);
-            let from_city =
-                route_model.and_then(|r| geo_city_map.get(r.start_location_id.as_str()));
-            let to_city = route_model.and_then(|r| geo_city_map.get(r.end_location_id.as_str()));
-
-            let amenities: Vec<String> = schedule
-                .amenities
-                .as_ref()
-                .map(|a| {
-                    a.split(',')
-                        .map(|s| s.trim().to_string())
-                        .filter(|s| !s.is_empty())
-                        .collect()
-                })
-                .unwrap_or_default();
-
-            let item = TripResult {
-                trip_id: trip.id,
-                schedule_id: trip.schedule_id,
-                route_id: schedule.route_id,
-                departure_date: trip.departure_date.clone(),
-                status: trip.status.clone(),
-                available_seats: trip.available_seats,
-                total_seats: trip.total_seats,
-                route_name: route_info.route_name.clone(),
-                brand_id: brand.map(|b| b.id),
-                brand_name: brand.map(|b| b.name.clone()).unwrap_or_default(),
-                brand_slug: brand.map(|b| b.slug.clone()).unwrap_or_default(),
-                brand_logo: brand
-                    .and_then(|b| b.logo_url.clone())
-                    .unwrap_or_default()
-                    .into(),
-                brand_rating: brand.and_then(|b| b.rating),
-                from_name: from_city.map(|c| c.name.to_string()).unwrap_or_default(),
-                from_lat: from_city.map(|c| c.lat).unwrap_or(from_lat),
-                from_lon: from_city.map(|c| c.lon).unwrap_or(from_lon),
-                to_name: to_city.map(|c| c.name.to_string()).unwrap_or_default(),
-                to_lat: to_city.map(|c| c.lat).unwrap_or(to_lat),
-                to_lon: to_city.map(|c| c.lon).unwrap_or(to_lon),
-                departure_time: Some(schedule.departure_time.clone()),
-                // Same computed departure as the text search (the
-                // actual_departure_at live-tracking field stays null
-                // until the bus physically departs).
-                departure_at: compute_iso_timestamps(
-                    &Some(trip.departure_date.clone()),
-                    &Some(schedule.departure_time.clone()),
-                )
-                .0,
-                arrival_at: geo_arrival_map
-                    .get(&schedule.id)
-                    .filter(|t| !t.is_empty())
-                    .and_then(|hhmm| {
-                        compute_arrival_iso(&trip.departure_date, &schedule.departure_time, hhmm)
-                    }),
-                bus_layout_id: schedule.bus_layout_id.map(|u| u.to_string()),
-                // Base-fare placeholders — the page-level fill below
-                // overwrites them with the real for-sale ranges
-                // (identical fallback semantics to `CardPrices::of`).
-                min_price: schedule.base_price_adult,
-                max_price: schedule.base_price_adult,
-                price_adult: schedule.base_price_adult,
-                price_child: standard_child_price(schedule, brand.and_then(ChildPolicy::of)),
-                vehicle_type,
-                vehicle_type_label: vt_label,
-                capacity: None,
-                amenities,
-            };
-            scored.push((item, m.combined_distance_km));
-        }
-
-        // ── Rank + paginate (TRIP level) ───────────────────
-        // Closest combined pickup+drop proximity first, then departure
-        // time, then trip_id — the trip_id tie-break keeps OFFSET
-        // pagination stable across pages (same contract as the text
-        // search's sort).
-        scored.sort_by(|x, y| {
-            x.1.partial_cmp(&y.1)
-                .unwrap_or(std::cmp::Ordering::Equal)
-                .then_with(|| departure_minutes(&x.0).cmp(&departure_minutes(&y.0)))
-                .then_with(|| x.0.trip_id.cmp(&y.0.trip_id))
-        });
-
-        if let Some(after) = depart_after {
-            scored.retain(|(t, _)| departure_minutes(t) >= after);
-        }
-        let total = scored.len() as u64;
-        let mut page: Vec<TripResult> = scored
-            .into_iter()
-            .skip(offset as usize)
-            .take(limit as usize)
-            .map(|(item, _rank)| item)
-            .collect();
-
-        // ── Page-level price fill ───────────────────────────────────
-        // Real for-sale ranges for just this page (see the scored-build
-        // comment above).
-        if !page.is_empty() {
-            let page_ranges = self
-                .price_ranges(page.iter().map(|t| t.trip_id).collect())
-                .await?;
-            for item in &mut page {
-                if let Some(&(min, max)) = page_ranges.get(&item.trip_id) {
-                    item.min_price = min;
-                    item.max_price = max;
-                }
-            }
-        }
-
-        Ok(TripSearchResponse::paged(page, total, limit, offset))
+        trip_search::results(&self.store, candidates, opts).await
     }
 
     /// Trip detail by id — full enriched TripDetail shape.
@@ -1807,6 +1280,8 @@ impl PublicService {
                         vehicle_type_label: vt_label.to_string(),
                         capacity: None,
                         amenities,
+                        pickup: None,
+                        dropoff: None,
                     })
                 })
                 .take(RECOMMENDATIONS)
@@ -1858,7 +1333,7 @@ const RECOMMENDATIONS: usize = 4;
 const RECOMMENDATION_CANDIDATES: u64 = 16;
 
 /// Still on sale: scheduled and not yet departed.
-fn on_sale(trip: &trip_session::Model, schedule: &schedule::Model) -> bool {
+pub(crate) fn on_sale(trip: &trip_session::Model, schedule: &schedule::Model) -> bool {
     trip.status == "scheduled"
         && !trip_time::departure_instant(
             &trip.departure_date,
@@ -1951,7 +1426,7 @@ fn trip_fares(
 }
 
 /// What a child pays for a standard seat; 0 without child tickets.
-fn standard_child_price(schedule: &schedule::Model, policy: Option<ChildPolicy>) -> i64 {
+pub(crate) fn standard_child_price(schedule: &schedule::Model, policy: Option<ChildPolicy>) -> i64 {
     let fare = Fare {
         adult: schedule.base_price_adult,
         child: schedule.base_price_child,

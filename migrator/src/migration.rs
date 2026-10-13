@@ -66,6 +66,7 @@ mod m20261009_000018_add_seat_class_fares;
 mod m20261010_000019_create_background_job;
 mod m20261011_000020_create_discount_campaigns;
 mod m20261011_000021_brand_child_amount_drop_accent;
+mod m20261013_000022_geo_search_indexes;
 
 pub struct Migrator;
 
@@ -94,6 +95,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20261010_000019_create_background_job::Migration),
             Box::new(m20261011_000020_create_discount_campaigns::Migration),
             Box::new(m20261011_000021_brand_child_amount_drop_accent::Migration),
+            Box::new(m20261013_000022_geo_search_indexes::Migration),
         ]
     }
 }

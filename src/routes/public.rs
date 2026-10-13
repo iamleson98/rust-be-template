@@ -9,6 +9,7 @@ use crate::dto::public::{
 };
 use crate::dto::route_media::RoutePictureListResponse;
 use crate::error::AppError;
+use crate::service::trip_search::{Filters, Options, Sort};
 use crate::state::AppState;
 
 #[derive(Deserialize, utoipa::IntoParams)]
@@ -136,31 +137,25 @@ pub async fn search_trips(
     State(st): State<AppState>,
     Query(q): Query<SearchTripsQuery>,
 ) -> Result<Json<TripSearchResponse>, AppError> {
-    let vehicle_types: Vec<String> = q
-        .vehicle_types
-        .as_deref()
-        .map(|s| {
-            s.split(',')
-                .map(|x| x.trim().to_string())
-                .filter(|x| !x.is_empty())
-                .collect()
-        })
-        .unwrap_or_default();
-    Ok(Json(
-        st.public
-            .search_trips(
-                &q.from,
-                &q.to,
-                &q.date,
-                q.limit.unwrap_or(20).min(200),
-                q.offset.unwrap_or(0),
-                vehicle_types,
-                q.sort.as_deref().unwrap_or("departure"),
-                q.min_seats.unwrap_or(0),
-                q.depart_after.as_deref(),
-            )
-            .await?,
-    ))
+    let opts = Options::new(
+        &q.date,
+        q.limit,
+        q.offset,
+        Sort::parse(q.sort.as_deref(), false),
+        q.min_seats,
+        q.depart_after.as_deref(),
+        Filters::parse(
+            q.vehicle_types.as_deref(),
+            q.brands.as_deref(),
+            q.price_min,
+            q.price_max,
+            q.hours.as_deref(),
+            q.min_rating,
+            q.plenty_of_seats,
+            q.amenities.as_deref(),
+        )?,
+    )?;
+    Ok(Json(st.public.search_trips(&q.from, &q.to, &opts).await?))
 }
 
 /// `GET /api/recommendations` — get trip recommendations.
@@ -249,8 +244,26 @@ pub struct GeoSearchQuery {
     pub min_seats: Option<i64>,
     pub vehicle_types: Option<String>,
     pub max_distance_km: Option<f64>,
-    /// Only trips leaving at or after this time of day (`HH:MM`).
+    /// Only trips boarding at or after this time of day (`HH:MM`).
     pub depart_after: Option<String>,
+    /// `distance` (default: nearest stops first), `departure`, `price`
+    /// or `rating`.
+    pub sort: Option<String>,
+    // The results page's filters, applied over every match.
+    /// Operator slugs, comma-separated.
+    pub brands: Option<String>,
+    /// Cheapest seat at least this (VND).
+    pub price_min: Option<i64>,
+    /// Cheapest seat at most this (VND).
+    pub price_max: Option<i64>,
+    /// Boarding hour bands, comma-separated: `0-6`, `6-12`, `12-18`, `18-24`.
+    pub hours: Option<String>,
+    /// Operators rated at least this (1–5).
+    pub min_rating: Option<f64>,
+    /// Only trips with more than 5 seats left.
+    pub plenty_of_seats: Option<bool>,
+    /// Amenity keys the trip must all have, comma-separated.
+    pub amenities: Option<String>,
 }
 
 #[utoipa::path(
@@ -266,30 +279,31 @@ pub async fn search_trips_geo(
     State(st): State<AppState>,
     Query(q): Query<GeoSearchQuery>,
 ) -> Result<Json<TripSearchResponse>, AppError> {
-    let vehicle_types: Vec<String> = q
-        .vehicle_types
-        .as_deref()
-        .map(|s| {
-            s.split(',')
-                .map(|x| x.trim().to_string())
-                .filter(|x| !x.is_empty())
-                .collect()
-        })
-        .unwrap_or_default();
+    let opts = Options::new(
+        &q.date,
+        q.limit,
+        q.offset,
+        Sort::parse(q.sort.as_deref(), true),
+        q.min_seats,
+        q.depart_after.as_deref(),
+        Filters::parse(
+            q.vehicle_types.as_deref(),
+            q.brands.as_deref(),
+            q.price_min,
+            q.price_max,
+            q.hours.as_deref(),
+            q.min_rating,
+            q.plenty_of_seats,
+            q.amenities.as_deref(),
+        )?,
+    )?;
     Ok(Json(
         st.public
             .search_trips_geo(
-                q.from_lat,
-                q.from_lon,
-                q.to_lat,
-                q.to_lon,
-                &q.date,
-                q.limit.unwrap_or(20).min(100),
-                q.offset.unwrap_or(0),
-                q.min_seats.unwrap_or(0),
-                vehicle_types,
+                (q.from_lat, q.from_lon),
+                (q.to_lat, q.to_lon),
                 q.max_distance_km.unwrap_or(50.0),
-                q.depart_after.as_deref(),
+                &opts,
             )
             .await?,
     ))

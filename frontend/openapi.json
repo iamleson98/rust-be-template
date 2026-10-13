@@ -6408,6 +6408,93 @@
                 "null"
               ]
             }
+          },
+          {
+            "name": "brands",
+            "in": "query",
+            "description": "Operator slugs, comma-separated.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "priceMin",
+            "in": "query",
+            "description": "Cheapest seat at least this (VND).",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          },
+          {
+            "name": "priceMax",
+            "in": "query",
+            "description": "Cheapest seat at most this (VND).",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          },
+          {
+            "name": "hours",
+            "in": "query",
+            "description": "Boarding hour bands, comma-separated: `0-6`, `6-12`, `12-18`, `18-24`.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "minRating",
+            "in": "query",
+            "description": "Operators rated at least this (1–5).",
+            "required": false,
+            "schema": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "double"
+            }
+          },
+          {
+            "name": "plentyOfSeats",
+            "in": "query",
+            "description": "Only trips with more than 5 seats left.",
+            "required": false,
+            "schema": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "amenities",
+            "in": "query",
+            "description": "Amenity keys the trip must all have, comma-separated.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
           }
         ],
         "responses": {
@@ -6539,7 +6626,106 @@
           {
             "name": "departAfter",
             "in": "query",
-            "description": "Only trips leaving at or after this time of day (`HH:MM`).",
+            "description": "Only trips boarding at or after this time of day (`HH:MM`).",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "`distance` (default: nearest stops first), `departure`, `price`\nor `rating`.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "brands",
+            "in": "query",
+            "description": "Operator slugs, comma-separated.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "priceMin",
+            "in": "query",
+            "description": "Cheapest seat at least this (VND).",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          },
+          {
+            "name": "priceMax",
+            "in": "query",
+            "description": "Cheapest seat at most this (VND).",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          },
+          {
+            "name": "hours",
+            "in": "query",
+            "description": "Boarding hour bands, comma-separated: `0-6`, `6-12`, `12-18`, `18-24`.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "minRating",
+            "in": "query",
+            "description": "Operators rated at least this (1–5).",
+            "required": false,
+            "schema": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "double"
+            }
+          },
+          {
+            "name": "plentyOfSeats",
+            "in": "query",
+            "description": "Only trips with more than 5 seats left.",
+            "required": false,
+            "schema": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "amenities",
+            "in": "query",
+            "description": "Amenity keys the trip must all have, comma-separated.",
             "required": false,
             "schema": {
               "type": [
@@ -11023,6 +11209,29 @@
           }
         }
       },
+      "FacetCount": {
+        "type": "object",
+        "description": "How many of a search's matches have one value of a filter.",
+        "required": [
+          "key",
+          "label",
+          "count"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string",
+            "description": "Display name (operators, vehicle types); the key otherwise."
+          }
+        }
+      },
       "FitSeatPlanRequest": {
         "type": "object",
         "description": "Body of `POST /api/admin/bus-layouts/{id}/plan/fit`.",
@@ -13339,6 +13548,63 @@
           }
         }
       },
+      "SearchFacets": {
+        "type": "object",
+        "description": "The filter options of a search, counted over ALL its matches (before\nthe customer's filters), so the sidebar never depends on what page\nis loaded.",
+        "required": [
+          "priceMin",
+          "priceMax",
+          "brands",
+          "vehicleTypes",
+          "hours",
+          "amenities",
+          "plentyOfSeats"
+        ],
+        "properties": {
+          "amenities": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FacetCount"
+            }
+          },
+          "brands": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FacetCount"
+            },
+            "description": "Operators, by slug, busiest first."
+          },
+          "hours": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FacetCount"
+            },
+            "description": "Boarding hour bands `0-6`, `6-12`, `12-18`, `18-24`."
+          },
+          "plentyOfSeats": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Matches with plenty of seats left (more than 5).",
+            "minimum": 0
+          },
+          "priceMax": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Dearest seat for sale among the matches (VND); 0 without matches."
+          },
+          "priceMin": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Cheapest seat for sale among the matches (VND); 0 without matches."
+          },
+          "vehicleTypes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FacetCount"
+            }
+          }
+        }
+      },
       "SeatClassCount": {
         "type": "object",
         "description": "How many seats of one class a layout has.",
@@ -14409,6 +14675,17 @@
               "null"
             ]
           },
+          "dropoff": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TripStopMatch",
+                "description": "Coordinate search only: the stop nearest their drop-off."
+              }
+            ]
+          },
           "fromLat": {
             "type": "number",
             "format": "double"
@@ -14429,6 +14706,17 @@
             "type": "integer",
             "format": "int64",
             "description": "Cheapest seat still for sale (VND)."
+          },
+          "pickup": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TripStopMatch",
+                "description": "Coordinate search only: the trip's stop nearest the customer's\npickup — where and when they board, and how far it is."
+              }
+            ]
           },
           "priceAdult": {
             "type": "integer",
@@ -14555,6 +14843,17 @@
           "items"
         ],
         "properties": {
+          "facets": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SearchFacets",
+                "description": "The search's filter options over all its matches (search\nendpoints only)."
+              }
+            ]
+          },
           "hasMore": {
             "type": [
               "boolean",
@@ -14727,6 +15026,31 @@
             "items": {
               "$ref": "#/components/schemas/TripSeat"
             }
+          }
+        }
+      },
+      "TripStopMatch": {
+        "type": "object",
+        "description": "A trip's stop matched to a place the customer searched from or to.",
+        "required": [
+          "name",
+          "distanceKm"
+        ],
+        "properties": {
+          "distanceKm": {
+            "type": "number",
+            "format": "double",
+            "description": "Straight-line distance from the searched place (km)."
+          },
+          "name": {
+            "type": "string"
+          },
+          "time": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "When the bus is there (`HH:MM`), when the timetable says."
           }
         }
       },

@@ -11,12 +11,13 @@
 //! `CompositeStore::db()` connection handle — see the note on
 //! `CompositeStore::db`.
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use sea_orm::{
-    ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
-    QuerySelect,
+    ColumnTrait, Condition, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    QueryOrder, QuerySelect,
 };
 
 use store_macros::retry;
@@ -64,6 +65,22 @@ pub trait AddressStore: Send + Sync {
         &self,
         schedule_ids: Vec<Uuid>,
     ) -> StoreResult<Vec<schedule_point::Model>>;
+
+    /// Schedule stops whose address lies in any of `boxes`, with that
+    /// address (the coordinate search's candidates).
+    async fn find_schedule_stops_in_boxes(
+        &self,
+        boxes: &[GeoBox],
+    ) -> StoreResult<Vec<(schedule_point::Model, address::Model)>>;
+}
+
+/// A latitude/longitude rectangle (degrees).
+#[derive(Debug, Clone, Copy)]
+pub struct GeoBox {
+    pub lat_min: f64,
+    pub lat_max: f64,
+    pub lon_min: f64,
+    pub lon_max: f64,
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -200,5 +217,44 @@ impl AddressStore for DbAddressStore {
             .order_by_asc(schedule_point::Column::StopOrder)
             .all(self.db.as_ref())
             .await?)
+    }
+
+    async fn find_schedule_stops_in_boxes(
+        &self,
+        boxes: &[GeoBox],
+    ) -> StoreResult<Vec<(schedule_point::Model, address::Model)>> {
+        if boxes.is_empty() {
+            return Ok(Vec::new());
+        }
+        let mut inside = Condition::any();
+        for b in boxes {
+            inside = inside.add(
+                Condition::all()
+                    .add(address::Column::Lat.between(b.lat_min, b.lat_max))
+                    .add(address::Column::Lon.between(b.lon_min, b.lon_max)),
+            );
+        }
+        let addresses: HashMap<Uuid, address::Model> = address::Entity::find()
+            .filter(inside)
+            .all(self.db.as_ref())
+            .await?
+            .into_iter()
+            .map(|a| (a.id, a))
+            .collect();
+        let ids: Vec<Uuid> = addresses.keys().copied().collect();
+        let mut stops = Vec::new();
+        // Bounded IN-lists.
+        for chunk in ids.chunks(500) {
+            for point in schedule_point::Entity::find()
+                .filter(schedule_point::Column::AddressId.is_in(chunk.to_vec()))
+                .all(self.db.as_ref())
+                .await?
+            {
+                if let Some(a) = addresses.get(&point.address_id) {
+                    stops.push((point, a.clone()));
+                }
+            }
+        }
+        Ok(stops)
     }
 }
