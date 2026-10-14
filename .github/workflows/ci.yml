@@ -707,6 +707,26 @@ jobs:
           # secret — see https://github.com/gitleaks/gitleaks-action.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # Full-history + working-tree scan with a PINNED gitleaks binary.
+      #
+      # WHY: gitleaks-action@v2 only scans the commits of the triggering
+      # event (PR diff / new pushes) — leaks that predate the job or land
+      # via the default branch stay invisible. That is exactly how live
+      # Kamatera credentials sat in terraform/terraform.tfvars from the
+      # initial commit (2026-10-02) to 2026-10-14 while every CI run was
+      # green. This step scans ALL of history AND the working tree with
+      # --redact (findings never print secret values into the logs).
+      # Known-benign findings are baselined in .gitleaksignore (see the
+      # file for the audit trail of every entry).
+      - name: Gitleaks full-history scan (pinned binary)
+        run: |
+          set -euo pipefail
+          GL_VER="8.24.3"
+          curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v${GL_VER}/gitleaks_${GL_VER}_linux_x64.tar.gz" \
+            | tar xz gitleaks
+          ./gitleaks git --no-banner --redact .
+          ./gitleaks dir --no-banner --redact .
+
       # Defense-in-depth: even if gitleaks misses something (or the action
       # is disabled), grep for the leaked-secret patterns we already know
       # about. This is the regression test mentioned in SECURITY.md.
@@ -724,6 +744,18 @@ jobs:
           # The leaked JWT secret from .env.example (now scrubbed).
           if grep -r --line-number --exclude=ci.yml "8ec7dc585377c32aaa59104b093be930bb094ff4e6b32e580351e3d0d702a084" . --exclude-dir=.git; then
             echo "❌ FOUND: previously-leaked JWT secret"
+            exit 1
+          fi
+          # The leaked Kamatera infrastructure credentials from
+          # terraform/terraform.tfvars (committed in the initial commit,
+          # verified LIVE on 2026-10-14, removed from the tree the same
+          # day — see docs/SECURITY.md). Rotation is tracked there.
+          if grep -r --line-number --exclude=ci.yml "b42e16fc609fb59c4be30613425e53ef" . --exclude-dir=.git; then
+            echo "❌ FOUND: leaked Kamatera API token"
+            exit 1
+          fi
+          if grep -r --line-number --exclude=ci.yml "3d3b02d1ae8f0c035e28512083822f65" . --exclude-dir=.git; then
+            echo "❌ FOUND: leaked Kamatera API secret"
             exit 1
           fi
           echo "✅ No known-leaked secrets in committed files"
