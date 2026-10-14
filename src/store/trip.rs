@@ -571,14 +571,30 @@ impl TripStore for DbTripStore {
         min_seats: i64,
         limit: u64,
     ) -> StoreResult<Vec<trip_session::Model>> {
-        Ok(trip_session::Entity::find()
-            .filter(trip_session::Column::ScheduleId.is_in(schedule_ids))
-            .filter(trip_session::Column::DepartureDate.eq(date.to_string()))
-            .filter(trip_session::Column::AvailableSeats.gte(min_seats))
-            .filter(trip_session::Column::Status.eq("scheduled"))
-            .limit(limit)
-            .all(self.db.as_ref())
-            .await?)
+        if schedule_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        // Chunked fan-out (see FANOUT_CHUNK). The per-chunk queries run
+        // WITHOUT the limit; the global cap applies to the concatenated
+        // result, preserving the single-query semantics exactly (the
+        // (schedule_id, departure_date) unique index bounds a chunk's
+        // rows to the chunk size anyway).
+        let mut out: Vec<trip_session::Model> = Vec::new();
+        for chunk in schedule_ids.chunks(super::FANOUT_CHUNK) {
+            let rows = trip_session::Entity::find()
+                .filter(trip_session::Column::ScheduleId.is_in(chunk.to_vec()))
+                .filter(trip_session::Column::DepartureDate.eq(date.to_string()))
+                .filter(trip_session::Column::AvailableSeats.gte(min_seats))
+                .filter(trip_session::Column::Status.eq("scheduled"))
+                .all(self.db.as_ref())
+                .await?;
+            out.extend(rows);
+            if out.len() >= limit as usize {
+                out.truncate(limit as usize);
+                break;
+            }
+        }
+        Ok(out)
     }
 
     async fn list_trips_of_schedule_from(
@@ -627,21 +643,25 @@ impl TripStore for DbTripStore {
         if trip_ids.is_empty() {
             return Ok(Default::default());
         }
-        let rows: Vec<(Uuid, i64, i64)> = seat_inventory::Entity::find()
-            .filter(seat_inventory::Column::TripSessionId.is_in(trip_ids))
-            .filter(seat_inventory::Column::Status.eq("available"))
-            .select_only()
-            .column(seat_inventory::Column::TripSessionId)
-            .column_as(Expr::col(seat_inventory::Column::FinalPrice).min(), "min")
-            .column_as(Expr::col(seat_inventory::Column::FinalPrice).max(), "max")
-            .group_by(seat_inventory::Column::TripSessionId)
-            .into_tuple()
-            .all(self.db.as_ref())
-            .await?;
-        Ok(rows
-            .into_iter()
-            .map(|(trip, min, max)| (trip, (min, max)))
-            .collect())
+        // Chunked fan-out (see FANOUT_CHUNK) — callers used to chunk
+        // this themselves; the bound now lives here so every caller
+        // gets it.
+        let mut out = std::collections::HashMap::new();
+        for chunk in trip_ids.chunks(super::FANOUT_CHUNK) {
+            let rows: Vec<(Uuid, i64, i64)> = seat_inventory::Entity::find()
+                .filter(seat_inventory::Column::TripSessionId.is_in(chunk.to_vec()))
+                .filter(seat_inventory::Column::Status.eq("available"))
+                .select_only()
+                .column(seat_inventory::Column::TripSessionId)
+                .column_as(Expr::col(seat_inventory::Column::FinalPrice).min(), "min")
+                .column_as(Expr::col(seat_inventory::Column::FinalPrice).max(), "max")
+                .group_by(seat_inventory::Column::TripSessionId)
+                .into_tuple()
+                .all(self.db.as_ref())
+                .await?;
+            out.extend(rows.into_iter().map(|(trip, min, max)| (trip, (min, max))));
+        }
+        Ok(out)
     }
 
     async fn list_seats_by_bus_layout_id(

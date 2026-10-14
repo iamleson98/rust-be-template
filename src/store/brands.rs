@@ -171,10 +171,19 @@ impl BrandStore for DbBrandStore {
     }
 
     async fn list_brands_by_ids(&self, ids: Vec<Uuid>) -> StoreResult<Vec<brand::Model>> {
-        Ok(brand::Entity::find()
-            .filter(brand::Column::Id.is_in(ids))
-            .all(self.db.as_ref())
-            .await?)
+        if ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let mut out = Vec::new();
+        for chunk in ids.chunks(super::FANOUT_CHUNK) {
+            out.extend(
+                brand::Entity::find()
+                    .filter(brand::Column::Id.is_in(chunk.to_vec()))
+                    .all(self.db.as_ref())
+                    .await?,
+            );
+        }
+        Ok(out)
     }
 
     async fn insert_brand(&self, model: brand::ActiveModel) -> StoreResult<()> {

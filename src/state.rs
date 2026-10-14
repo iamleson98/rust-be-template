@@ -71,6 +71,14 @@ pub struct AppState {
     /// the raw pool for routes that predate any service abstraction.
     pub db: Arc<sea_orm::DatabaseConnection>,
 
+    /// Dedicated 2-connection pool for `/ready` — its acquire queue is
+    /// separate from the main pool, so request traffic (long searches,
+    /// admin VACUUM probes) can never starve the readiness probe into
+    /// a 503 (issue #75: swarm's `update_config.monitor` treats that as
+    /// one step from a rollback loop). Same shared engine underneath;
+    /// see `server::bootstrap`.
+    pub health_db: Arc<sea_orm::DatabaseConnection>,
+
     // ---- Domain services (pre-built, shared via Arc) ----
     pub auth: Arc<AuthService>,
     pub posts: Arc<PostService>,
@@ -113,6 +121,7 @@ impl AppState {
         config: Arc<Config>,
         rbac: Arc<RbacChecker>,
         db: Arc<sea_orm::DatabaseConnection>,
+        health_db: Arc<sea_orm::DatabaseConnection>,
         auth: Arc<AuthService>,
         posts: Arc<PostService>,
         users: Arc<UserService>,
@@ -135,6 +144,7 @@ impl AppState {
             config,
             rbac,
             db,
+            health_db,
             auth,
             posts,
             users,

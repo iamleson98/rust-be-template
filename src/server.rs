@@ -92,6 +92,32 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
 
     let db = Arc::new(db);
 
+    // ── Readiness lane ───────────────────────────────────────────
+    // A second, tiny pool for `/ready` so health checks never queue
+    // behind request traffic on the main pool. The rust-sql compat
+    // layer shares ONE engine per database file across all pooled
+    // connections, so these handles are cheap — but their ACQUIRE
+    // queues are separate, which is the point: an 8-connection main
+    // pool fully occupied by long searches (or an admin VACUUM INTO
+    // probe) used to starve `/ready` into 503s, and with swarm's
+    // update_config.monitor that is one step from a rollback loop
+    // (issue #75). Two connections: one active ping, one spare for
+    // overlap during health-check intervals.
+    let mut health_opts = ConnectOptions::new(&config.database.url);
+    health_opts
+        .max_connections(2)
+        .min_connections(1)
+        .connect_timeout(config.database.connect_timeout())
+        .idle_timeout(config.database.idle_timeout())
+        .max_lifetime(config.database.max_lifetime())
+        .sqlx_logging(false);
+    let health_db = Arc::new(
+        Database::connect(health_opts)
+            .await
+            .context("health db connect")?,
+    );
+    apply_sqlite_pragmas(&health_db, config.database.cache_kib).await?;
+
     // Bootstrap is also used directly by integration tests and embedded
     // callers, so do not rely on the CLI wrapper to migrate first.
     crate::run_migrations(db.as_ref())
@@ -482,6 +508,7 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
         config_arc,
         rbac.clone(),
         db.clone(),
+        health_db.clone(),
         auth_service,
         post_service,
         user_service,

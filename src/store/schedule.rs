@@ -227,10 +227,19 @@ impl ScheduleStore for DbScheduleStore {
         &self,
         route_ids: Vec<Uuid>,
     ) -> StoreResult<Vec<schedule::Model>> {
-        Ok(schedule::Entity::find()
-            .filter(schedule::Column::RouteId.is_in(route_ids))
-            .all(self.db.as_ref())
-            .await?)
+        if route_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let mut out = Vec::new();
+        for chunk in route_ids.chunks(super::FANOUT_CHUNK) {
+            out.extend(
+                schedule::Entity::find()
+                    .filter(schedule::Column::RouteId.is_in(chunk.to_vec()))
+                    .all(self.db.as_ref())
+                    .await?,
+            );
+        }
+        Ok(out)
     }
 
     async fn list_all_schedules(&self, limit: u64) -> StoreResult<Vec<schedule::Model>> {
@@ -274,11 +283,17 @@ impl ScheduleStore for DbScheduleStore {
         if schedule_ids.is_empty() {
             return Ok(Vec::new());
         }
-        Ok(schedule_fare::Entity::find()
-            .filter(schedule_fare::Column::ScheduleId.is_in(schedule_ids))
-            .order_by_asc(schedule_fare::Column::PriceAdult)
-            .all(self.db.as_ref())
-            .await?)
+        let mut out = Vec::new();
+        for chunk in schedule_ids.chunks(super::FANOUT_CHUNK) {
+            out.extend(
+                schedule_fare::Entity::find()
+                    .filter(schedule_fare::Column::ScheduleId.is_in(chunk.to_vec()))
+                    .order_by_asc(schedule_fare::Column::PriceAdult)
+                    .all(self.db.as_ref())
+                    .await?,
+            );
+        }
+        Ok(out)
     }
 
     #[store_macros::no_retry]
@@ -320,10 +335,16 @@ impl ScheduleStore for DbScheduleStore {
         if ids.is_empty() {
             return Ok(Vec::new());
         }
-        Ok(bus_layout::Entity::find()
-            .filter(bus_layout::Column::Id.is_in(ids))
-            .all(self.db.as_ref())
-            .await?)
+        let mut out = Vec::new();
+        for chunk in ids.chunks(super::FANOUT_CHUNK) {
+            out.extend(
+                bus_layout::Entity::find()
+                    .filter(bus_layout::Column::Id.is_in(chunk.to_vec()))
+                    .all(self.db.as_ref())
+                    .await?,
+            );
+        }
+        Ok(out)
     }
 
     async fn list_bus_layouts_page(
@@ -395,10 +416,19 @@ impl ScheduleStore for DbScheduleStore {
     }
 
     async fn list_schedules_by_ids(&self, ids: Vec<Uuid>) -> StoreResult<Vec<schedule::Model>> {
-        Ok(schedule::Entity::find()
-            .filter(schedule::Column::Id.is_in(ids))
-            .all(self.db.as_ref())
-            .await?)
+        if ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let mut out = Vec::new();
+        for chunk in ids.chunks(super::FANOUT_CHUNK) {
+            out.extend(
+                schedule::Entity::find()
+                    .filter(schedule::Column::Id.is_in(chunk.to_vec()))
+                    .all(self.db.as_ref())
+                    .await?,
+            );
+        }
+        Ok(out)
     }
 
     async fn update_bus_layout(
