@@ -441,16 +441,35 @@ pub async fn prune_departed_seats(store: &CompositeStore, today: &str) -> AppRes
         return Ok(0);
     };
     let mut deleted = 0u64;
+    let pass_started = std::time::Instant::now();
     for back in 2..=PRUNE_LOOKBACK_DAYS {
         let date = (today - chrono::Duration::days(back))
             .format("%Y-%m-%d")
             .to_string();
-        deleted += prune_date_seats(store, &date).await?.1;
+        let (had_trips, n) = prune_date_seats(store, &date).await?;
+        deleted += n;
+        // Yield after dates that ran DML — the engine serializes
+        // statements behind one write-preferring lock; a back-to-back
+        // write stream keeps a queued writer always present, and
+        // readers (searches, /ready pings, worker claims) starve until
+        // pools time out — the 2026-10-14 incident: one warmer pass
+        // pegged a connection thread for minutes and /ready flapped
+        // 503 in a swarm-monitor rollback loop. Empty dates are a
+        // single indexed probe (a read — reads never queue behind
+        // reads), so they skip the pause.
+        if had_trips {
+            tokio::time::sleep(WARM_DATE_YIELD).await;
+        }
     }
     deleted += backfill_prune_legacy_seats(store, today).await?;
-    if deleted > 0 {
-        tracing::info!(deleted, "pruned unsold seats of departed trips");
-    }
+    // Pass telemetry: duration + yield count make a misbehaving pass
+    // visible from the log stream alone (the 2026-10-14 incident was
+    // found exactly because nothing logged while a thread pegged).
+    tracing::info!(
+        deleted,
+        elapsed_ms = pass_started.elapsed().as_millis() as u64,
+        "seat prune pass complete"
+    );
     Ok(deleted)
 }
 
@@ -475,6 +494,7 @@ async fn prune_date_seats(store: &CompositeStore, date: &str) -> AppResult<(bool
             .map_err(|e| AppError::Internal(e.to_string()))?;
         deleted += n;
         if n > 0 {
+            tracing::debug!(%date, n, "pruned date seats (chunk)");
             tokio::time::sleep(WARM_STATEMENT_YIELD).await;
         }
     }
@@ -497,6 +517,11 @@ async fn backfill_prune_legacy_seats(store: &CompositeStore, today: NaiveDate) -
             .format("%Y-%m-%d")
             .to_string();
         let (had_trips, n) = prune_date_seats(store, &date).await?;
+        // Same post-DML yield as the rolling window — see
+        // `prune_departed_seats`.
+        if had_trips {
+            tokio::time::sleep(WARM_DATE_YIELD).await;
+        }
         // Real work consumes the per-pass budget; history that exists
         // but is already pruned costs one cheap indexed probe and
         // neither consumes budget nor advances the empty streak.
@@ -591,11 +616,22 @@ pub fn spawn(store: Arc<CompositeStore>) -> Warmer {
     let task_store = store;
     tokio::spawn(async move {
         tokio::time::sleep(Duration::from_secs(WARM_BOOT_DELAY_SECS)).await;
-        tracing::info!(
-            window_days = SELL_WINDOW_DAYS,
-            "trip warmer: initial sell-window pass"
-        );
-        warm_window(&task_store, &task_lock).await;
+        // Emergency ops lever (2026-10-14 incident): `TRIP_WARMER_BOOT=off`
+        // skips the initial sell-window pass — for rolling a service back
+        // to serving-only while a warmer-related incident is investigated.
+        // The 6-hourly passes and search-triggered fills still run.
+        if std::env::var("TRIP_WARMER_BOOT")
+            .map(|v| v.eq_ignore_ascii_case("off"))
+            .unwrap_or(false)
+        {
+            tracing::warn!("trip warmer: initial sell-window pass SKIPPED (TRIP_WARMER_BOOT=off)");
+        } else {
+            tracing::info!(
+                window_days = SELL_WINDOW_DAYS,
+                "trip warmer: initial sell-window pass"
+            );
+            warm_window(&task_store, &task_lock).await;
+        }
 
         let mut tick = tokio::time::interval(Duration::from_secs(WARM_INTERVAL_SECS));
         tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
