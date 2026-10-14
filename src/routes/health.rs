@@ -59,21 +59,28 @@ pub async fn ready(State(state): State<AppState>) -> AppResult<impl IntoResponse
     Ok((code, Json(body)))
 }
 
-/// Ping the database with a trivial query. Returns false if it fails
-/// within the timeout (5s) — the connection is probably dead.
+/// Ping the database over the DEDICATED health pool with a short
+/// deadline. Returns false if it fails within 1.5 s.
+///
+/// The health pool's acquire queue is separate from the main request
+/// pool (see `server::bootstrap`), so a burst of long searches or an
+/// admin `VACUUM INTO` probe can hold every request connection without
+/// failing readiness — the failure mode that used to flip `/ready` to
+/// 503 and sit one monitor window away from a swarm rollback
+/// (issue #75). The ping itself still executes on the same shared
+/// engine, so a genuinely wedged engine (or file) keeps failing
+/// readiness exactly as before.
 async fn ping_db(state: &AppState) -> bool {
-    // Readiness via the AuthService `db_ping` helper — keeps the
-    // store access inside the service layer (clean architecture).
-    let ping = async { state.auth.db_ping().await };
+    let ping = async { state.health_db.ping().await };
 
-    match timeout(Duration::from_secs(5), ping).await {
-        Ok(Ok(_)) => true,
+    match timeout(Duration::from_millis(1500), ping).await {
+        Ok(Ok(())) => true,
         Ok(Err(e)) => {
-            tracing::warn!(error = %e, "db ping failed");
+            tracing::warn!(error = %e, "db ping failed (health lane)");
             false
         }
         Err(_) => {
-            tracing::warn!("db ping timed out after 5s");
+            tracing::warn!("db ping timed out after 1.5s (health lane)");
             false
         }
     }

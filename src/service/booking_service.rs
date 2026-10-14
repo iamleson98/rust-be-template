@@ -25,11 +25,39 @@ use crate::payment::providers;
 use crate::payment::statuses as payment_status;
 use crate::service::booking_view::{booking_view, booking_views, departure_of};
 use crate::service::fares::{self, ChildPolicy, FareTable, Passenger};
-use crate::service::{trip_stops, trip_time};
+use crate::service::{trip_stops, trip_time, trip_warmer};
 use crate::store::{BookingFilter, CompositeStore, ConfirmOutcome};
 
 /// How long seats are held while the customer fills in the checkout.
 const HOLD_SECS: i64 = 10 * 60;
+
+/// Hold TTL for advance bookings — departures at least
+/// [`ADVANCE_TTL_FROM_DAYS`] days out. Comparison-shopping and
+/// coordinating companions mid-checkout take longer than a rushed
+/// same-day purchase (advance-booking research, 2026-10); the sweeper
+/// still reclaims abandoned holds, so the worst case is one seat
+/// off-sale for the longer TTL.
+const ADVANCE_HOLD_SECS: i64 = 20 * 60;
+
+/// Departures this many days out or further get the advance hold TTL.
+const ADVANCE_TTL_FROM_DAYS: i64 = 3;
+
+/// Hold TTL for a trip departing on `departure_date` (`YYYY-MM-DD`):
+/// tiered by booking horizon. Malformed dates fall back to the base
+/// TTL — the sweeper bounds the damage either way.
+fn hold_secs_for(departure_date: &str) -> i64 {
+    let dep = chrono::NaiveDate::parse_from_str(departure_date, "%Y-%m-%d");
+    let today = chrono::NaiveDate::parse_from_str(
+        &crate::service::trip_warmer::vn_today(Utc::now()),
+        "%Y-%m-%d",
+    );
+    match (dep, today) {
+        (Ok(dep), Ok(today)) if (dep - today).num_days() >= ADVANCE_TTL_FROM_DAYS => {
+            ADVANCE_HOLD_SECS
+        }
+        _ => HOLD_SECS,
+    }
+}
 
 /// How long a started payment keeps the seats.
 const PAYMENT_HOLD_SECS: i64 = 15 * 60;
@@ -205,6 +233,27 @@ impl BookingService {
             return Err(AppError::BadRequest("trip has already departed".into()));
         }
 
+        // Booking window: the sell window IS the operator's booking
+        // horizon (trips only materialize inside it —
+        // `trip_warmer::SELL_WINDOW_DAYS`). The explicit guard turns the
+        // implicit "trip not found" into a clear policy error for the
+        // edge cases: admin-created future trips, clock skew, replayed
+        // requests. Same-day and past dates pass through untouched.
+        if let (Ok(dep), Ok(today)) = (
+            chrono::NaiveDate::parse_from_str(&trip.departure_date, "%Y-%m-%d"),
+            chrono::NaiveDate::parse_from_str(
+                &crate::service::trip_warmer::vn_today(Utc::now()),
+                "%Y-%m-%d",
+            ),
+        ) {
+            if (dep - today).num_days() > trip_warmer::SELL_WINDOW_DAYS as i64 {
+                return Err(AppError::BadRequest(format!(
+                    "bookings open {} days before departure",
+                    trip_warmer::SELL_WINDOW_DAYS
+                )));
+            }
+        }
+
         let route_model = self
             .store
             .route_store()
@@ -333,8 +382,8 @@ impl BookingService {
         let fees: i64 = 0;
         let total = (subtotal - discount + fees).max(0);
 
-        // 10-minute hold
-        let expires_at = now_plus_iso(HOLD_SECS);
+        // Hold TTL tiered by booking horizon (see `hold_secs_for`).
+        let expires_at = now_plus_iso(hold_secs_for(&trip.departure_date));
         let brand_slug = brand_model
             .as_ref()
             .map(|b| b.slug.clone())
@@ -948,6 +997,109 @@ mod tests {
         assert!(c.starts_with("PT-"));
         let suffix = &c[3..];
         assert_eq!(suffix.len(), 6);
+    }
+
+    // ── advance booking: tiered hold TTL + booking window ─────────
+
+    fn days_out(n: i64) -> String {
+        let today = chrono::NaiveDate::parse_from_str(
+            &crate::service::trip_warmer::vn_today(Utc::now()),
+            "%Y-%m-%d",
+        )
+        .unwrap();
+        (today + chrono::Duration::days(n))
+            .format("%Y-%m-%d")
+            .to_string()
+    }
+
+    #[test]
+    fn hold_secs_tiers_by_booking_horizon() {
+        // Rushed purchases: today and the next two days.
+        assert_eq!(hold_secs_for(&days_out(0)), HOLD_SECS);
+        assert_eq!(hold_secs_for(&days_out(2)), HOLD_SECS);
+        // Advance bookings: three days out and further.
+        assert_eq!(hold_secs_for(&days_out(3)), ADVANCE_HOLD_SECS);
+        assert_eq!(hold_secs_for(&days_out(14)), ADVANCE_HOLD_SECS);
+        // The tier invariant, checked where the consts are visible.
+        const { assert!(ADVANCE_HOLD_SECS > HOLD_SECS) };
+        // Malformed dates fall back to the base TTL.
+        assert_eq!(hold_secs_for("not-a-date"), HOLD_SECS);
+        assert_eq!(hold_secs_for(""), HOLD_SECS);
+    }
+
+    #[tokio::test]
+    async fn hold_rejects_trips_beyond_the_sell_window() {
+        use crate::store::CompositeStore;
+        use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, IntoActiveModel, QueryFilter};
+        use sea_orm_migration::MigratorTrait;
+
+        let store = CompositeStore::in_memory().await;
+        migrator::Migrator::up(store.db(), None).await.unwrap();
+        let svc = BookingService::new(store.clone());
+        let (trip_id, seats, stops) = seed_trip_with_seats(&store, 2).await;
+
+        // Push the trip past the sell window (one day beyond it).
+        let beyond = days_out(trip_warmer::SELL_WINDOW_DAYS as i64 + 1);
+        let mut am = trip_session::Entity::find()
+            .filter(trip_session::Column::Id.eq(trip_id))
+            .one(store.db())
+            .await
+            .unwrap()
+            .unwrap()
+            .into_active_model();
+        am.departure_date = Set(beyond);
+        am.update(store.db()).await.unwrap();
+
+        let err = svc
+            .hold(None, &hold_req(trip_id, vec![seats[0]], stops))
+            .await
+            .expect_err("hold beyond the sell window must fail");
+        match err {
+            AppError::BadRequest(msg) => {
+                assert!(msg.contains("bookings open"), "got: {msg}");
+            }
+            other => panic!("expected BadRequest, got: {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn advance_hold_gets_the_longer_ttl() {
+        use crate::store::CompositeStore;
+        use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, IntoActiveModel, QueryFilter};
+        use sea_orm_migration::MigratorTrait;
+
+        let store = CompositeStore::in_memory().await;
+        migrator::Migrator::up(store.db(), None).await.unwrap();
+        let svc = BookingService::new(store.clone());
+        let (trip_id, seats, stops) = seed_trip_with_seats(&store, 2).await;
+
+        // Move the departure five days out — inside the sell window,
+        // past the advance-TTL threshold.
+        let mut am = trip_session::Entity::find()
+            .filter(trip_session::Column::Id.eq(trip_id))
+            .one(store.db())
+            .await
+            .unwrap()
+            .unwrap()
+            .into_active_model();
+        am.departure_date = Set(days_out(5));
+        am.update(store.db()).await.unwrap();
+
+        let resp = svc
+            .hold(None, &hold_req(trip_id, vec![seats[0]], stops))
+            .await
+            .expect("advance hold must succeed");
+        // expires_at (RFC3339) sits between now+ADVANCE_HOLD_SECS-60s
+        // and now+ADVANCE_HOLD_SECS+60s — well past the base TTL.
+        let exp = chrono::DateTime::parse_from_rfc3339(&resp.expires_at)
+            .expect("expires_at parses")
+            .with_timezone(&Utc);
+        let min = Utc::now() + chrono::Duration::seconds(ADVANCE_HOLD_SECS - 60);
+        let max = Utc::now() + chrono::Duration::seconds(ADVANCE_HOLD_SECS + 60);
+        assert!(
+            exp > min && exp < max,
+            "advance expires_at {exp} not within [{min}, {max}]"
+        );
     }
 
     #[test]

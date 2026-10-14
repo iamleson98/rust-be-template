@@ -410,10 +410,32 @@ pub async fn ensure_seats(
 /// dates were pruned by earlier passes.
 const PRUNE_LOOKBACK_DAYS: i64 = 30;
 
+/// Legacy-history backfill bounds (issue #76): the rolling prune shipped
+/// 2026-10-13, but production carries trip history since 2026-09-08 —
+/// every date older than the lookback keeps its unsold seat rows
+/// forever unless a backfill walks them. The walk is deliberately
+/// slow-and-resumable: per warmer pass (6-hourly) it processes at most
+/// this many non-empty legacy dates, walking BACKWARD from the lookback
+/// cutoff. ~1M stale rows drain over a few days of uptime instead of
+/// one 48-minute lock-holding purge.
+const BACKFILL_DATES_PER_PASS: usize = 40;
+
+/// How far the backfill walks before giving up — one calendar year is
+/// beyond any plausible booking history for this product.
+const BACKFILL_MAX_DAYS: i64 = 366;
+
+/// An empty stretch this long means there is no history that old —
+/// stop the walk early (the remaining probes are empty date lookups).
+const BACKFILL_EMPTY_STREAK: usize = 30;
+
 /// Delete the unsold seat rows of trips that left before yesterday:
 /// they can never be sold, and before seats were created on demand they
 /// were most of the database. Sold and held seats stay (booking
 /// history). Small paced statements keep the engine free for traffic.
+///
+/// The rolling window is followed by a bounded legacy backfill for
+/// dates older than the lookback (see `BACKFILL_DATES_PER_PASS`, the
+/// module-private consts above).
 pub async fn prune_departed_seats(store: &CompositeStore, today: &str) -> AppResult<u64> {
     let Ok(today) = NaiveDate::parse_from_str(today, "%Y-%m-%d") else {
         return Ok(0);
@@ -423,28 +445,73 @@ pub async fn prune_departed_seats(store: &CompositeStore, today: &str) -> AppRes
         let date = (today - chrono::Duration::days(back))
             .format("%Y-%m-%d")
             .to_string();
-        let trip_ids: Vec<Uuid> = store
-            .trip_store()
-            .list_trips_for_date(&date)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?
-            .into_iter()
-            .map(|t| t.id)
-            .collect();
-        for chunk in trip_ids.chunks(FILL_CHUNK) {
-            let n = store
-                .trip_store()
-                .delete_unsold_seats_of_trips(chunk.to_vec())
-                .await
-                .map_err(|e| AppError::Internal(e.to_string()))?;
-            deleted += n;
-            if n > 0 {
-                tokio::time::sleep(WARM_STATEMENT_YIELD).await;
-            }
-        }
+        deleted += prune_date_seats(store, &date).await?.1;
     }
+    deleted += backfill_prune_legacy_seats(store, today).await?;
     if deleted > 0 {
         tracing::info!(deleted, "pruned unsold seats of departed trips");
+    }
+    Ok(deleted)
+}
+
+/// One date's share of the unsold-seat prune: trips of that date, their
+/// unsold seats deleted in paced chunks. Returns `(had_trips, deleted)`
+/// — the backfill distinguishes "no history this old" (drives the
+/// empty-streak stop) from "history already pruned" (free to skip
+/// past).
+async fn prune_date_seats(store: &CompositeStore, date: &str) -> AppResult<(bool, u64)> {
+    let mut deleted = 0u64;
+    let trips = store
+        .trip_store()
+        .list_trips_for_date(date)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+    let had_trips = !trips.is_empty();
+    for chunk in trips.chunks(FILL_CHUNK) {
+        let n = store
+            .trip_store()
+            .delete_unsold_seats_of_trips(chunk.iter().map(|t| t.id).collect())
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        deleted += n;
+        if n > 0 {
+            tokio::time::sleep(WARM_STATEMENT_YIELD).await;
+        }
+    }
+    Ok((had_trips, deleted))
+}
+
+/// Walk legacy dates (older than the rolling lookback) backward,
+/// bounded per pass. Resumable by design: each warmer pass picks up
+/// where the last left the backlog, so restarts never lose progress
+/// and no single pass holds the write path for long.
+async fn backfill_prune_legacy_seats(store: &CompositeStore, today: NaiveDate) -> AppResult<u64> {
+    let mut deleted = 0u64;
+    let mut done = 0usize;
+    let mut empty_streak = 0usize;
+    for back in (PRUNE_LOOKBACK_DAYS + 1)..=(PRUNE_LOOKBACK_DAYS + BACKFILL_MAX_DAYS) {
+        if done >= BACKFILL_DATES_PER_PASS || empty_streak >= BACKFILL_EMPTY_STREAK {
+            break;
+        }
+        let date = (today - chrono::Duration::days(back))
+            .format("%Y-%m-%d")
+            .to_string();
+        let (had_trips, n) = prune_date_seats(store, &date).await?;
+        // Real work consumes the per-pass budget; history that exists
+        // but is already pruned costs one cheap indexed probe and
+        // neither consumes budget nor advances the empty streak.
+        if had_trips {
+            if n > 0 {
+                done += 1;
+            }
+            empty_streak = 0;
+        } else {
+            empty_streak += 1;
+        }
+        deleted += n;
+    }
+    if deleted > 0 {
+        tracing::info!(deleted, done, "legacy seat backfill: pruned a slice");
     }
     Ok(deleted)
 }

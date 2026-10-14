@@ -160,10 +160,16 @@ impl AddressStore for DbAddressStore {
         if ids.is_empty() {
             return Ok(Vec::new());
         }
-        Ok(address::Entity::find()
-            .filter(address::Column::Id.is_in(ids))
-            .all(self.db.as_ref())
-            .await?)
+        let mut out = Vec::new();
+        for chunk in ids.chunks(super::FANOUT_CHUNK) {
+            out.extend(
+                address::Entity::find()
+                    .filter(address::Column::Id.is_in(chunk.to_vec()))
+                    .all(self.db.as_ref())
+                    .await?,
+            );
+        }
+        Ok(out)
     }
 
     #[store_macros::no_retry]
@@ -212,11 +218,17 @@ impl AddressStore for DbAddressStore {
         if schedule_ids.is_empty() {
             return Ok(Vec::new());
         }
-        Ok(schedule_point::Entity::find()
-            .filter(schedule_point::Column::ScheduleId.is_in(schedule_ids))
-            .order_by_asc(schedule_point::Column::StopOrder)
-            .all(self.db.as_ref())
-            .await?)
+        let mut out = Vec::new();
+        for chunk in schedule_ids.chunks(super::FANOUT_CHUNK) {
+            out.extend(
+                schedule_point::Entity::find()
+                    .filter(schedule_point::Column::ScheduleId.is_in(chunk.to_vec()))
+                    .order_by_asc(schedule_point::Column::StopOrder)
+                    .all(self.db.as_ref())
+                    .await?,
+            );
+        }
+        Ok(out)
     }
 
     async fn find_schedule_stops_in_boxes(

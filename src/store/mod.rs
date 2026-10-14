@@ -49,6 +49,25 @@ pub use self::trip::{DbTripStore, TripStore};
 pub use self::users::{CacheUserStore, DbUserStore, UserStore};
 pub use self::vehicle_types::{DbVehicleTypeStore, VehicleTypePage, VehicleTypeStore};
 
+/// Fan-out guard: how many ids one `IN (…)` list may carry.
+///
+/// Every batched fan-out query (load-by-ids of schedules / trips /
+/// fares / points / brands / layouts / vehicle types) chunks its id
+/// list at this size. Two reasons, in order of weight:
+///
+/// 1. **Statement-cache hits.** sqlx keys its prepared-statement cache
+///    on the SQL TEXT. An unchunked fan-out emits a fresh ~70 KB
+///    statement per search (1,871 UUID placeholders today, 1,872
+///    tomorrow) — every search re-parses and re-plans. Fixed-size
+///    chunks reuse one cached statement per position except the
+///    ragged tail.
+/// 2. **Bounded SQL text and placeholder counts** on the wire and in
+///    the engine's plan structures.
+///
+/// (The engine's IN-list index multi-seek handles any list size —
+/// this is not a correctness bound, it is a throughput one.)
+pub(crate) const FANOUT_CHUNK: usize = 500;
+
 /// Parse a `&str` UUID into a [`uuid::Uuid`], mapping failures to
 /// [`StoreError::Validation`].
 ///

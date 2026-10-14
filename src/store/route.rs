@@ -510,10 +510,19 @@ impl RouteStore for DbRouteStore {
     }
 
     async fn list_routes_by_ids(&self, ids: Vec<Uuid>) -> StoreResult<Vec<route::Model>> {
-        Ok(route::Entity::find()
-            .filter(route::Column::Id.is_in(ids))
-            .all(self.db.as_ref())
-            .await?)
+        if ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let mut out = Vec::new();
+        for chunk in ids.chunks(super::FANOUT_CHUNK) {
+            out.extend(
+                route::Entity::find()
+                    .filter(route::Column::Id.is_in(chunk.to_vec()))
+                    .all(self.db.as_ref())
+                    .await?,
+            );
+        }
+        Ok(out)
     }
 
     async fn count_active_routes(&self) -> StoreResult<u64> {

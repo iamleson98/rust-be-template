@@ -136,10 +136,16 @@ impl VehicleTypeStore for DbVehicleTypeStore {
         if ids.is_empty() {
             return Ok(Vec::new());
         }
-        Ok(vehicle_type::Entity::find()
-            .filter(vehicle_type::Column::Id.is_in(ids))
-            .all(self.db.as_ref())
-            .await?)
+        let mut out = Vec::new();
+        for chunk in ids.chunks(super::FANOUT_CHUNK) {
+            out.extend(
+                vehicle_type::Entity::find()
+                    .filter(vehicle_type::Column::Id.is_in(chunk.to_vec()))
+                    .all(self.db.as_ref())
+                    .await?,
+            );
+        }
+        Ok(out)
     }
 
     async fn list_active_vehicle_types(&self) -> StoreResult<Vec<vehicle_type::Model>> {

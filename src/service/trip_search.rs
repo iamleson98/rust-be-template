@@ -38,9 +38,6 @@ const HOUR_BANDS: [(&str, i32, i32); 4] = [
     ("18-24", 18, 24),
 ];
 
-/// Bounded IN-lists.
-const IN_CHUNK: usize = 500;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Sort {
     /// Earliest boarding first.
@@ -348,16 +345,12 @@ async fn build(store: &CompositeStore, candidates: Vec<Candidate>) -> AppResult<
 
     // Prices: the seats for sale where a trip's seats exist (it was
     // opened), the fares of its layout's seat classes otherwise.
-    let mut for_sale: HashMap<Uuid, (i64, i64)> = HashMap::new();
-    for chunk in trip_ids.chunks(IN_CHUNK) {
-        for_sale.extend(
-            store
-                .trip_store()
-                .available_price_ranges(chunk.to_vec())
-                .await
-                .map_err(internal)?,
-        );
-    }
+    // `available_price_ranges` chunks internally (FANOUT_CHUNK).
+    let for_sale: HashMap<Uuid, (i64, i64)> = store
+        .trip_store()
+        .available_price_ranges(trip_ids)
+        .await
+        .map_err(internal)?;
     let fare_rows = store
         .schedule_store()
         .list_fares(schedule_ids)
