@@ -434,7 +434,8 @@ const BACKFILL_EMPTY_STREAK: usize = 30;
 /// history). Small paced statements keep the engine free for traffic.
 ///
 /// The rolling window is followed by a bounded legacy backfill for
-/// dates older than the lookback (see [`BACKFILL_DATES_PER_PASS`]).
+/// dates older than the lookback (see `BACKFILL_DATES_PER_PASS`, the
+/// module-private consts above).
 pub async fn prune_departed_seats(store: &CompositeStore, today: &str) -> AppResult<u64> {
     let Ok(today) = NaiveDate::parse_from_str(today, "%Y-%m-%d") else {
         return Ok(0);
