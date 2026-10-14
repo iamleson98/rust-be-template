@@ -70,3 +70,7 @@ deploy/certs/
 # Python bytecode
 __pycache__/
 *.pyc
+
+# Terraform — real credentials live ONLY in this local (gitignored) file.
+# Use terraform.tfvars.example as the template. NEVER commit terraform.tfvars.
+terraform/terraform.tfvars

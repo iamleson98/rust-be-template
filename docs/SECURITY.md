@@ -72,6 +72,47 @@ Before exposing any instance to the public internet, verify:
       data volume on a cron + push to S3 — see DEPLOYMENT.md §14)
 - [ ] Log aggregation ships `tracing` JSON to your SIEM (Datadog, Loki, etc.)
 
+## Known Historical Leaks
+
+### 2026-10-14 — Kamatera infrastructure credentials in git history (CRITICAL, rotation required)
+
+`terraform/terraform.tfvars` was committed in the repository's initial
+commit (`f9adaba`, 2026-10-02) containing **live Kamatera API
+credentials** (client id + secret for the account that hosts the
+production server). The credentials were verified live on 2026-10-14 by
+an authentication-only probe against `console.kamatera.com`
+(HTTP 200, session token issued, immediately discarded).
+
+**Remediation applied:**
+- File removed from the working tree; `terraform/terraform.tfvars`
+  added to `.gitignore`; `terraform.tfvars.example` fixed into a usable
+  template (it previously contained `variable` blocks — the wrong
+  syntax for a tfvars file).
+- The exact leaked values are pinned as regression-grep patterns in the
+  `secrets-scan` CI job, so they can never be recommitted unnoticed.
+- The CI `secrets-scan` job now ALSO runs a pinned-binary gitleaks
+  scan over **all of git history and the working tree** — previously
+  only the triggering event's commits were scanned, which is why this
+  leak sat undetected through weeks of green CI runs.
+- `.gitleaksignore` baselines the historical finding so the full scan
+  stays green; the entry documents the leak for posterity.
+
+**REQUIRED manual action (cannot be automated from the repo):**
+rotate the Kamatera API key in the Kamatera console
+(My Cloud → API Keys → revoke the old key, create a new one), then
+update your local `terraform.tfvars` / `TF_VAR_*` environment. Until
+rotated, anyone who ever obtained a copy of the repository has
+root-level control over the account's servers.
+
+### Earlier leaks (previous repository lifecycle — pre 2026-10-02)
+
+The repository was re-created on 2026-10-02 (fresh initial commit
+`f9adaba`). In the previous lifecycle the following were leaked and
+later rotated: a Google OAuth client secret, a Gemini API key, JWT dev
+secrets, and an earlier Kamatera token (revoked in the Kamatera panel
+at that time). Their values remain pinned as regression-grep patterns
+in `ci.yml`; the blobs no longer exist in this repository's history.
+
 ## Incident Response
 
 If a secret is leaked (committed to git, exposed in logs, etc.):
