@@ -84,6 +84,7 @@ an authentication-only probe against `console.kamatera.com`
 (HTTP 200, session token issued, immediately discarded).
 
 **Remediation applied:**
+
 - File removed from the working tree; `terraform/terraform.tfvars`
   added to `.gitignore`; `terraform.tfvars.example` fixed into a usable
   template (it previously contained `variable` blocks — the wrong

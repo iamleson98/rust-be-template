@@ -4,13 +4,14 @@
 #   <commit>:<path>:<rule>:<line>   — findings in git history (git scan)
 #   <path>:<rule>:<line>            — findings in the working tree (dir scan)
 #
-# NOTE: this repository was re-created (fresh initial commit f9adaba,
-# 2026-10-02). Fingerprints carried over from the previous repository
-# lifecycle referenced commits that no longer exist and silently matched
-# nothing — a scan blind spot found during the 2026-10-14 audit. They were
-# dropped. Old-lifecycle leaks (Google OAuth secret, GEMINI key, JWT dev
-# secrets, the old Kamatera token) were rotated at that time; the exact
-# values stay regression-guarded by the grep patterns in ci.yml.
+# NOTE on repository history: master's history was re-rooted at f9adaba
+# (2026-10-02), but the PREVIOUS repository lifecycle's commits still exist
+# on ~30 old remote branches (improve, improve-1, improve-2, fix/**, feat/**,
+# chore/**, ci/**). The full-repo scan below therefore still reaches them —
+# the fingerprints in the HISTORICAL LEAKS section below pin exactly those
+# old-branch commits. Their secrets (Google OAuth client secret, GEMINI API
+# key, JWT dev secrets, the old Kamatera token) were rotated at that time;
+# the exact values stay regression-guarded by the grep patterns in ci.yml.
 
 # ── FALSE POSITIVES (test fixtures) ────────────────────────────────────
 # src/push/fcm.rs — TEST_PKCS8_KEY: throwaway 2048-bit RSA key generated
@@ -26,6 +27,34 @@ src/push/fcm.rs:private-key:274
 # pre-recreation layout; the working-tree const sits on line 224.
 b9c76adbb424e0d456b75990efdf089d4e2b1863:src/push/apns.rs:private-key:212
 src/push/apns.rs:private-key:224
+
+# ── HISTORICAL LEAKS (old repository lifecycle, live on stale branches) ─
+# These commits are reachable only via the old remote branches (improve*,
+# fix/**, feat/**, ...), not from master. All values were rotated when the
+# repo was re-rooted; the fingerprints keep the full-repo scan green while
+# preserving the audit trail. The exact values are additionally pinned by
+# the ci.yml regression grep.
+#
+# Old-repo scaffolding commits with .env / .env.example committed:
+#   d67d86e / 5c74ed7 — JWT dev secrets
+d67d86e044550e1e33388855e44d530afd229d6c:.env:generic-api-key:30
+d67d86e044550e1e33388855e44d530afd229d6c:.env.example:generic-api-key:30
+5c74ed7192d53cd3e081b9ca14a17f2267794e9a:.env:generic-api-key:34
+5c74ed7192d53cd3e081b9ca14a17f2267794e9a:.env.example:generic-api-key:34
+#   96ac68a — GEMINI_API_KEY dev key (rotated in Google AI Studio)
+96ac68a47763f44f641b6f3a0c8d87fafdf10d15:.env:generic-api-key:102
+#   e486edb — Google OAuth client secret (rotated in Google Cloud Console;
+#   also pinned by the ci.yml regression grep)
+e486edb2edbed5ae23f64ee522e91437239604f8:.env:generic-api-key:159
+e486edb2edbed5ae23f64ee522e91437239604f8:.env.example:generic-api-key:163
+#   80d7d9d — the OLD Kamatera token (different value from the 2026-10-14
+#   one below; revoked in the Kamatera panel at that time)
+80d7d9d83f9f360d1d08f062862104f90b04cc62:terraform/terraform.tfvars:generic-api-key:1
+#   b16222b — the old-repo TEST_EC_KEY fixture (same throwaway class as the
+#   current one; history fingerprint)
+b16222b607af63d04a3fa38e5ef053760b3f77a4:src/push/apns.rs:private-key:212
+#   ff28e78a — generated SDK re-export names tripping the entropy heuristic
+ff28e78a6b9e48200336a7e3dd51558e74efa363:frontend/src/lib/queries/index.ts:generic-api-key:89
 
 # ── HISTORICAL LEAK — Kamatera infrastructure credentials ─────────────
 # terraform/terraform.tfvars was committed in the initial commit (f9adaba)
