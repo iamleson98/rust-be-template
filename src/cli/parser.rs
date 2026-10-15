@@ -77,6 +77,21 @@ pub enum Command {
         apply: bool,
     },
 
+    /// Collapse per-brand bus-layout copies onto the global canonical
+    /// catalog: re-points schedules (layout + vehicle class) and deletes
+    /// the redundant per-brand rows. Run while the backend is quiet.
+    /// Usage: `layouts-canonicalize [--apply] [--reset-trips]`
+    LayoutsCanonicalize {
+        /// Write the changes (default: only print what would change).
+        #[arg(long)]
+        apply: bool,
+        /// Also drop the trip sessions of re-pointed schedules so seat
+        /// maps regenerate from the canonical layout. Safe only while
+        /// those trips carry no bookings.
+        #[arg(long)]
+        reset_trips: bool,
+    },
+
     /// Build the Tantivy place-search index from an OSM PBF file.
     /// Usage: `import-osm <path-to-vietnam.osm.pbf> [--index-dir <dir>]`
     ImportOsm {

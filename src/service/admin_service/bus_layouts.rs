@@ -14,6 +14,7 @@
 use sea_orm::{EntityTrait, Set, TransactionTrait};
 use uuid::Uuid;
 
+use super::validate::valid_vehicle_type_code;
 use super::{now_iso, optional_trimmed, AdminService};
 use crate::dto::admin::{
     AdminBusLayoutListResponse, AdminBusLayoutOut, AdminMutationResponse, SeatGridSpec,
@@ -108,6 +109,22 @@ impl AdminService {
     ) -> AppResult<AdminMutationResponse> {
         let name = optional_trimmed(body.name.as_deref())
             .ok_or_else(|| AppError::BadRequest("name is required".into()))?;
+        // The class a layout carries must be a catalog code — free
+        // strings ("Sleeper", "xe khach", …) are how the imported
+        // catalog drifted in the first place.
+        let vehicle_type = body
+            .vehicle_type
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(|s| {
+                valid_vehicle_type_code(s).ok_or_else(|| {
+                    AppError::Validation(format!(
+                        "vehicleType {s:?} is not a vehicle-class code (limousine, minivan, standard, semi_sleeper, sleeper)"
+                    ))
+                })
+            })
+            .transpose()?;
         let id = Uuid::new_v4();
         let now = now_iso();
 
@@ -147,7 +164,7 @@ impl AdminService {
             id: Set(id),
             brand_id: Set(body.brand_id),
             name: Set(Some(name)),
-            vehicle_type: Set(optional_trimmed(body.vehicle_type.as_deref())),
+            vehicle_type: Set(vehicle_type),
             total_seats: Set(Some(total_seats)),
             layout_data: Set(layout_data),
             created_at: Set(now.clone()),
@@ -190,8 +207,18 @@ impl AdminService {
             active.brand_id = Set(Some(brand_id));
         }
         if let Some(ref vt) = body.vehicle_type {
-            // Patch semantics: `""` clears, non-empty sets the trimmed code.
-            active.vehicle_type = Set(optional_trimmed(Some(vt.as_str())));
+            // Patch semantics: `""` clears, non-empty sets a validated
+            // catalog code (legacy `semi-sleeper` normalises).
+            let code = optional_trimmed(Some(vt.as_str()))
+                .map(|s| {
+                    valid_vehicle_type_code(&s).ok_or_else(|| {
+                        AppError::Validation(format!(
+                            "vehicleType {s:?} is not a vehicle-class code (limousine, minivan, standard, semi_sleeper, sleeper)"
+                        ))
+                    })
+                })
+                .transpose()?;
+            active.vehicle_type = Set(code);
         }
         if let Some(seats) = body.total_seats {
             active.total_seats = Set(Some(seats));

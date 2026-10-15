@@ -457,6 +457,13 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
     // wedge the backend boot; first real PUT/GET pays the connection.
     let storage: Arc<dyn crate::storage::FileStorage> =
         Arc::from(crate::storage::build(&config.storage).await?);
+
+    // ---- Canonical bus-layout catalog (idempotent) ──────────────────
+    // The global layout rows every brand's schedules point at; seeding
+    // matches on the name so boots are cheap and safe.
+    if let Err(e) = crate::service::layout_catalog::ensure_canonical_layouts(&db).await {
+        tracing::warn!(error = %e, "could not seed the canonical bus-layout catalog — retried on next boot");
+    }
     let media_service = Arc::new(RouteMediaService::new(
         route_picture_store,
         route_store_for_media,

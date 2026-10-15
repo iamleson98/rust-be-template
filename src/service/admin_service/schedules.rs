@@ -162,6 +162,22 @@ impl AdminService {
         if let Some(vt_id) = body.vehicle_type_id {
             self.ensure_vehicle_type_exists(vt_id).await?;
         }
+        // The layout is the single vehicle choice: its class wins over
+        // any separately-posted vehicleType so the search facets and
+        // the seat map can never disagree.
+        let vehicle_type_id = match body.bus_layout_id {
+            Some(layout_id) => {
+                let derived = self.vehicle_type_of_layout(layout_id).await?;
+                if derived.is_none() {
+                    // A layout without a class keeps the posted type —
+                    // legacy layouts before canonicalization.
+                    body.vehicle_type_id
+                } else {
+                    derived
+                }
+            }
+            None => body.vehicle_type_id,
+        };
 
         let id = Uuid::new_v4();
         let base_price_adult = body.base_price_adult.unwrap_or(0);
@@ -188,7 +204,7 @@ impl AdminService {
             effective_to: Set(body.effective_to.clone()),
             days_of_week: Set(days_of_week),
             bus_layout_id: Set(body.bus_layout_id),
-            vehicle_type_id: Set(body.vehicle_type_id),
+            vehicle_type_id: Set(vehicle_type_id),
             base_price_adult: Set(base_price_adult),
             base_price_child: Set(base_price_child),
             amenities: Set(body.amenities.clone()),
@@ -269,12 +285,23 @@ impl AdminService {
         if let Some(ref v) = body.days_of_week {
             active.days_of_week = Set(Some(v.clone()));
         }
+        let mut layout_class_applied = false;
         if let Some(v) = body.bus_layout_id {
             active.bus_layout_id = Set(Some(v));
+            // The layout's class follows the re-point so the facets and
+            // the seat map stay in agreement.
+            if let Some(derived) = self.vehicle_type_of_layout(v).await? {
+                active.vehicle_type_id = Set(Some(derived));
+                layout_class_applied = true;
+            }
         }
         if let Some(v) = body.vehicle_type_id {
             self.ensure_vehicle_type_exists(v).await?;
-            active.vehicle_type_id = Set(Some(v));
+            // Applied only when no layout class overrode it above —
+            // the layout is the single source of the schedule's class.
+            if !layout_class_applied {
+                active.vehicle_type_id = Set(Some(v));
+            }
         }
         active.base_price_adult = Set(base_price_adult);
         active.base_price_child = Set(base_price_child);
@@ -341,6 +368,31 @@ impl AdminService {
             )));
         }
         Ok(())
+    }
+
+    /// The class of the bus a schedule runs: its LAYOUT's vehicle type,
+    /// resolved to a catalog row. The layout is the single choice an
+    /// admin makes; `vehicle_type_id` follows it so the search facets
+    /// can never disagree with the seat map. `None` when the layout
+    /// carries no code or the code left the catalog.
+    async fn vehicle_type_of_layout(&self, layout_id: Uuid) -> AppResult<Option<Uuid>> {
+        let layout = self
+            .store
+            .schedule_store()
+            .find_bus_layout_by_id(layout_id)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?
+            .ok_or_else(|| AppError::NotFound(format!("bus layout {layout_id} does not exist")))?;
+        let Some(code) = layout.vehicle_type else {
+            return Ok(None);
+        };
+        let vt = self
+            .store
+            .vehicle_type_store()
+            .find_vehicle_type_by_code(&code)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        Ok(vt.map(|v| v.id))
     }
 
     /// Validate + build the ordered `schedule_point` rows for a schedule.

@@ -49,9 +49,11 @@ export const scheduleSchema = z
     effectiveFrom: requiredText('scheduleSchema.labelEffectiveFrom'),
     effectiveTo: requiredText('scheduleSchema.labelEffectiveTo'),
     days: z.array(z.boolean()).length(7),
-    /** Vehicle class from the admin-managed catalog — required. */
-    vehicleTypeId: requiredText('scheduleSchema.labelVehicleType'),
-    /** Optional brand seat layout refinement. */
+    /** Vehicle class — required only when the schedule runs WITHOUT a
+     * seat layout: with a layout picked, the backend derives the class
+     * from the layout (the single source of truth). */
+    vehicleTypeId: z.string(),
+    /** The vehicle the schedule runs — the primary choice. */
     busLayoutId: z.string(),
     /** Standard seats, and any class without its own fare. */
     basePriceAdult: price,
@@ -76,6 +78,16 @@ export const scheduleSchema = z
     const check = (child: number, adult: number, path: string[]) => {
       if (child > 0 && child > adult) {
         ctx.addIssue({ code: 'custom', message: tSync('scheduleSchema.childAboveAdult'), path })
+      }
+    }
+    // No layout → the vehicle class must be picked directly.
+    if (!d.busLayoutId || d.busLayoutId === NO_LAYOUT) {
+      if (!d.vehicleTypeId || !d.vehicleTypeId.trim()) {
+        ctx.addIssue({
+          code: 'custom',
+          message: tSync('scheduleSchema.labelVehicleType'),
+          path: ['vehicleTypeId'],
+        })
       }
     }
     check(d.basePriceChild, d.basePriceAdult, ['basePriceChild'])

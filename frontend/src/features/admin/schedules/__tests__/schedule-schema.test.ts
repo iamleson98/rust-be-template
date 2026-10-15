@@ -54,3 +54,21 @@ describe('scheduleSchema fares', () => {
     expect(r.error?.issues[0].path).toEqual(['classFares', 'vip', 'priceChild'])
   })
 })
+
+describe('scheduleSchema vehicle choice', () => {
+  it('a layout satisfies the vehicle requirement on its own', () => {
+    const r = scheduleSchema.safeParse({ ...base, vehicleTypeId: '' })
+    expect(r.success, JSON.stringify(r.error?.issues)).toBe(true)
+  })
+
+  it('no layout → the vehicle class must be picked directly', () => {
+    const r = scheduleSchema.safeParse({ ...base, busLayoutId: '', vehicleTypeId: '' })
+    expect(r.success).toBe(false)
+    expect(r.error?.issues[0].path).toEqual(['vehicleTypeId'])
+  })
+
+  it('no layout with a picked class is valid', () => {
+    const r = scheduleSchema.safeParse({ ...base, busLayoutId: '' })
+    expect(r.success, JSON.stringify(r.error?.issues)).toBe(true)
+  })
+})

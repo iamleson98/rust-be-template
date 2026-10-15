@@ -80,6 +80,27 @@ pub(super) fn is_days_of_week(s: &str) -> bool {
     s.len() == 7 && s.bytes().all(|c| c == b'0' || c == b'1')
 }
 
+/// The five vehicle-class codes the whole system resolves
+/// (`vehicle_type.code`, `bus_layout.vehicle_type`, preset classes).
+pub(super) const VEHICLE_TYPE_CODES: &[&str] = &[
+    "limousine",
+    "minivan",
+    "standard",
+    "semi_sleeper",
+    "sleeper",
+];
+
+/// A vehicle-class code a bus layout may carry — one of the catalog
+/// codes (case-insensitive; the legacy `semi-sleeper` spelling is
+/// accepted and normalised).
+pub(super) fn valid_vehicle_type_code(s: &str) -> Option<String> {
+    let lowered = s.trim().to_lowercase().replace('-', "_");
+    VEHICLE_TYPE_CODES
+        .iter()
+        .find(|code| **code == lowered)
+        .map(|code| code.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -146,5 +167,24 @@ mod tests {
         assert!(!is_days_of_week("111111"));
         assert!(!is_days_of_week("11111111"));
         assert!(!is_days_of_week("2020111"));
+    }
+
+    #[test]
+    fn valid_vehicle_type_code_accepts_catalog_codes() {
+        assert_eq!(
+            valid_vehicle_type_code("limousine").as_deref(),
+            Some("limousine")
+        );
+        assert_eq!(
+            valid_vehicle_type_code(" Semi-Sleeper ").as_deref(),
+            Some("semi_sleeper")
+        );
+    }
+
+    #[test]
+    fn valid_vehicle_type_code_rejects_unknown_codes() {
+        assert!(valid_vehicle_type_code("bus").is_none());
+        assert!(valid_vehicle_type_code("limo").is_none());
+        assert!(valid_vehicle_type_code("").is_none());
     }
 }

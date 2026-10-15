@@ -51,6 +51,7 @@ pub mod posts_service;
 pub mod price_alert_service;
 #[cfg(test)]
 mod pricing_tests;
+pub mod layout_catalog;
 pub mod public_service;
 pub mod review_service;
 pub mod route_media_service;
