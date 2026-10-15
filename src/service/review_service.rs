@@ -584,6 +584,13 @@ impl ReviewService {
 /// previously moderation only changed the status and let the DB rating
 /// drift until the next user-driven review event.
 ///
+/// A brand with NO approved reviews keeps its stored rating: the
+/// catalogue imports operator ratings crawled from the booking market
+/// (e.g. VeXeRe's 4.2/5 aggregate), and those must survive review
+/// events that do not change the approved set (a freshly created
+/// review starts `pending`). The platform's own approved reviews take
+/// over the moment the first one exists.
+///
 /// The write goes through the cached brand store, so it also evicts the
 /// brand's id/slug cache entries and flushes the rating-ordered
 /// `list_active` cache (see `CacheBrandStore::update_brand_rating`).
@@ -591,11 +598,14 @@ pub(crate) async fn recompute_brand_rating(
     store: &CompositeStore,
     brand_id: &str,
 ) -> AppResult<()> {
-    let avg = approved_average(store, brand_id).await?;
+    let Some(avg) = approved_average(store, brand_id).await? else {
+        // No approved reviews → an imported/operator rating stays put.
+        return Ok(());
+    };
     let brand_id_uuid = Uuid::parse_str(brand_id).map_err(|e| AppError::Internal(e.to_string()))?;
     store
         .brand_store()
-        .update_brand_rating(brand_id_uuid, avg)
+        .update_brand_rating(brand_id_uuid, Some(avg))
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
@@ -617,9 +627,15 @@ async fn approved_average(store: &CompositeStore, brand_id: &str) -> AppResult<O
 }
 
 /// Brings every brand's stored rating back in line with its approved
-/// reviews — e.g. a rating typed into the old brand form, which showed
-/// customers "4.6 (0 reviews)". Writes only the brands that differ, so a
-/// routine boot touches nothing. Returns how many were corrected.
+/// reviews. Writes only the brands that differ, so a routine boot
+/// touches nothing. Returns how many were corrected.
+///
+/// Brands with no approved reviews are skipped: their stored rating is
+/// the imported operator rating from the catalogue crawl and must
+/// survive restarts. (The old behaviour nulled them out to kill ratings
+/// typed into the pre-migration admin form — that form is long gone,
+/// and the only writer of a no-review rating today is the catalogue
+/// import.)
 pub(crate) async fn reconcile_brand_ratings(store: &CompositeStore) -> AppResult<usize> {
     const PAGE: u64 = 200;
     let mut corrected = 0;
@@ -631,15 +647,15 @@ pub(crate) async fn reconcile_brand_ratings(store: &CompositeStore) -> AppResult
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
         for b in &brands {
-            let avg = approved_average(store, &b.id.to_string()).await?;
-            let same = match (b.rating, avg) {
-                (Some(stored), Some(real)) => (stored - real).abs() < 1e-9,
-                (stored, real) => stored.is_none() && real.is_none(),
+            let Some(avg) = approved_average(store, &b.id.to_string()).await? else {
+                // No approved reviews → keep the imported rating.
+                continue;
             };
+            let same = b.rating.is_some_and(|stored| (stored - avg).abs() < 1e-9);
             if !same {
                 store
                     .brand_store()
-                    .update_brand_rating(b.id, avg)
+                    .update_brand_rating(b.id, Some(avg))
                     .await
                     .map_err(|e| AppError::Internal(e.to_string()))?;
                 corrected += 1;
@@ -707,7 +723,7 @@ mod tests {
     use crate::service::test_support::fixture;
 
     #[tokio::test]
-    async fn a_typed_in_brand_rating_gives_way_to_the_reviews() {
+    async fn an_imported_rating_survives_until_approved_reviews_exist() {
         let f = fixture(1).await;
         let brand = f.brand_of_trip().await;
         f.store
@@ -716,8 +732,9 @@ mod tests {
             .await
             .unwrap();
 
-        // No approved reviews, so no rating; a second pass finds nothing to fix.
-        assert_eq!(reconcile_brand_ratings(&f.store).await.unwrap(), 1);
+        // No approved reviews → the imported rating is kept (catalogue
+        // import semantics); repeat passes stay no-ops.
+        assert_eq!(reconcile_brand_ratings(&f.store).await.unwrap(), 0);
         assert_eq!(reconcile_brand_ratings(&f.store).await.unwrap(), 0);
         let stored = f
             .store
@@ -726,6 +743,72 @@ mod tests {
             .await
             .unwrap()
             .unwrap();
-        assert_eq!(stored.rating, None);
+        assert_eq!(stored.rating, Some(4.6));
+
+        // The review create/update/delete path (recompute) also keeps it
+        // while the approved set is empty — a fresh review starts pending.
+        recompute_brand_rating(&f.store, &brand.to_string())
+            .await
+            .unwrap();
+        let stored = f
+            .store
+            .brand_store()
+            .get_by_id(brand)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(stored.rating, Some(4.6));
+    }
+
+    #[tokio::test]
+    async fn approved_reviews_take_over_the_rating() {
+        use crate::entity::review;
+        use sea_orm::{ActiveModelTrait, Set};
+
+        let f = fixture(1).await;
+        let brand = f.brand_of_trip().await;
+        f.store
+            .brand_store()
+            .update_brand_rating(brand, Some(4.6))
+            .await
+            .unwrap();
+
+        // One approved 5-star review → the rating becomes its mean (5.0),
+        // replacing the imported value.
+        let now = now_iso();
+        review::ActiveModel {
+            id: Set(Uuid::new_v4()),
+            booking_id: Set(None),
+            trip_session_id: Set(None),
+            route_id: Set(None),
+            brand_id: Set(Some(brand)),
+            author_name: Set(Some("Khách hàng".into())),
+            author_phone: Set(None),
+            rating: Set(5),
+            title: Set(None),
+            content: Set(Some("Tuyệt vời".into())),
+            tags: Set(None),
+            photos: Set(None),
+            status: Set("approved".into()),
+            helpful_count: Set(0),
+            reply: Set(None),
+            replied_at: Set(None),
+            created_at: Set(now.clone()),
+            updated_at: Set(now),
+            user_id: Set(None),
+        }
+        .insert(f.store.db())
+        .await
+        .unwrap();
+
+        assert_eq!(reconcile_brand_ratings(&f.store).await.unwrap(), 1);
+        let stored = f
+            .store
+            .brand_store()
+            .get_by_id(brand)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(stored.rating, Some(5.0));
     }
 }
