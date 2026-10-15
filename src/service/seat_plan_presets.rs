@@ -37,7 +37,7 @@ const CATALOG: &[Spec] = &[
     Spec {
         id: "car_7",
         name: "Xe 7 chỗ",
-        vehicle_type: "standard",
+        vehicle_type: "minivan",
         description: "Ghế phụ, hàng 2 ba chỗ, hàng 3 hai chỗ (6 khách + tài xế)",
         build: || single_deck(3, &[(1, Driver), (3, Seat)], &[&[1, 2, 3], &[1, 3]]),
     },
@@ -70,8 +70,8 @@ const CATALOG: &[Spec] = &[
     },
     Spec {
         id: "minibus_15",
-        name: "Xe 16 chỗ",
-        vehicle_type: "minivan",
+        name: "Ghế ngồi 16 chỗ",
+        vehicle_type: "standard",
         description:
             "Hai ghế cạnh tài xế, 3 hàng 2+1 có lối đi, hàng cuối 4 chỗ (15 khách + tài xế)",
         build: || {
@@ -159,6 +159,27 @@ const CATALOG: &[Spec] = &[
         description: "Mỗi tầng 5 hàng 2 phòng + phòng cuối xe; phòng cuối tầng dưới là phòng đôi",
         build: || cabin(5, Some(CabinDouble), 5, Some(Cabin)),
     },
+    Spec {
+        id: "cabin_22_plain",
+        name: "Limousine 22 phòng",
+        vehicle_type: "limousine",
+        description: "Mỗi tầng 5 hàng 2 phòng + phòng cuối giữa xe (không WC, không phòng đôi)",
+        build: || cabin(5, Some(Cabin), 5, Some(Cabin)),
+    },
+    Spec {
+        id: "cabin_21",
+        name: "Limousine 21 phòng",
+        vehicle_type: "limousine",
+        description: "Tầng dưới 11 phòng, tầng trên 10 phòng; lối đi giữa",
+        build: || cabin(5, Some(Cabin), 5, None),
+    },
+    Spec {
+        id: "cabin_20",
+        name: "Limousine 20 phòng",
+        vehicle_type: "limousine",
+        description: "2 tầng × 5 hàng 2 phòng, lối đi giữa",
+        build: || cabin(5, None, 5, None),
+    },
 ];
 
 fn preset(
@@ -238,7 +259,11 @@ pub fn infer_id(name: &str, vehicle_type: Option<&str>, seat_count: usize) -> Op
             } else {
                 vehicle_type != Some("sleeper")
             };
+            // Plain cabin variants lose to their WC / double siblings:
+            // a name mentioning either rules the plain form out.
+            let plain = matches!(s.id, "cabin_20" | "cabin_21" | "cabin_22_plain");
             compatible
+                && !(plain && (wc || double))
                 && sellable_count(&plan) == seat_count
                 && (!s.name.contains("WC") || wc)
                 && (!s.id.contains("double") || double)
@@ -468,6 +493,9 @@ mod tests {
             ("cabin_24", 24),
             ("cabin_22", 22),
             ("cabin_22_double", 22),
+            ("cabin_22_plain", 22),
+            ("cabin_21", 21),
+            ("cabin_20", 20),
         ];
         let all = catalog();
         assert_eq!(all.len(), expected.len());
@@ -631,6 +659,24 @@ mod tests {
             infer("Limousine 22 phòng (WC)", None, 22).as_deref(),
             Some("cabin_22")
         );
+        // the plain 22-room cabin: no WC, no double
+        assert_eq!(
+            infer("Limousine giường phòng 22 chỗ", Some("sleeper"), 22).as_deref(),
+            Some("cabin_22_plain")
+        );
+        assert_eq!(
+            infer("Limousine 21 phòng", Some("sleeper"), 21).as_deref(),
+            Some("cabin_21")
+        );
+        assert_eq!(
+            infer("Limousine 20 phòng", Some("sleeper"), 20).as_deref(),
+            Some("cabin_20")
+        );
+        // a WC name rules the plain forms out
+        assert_eq!(
+            infer("Limousine 22 phòng VIP (WC)", None, 22).as_deref(),
+            Some("cabin_22")
+        );
         assert_eq!(
             infer("Giường nằm 38 (WC)", Some("sleeper"), 38).as_deref(),
             Some("sleeper_38_wc")
@@ -640,9 +686,9 @@ mod tests {
             Some("sleeper_38")
         );
         assert_eq!(
-            infer("Limousine 22 phòng", None, 22),
-            None,
-            "a tie the name cannot break"
+            infer("Limousine 22 phòng", None, 22).as_deref(),
+            Some("cabin_22_plain"),
+            "plain rooms when no variant hint"
         );
 
         // size alone is not enough: plain seats are not berths

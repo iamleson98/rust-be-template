@@ -38,6 +38,9 @@ pub async fn run() -> anyhow::Result<()> {
         } => commands::import_osm::run(pbf_path, index_dir, heap_bytes, threads).await,
         Command::AdsSweep { limit } => commands::ads_sweep::run(limit).await,
         Command::LayoutsNormalize { apply } => commands::layouts_normalize::run(apply).await,
+        Command::LayoutsCanonicalize { apply, reset_trips } => {
+            commands::layouts_canonicalize::run(apply, reset_trips).await
+        }
     }
 }
 

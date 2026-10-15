@@ -356,8 +356,15 @@ impl ScheduleStore for DbScheduleStore {
         let mut base = bus_layout::Entity::find().order_by_desc(bus_layout::Column::CreatedAt);
         if let Some(brand_id) = brand_id.map(str::trim).filter(|s| !s.is_empty()) {
             // Parse to Uuid — see `parse_uuid` (TEXT param ≠ BLOB column on SQLite).
+            // The brand scope INCLUDES the global canonical catalog
+            // (brand_id IS NULL): the schedule form picks the vehicle
+            // from the shared catalog plus the brand's own customs.
             let brand_uuid = super::parse_uuid(brand_id)?;
-            base = base.filter(bus_layout::Column::BrandId.eq(brand_uuid));
+            base = base.filter(
+                sea_orm::Condition::any()
+                    .add(bus_layout::Column::BrandId.eq(brand_uuid))
+                    .add(bus_layout::Column::BrandId.is_null()),
+            );
         }
         let total = base.clone().count(self.db.as_ref()).await?;
         // SQLite requires LIMIT before OFFSET. "No limit" (limit = None)
