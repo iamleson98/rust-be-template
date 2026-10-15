@@ -30,7 +30,8 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, Set,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    Set,
 };
 use uuid::Uuid;
 
@@ -69,7 +70,11 @@ pub async fn run(apply: bool, reset_trips: bool) -> anyhow::Result<()> {
         "canonical catalog: {} global row(s), {} of the known keys present{}",
         canonical_rows.len(),
         canonical.len(),
-        if apply { "" } else { " (dry run: seeding happens with --apply)" }
+        if apply {
+            ""
+        } else {
+            " (dry run: seeding happens with --apply)"
+        }
     );
 
     // `code → id` for the vehicle-type catalog — re-pointed schedules
@@ -114,16 +119,17 @@ pub async fn run(apply: bool, reset_trips: bool) -> anyhow::Result<()> {
         // VIP is a whole-layout trait: every seat classed vip (the fare
         // class VIP limousines price). A partial split is a genuine
         // per-brand differentiation — keep the layout as a custom.
-        let vip = !seats.is_empty()
-            && seats.iter().all(|s| s.seat_class.as_deref() == Some("vip"));
+        let vip = !seats.is_empty() && seats.iter().all(|s| s.seat_class.as_deref() == Some("vip"));
 
-        let Some(preset_id) = seat_plan_presets::infer_id(
-            name,
-            layout.vehicle_type.as_deref(),
-            seats.len(),
-        ) else {
+        let Some(preset_id) =
+            seat_plan_presets::infer_id(name, layout.vehicle_type.as_deref(), seats.len())
+        else {
             custom_count += 1;
-            println!("keep  {}  {name} ({} seats): no preset match", layout.id, seats.len());
+            println!(
+                "keep  {}  {name} ({} seats): no preset match",
+                layout.id,
+                seats.len()
+            );
             continue;
         };
 
@@ -171,10 +177,9 @@ pub async fn run(apply: bool, reset_trips: bool) -> anyhow::Result<()> {
 
         repointed_schedules += wired.len();
         for sched in &wired {
-            if let (Some(old_vt), Some(new_code)) = (
-                sched.vehicle_type_id,
-                canonical_row.vehicle_type.as_deref(),
-            ) {
+            if let (Some(old_vt), Some(new_code)) =
+                (sched.vehicle_type_id, canonical_row.vehicle_type.as_deref())
+            {
                 let old_code = vt_code_by_id
                     .get(&old_vt)
                     .cloned()
@@ -235,7 +240,10 @@ pub async fn run(apply: bool, reset_trips: bool) -> anyhow::Result<()> {
             if apply { "done " } else { "plan " },
             layout.id,
             seats.len(),
-            canonical_row.name.as_deref().unwrap_or("(unnamed canonical)"),
+            canonical_row
+                .name
+                .as_deref()
+                .unwrap_or("(unnamed canonical)"),
             wired.len()
         );
     }

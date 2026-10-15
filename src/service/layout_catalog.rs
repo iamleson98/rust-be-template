@@ -195,9 +195,11 @@ mod tests {
         );
         // Re-running neither duplicates nor errors.
         let second = ensure_canonical_layouts(store.db()).await.unwrap();
-        assert_eq!(first.iter().map(|l| l.id).collect::<Vec<_>>(),
-                   second.iter().map(|l| l.id).collect::<Vec<_>>(),
-                   "seeding twice keeps the same rows");
+        assert_eq!(
+            first.iter().map(|l| l.id).collect::<Vec<_>>(),
+            second.iter().map(|l| l.id).collect::<Vec<_>>(),
+            "seeding twice keeps the same rows"
+        );
 
         let by_key = canonical_by_key(&second);
         assert_eq!(by_key.len(), CANONICAL_PRESETS.len());
