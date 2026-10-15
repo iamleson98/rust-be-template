@@ -124,8 +124,16 @@ test.describe('Calendar', () => {
     const initial = await mirror.textContent()
     expect(initial).toBeTruthy()
 
-    // Click day 15 of the displayed month
-    const day = page.getByTestId('calendar-demo').getByRole('button', { name: /15/ }).first()
+    // The demo starts with TODAY selected and react-day-picker
+    // single-mode toggles a re-click OFF — on the target day's own
+    // date the mirror would go back to "none". Move off today.
+    const targetDay = new Date().getDate() === 15 ? 16 : 15
+
+    // Click the target day of the displayed month
+    const day = page
+      .getByTestId('calendar-demo')
+      .getByRole('button', { name: new RegExp(`\\b${targetDay}`) })
+      .first()
     await day.click()
     await expect(mirror).toContainText('/2026')
     const updated = await mirror.textContent()
