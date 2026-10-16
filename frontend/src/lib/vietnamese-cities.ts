@@ -55,6 +55,7 @@ export const VIETNAMESE_CITIES: VietnameseCity[] = [
   { id: 'bac-giang', name: 'Bắc Giang', region: 'north' },
   { id: 'vinh-phuc', name: 'Vĩnh Phúc', region: 'north' },
   { id: 'bac-ninh', name: 'Bắc Ninh', region: 'north' },
+  { id: 'hai-duong', name: 'Hải Dương', region: 'north' },
   { id: 'phu-tho', name: 'Phú Thọ', region: 'north' },
   { id: 'ha-nam', name: 'Hà Nam', region: 'north' },
   { id: 'thai-binh', name: 'Thái Bình', region: 'north' },

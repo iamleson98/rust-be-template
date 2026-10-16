@@ -222,6 +222,13 @@ pub static CITIES: Lazy<&[City]> = Lazy::new(|| {
             lon: 106.06,
         },
         City {
+            slug: "hai-duong",
+            name: "Hải Dương",
+            region: Region::North,
+            lat: 20.94,
+            lon: 106.33,
+        },
+        City {
             slug: "phu-tho",
             name: "Phú Thọ",
             region: Region::North,
@@ -699,8 +706,8 @@ mod tests {
 
     #[test]
     fn has_all_cities_in_sync_with_frontend() {
-        // The frontend's `vietnamese-cities.ts` currently has 61 entries
-        // (5 centrally-governed municipalities + 56 provinces). The exact
+        // The frontend's `vietnamese-cities.ts` currently has 62 entries
+        // (5 centrally-governed municipalities + 57 provinces). The exact
         // count is not important — what matters is that this test will
         // fail loudly if someone adds a city on one side but not the other.
         //
@@ -709,8 +716,8 @@ mod tests {
         // `frontend/src/lib/vietnamese-cities.ts`.
         assert_eq!(
             CITIES.len(),
-            61,
-            "expected 61 Vietnamese cities — if you added/removed one, \
+            62,
+            "expected 62 Vietnamese cities — if you added/removed one, \
              update this count and the frontend's VIETNAMESE_CITIES list"
         );
     }
