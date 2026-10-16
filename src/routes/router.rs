@@ -127,6 +127,14 @@ pub fn build_router(state: AppState) -> Router<()> {
     // Each route module owns its own `router()` function — `build_router`
     // just composes them. To add a new domain: write the module, expose
     // `router()`, and add one `.nest("/<prefix>", module::router())` line.
+    //
+    // Public read-only nests additionally get the shared
+    // `Cache-Control` layer (see `middleware::public_cache`): identical
+    // bytes for every caller, keyed by full URL, 60 s TTL for anonymous
+    // visitors, `no-store` once a session cookie rides along. Anything
+    // auth-scoped, mutating, or user-specific MUST NOT get that layer.
+    let public_cache =
+        axum::middleware::from_fn(crate::middleware::public_cache::public_cache_control);
     let api_routes: Router<AppState> = Router::new()
         .nest("/auth", crate::routes::auth::router())
         .nest("/auth/oauth", crate::routes::oauth::router())
@@ -135,18 +143,36 @@ pub fn build_router(state: AppState) -> Router<()> {
         .nest("/bookings", crate::routes::bookings::router())
         .nest("/loyalty", crate::routes::loyalty::router())
         .nest("/payments", crate::routes::payments::router())
-        .nest("/brands", crate::routes::public::brands_router())
-        .nest("/routes", crate::routes::public::routes_router())
-        .nest("/trips", crate::routes::public::trips_router())
-        .nest("/search", crate::routes::public::search_router())
+        .nest(
+            "/brands",
+            crate::routes::public::brands_router().layer(public_cache.clone()),
+        )
+        .nest(
+            "/routes",
+            crate::routes::public::routes_router().layer(public_cache.clone()),
+        )
+        .nest(
+            "/trips",
+            crate::routes::public::trips_router().layer(public_cache.clone()),
+        )
+        .nest(
+            "/search",
+            crate::routes::public::search_router().layer(public_cache.clone()),
+        )
         .nest(
             "/recommendations",
-            crate::routes::public::recommendations_router(),
+            crate::routes::public::recommendations_router().layer(public_cache.clone()),
         )
         .nest("/campaigns", crate::routes::campaigns::router())
         .nest("/coupons", crate::routes::campaigns::coupons_router())
-        .nest("/stats", crate::routes::public::stats_router())
-        .nest("/places", crate::routes::places::router())
+        .nest(
+            "/stats",
+            crate::routes::public::stats_router().layer(public_cache.clone()),
+        )
+        .nest(
+            "/places",
+            crate::routes::places::router().layer(public_cache.clone()),
+        )
         .nest("/routing", crate::routes::routing::router())
         .nest("/reviews", crate::routes::reviews::router())
         .nest("/price-alerts", crate::routes::price_alerts::router())
@@ -161,7 +187,16 @@ pub fn build_router(state: AppState) -> Router<()> {
         .nest("/vitals", crate::routes::vitals::router())
         .nest("/nullclaw", crate::routes::nullclaw::router())
         .nest("/webhooks", crate::routes::webhooks::router())
-        .layer(governor_layer);
+        .layer(governor_layer)
+        // Honest `Retry-After` on 429s (load-test finding 2026-10-15):
+        // tower_governor truncated the advertised wait to `0` at
+        // 6000 RPM (10 ms refill), inviting instant-retry storms. This
+        // sits OUTSIDE the governor so every 429 it emits — and every
+        // handler 429 from the same nest — passes through on the way
+        // out. See `middleware::rate_limit_headers`.
+        .layer(axum::middleware::from_fn(
+            crate::middleware::rate_limit_headers::clamp_retry_after,
+        ));
 
     // ---- Static files (NO rate limit, browser-cache headers) -----------
     // Correct SPA static-serving contract (prevents the "module script

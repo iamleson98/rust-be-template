@@ -8,18 +8,25 @@
 //!
 //! * nginx's SNI router is a `stream{}` block — it passes TLS bytes
 //!   through untouched and never rewrites HTTP headers.
-//! * Caddy (`reverse_proxy`) appends its immediate peer (a Cloudflare
-//!   edge IP) to `X-Forwarded-For`.
 //! * Cloudflare appends the true client IP to `X-Forwarded-For` AND sets
 //!   the authoritative `CF-Connecting-IP`.
+//! * Caddy (`reverse_proxy`) trusts its docker-network peer
+//!   (`trusted_proxies` in `deploy/Caddyfile.datxevui`) and APPENDS that
+//!   peer to `X-Forwarded-For` — so the chain arriving here is
+//!   `visitor_ip, 172.18.0.1` and the true client IP is
+//!   `TRUSTED_PROXY_HOPS + 1` entries from the RIGHT (default hops = 1:
+//!   exactly the one append Caddy makes). Without that trust, Caddy
+//!   REPLACES the header with the peer alone (`172.18.0.1` for everyone)
+//!   — the private-entry + `CF-Connecting-IP` fallback below recovers
+//!   the visitor even in that degraded shape (load test 2026-10-15:
+//!   the whole site shared ONE ~100 rps rate-limit bucket because of
+//!   it).
 //! * The client's own `X-Forwarded-For` entries (spoofable padding) sit
 //!   at the FRONT of the list.
 //!
-//! So the true client IP is `TRUSTED_PROXY_HOPS + 1` entries from the
-//! RIGHT of `X-Forwarded-For` (default hops = 1: exactly the one append
-//! Caddy makes). Mobile/programmatic clients may bypass Cloudflare and
-//! hit nginx/Caddy directly — then `X-Forwarded-For` only has Caddy's
-//! append (the socket peer) and the same right-anchored parse yields it.
+//! Mobile/programmatic clients may bypass Cloudflare and hit nginx/Caddy
+//! directly — then `X-Forwarded-For` only has Caddy's append (the socket
+//! peer) and the same right-anchored parse yields it.
 //!
 //! Why this matters for the WS hubs: `ConnectInfo<SocketAddr>` behind
 //! this chain is always CADDY's overlay IP. Keying the per-IP connection
@@ -119,6 +126,32 @@ fn is_cloudflare_edge(ip: IpAddr) -> bool {
     }
 }
 
+/// Whether `ip` is a private / loopback / link-local address — a
+/// proxy-chain artifact, never a real internet client.
+///
+/// When the right-anchored `X-Forwarded-For` entry is one of these, the
+/// chain did NOT record the actual visitor. That is exactly what
+/// happens when Caddy has no `trusted_proxies` for its peer: it
+/// REPLACES the incoming `X-Forwarded-For` (which Cloudflare set to the
+/// visitor IP) with its own docker-network peer (observed live:
+/// `172.18.0.1` for every request — the whole site shared ONE rate-limit
+/// bucket; load test 2026-10-15). In that degraded state,
+/// `CF-Connecting-IP` — which Cloudflare overwrites authoritatively on
+/// proxied traffic — is the only header that still names the visitor.
+fn is_private_or_loopback(ip: IpAddr) -> bool {
+    match ip {
+        IpAddr::V4(a) => {
+            a.is_private() || a.is_loopback() || a.is_link_local() || a.is_unspecified()
+        }
+        IpAddr::V6(a) => {
+            a.is_loopback()
+                || a.is_unspecified()
+                || a.is_unique_local()
+                || (a.segments()[0] & 0xffc0) == 0xfe80 // link-local fe80::/10
+        }
+    }
+}
+
 /// Real client IP from the proxy chain: right-anchored
 /// `X-Forwarded-For` (TRUSTED_PROXY_HOPS + 1 from the right), falling
 /// back to `CF-Connecting-IP`, then to the socket peer.
@@ -133,7 +166,9 @@ pub fn real_client_ip(headers: &HeaderMap, socket_ip: IpAddr) -> IpAddr {
 /// not trust Cloudflare's own `X-Forwarded-For`); `CF-Connecting-IP` then
 /// names the visitor. Cloudflare overwrites that header itself, so it
 /// cannot be forged through Cloudflare, and a client that skips Cloudflare
-/// does not arrive from an edge address.
+/// does not arrive from an edge address. The same deferral applies when
+/// the selected entry is private/loopback (a proxy artifact such as
+/// Caddy's docker-gateway peer — see `is_private_or_loopback`).
 pub fn header_client_ip(headers: &HeaderMap) -> Option<IpAddr> {
     let cf_connecting = || {
         headers
@@ -150,7 +185,7 @@ pub fn header_client_ip(headers: &HeaderMap) -> Option<IpAddr> {
             // the proxy BEFORE the last `hops` trusted appends.
             let idx = ips.len().saturating_sub(hops + 1);
             if let Some(ip) = ips.get(idx).and_then(|s| parse_ip(s)) {
-                return Some(if is_cloudflare_edge(ip) {
+                return Some(if is_cloudflare_edge(ip) || is_private_or_loopback(ip) {
                     cf_connecting().unwrap_or(ip)
                 } else {
                     ip
@@ -281,5 +316,65 @@ mod tests {
         ]);
         // idx 0 = "not-an-ip" fails parse → CF fallback.
         assert_eq!(real_client_ip(&h, ip("10.0.0.9")), ip("203.0.113.7"));
+    }
+
+    /// The degraded production shape (load test 2026-10-15): Caddy, with
+    /// no `trusted_proxies`, replaced Cloudflare's visitor XFF with its
+    /// docker-gateway peer. A private entry means "the chain lost the
+    /// visitor" — `CF-Connecting-IP` (CF-authoritative) must win.
+    #[test]
+    fn private_xff_entry_defers_to_cf_connecting_ip() {
+        let h = headers(&[
+            ("x-forwarded-for", "172.18.0.1"),
+            ("cf-connecting-ip", "14.160.0.9"),
+        ]);
+        assert_eq!(real_client_ip(&h, ip("10.0.0.9")), ip("14.160.0.9"));
+    }
+
+    /// Same rule for a longer chain and IPv6 ULA/link-local artifacts.
+    /// Chain shape `visitor, caddy_peer`: the right-anchored slot is the
+    /// FIRST entry — a private value there means the chain lost the
+    /// visitor, so `CF-Connecting-IP` wins.
+    #[test]
+    fn private_entries_in_longer_chains_defer_too() {
+        let h = headers(&[
+            ("x-forwarded-for", "10.0.0.5, 172.18.0.1"),
+            ("cf-connecting-ip", "14.160.0.9"),
+        ]);
+        // hops=1 → entry at len-2 = 10.0.0.5 (private) → CF wins.
+        assert_eq!(real_client_ip(&h, ip("10.0.0.9")), ip("14.160.0.9"));
+        for artifact in ["fd00::1", "fe80::1"] {
+            let h = headers(&[
+                ("x-forwarded-for", artifact),
+                ("cf-connecting-ip", "2001:db8:aa::1"),
+            ]);
+            assert_eq!(
+                real_client_ip(&h, ip("10.0.0.9")),
+                ip("2001:db8:aa::1"),
+                "{artifact}"
+            );
+        }
+    }
+
+    /// Without `CF-Connecting-IP` the private entry stands — direct
+    /// (non-CF) traffic keeps one shared bucket, same as before.
+    #[test]
+    fn private_xff_entry_without_cf_stays() {
+        let h = headers(&[("x-forwarded-for", "172.18.0.1")]);
+        assert_eq!(real_client_ip(&h, ip("10.0.0.9")), ip("172.18.0.1"));
+    }
+
+    /// A real visitor's address is never "private": the deferral must
+    /// not fire for legit public XFF entries (guard against
+    /// over-eager classification).
+    #[test]
+    fn public_xff_entries_never_defer() {
+        for visitor in ["203.0.113.7", "14.160.0.9", "2001:db8::1"] {
+            let h = headers(&[
+                ("x-forwarded-for", visitor),
+                ("cf-connecting-ip", "203.0.113.99"),
+            ]);
+            assert_eq!(real_client_ip(&h, ip("10.0.0.9")), ip(visitor), "{visitor}");
+        }
     }
 }

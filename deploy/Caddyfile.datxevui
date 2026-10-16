@@ -23,6 +23,21 @@
 #    though the body IS the app. Only text/html 404s (the SPA shell)
 #    are rewritten to 200; /api/* is exempted (JSON 404s keep their
 #    real status — the app's error handling depends on them).
+#  - trusted_proxies (2026-10-16, load-test finding #1): Caddy's only
+#    TCP peer on :443 is the docker gwbridge SNAT address
+#    (172.18.0.1) — nginx's stream SNI router re-originates every
+#    connection from loopback. WITHOUT trust, Caddy REPLACES the
+#    incoming X-Forwarded-For (which Cloudflare sets to the visitor
+#    IP) with that constant, so the backend's rate limiter, WS
+#    per-IP caps and geo gate all keyed on 172.18.0.1 — ONE shared
+#    bucket for the whole site (~100 rps at RATE_LIMIT_RPM=6000;
+#    observed live: every ws-call logged ip=172.18.0.1). With
+#    trusted_proxies, Caddy APPENDS its peer instead, restoring the
+#    chain `visitor_ip, 172.18.0.1` that the backend's
+#    TRUSTED_PROXY_HOPS=1 right-anchored parse (src/middleware/
+#    client_ip.rs) expects. The public internet cannot reach this
+#    listener directly (DOCKER-USER drops non-loopback :8443), so
+#    trusting the private range here only vouches for nginx.
 
 datxevui.com, www.datxevui.com {
         # Compress responses in transit. Caddy skips responses that are
@@ -37,6 +52,10 @@ datxevui.com, www.datxevui.com {
         # everything else gets the SPA fallback status fix (see header).
         handle /api/* {
                 reverse_proxy datxevui_backend:8080 {
+                        # Real client IP (see trusted_proxies note in the
+                        # header comment): keep the X-Forwarded-For chain
+                        # Cloudflare built instead of replacing it.
+                        trusted_proxies 172.16.0.0/12 127.0.0.1/8
                         # Disable response buffering so SSE/chat streams flush immediately.
                         flush_interval -1
                         transport http {
@@ -46,6 +65,9 @@ datxevui.com, www.datxevui.com {
         }
         handle {
                 reverse_proxy datxevui_backend:8080 {
+                        # Same as the /api handle: WS (/ws, /ws-call) per-IP
+                        # caps and the geo gate ride this path too.
+                        trusted_proxies 172.16.0.0/12 127.0.0.1/8
                         # SPA fallback status fix (see header comment): text/html 404 → 200.
                         @spa_fallback {
                                 status 404
