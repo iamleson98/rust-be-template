@@ -682,10 +682,20 @@ impl TripStore for DbTripStore {
         if bus_layout_ids.is_empty() {
             return Ok(Vec::new());
         }
+        // Deduplicate BEFORE chunking. Callers pass one id per schedule
+        // (the trip warmer), so a layout shared by many schedules lands
+        // in several chunks — each chunk's IN-list legitimately returns
+        // that layout's rows, and without the dedup every extra chunk
+        // contributed them AGAIN. The warmer's capacity map then held
+        // seats × chunk-count and trips materialized with inflated
+        // total_seats (production: a 44-berth sleeper shipped 528).
+        let mut ids = bus_layout_ids;
+        ids.sort_unstable();
+        ids.dedup();
         // Chunked IN-lists — same bounding rationale as
         // `list_trip_schedule_ids_for_date` below.
         let mut out = Vec::new();
-        for chunk in bus_layout_ids.chunks(SCHEDULE_ID_CHUNK) {
+        for chunk in ids.chunks(SCHEDULE_ID_CHUNK) {
             out.extend(
                 seat::Entity::find()
                     .filter(seat::Column::BusLayoutId.is_in(chunk.to_vec()))

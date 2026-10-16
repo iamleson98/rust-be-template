@@ -390,3 +390,90 @@ async fn trips_are_priced_from_their_fares_until_opened_then_get_their_seats() -
     assert_eq!(fares, [(200_000, 7, 7), (300_000, 2, 2)]);
     Ok(())
 }
+
+/// Schedules sharing ONE bus layout must each materialize a trip with
+/// the LAYOUT's seat count — not a multiple of it. The warmer resolves
+/// capacity through one chunked
+/// `WHERE bus_layout_id IN (…)` over one id PER SCHEDULE, so a shared
+/// layout used to arrive with duplicated rows in the capacity map and
+/// trips shipped with inflated `total_seats` (production showed a
+/// 44-berth sleeper with 528 = 44 × 12 seats — one multiple per
+/// schedule on that layout in the same fill pass — while the seat map
+/// itself stayed correct).
+#[tokio::test]
+async fn a_shared_layout_keeps_its_own_seat_count_on_every_trip() -> anyhow::Result<()> {
+    let st = boot_state().await?;
+    let plan = seat_plan_presets::find("sleeper_40").expect("preset").plan;
+    let layout = st
+        .admin
+        .create_bus_layout(&UpsertBusLayoutRequest {
+            name: Some("Giường nằm 40".into()),
+            vehicle_type: Some("sleeper".into()),
+            plan: Some(plan),
+            ..Default::default()
+        })
+        .await?
+        .id;
+    let operator = brand(&st, "Nhà xe Chung").await?;
+    let route_id = route(&st, "Huế - Quảng Nam", operator, "hue", "quang-nam").await?;
+    // 600 schedules share the layout — the warmer's chunked IN-lists
+    // (500 keys per chunk) then span TWO chunks and the layout's id
+    // appears in both. Without the store's dedup each chunk contributed
+    // the layout's rows again, so every trip materialized with
+    // seats x chunk_count (production: 44-berth sleepers at 528).
+    let times: Vec<String> = (0..600)
+        .map(|i| format!("{:02}:{:02}", (i / 60) % 24, (i * 7) % 60))
+        .collect();
+    for at in &times {
+        st.admin
+            .create_schedule(&UpsertScheduleRequest {
+                route_id: Some(route_id),
+                departure_time: Some(at.clone()),
+                days_of_week: Some("1111111".into()),
+                bus_layout_id: Some(layout),
+                base_price_adult: Some(600_000),
+                ..Default::default()
+            })
+            .await?;
+    }
+
+    // The search page is capped at 100 items — walk it to collect every
+    // materialized trip.
+    let mut items = Vec::new();
+    for page in 0.. {
+        let found = st
+            .public
+            .search_trips(
+                "Huế",
+                "Quảng Nam",
+                &Options::new(
+                    &travel_date(),
+                    Some(100),
+                    Some(page * 100),
+                    Sort::Departure,
+                    Some(1),
+                    None,
+                    Filters::default(),
+                )
+                .expect("valid options"),
+            )
+            .await?;
+        let n = found.items.len();
+        items.extend(found.items);
+        if n < 100 {
+            break;
+        }
+    }
+    // The search working set is capped at CITY_TRIP_CAP (500) trips —
+    // the materialization itself covers all 600.
+    assert_eq!(items.len(), 500, "search returns the trip cap");
+    assert!(times.len() >= 500);
+    for t in &items {
+        assert_eq!(
+            t.total_seats, 40,
+            "total_seats must be the layout's seat count, not a multiple"
+        );
+        assert_eq!(t.available_seats, 40);
+    }
+    Ok(())
+}
