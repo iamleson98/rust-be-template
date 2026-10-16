@@ -14,6 +14,15 @@
 //! plaintext verdict to match, and leaves every other response — and
 //! every non-numeric (HTTP-date) `Retry-After` — untouched.
 //!
+//! The verdict rewrite is gated on the body's EXACT shape (`Too Many
+//! Requests! Wait for <digits>s`), NOT on `Content-Type`: tower_governor
+//! 0.7 REPLACES the response's entire header map with just
+//! `{x-ratelimit-after, retry-after}` — verified live (v0.9.6 deploy):
+//! the 429 reaches this layer with NO content-type (it is added further
+//! downstream), so a content-type gate would never fire. A JSON error
+//! body can never match the verdict shape, so app-level 429s pass
+//! through byte-for-byte.
+//!
 //! Layer position: applied just OUTSIDE the governor layer in
 //! `routes/router.rs`, so every 429 it emits passes through here on the
 //! way out; handler-produced 429s (same nest) get the same treatment,
@@ -31,9 +40,10 @@ pub const MIN_RETRY_AFTER_SECS: u64 = 1;
 const VERDICT_PREFIX: &str = "Too Many Requests! Wait for ";
 const VERDICT_SUFFIX: &str = "s";
 
-/// Only verdict-sized plaintext bodies are ever inspected — JSON error
-/// bodies stream through untouched.
-const MAX_INSPECTED_BODY_BYTES: usize = 512;
+/// Only verdict-sized bodies are ever inspected — larger 429s (JSON
+/// errors are a few hundred bytes) pass through; a body bigger than
+/// this cannot be the governor's 30-byte verdict.
+const MAX_INSPECTED_BODY_BYTES: usize = 8192;
 
 /// Clamp a numeric delay-seconds value up to the floor. `None` when the
 /// value is absent or not delay-seconds (an HTTP-date) — leave those be.
@@ -97,23 +107,21 @@ async fn polish_429(mut resp: Response) -> Response {
     let Some(wait) = advertised else {
         return resp; // HTTP-date Retry-After: headers were left honest
     };
-    let is_plaintext = resp
-        .headers()
-        .get(header::CONTENT_TYPE)
-        .and_then(|v| v.to_str().ok())
-        .is_some_and(|ct| ct.starts_with("text/plain"));
-    if !is_plaintext {
-        return resp; // JSON 429s (app-level) stream through untouched
-    }
 
-    // The governor's verdict is a 30-byte fixed text; anything larger
-    // than the inspection budget cannot be it.
+    // The verdict rewrite is gated on the body's shape, not on
+    // `Content-Type` (the governor's 429 carries none at this point —
+    // see module docs). `rewritten_verdict` only matches the exact
+    // verdict text, so JSON / app-level 429 bodies fall through the
+    // match below and are re-emitted verbatim.
     let (mut parts, body) = resp.into_parts();
     let out: Vec<u8> = match axum::body::to_bytes(body, MAX_INSPECTED_BODY_BYTES).await {
         Ok(bytes) => match rewritten_verdict(&String::from_utf8_lossy(&bytes), wait) {
             Some(text) => text.into_bytes(),
             None => bytes.to_vec(), // not the governor's wording — keep it
         },
+        // A 429 body larger than the inspection budget cannot be the
+        // verdict; the stream is already consumed, so answer with the
+        // canonical verdict text (headers stay clamped).
         Err(_) => format!("{VERDICT_PREFIX}{wait}{VERDICT_SUFFIX}").into_bytes(),
     };
     if let Ok(len) = HeaderValue::from_str(&out.len().to_string()) {
@@ -183,6 +191,89 @@ mod tests {
         assert_eq!(resp.headers()["retry-after"], "1");
         assert_eq!(resp.headers()["x-ratelimit-after"], "1");
         assert_eq!(body_text(resp).await, "Too Many Requests! Wait for 1s");
+    }
+
+    /// The EXACT production shape from the v0.9.6 deploy: tower_governor
+    /// 0.7 REPLACES the response's header map, so the 429 reaches this
+    /// layer with NO content-type — the rewrite must not depend on it.
+    #[tokio::test]
+    async fn production_shape_without_content_type_is_fixed() {
+        let resp = through(
+            StatusCode::TOO_MANY_REQUESTS,
+            &[("retry-after", "0"), ("x-ratelimit-after", "0")],
+            "Too Many Requests! Wait for 0s",
+        )
+        .await;
+        assert!(!resp.headers().contains_key(header::CONTENT_TYPE));
+        assert_eq!(resp.headers()["retry-after"], "1");
+        assert_eq!(resp.headers()["x-ratelimit-after"], "1");
+        assert_eq!(body_text(resp).await, "Too Many Requests! Wait for 1s");
+    }
+
+    /// End-to-end with the REAL tower_governor layer: the clamp sees the
+    /// governor's own 429 (header map replaced, no content-type) and
+    /// fixes both the wait headers and the verdict body.
+    #[tokio::test]
+    async fn real_governor_429_is_fixed_end_to_end() {
+        use tower_governor::governor::GovernorConfigBuilder;
+        use tower_governor::key_extractor::KeyExtractor;
+        use tower_governor::{GovernorError, GovernorLayer};
+
+        #[derive(Clone, Copy)]
+        struct ConstKey;
+        impl KeyExtractor for ConstKey {
+            type Key = u64;
+            fn extract<T>(
+                &self,
+                _req: &axum::http::Request<T>,
+            ) -> Result<Self::Key, GovernorError> {
+                Ok(1)
+            }
+        }
+
+        // Production-like refill (RATE_LIMIT_RPM=6000 → 10 ms interval):
+        // the computed wait truncates to 0 — the bug this middleware fixes.
+        let conf = std::sync::Arc::new(
+            GovernorConfigBuilder::default()
+                .key_extractor(ConstKey)
+                .per_millisecond(10)
+                .burst_size(2)
+                .finish()
+                .unwrap(),
+        );
+        let app = Router::new()
+            .route("/api/x", get(|| async { "ok" }))
+            .layer(GovernorLayer { config: conf })
+            .layer(axum::middleware::from_fn(clamp_retry_after));
+
+        let mut saw_429 = false;
+        for i in 0..6 {
+            let resp = app
+                .clone()
+                .oneshot(
+                    axum::http::Request::builder()
+                        .uri("/api/x")
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            if resp.status() == StatusCode::TOO_MANY_REQUESTS {
+                saw_429 = true;
+                assert!(
+                    !resp.headers().contains_key(header::CONTENT_TYPE),
+                    "governor 0.7 replaces the header map — no content-type here"
+                );
+                assert_eq!(resp.headers()["retry-after"], "1", "request #{i}");
+                assert_eq!(resp.headers()["x-ratelimit-after"], "1", "request #{i}");
+                assert_eq!(
+                    body_text(resp).await,
+                    "Too Many Requests! Wait for 1s",
+                    "request #{i}"
+                );
+            }
+        }
+        assert!(saw_429, "governor never rate-limited 6 requests (burst 2)");
     }
 
     #[tokio::test]
