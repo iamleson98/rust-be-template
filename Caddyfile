@@ -20,10 +20,23 @@
 yourdomain.com {
     # ── Reverse proxy to backend ─────────────────────────────────
     reverse_proxy localhost:8080 {
-        # Pass real client IP + protocol to the backend (so tower_governor
-        # can rate-limit per IP, and the audit log shows real origins).
-        header_up X-Real-IP {remote_host}
-        header_up X-Forwarded-For {remote_host}
+        # Pass the real protocol to the backend. Do NOT override
+        # X-Forwarded-For manually: Caddy manages it — with the peer
+        # trusted (see trusted_proxies below) it APPENDS the peer to
+        # the chain Cloudflare built ("visitor, peer"); untrusted it
+        # REPLACES the chain with the peer. Either way the backend's
+        # right-anchored parse (src/middleware/client_ip.rs,
+        # TRUSTED_PROXY_HOPS=1) sees the right IP. Overriding it with
+        # {remote_host} would DESTROY Cloudflare's visitor entry and
+        # collapse every user into one rate-limit bucket (the
+        # 2026-10-15 load-test finding).
+        #
+        # When Cloudflare (orange-cloud) fronts this site, ALSO list
+        # Cloudflare's IP ranges (https://www.cloudflare.com/ips/) so
+        # Caddy trusts CF's own XFF append:
+        #   trusted_proxies 173.245.48.0/20 103.21.244.0/22 ...
+        # (Behind a plain docker/nginx hop: list that hop's range
+        # instead — see deploy/Caddyfile.datxevui for the prod shape.)
         header_up X-Forwarded-Proto {scheme}
         # Flush immediately so SSE / chunked transfer (streaming CSV export,
         # WebSocket upgrades) reach the client without buffering.
