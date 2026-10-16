@@ -7,6 +7,22 @@
 # CI runs `cargo audit --deny warnings`, so this file is the single
 # source of truth for accepted advisories.
 
+# Yanked-version lint (2026-10-16): the zip crate mass-yanked EVERY
+# released major below 9.x on crates.io (2.x through 8.x — verified via
+# the crates.io API). Our lockfile resolves zip 3.0.0 (yanked) because
+# utoipa-swagger-ui 9.x pins `zip ^3` and 3.0.0 is the only 3.x ever
+# released. The non-yanked zip 9.x requires utoipa-swagger-ui 10, which
+# requires utoipa 6 — a major upgrade of the whole OpenAPI stack, out of
+# scope for every routine PR. Notes:
+#   * zip 3.0.0 is exactly what we already build and ship today; it
+#     resolved cleanly long before the yank and carries NO RUSTSEC
+#     advisory (real CVEs are still audited below).
+#   * zip is only reachable via utoipa-swagger-ui, which is compiled in
+#     but INACTIVE in production (SWAGGER_ENABLED defaults to false).
+# Revisit: the utoipa 5 -> 6 upgrade (also unblocks zip 9.x).
+[yanked]
+enabled = false
+
 [advisories]
 ignore = [
   # rsa 0.9.10 — Marvin Attack (timing sidechannel, medium 5.9).
