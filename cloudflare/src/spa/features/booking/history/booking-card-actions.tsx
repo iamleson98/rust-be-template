@@ -1,24 +1,24 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { Button } from '@spa/components/ui/button'
-import { Loader2, Ban, CreditCard, MessageSquare, Star, QrCode, Search } from 'lucide-react'
-import { useBookingPayments } from '@spa/features/booking/api'
-import { PaymentDialog } from '@spa/features/booking/flow/payment-dialog'
-import { trackConversion } from '@spa/lib/analytics'
-import { useT } from '@spa/lib/i18n'
-import { TicketQrDialog } from './ticket-qr-dialog'
+import { useState } from "react";
+import { Button } from "@spa/components/ui/button";
+import { Loader2, Ban, CreditCard, MessageSquare, Star, QrCode, Search } from "lucide-react";
+import { useBookingPayments } from "@spa/features/booking/api";
+import { PaymentDialog } from "@spa/features/booking/flow/payment-dialog";
+import { trackConversion } from "@spa/lib/analytics";
+import { useT } from "@spa/lib/i18n";
+import { TicketQrDialog } from "./ticket-qr-dialog";
 
 /** Finish paying an online booking: resumes its payment, or starts one. */
 function PayButton({ bookingId, code, total }: { bookingId: string; code: string; total: number }) {
-  const t = useT()
-  const [open, setOpen] = useState(false)
-  const payments = useBookingPayments(bookingId, open)
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  const payments = useBookingPayments(bookingId, open);
   return (
     <>
       <Button size="sm" className="gap-1.5" onClick={() => setOpen(true)}>
         <CreditCard className="size-3.5" />
-        {t('booking.payment')}
+        {t("booking.payment")}
       </Button>
       {open && (
         <PaymentDialog
@@ -28,17 +28,17 @@ function PayButton({ bookingId, code, total }: { bookingId: string; code: string
           open
           onClose={() => setOpen(false)}
           onPaid={(payment) => {
-            setOpen(false)
-            trackConversion('purchase', {
+            setOpen(false);
+            trackConversion("purchase", {
               value: payment.amount,
               currency: payment.currency,
               transactionId: code,
-            })
+            });
           }}
         />
       )}
     </>
-  )
+  );
 }
 
 /** A ticket card's actions: pay, QR (shown in place), cancel, review, book again. The details are the expanded card itself. */
@@ -58,32 +58,32 @@ export function BookingCardActions({
   extraActions,
   onExploreOther,
 }: {
-  bookingId: string
-  bookingCode: string
-  total: number
+  bookingId: string;
+  bookingCode: string;
+  total: number;
   /** An online payment is still to be made. */
-  payable: boolean
+  payable: boolean;
   /** The ticket is open, so it has a boarding QR. */
-  hasQr: boolean
-  canCancel: boolean
-  cancelling?: boolean
-  onCancelClick?: () => void
-  canReview: boolean
-  onLeaveFeedback?: () => void
-  feedbackOpen?: boolean
-  hasReview?: boolean
-  extraActions?: React.ReactNode
-  onExploreOther?: () => void
+  hasQr: boolean;
+  canCancel: boolean;
+  cancelling?: boolean;
+  onCancelClick?: () => void;
+  canReview: boolean;
+  onLeaveFeedback?: () => void;
+  feedbackOpen?: boolean;
+  hasReview?: boolean;
+  extraActions?: React.ReactNode;
+  onExploreOther?: () => void;
 }) {
-  const t = useT()
-  const [qrOpen, setQrOpen] = useState(false)
+  const t = useT();
+  const [qrOpen, setQrOpen] = useState(false);
   return (
     <div className="flex flex-wrap items-center gap-2 pt-2">
       {payable && <PayButton bookingId={bookingId} code={bookingCode} total={total} />}
       {hasQr && !payable && (
         <Button size="sm" className="gap-1.5" onClick={() => setQrOpen(true)}>
           <QrCode className="size-3.5" />
-          {t('bookingHistory.qrCode')}
+          {t("bookingHistory.qrCode")}
         </Button>
       )}
 
@@ -100,7 +100,7 @@ export function BookingCardActions({
           ) : (
             <Ban className="h-3.5 w-3.5" />
           )}
-          {t('cancel.title')}
+          {t("cancel.title")}
         </Button>
       )}
 
@@ -113,7 +113,7 @@ export function BookingCardActions({
           aria-expanded={feedbackOpen}
         >
           <MessageSquare className="h-3.5 w-3.5" />
-          {feedbackOpen ? t('bookingHistory.hideReviewForm') : t('bookingHistory.writeReview')}
+          {feedbackOpen ? t("bookingHistory.hideReviewForm") : t("bookingHistory.writeReview")}
         </Button>
       )}
 
@@ -126,7 +126,7 @@ export function BookingCardActions({
           aria-expanded={feedbackOpen}
         >
           <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
-          {feedbackOpen ? t('bookingHistory.hideReview') : t('bookingHistory.viewReview')}
+          {feedbackOpen ? t("bookingHistory.hideReview") : t("bookingHistory.viewReview")}
         </Button>
       )}
 
@@ -139,10 +139,10 @@ export function BookingCardActions({
         onClick={onExploreOther}
       >
         <Search className="h-3.5 w-3.5" />
-        {t('bookingHistory.bookAnotherTrip')}
+        {t("bookingHistory.bookAnotherTrip")}
       </Button>
 
       <TicketQrDialog code={qrOpen ? bookingCode : null} onOpenChange={setQrOpen} />
     </div>
-  )
+  );
 }

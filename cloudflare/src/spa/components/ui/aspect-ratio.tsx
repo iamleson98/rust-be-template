@@ -1,15 +1,15 @@
-'use client'
+"use client";
 
-import { type ComponentProps } from 'react'
+import type { ComponentProps } from "react";
 
-import { cn } from '@spa/lib/utils'
+import { cn } from "@spa/lib/utils";
 
-export interface AspectRatioProps extends ComponentProps<'div'> {
+export interface AspectRatioProps extends ComponentProps<"div"> {
   /**
    * The desired aspect ratio (width / height). Defaults to 16/9.
    * @default 16 / 9
    */
-  ratio?: number
+  ratio?: number;
 }
 
 /**
@@ -28,12 +28,12 @@ function AspectRatio({ className, ratio = 16 / 9, children, ...props }: AspectRa
     <div
       data-slot="aspect-ratio"
       style={{ aspectRatio: String(ratio) }}
-      className={cn('relative size-full w-full', className)}
+      className={cn("relative size-full w-full", className)}
       {...props}
     >
       <div className="absolute inset-0">{children}</div>
     </div>
-  )
+  );
 }
 
-export { AspectRatio }
+export { AspectRatio };

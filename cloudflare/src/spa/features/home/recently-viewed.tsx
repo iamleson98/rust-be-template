@@ -1,22 +1,22 @@
-import { memo } from 'react'
-import { Link } from '@tanstack/react-router'
-import { History } from 'lucide-react'
-import { relativeTime } from '@spa/lib/format'
-import { useT } from '@spa/lib/i18n'
-import { useGuest } from '@spa/stores/guest'
+import { memo } from "react";
+import { Link } from "@tanstack/react-router";
+import { History } from "lucide-react";
+import { relativeTime } from "@spa/lib/format";
+import { useT } from "@spa/lib/i18n";
+import { useGuest } from "@spa/stores/guest";
 
 /** Trips opened lately on this device, one tap to reopen; absent until there are some. */
 export const RecentlyViewed = memo(function RecentlyViewed() {
-  const recentlyViewed = useGuest((s) => s.recentlyViewed)
-  const t = useT()
+  const recentlyViewed = useGuest((s) => s.recentlyViewed);
+  const t = useT();
 
-  if (recentlyViewed.length === 0) return null
+  if (recentlyViewed.length === 0) return null;
 
   return (
     <section className="page-x pt-10 md:pt-12">
       <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-900">
         <History className="size-4 text-slate-400" />
-        {t('home.recentlyViewedTitle')}
+        {t("home.recentlyViewedTitle")}
       </h2>
       <div className="-mx-4 -my-1 flex gap-2 overflow-x-auto px-4 py-1 scrollbar-none sm:-mx-1 sm:flex-wrap sm:px-1">
         {recentlyViewed.slice(0, 6).map((rv) => (
@@ -36,5 +36,5 @@ export const RecentlyViewed = memo(function RecentlyViewed() {
         ))}
       </div>
     </section>
-  )
-})
+  );
+});

@@ -1,4 +1,4 @@
-'use client'
+"use client";
 
 /**
  * GatewayRedirect — the vnpay / momo / zalopay body of the PaymentDialog:
@@ -10,35 +10,35 @@
  * private `providerMeta` helper.
  */
 
-import { Button } from '@spa/components/ui/button'
-import { CheckCircle2, ExternalLink, Wallet, QrCode, Banknote } from 'lucide-react'
-import { useT } from '@spa/lib/i18n'
-import type { PaymentOut } from '@spa/api'
-import type { PaymentProvider } from '@spa/lib/payment'
+import { Button } from "@spa/components/ui/button";
+import { CheckCircle2, ExternalLink, Wallet, QrCode, Banknote } from "lucide-react";
+import { useT } from "@spa/lib/i18n";
+import type { PaymentOut } from "@spa/api";
+import type { PaymentProvider } from "@spa/lib/payment";
 
 function providerMeta(
   provider: PaymentProvider,
   t: ReturnType<typeof useT>,
 ): { label: string; icon: React.ReactNode } {
   switch (provider) {
-    case 'vnpay':
-      return { label: t('payment.vnpay'), icon: <Wallet className="h-5 w-5 text-primary" /> }
-    case 'momo':
-      return { label: t('payment.momo'), icon: <Wallet className="h-5 w-5 text-fuchsia-600" /> }
-    case 'zalopay':
-      return { label: t('payment.zalopay'), icon: <Wallet className="h-5 w-5 text-primary" /> }
-    case 'vietqr':
+    case "vnpay":
+      return { label: t("payment.vnpay"), icon: <Wallet className="h-5 w-5 text-primary" /> };
+    case "momo":
+      return { label: t("payment.momo"), icon: <Wallet className="h-5 w-5 text-fuchsia-600" /> };
+    case "zalopay":
+      return { label: t("payment.zalopay"), icon: <Wallet className="h-5 w-5 text-primary" /> };
+    case "vietqr":
       return {
-        label: t('bookingFlow.providerVietqrTransfer'),
+        label: t("bookingFlow.providerVietqrTransfer"),
         icon: <QrCode className="h-5 w-5 text-emerald-600" />,
-      }
-    case 'cod':
+      };
+    case "cod":
       return {
-        label: t('bookingFlow.payCod'),
+        label: t("bookingFlow.payCod"),
         icon: <Banknote className="h-5 w-5 text-amber-600" />,
-      }
+      };
     default:
-      return { label: provider, icon: <Wallet className="h-5 w-5" /> }
+      return { label: provider, icon: <Wallet className="h-5 w-5" /> };
   }
 }
 
@@ -47,26 +47,26 @@ export function GatewayRedirect({
   gatewayUrl,
   status,
 }: {
-  provider: PaymentProvider
-  gatewayUrl?: string | null
-  status: PaymentOut['status']
+  provider: PaymentProvider;
+  gatewayUrl?: string | null;
+  status: PaymentOut["status"];
 }) {
-  const t = useT()
-  const meta = providerMeta(provider, t)
-  if (status === 'completed') {
+  const t = useT();
+  const meta = providerMeta(provider, t);
+  if (status === "completed") {
     return (
       <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-4 text-center">
         <CheckCircle2 className="h-6 w-6 text-emerald-600 mx-auto mb-2" />
-        <div className="text-sm font-medium text-emerald-800">{t('bookingFlow.gatewayThanks')}</div>
+        <div className="text-sm font-medium text-emerald-800">{t("bookingFlow.gatewayThanks")}</div>
       </div>
-    )
+    );
   }
   if (!gatewayUrl) {
     return (
       <div className="rounded-lg bg-amber-50 border border-amber-200 p-4 text-center text-sm text-amber-800">
-        {t('bookingFlow.gatewayWaiting')}
+        {t("bookingFlow.gatewayWaiting")}
       </div>
-    )
+    );
   }
   return (
     <div className="space-y-3">
@@ -77,12 +77,12 @@ export function GatewayRedirect({
       <a href={gatewayUrl} target="_blank" rel="noopener noreferrer">
         <Button className="w-full gap-2">
           <ExternalLink className="h-4 w-4" />
-          {t('bookingFlow.openPaymentPage')}
+          {t("bookingFlow.openPaymentPage")}
         </Button>
       </a>
       <p className="text-[11px] text-muted-foreground text-center">
-        {t('bookingFlow.gatewayAutoConfirm', { provider: meta.label })}
+        {t("bookingFlow.gatewayAutoConfirm", { provider: meta.label })}
       </p>
     </div>
-  )
+  );
 }

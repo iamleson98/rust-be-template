@@ -1,7 +1,7 @@
-'use client'
+"use client";
 
-import { memo } from 'react'
-import { Shimmer } from '@spa/components/ui/shimmer'
+import { memo } from "react";
+import { Shimmer } from "@spa/components/ui/shimmer";
 
 /* ─── Trip Results Skeleton — chat ticket picker search results ───
  * Mirrors the trip search result rows: brand + route line + meta
@@ -10,7 +10,7 @@ import { Shimmer } from '@spa/components/ui/shimmer'
 export const TripResultsSkeleton = memo(function TripResultsSkeleton({
   count = 4,
 }: {
-  count?: number
+  count?: number;
 }) {
   return (
     <div className="space-y-2" aria-hidden data-testid="trip-results-skeleton">
@@ -31,5 +31,5 @@ export const TripResultsSkeleton = memo(function TripResultsSkeleton({
         </div>
       ))}
     </div>
-  )
-})
+  );
+});

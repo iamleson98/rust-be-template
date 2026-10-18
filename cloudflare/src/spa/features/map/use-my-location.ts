@@ -1,4 +1,4 @@
-'use client'
+"use client";
 
 /**
  * useMyLocation — progressive-accuracy geolocation acquisition.
@@ -30,23 +30,23 @@
  * the fly-to-GPS animation used to restart in a loop).
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export type MyLocation = {
-  lat: number
-  lon: number
+  lat: number;
+  lon: number;
   /** Accuracy radius in meters, as reported by the browser. */
-  accuracy: number
-}
+  accuracy: number;
+};
 
-export type MyLocationErrorCode = 'unavailable' | 'denied' | 'timeout'
+export type MyLocationErrorCode = "unavailable" | "denied" | "timeout";
 
 /** Fix accepted immediately when accuracy is at/below this (meters). */
-const GOOD_ACCURACY_M = 50
+const GOOD_ACCURACY_M = 50;
 /** Accept best-so-far after this long without a good fix (ms). */
-const GRACE_MS = 4000
+const GRACE_MS = 4000;
 /** Give up entirely after this long (ms). */
-const TIMEOUT_MS = 12000
+const TIMEOUT_MS = 12000;
 
 export function useMyLocation(
   onLocated: (loc: MyLocation) => void,
@@ -54,133 +54,133 @@ export function useMyLocation(
 ) {
   // Just the acquisition status — drives the button spinner. The fix
   // itself is delivered via the onLocated callback.
-  const [acquiring, setAcquiring] = useState(false)
+  const [acquiring, setAcquiring] = useState(false);
 
   // Latest callbacks (ref pattern — the consumer may pass a new closure
   // every render; we always invoke the freshest one, never re-run effects).
-  const onLocatedRef = useRef(onLocated)
-  const onErrorRef = useRef(onError)
+  const onLocatedRef = useRef(onLocated);
+  const onErrorRef = useRef(onError);
   useEffect(() => {
-    onLocatedRef.current = onLocated
-    onErrorRef.current = onError
-  }, [onLocated, onError])
+    onLocatedRef.current = onLocated;
+    onErrorRef.current = onError;
+  }, [onLocated, onError]);
 
-  const watchRef = useRef<number | null>(null)
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const graceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const watchRef = useRef<number | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const graceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Monotonic token: every locate() invalidates previous callbacks.
-  const requestRef = useRef(0)
+  const requestRef = useRef(0);
   // Best fix seen during the current acquisition.
-  const bestRef = useRef<MyLocation | null>(null)
+  const bestRef = useRef<MyLocation | null>(null);
 
   const clearTimers = useCallback(() => {
-    if (timerRef.current) clearTimeout(timerRef.current)
-    if (graceTimerRef.current) clearTimeout(graceTimerRef.current)
-    timerRef.current = null
-    graceTimerRef.current = null
-  }, [])
+    if (timerRef.current) clearTimeout(timerRef.current);
+    if (graceTimerRef.current) clearTimeout(graceTimerRef.current);
+    timerRef.current = null;
+    graceTimerRef.current = null;
+  }, []);
 
   const stopWatch = useCallback(() => {
     if (watchRef.current != null && navigator.geolocation) {
-      navigator.geolocation.clearWatch(watchRef.current)
+      navigator.geolocation.clearWatch(watchRef.current);
     }
-    watchRef.current = null
-  }, [])
+    watchRef.current = null;
+  }, []);
 
   /** Stop acquisition and void pending callbacks. */
   const cancel = useCallback(() => {
-    requestRef.current += 1
-    stopWatch()
-    clearTimers()
-    bestRef.current = null
-    setAcquiring(false)
-  }, [stopWatch, clearTimers])
+    requestRef.current += 1;
+    stopWatch();
+    clearTimers();
+    bestRef.current = null;
+    setAcquiring(false);
+  }, [stopWatch, clearTimers]);
 
   const finish = useCallback(
     (loc: MyLocation) => {
-      stopWatch()
-      clearTimers()
-      bestRef.current = null
-      setAcquiring(false)
-      onLocatedRef.current(loc)
+      stopWatch();
+      clearTimers();
+      bestRef.current = null;
+      setAcquiring(false);
+      onLocatedRef.current(loc);
     },
     [stopWatch, clearTimers],
-  )
+  );
 
   const fail = useCallback(
     (code: MyLocationErrorCode) => {
-      stopWatch()
-      clearTimers()
-      bestRef.current = null
-      setAcquiring(false)
-      onErrorRef.current?.(code)
+      stopWatch();
+      clearTimers();
+      bestRef.current = null;
+      setAcquiring(false);
+      onErrorRef.current?.(code);
     },
     [stopWatch, clearTimers],
-  )
+  );
 
   const locate = useCallback(() => {
-    if (typeof window === 'undefined' || !navigator.geolocation) {
-      fail('unavailable')
-      return
+    if (typeof window === "undefined" || !navigator.geolocation) {
+      fail("unavailable");
+      return;
     }
 
     // Fresh request: invalidate any previous acquisition's callbacks.
-    requestRef.current += 1
-    const request = requestRef.current
-    stopWatch()
-    clearTimers()
-    bestRef.current = null
-    setAcquiring(true)
+    requestRef.current += 1;
+    const request = requestRef.current;
+    stopWatch();
+    clearTimers();
+    bestRef.current = null;
+    setAcquiring(true);
 
     watchRef.current = navigator.geolocation.watchPosition(
       (pos) => {
-        if (request !== requestRef.current) return // stale callback
-        const { latitude, longitude, accuracy } = pos.coords
-        const fix: MyLocation = { lat: latitude, lon: longitude, accuracy }
-        if (!(Number.isFinite(fix.lat) && Number.isFinite(fix.lon))) return
+        if (request !== requestRef.current) return; // stale callback
+        const { latitude, longitude, accuracy } = pos.coords;
+        const fix: MyLocation = { lat: latitude, lon: longitude, accuracy };
+        if (!(Number.isFinite(fix.lat) && Number.isFinite(fix.lon))) return;
 
         // Keep the best fix seen so far.
         if (!bestRef.current || fix.accuracy < bestRef.current.accuracy) {
-          bestRef.current = fix
+          bestRef.current = fix;
         }
 
         if (fix.accuracy <= GOOD_ACCURACY_M) {
-          finish(fix)
+          finish(fix);
         }
       },
       (err) => {
-        if (request !== requestRef.current) return // stale callback
+        if (request !== requestRef.current) return; // stale callback
         // PERMISSION_DENIED is terminal; POSITION_UNAVAILABLE may be
         // transient (radio warming up) — only fail fast on denial.
         if (err.code === err.PERMISSION_DENIED) {
-          fail('denied')
+          fail("denied");
         }
       },
       { enableHighAccuracy: true, timeout: TIMEOUT_MS, maximumAge: 0 },
-    )
+    );
 
     // Grace period expired → accept the best fix we have (if any).
     graceTimerRef.current = setTimeout(() => {
-      if (request !== requestRef.current) return
-      if (bestRef.current) finish(bestRef.current)
-    }, GRACE_MS)
+      if (request !== requestRef.current) return;
+      if (bestRef.current) finish(bestRef.current);
+    }, GRACE_MS);
 
     // Hard timeout → error (the watch's own timeout also lands here).
     timerRef.current = setTimeout(() => {
-      if (request !== requestRef.current) return
-      fail('timeout')
-    }, TIMEOUT_MS)
-  }, [finish, fail, stopWatch, clearTimers])
+      if (request !== requestRef.current) return;
+      fail("timeout");
+    }, TIMEOUT_MS);
+  }, [finish, fail, stopWatch, clearTimers]);
 
   // Release the watch + timers on unmount.
   useEffect(
     () => () => {
-      requestRef.current += 1
-      stopWatch()
-      clearTimers()
+      requestRef.current += 1;
+      stopWatch();
+      clearTimers();
     },
     [stopWatch, clearTimers],
-  )
+  );
 
-  return { acquiring, locate, cancel }
+  return { acquiring, locate, cancel };
 }

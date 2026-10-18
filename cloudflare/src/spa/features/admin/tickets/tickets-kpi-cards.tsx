@@ -1,51 +1,51 @@
-'use client'
+"use client";
 
-import { Ban, CheckCircle2, DollarSign, Flag, Ticket as TicketIcon } from 'lucide-react'
-import type { AdminBookingTotals } from '@spa/api'
-import { StatGrid, StatTile } from '@spa/components/console/stat-tile'
-import { formatNum } from '@spa/lib/format'
-import { useT } from '@spa/lib/i18n'
-import { formatVND } from './tickets-helpers'
+import { Ban, CheckCircle2, DollarSign, Flag, Ticket as TicketIcon } from "lucide-react";
+import type { AdminBookingTotals } from "@spa/api";
+import { StatGrid, StatTile } from "@spa/components/console/stat-tile";
+import { formatNum } from "@spa/lib/format";
+import { useT } from "@spa/lib/i18n";
+import { formatVND } from "./tickets-helpers";
 
 /**
  * The tickets the filters select, by status, and what they brought in —
  * totals from the dedicated /stats endpoint, not the paged list.
  */
 export function TicketsKpiCards({ totals }: { totals: AdminBookingTotals | undefined }) {
-  const t = useT()
-  const n = (v: number | undefined) => (totals ? formatNum(v ?? 0) : '—')
+  const t = useT();
+  const n = (v: number | undefined) => (totals ? formatNum(v ?? 0) : "—");
   return (
     <StatGrid className="sm:grid-cols-3 lg:grid-cols-5">
       <StatTile
         icon={<TicketIcon />}
         tone="blue"
-        label={t('adminTickets.kpiTotal')}
+        label={t("adminTickets.kpiTotal")}
         value={n(totals?.total)}
       />
       <StatTile
         icon={<DollarSign />}
         tone="green"
-        label={t('adminTickets.kpiRevenue')}
-        value={totals ? formatVND(totals.revenue) : '—'}
+        label={t("adminTickets.kpiRevenue")}
+        value={totals ? formatVND(totals.revenue) : "—"}
       />
       <StatTile
         icon={<CheckCircle2 />}
         tone="sky"
-        label={t('adminTickets.statusConfirmed')}
+        label={t("adminTickets.statusConfirmed")}
         value={n(totals?.confirmed)}
       />
       <StatTile
         icon={<Flag />}
         tone="violet"
-        label={t('adminTickets.statusCompleted')}
+        label={t("adminTickets.statusCompleted")}
         value={n(totals?.completed)}
       />
       <StatTile
         icon={<Ban />}
         tone="rose"
-        label={t('adminTickets.statusCancelled')}
+        label={t("adminTickets.statusCancelled")}
         value={n(totals?.cancelled)}
       />
     </StatGrid>
-  )
+  );
 }

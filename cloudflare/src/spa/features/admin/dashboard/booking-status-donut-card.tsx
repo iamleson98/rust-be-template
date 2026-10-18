@@ -1,4 +1,4 @@
-'use client'
+"use client";
 
 /**
  * Booking-status donut card — "Phân bổ trạng thái vé" (Row 1 of the
@@ -7,34 +7,34 @@
  * Extracted from the original 'src/features/admin/dashboard/stats-overview.tsx'.
  */
 
-import { Panel } from '@spa/components/console/panel'
-import { PieChart } from 'lucide-react'
-import { useT } from '@spa/lib/i18n'
-import { formatNum } from '@spa/lib/format'
-import type { DonutSegment } from './segmentation-donut'
+import { Panel } from "@spa/components/console/panel";
+import { PieChart } from "lucide-react";
+import { useT } from "@spa/lib/i18n";
+import { formatNum } from "@spa/lib/format";
+import type { DonutSegment } from "./segmentation-donut";
 
 export function BookingStatusDonutCard({
   statusSegments,
   statusSegmentTotal,
 }: {
-  statusSegments: DonutSegment[]
-  statusSegmentTotal: number
+  statusSegments: DonutSegment[];
+  statusSegmentTotal: number;
 }) {
-  const t = useT()
+  const t = useT();
   return (
-    <Panel className="h-full" icon={<PieChart />} title={t('adminDash.statusDonutTitle')}>
+    <Panel className="h-full" icon={<PieChart />} title={t("adminDash.statusDonutTitle")}>
       {statusSegments.length > 0 ? (
         <>
           <div className="flex items-center justify-center my-4">
             <div className="relative h-36 w-36">
               <svg viewBox="0 0 36 36" className="h-full w-full -rotate-90">
                 {(() => {
-                  let cumulative = 0
+                  let cumulative = 0;
                   return statusSegments.map((s, i) => {
-                    const pct = statusSegmentTotal > 0 ? (s.count / statusSegmentTotal) * 100 : 0
-                    const dashArray = `${pct} ${100 - pct}`
-                    const offset = -cumulative
-                    cumulative += pct
+                    const pct = statusSegmentTotal > 0 ? (s.count / statusSegmentTotal) * 100 : 0;
+                    const dashArray = `${pct} ${100 - pct}`;
+                    const offset = -cumulative;
+                    cumulative += pct;
                     return (
                       <circle
                         key={i}
@@ -47,16 +47,16 @@ export function BookingStatusDonutCard({
                         strokeDasharray={dashArray}
                         strokeDashoffset={offset}
                         className="transition-all duration-500 hover:stroke-width-[5]"
-                        style={{ strokeLinecap: 'butt' }}
+                        style={{ strokeLinecap: "butt" }}
                       />
-                    )
-                  })
+                    );
+                  });
                 })()}
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
                 <div className="text-2xl font-extrabold">{formatNum(statusSegmentTotal)}</div>
                 <div className="text-[10px] text-muted-foreground">
-                  {t('adminDash.totalTickets')}
+                  {t("adminDash.totalTickets")}
                 </div>
               </div>
             </div>
@@ -73,9 +73,9 @@ export function BookingStatusDonutCard({
         </>
       ) : (
         <div className="h-48 flex items-center justify-center text-xs text-muted-foreground">
-          {t('adminDash.noStatusData')}
+          {t("adminDash.noStatusData")}
         </div>
       )}
     </Panel>
-  )
+  );
 }

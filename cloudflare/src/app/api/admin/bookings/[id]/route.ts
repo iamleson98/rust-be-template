@@ -74,7 +74,10 @@ export async function PATCH(req: Request, ctx: Params) {
       // cancelled — free the seats + cancel payments + return the coupon
       // (to its owner while still valid, else expired).
       const seatCount = (
-        await db.select({ n: sql<number>`count(*)` }).from(bookingSeats).where(sql`booking_id = ${row.id}`)
+        await db
+          .select({ n: sql<number>`count(*)` })
+          .from(bookingSeats)
+          .where(sql`booking_id = ${row.id}`)
       )[0];
       await atomicBatch([
         sql`UPDATE booking SET status = 'cancelled', updated_at = ${now} WHERE id = ${row.id}`,

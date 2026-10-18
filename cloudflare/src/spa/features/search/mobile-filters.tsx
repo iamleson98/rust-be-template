@@ -1,6 +1,6 @@
-import { useState } from 'react'
-import { SlidersHorizontal } from 'lucide-react'
-import { Button } from '@spa/components/ui/button'
+import { useState } from "react";
+import { SlidersHorizontal } from "lucide-react";
+import { Button } from "@spa/components/ui/button";
 import {
   Sheet,
   SheetContent,
@@ -8,25 +8,25 @@ import {
   SheetHeader,
   SheetTitle,
   SheetTrigger,
-} from '@spa/components/ui/sheet'
-import { useT } from '@spa/lib/i18n'
-import { FilterPanel } from './filter-panel'
-import { UrlFilters } from './filter-controls'
-import type { ResultFilters } from './use-result-filters'
+} from "@spa/components/ui/sheet";
+import { useT } from "@spa/lib/i18n";
+import { FilterPanel } from "./filter-panel";
+import { UrlFilters } from "./filter-controls";
+import type { ResultFilters } from "./use-result-filters";
 
 /**
  * Below lg: the Filter button (with how many are on) and the sheet it opens.
  * The sheet's footer says how many trips the filters leave (`found`) and closes it.
  */
 export function MobileFilters({ rf, found }: { rf: ResultFilters; found: number }) {
-  const t = useT()
-  const [open, setOpen] = useState(false)
+  const t = useT();
+  const [open, setOpen] = useState(false);
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
         <button className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-white px-3.5 text-sm font-medium text-slate-700 ring-1 ring-slate-200 transition-colors hover:ring-slate-300 lg:hidden">
           <SlidersHorizontal className="size-3.5" />
-          {t('searchPage.filter')}
+          {t("searchPage.filter")}
           {rf.activeCount > 0 && (
             <span className="grid h-5 min-w-5 place-items-center rounded-full bg-primary px-1 text-[11px] font-bold text-primary-foreground">
               {rf.activeCount}
@@ -36,8 +36,8 @@ export function MobileFilters({ rf, found }: { rf: ResultFilters; found: number 
       </SheetTrigger>
       <SheetContent side="right" className="flex w-[88vw] flex-col gap-0 p-0 sm:max-w-sm">
         <SheetHeader className="border-b px-5 py-4">
-          <SheetTitle>{t('searchPage.filters')}</SheetTitle>
-          <SheetDescription className="sr-only">{t('searchPage.filters')}</SheetDescription>
+          <SheetTitle>{t("searchPage.filters")}</SheetTitle>
+          <SheetDescription className="sr-only">{t("searchPage.filters")}</SheetDescription>
         </SheetHeader>
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-5 py-4">
           <UrlFilters facets={rf.facets} />
@@ -46,14 +46,14 @@ export function MobileFilters({ rf, found }: { rf: ResultFilters; found: number 
         <div className="flex gap-2 border-t bg-white px-5 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
           {rf.activeCount > 0 && (
             <Button variant="outline" onClick={rf.reset} className="h-11 rounded-xl">
-              {t('searchPage.clearAll')}
+              {t("searchPage.clearAll")}
             </Button>
           )}
           <Button onClick={() => setOpen(false)} className="h-11 flex-1 rounded-xl">
-            {t('searchPage.showTrips', { count: found })}
+            {t("searchPage.showTrips", { count: found })}
           </Button>
         </div>
       </SheetContent>
     </Sheet>
-  )
+  );
 }

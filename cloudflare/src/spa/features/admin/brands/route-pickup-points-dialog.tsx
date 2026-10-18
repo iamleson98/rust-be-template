@@ -1,4 +1,4 @@
-'use client'
+"use client";
 
 /**
  * RoutePickupPointsDialog — manages one route's pickup/drop points
@@ -11,20 +11,20 @@
  * brands page had in its detail column.
  */
 
-import { useQuery, useMutation } from '@tanstack/react-query'
+import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   placesListOptions,
   adminPickupPointsDeleteMutation,
   adminPickupPointsListOptions,
-} from '@spa/api'
-import { useMemo, useState } from 'react'
+} from "@spa/api";
+import { useMemo, useState } from "react";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from '@spa/components/ui/dialog'
+} from "@spa/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -34,69 +34,69 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@spa/components/ui/alert-dialog'
-import { Badge } from '@spa/components/ui/badge'
-import { Button } from '@spa/components/ui/button'
-import { Loader2, MapPin, Pencil, Plus, Trash2 } from 'lucide-react'
-import { toast } from 'sonner'
-import { useT } from '@spa/lib/i18n'
-import type { AdminPickupPointOut, AdminRouteOut } from '@spa/api'
-import { PICKUP_TYPE_LABELS } from '@spa/features/admin/types'
-import { PickupPointFormDialog } from '@spa/features/admin/pickup-points/pickup-form'
-import { getErrorMessage } from '@spa/lib/error-message'
+} from "@spa/components/ui/alert-dialog";
+import { Badge } from "@spa/components/ui/badge";
+import { Button } from "@spa/components/ui/button";
+import { Loader2, MapPin, Pencil, Plus, Trash2 } from "lucide-react";
+import { toast } from "sonner";
+import { useT } from "@spa/lib/i18n";
+import type { AdminPickupPointOut, AdminRouteOut } from "@spa/api";
+import { PICKUP_TYPE_LABELS } from "@spa/features/admin/types";
+import { PickupPointFormDialog } from "@spa/features/admin/pickup-points/pickup-form";
+import { getErrorMessage } from "@spa/lib/error-message";
 
 export function RoutePickupPointsDialog({
   route,
   onOpenChange,
 }: {
-  route: AdminRouteOut | null
-  onOpenChange: (open: boolean) => void
+  route: AdminRouteOut | null;
+  onOpenChange: (open: boolean) => void;
 }) {
-  const t = useT()
-  const open = !!route
-  const routeId = route?.id
+  const t = useT();
+  const open = !!route;
+  const routeId = route?.id;
   const pickupQuery = useQuery({
     ...adminPickupPointsListOptions({ query: { routeId } }),
     enabled: !!routeId,
-  })
-  const placesQuery = useQuery(placesListOptions({ query: { limit: 200 } }))
-  const deleteMutation = useMutation(adminPickupPointsDeleteMutation())
+  });
+  const placesQuery = useQuery(placesListOptions({ query: { limit: 200 } }));
+  const deleteMutation = useMutation(adminPickupPointsDeleteMutation());
 
   const pickupPoints = useMemo(
     () => [...(pickupQuery.data?.items ?? [])].sort((a, b) => a.stopOrder - b.stopOrder),
     [pickupQuery.data],
-  )
-  const places = (((placesQuery.data ?? {}) as { items?: unknown[] }).items ?? []) as never[]
+  );
+  const places = (((placesQuery.data ?? {}) as { items?: unknown[] }).items ?? []) as never[];
 
-  const [formOpen, setFormOpen] = useState(false)
-  const [editTarget, setEditTarget] = useState<AdminPickupPointOut | null>(null)
-  const [deleteTarget, setDeleteTarget] = useState<AdminPickupPointOut | null>(null)
-  const [deleting, setDeleting] = useState(false)
+  const [formOpen, setFormOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<AdminPickupPointOut | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<AdminPickupPointOut | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const confirmDelete = async () => {
-    if (!deleteTarget) return
-    setDeleting(true)
+    if (!deleteTarget) return;
+    setDeleting(true);
     try {
-      await deleteMutation.mutateAsync({ path: { id: deleteTarget.id } })
-      toast.success(t('adminBrands.pickupDeleted'))
-      setDeleteTarget(null)
+      await deleteMutation.mutateAsync({ path: { id: deleteTarget.id } });
+      toast.success(t("adminBrands.pickupDeleted"));
+      setDeleteTarget(null);
     } catch (e) {
-      toast.error(getErrorMessage(e, t('adminBrands.pickupDeleteFailed')))
+      toast.error(getErrorMessage(e, t("adminBrands.pickupDeleteFailed")));
     } finally {
-      setDeleting(false)
+      setDeleting(false);
     }
-  }
+  };
 
   return (
     <>
       <Dialog open={open} onOpenChange={(o) => !deleting && onOpenChange(o)}>
         <DialogContent className="max-w-lg">
           <DialogHeader icon={<MapPin />}>
-            <DialogTitle>{t('adminBrands.pickupPointsTitle')}</DialogTitle>
+            <DialogTitle>{t("adminBrands.pickupPointsTitle")}</DialogTitle>
             <DialogDescription className="truncate">
               {route
-                ? `${route.name} · ${route.startLocation?.name ?? ''} → ${route.endLocation?.name ?? ''}`
-                : ''}
+                ? `${route.name} · ${route.startLocation?.name ?? ""} → ${route.endLocation?.name ?? ""}`
+                : ""}
             </DialogDescription>
           </DialogHeader>
 
@@ -105,22 +105,22 @@ export function RoutePickupPointsDialog({
               size="sm"
               className="h-7 gap-1"
               onClick={() => {
-                setEditTarget(null)
-                setFormOpen(true)
+                setEditTarget(null);
+                setFormOpen(true);
               }}
             >
-              <Plus className="h-3.5 w-3.5" /> {t('adminBrands.addPoint')}
+              <Plus className="h-3.5 w-3.5" /> {t("adminBrands.addPoint")}
             </Button>
           </div>
 
           {pickupQuery.isLoading ? (
             <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin text-blue-600" />{' '}
-              {t('adminBrands.loadingPickupPoints')}
+              <Loader2 className="h-4 w-4 animate-spin text-blue-600" />{" "}
+              {t("adminBrands.loadingPickupPoints")}
             </div>
           ) : pickupPoints.length === 0 ? (
             <div className="rounded-md border border-dashed py-8 text-center text-xs text-muted-foreground">
-              {t('adminBrands.noPickupPointsYet')}
+              {t("adminBrands.noPickupPointsYet")}
             </div>
           ) : (
             <div className="space-y-1.5">
@@ -139,11 +139,11 @@ export function RoutePickupPointsDialog({
                       <Badge
                         variant="outline"
                         className={`h-4 px-1 text-[10px] ${
-                          p.kind === 'station'
-                            ? 'bg-blue-50 text-blue-700'
-                            : p.kind === 'curb'
-                              ? 'bg-amber-50 text-amber-700'
-                              : 'bg-slate-100 text-slate-700'
+                          p.kind === "station"
+                            ? "bg-blue-50 text-blue-700"
+                            : p.kind === "curb"
+                              ? "bg-amber-50 text-amber-700"
+                              : "bg-slate-100 text-slate-700"
                         }`}
                       >
                         {p.kind && PICKUP_TYPE_LABELS[p.kind]
@@ -161,12 +161,12 @@ export function RoutePickupPointsDialog({
                     <button
                       type="button"
                       onClick={() => {
-                        setEditTarget(p)
-                        setFormOpen(true)
+                        setEditTarget(p);
+                        setFormOpen(true);
                       }}
                       className="rounded p-1 text-slate-400 transition-colors hover:text-blue-600"
-                      title={t('common.edit')}
-                      aria-label={t('adminBrands.editPickupPoint', { name: p.name ?? '' })}
+                      title={t("common.edit")}
+                      aria-label={t("adminBrands.editPickupPoint", { name: p.name ?? "" })}
                     >
                       <Pencil className="h-3.5 w-3.5" />
                     </button>
@@ -174,8 +174,8 @@ export function RoutePickupPointsDialog({
                       type="button"
                       onClick={() => setDeleteTarget(p)}
                       className="rounded p-1 text-slate-400 transition-colors hover:text-rose-600"
-                      title={t('common.delete')}
-                      aria-label={t('adminBrands.deletePickupPoint', { name: p.name ?? '' })}
+                      title={t("common.delete")}
+                      aria-label={t("adminBrands.deletePickupPoint", { name: p.name ?? "" })}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
@@ -195,12 +195,12 @@ export function RoutePickupPointsDialog({
           places={places}
           existingCount={pickupPoints.length}
           onOpenChange={(o) => {
-            setFormOpen(o)
-            if (!o) setEditTarget(null)
+            setFormOpen(o);
+            if (!o) setEditTarget(null);
           }}
           onSaved={() => {
-            setFormOpen(false)
-            setEditTarget(null)
+            setFormOpen(false);
+            setEditTarget(null);
           }}
         />
       )}
@@ -208,35 +208,35 @@ export function RoutePickupPointsDialog({
       <AlertDialog
         open={!!deleteTarget}
         onOpenChange={(o) => {
-          if (!deleting && !o) setDeleteTarget(null)
+          if (!deleting && !o) setDeleteTarget(null);
         }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t('common.confirmDeleteTitle')}</AlertDialogTitle>
+            <AlertDialogTitle>{t("common.confirmDeleteTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              {t('adminBrands.deletePickupConfirm')}{' '}
-              <span className="font-semibold text-foreground">{deleteTarget?.name}</span>?{' '}
-              {t('common.confirmDeleteBody')}
+              {t("adminBrands.deletePickupConfirm")}{" "}
+              <span className="font-semibold text-foreground">{deleteTarget?.name}</span>?{" "}
+              {t("common.confirmDeleteBody")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>{t('common.cancel')}</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleting}>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => {
-                e.preventDefault()
-                confirmDelete()
+                e.preventDefault();
+                confirmDelete();
               }}
               disabled={deleting}
               className="bg-rose-600 text-white hover:bg-rose-700"
             >
               {deleting ? (
                 <>
-                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> {t('common.deleting')}
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> {t("common.deleting")}
                 </>
               ) : (
                 <>
-                  <Trash2 className="mr-1.5 h-4 w-4" /> {t('common.delete')}
+                  <Trash2 className="mr-1.5 h-4 w-4" /> {t("common.delete")}
                 </>
               )}
             </AlertDialogAction>
@@ -244,5 +244,5 @@ export function RoutePickupPointsDialog({
         </AlertDialogContent>
       </AlertDialog>
     </>
-  )
+  );
 }

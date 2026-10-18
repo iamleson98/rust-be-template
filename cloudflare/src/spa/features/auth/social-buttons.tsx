@@ -1,20 +1,20 @@
-import { useEffect, type ReactNode } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { toast } from 'sonner'
-import { oauthProvidersOptions } from '@spa/api'
-import { useT } from '@spa/lib/i18n'
-import { cn } from '@spa/lib/utils'
+import { useEffect, type ReactNode } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { oauthProvidersOptions } from "@spa/api";
+import { useT } from "@spa/lib/i18n";
+import { cn } from "@spa/lib/utils";
 
-type Provider = 'google' | 'facebook'
+type Provider = "google" | "facebook";
 
 const BUTTONS: Record<
   Provider,
   { name: string; labelKey: string; className: string; icon: ReactNode }
 > = {
   google: {
-    name: 'Google',
-    labelKey: 'authPage.loginWithGoogle',
-    className: 'border bg-background text-foreground hover:bg-muted',
+    name: "Google",
+    labelKey: "authPage.loginWithGoogle",
+    className: "border bg-background text-foreground hover:bg-muted",
     icon: (
       <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
         <path
@@ -37,16 +37,16 @@ const BUTTONS: Record<
     ),
   },
   facebook: {
-    name: 'Facebook',
-    labelKey: 'authPage.loginWithFacebook',
-    className: 'bg-[#1877F2] text-white hover:bg-[#166FE5]',
+    name: "Facebook",
+    labelKey: "authPage.loginWithFacebook",
+    className: "bg-[#1877F2] text-white hover:bg-[#166FE5]",
     icon: (
       <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
         <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
       </svg>
     ),
   },
-}
+};
 
 /**
  * Sign in with Google / Facebook — only the providers the server has
@@ -54,57 +54,57 @@ const BUTTONS: Record<
  * The "or" divider goes `before` the buttons (under a form) or `after`
  * them (above a form, where they are the quick way in).
  */
-export function SocialAuthButtons({ dividerAt = 'before' }: { dividerAt?: 'before' | 'after' }) {
-  const t = useT()
-  const { data } = useQuery({ ...oauthProvidersOptions(), staleTime: 5 * 60_000 })
-  const providers = (data?.providers ?? []).filter((p): p is Provider => p in BUTTONS)
+export function SocialAuthButtons({ dividerAt = "before" }: { dividerAt?: "before" | "after" }) {
+  const t = useT();
+  const { data } = useQuery({ ...oauthProvidersOptions(), staleTime: 5 * 60_000 });
+  const providers = (data?.providers ?? []).filter((p): p is Provider => p in BUTTONS);
 
   // Surface OAuth errors passed back from the backend via ?oauth_error=.
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    const err = params.get('oauth_error')
+    const params = new URLSearchParams(window.location.search);
+    const err = params.get("oauth_error");
     if (err) {
-      toast.error(decodeURIComponent(err), { duration: 8000 })
+      toast.error(decodeURIComponent(err), { duration: 8000 });
       // Clean the URL so the toast doesn't re-appear on refresh.
-      const url = new URL(window.location.href)
-      url.searchParams.delete('oauth_error')
-      window.history.replaceState({}, '', url.toString())
+      const url = new URL(window.location.href);
+      url.searchParams.delete("oauth_error");
+      window.history.replaceState({}, "", url.toString());
     }
-  }, [])
+  }, []);
 
-  if (providers.length === 0) return null
+  if (providers.length === 0) return null;
 
   const divider = (
     <div className="flex items-center gap-3 py-1">
       <div className="h-px flex-1 bg-border" />
       <span className="text-[11px] tracking-wider text-muted-foreground uppercase">
-        {t('authPage.or')}
+        {t("authPage.or")}
       </span>
       <div className="h-px flex-1 bg-border" />
     </div>
-  )
+  );
 
   return (
     <div className="space-y-3">
-      {dividerAt === 'before' && divider}
+      {dividerAt === "before" && divider}
       <div
         className={cn(
-          'grid gap-2',
+          "grid gap-2",
           providers.length === 1
-            ? 'grid-cols-1'
+            ? "grid-cols-1"
             : providers.length === 2
-              ? 'grid-cols-2'
-              : 'grid-cols-3',
+              ? "grid-cols-2"
+              : "grid-cols-3",
         )}
       >
         {providers.map((p) => {
-          const b = BUTTONS[p]
+          const b = BUTTONS[p];
           return (
             <a
               key={p}
               href={`/api/auth/oauth/${p}/start`}
               className={cn(
-                'flex h-10 items-center justify-center gap-1.5 rounded-md text-sm font-medium transition-colors',
+                "flex h-10 items-center justify-center gap-1.5 rounded-md text-sm font-medium transition-colors",
                 b.className,
               )}
               aria-label={t(b.labelKey)}
@@ -112,12 +112,12 @@ export function SocialAuthButtons({ dividerAt = 'before' }: { dividerAt?: 'befor
               {b.icon}
               <span>{b.name}</span>
             </a>
-          )
+          );
         })}
       </div>
 
-      <p className="text-center text-[11px] text-muted-foreground">{t('authPage.socialNote')}</p>
-      {dividerAt === 'after' && divider}
+      <p className="text-center text-[11px] text-muted-foreground">{t("authPage.socialNote")}</p>
+      {dividerAt === "after" && divider}
     </div>
-  )
+  );
 }

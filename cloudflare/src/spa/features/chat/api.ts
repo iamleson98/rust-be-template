@@ -1,13 +1,13 @@
-import { useMemo } from 'react'
-import { useInfiniteQuery } from '@tanstack/react-query'
+import { useMemo } from "react";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import {
   listChannelsInfiniteOptions,
   listMessagesInfiniteOptions,
   type ChatChannelOut,
   type ChatMessageOut,
-} from '@spa/api'
+} from "@spa/api";
 
-type Page = { items?: unknown[] }
+type Page = { items?: unknown[] };
 
 /** Offset paging: a short page ends the list, otherwise continue after the loaded rows. */
 const offsetPaging = (pageSize: number) => ({
@@ -16,7 +16,7 @@ const offsetPaging = (pageSize: number) => ({
     (last.items?.length ?? 0) < pageSize
       ? undefined
       : all.reduce((loaded, page) => loaded + (page.items?.length ?? 0), 0),
-})
+});
 
 /**
  * Pages arrive newest-first (`ORDER BY created_at DESC LIMIT/OFFSET`) and a new
@@ -27,21 +27,21 @@ const offsetPaging = (pageSize: number) => ({
 export function flattenMessagePages<T extends { id: string }>(
   pages: ReadonlyArray<{ items?: T[] } | null | undefined>,
 ): T[] {
-  const newest = new Map<string, T>()
+  const newest = new Map<string, T>();
   for (const page of pages) {
     for (const message of page?.items ?? [])
-      if (!newest.has(message.id)) newest.set(message.id, message)
+      if (!newest.has(message.id)) newest.set(message.id, message);
   }
-  const seen = new Set<string>()
-  const messages: T[] = []
+  const seen = new Set<string>();
+  const messages: T[] = [];
   for (let p = pages.length - 1; p >= 0; p--) {
     for (const { id } of [...(pages[p]?.items ?? [])].reverse()) {
-      if (seen.has(id)) continue
-      seen.add(id)
-      messages.push(newest.get(id)!)
+      if (seen.has(id)) continue;
+      seen.add(id);
+      messages.push(newest.get(id)!);
     }
   }
-  return messages
+  return messages;
 }
 
 /** Support-queue channels, newest activity first, loaded `pageSize` at a time. */
@@ -49,12 +49,12 @@ export function useChatChannelsInfinite(pageSize: number) {
   const query = useInfiniteQuery({
     ...listChannelsInfiniteOptions({ query: { limit: pageSize } }),
     ...offsetPaging(pageSize),
-  })
+  });
   const channels = useMemo(() => {
-    const byId = new Map<string, ChatChannelOut>()
-    for (const page of query.data?.pages ?? []) for (const c of page.items) byId.set(c.id, c)
-    return [...byId.values()]
-  }, [query.data])
+    const byId = new Map<string, ChatChannelOut>();
+    for (const page of query.data?.pages ?? []) for (const c of page.items) byId.set(c.id, c);
+    return [...byId.values()];
+  }, [query.data]);
   return {
     channels,
     hasNextPage: query.hasNextPage,
@@ -62,20 +62,20 @@ export function useChatChannelsInfinite(pageSize: number) {
     isFetchingNextPage: query.isFetchingNextPage,
     isLoading: query.isLoading,
     error: query.error,
-  }
+  };
 }
 
 /** One channel's messages in chronological order; older pages load on demand. */
 export function useChatMessagesInfinite(channelId: string | undefined, pageSize = 30) {
   const query = useInfiniteQuery({
-    ...listMessagesInfiniteOptions({ path: { id: channelId ?? '' }, query: { limit: pageSize } }),
+    ...listMessagesInfiniteOptions({ path: { id: channelId ?? "" }, query: { limit: pageSize } }),
     ...offsetPaging(pageSize),
     enabled: !!channelId,
-  })
+  });
   const messages = useMemo(
     () => flattenMessagePages<ChatMessageOut>(query.data?.pages ?? []),
     [query.data],
-  )
+  );
   return {
     messages,
     hasNextPage: query.hasNextPage,
@@ -83,5 +83,5 @@ export function useChatMessagesInfinite(channelId: string | undefined, pageSize 
     isFetchingNextPage: query.isFetchingNextPage,
     isLoading: !!channelId && query.isLoading,
     error: query.error,
-  }
+  };
 }

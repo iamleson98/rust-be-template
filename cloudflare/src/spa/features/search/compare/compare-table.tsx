@@ -1,19 +1,19 @@
-import { CheckCircle2, X } from 'lucide-react'
-import { useNavigate } from '@tanstack/react-router'
-import type { TripResult } from '@spa/api'
-import { Badge } from '@spa/components/ui/badge'
-import { Button } from '@spa/components/ui/button'
-import { tSync, useT } from '@spa/lib/i18n'
-import { VEHICLE_TYPE_LABELS } from '@spa/lib/labels'
-import { cn } from '@spa/lib/utils'
-import { useUi } from '@spa/stores/ui'
-import { bestTripId, COMPARE_ROWS } from './compare-rows'
+import { CheckCircle2, X } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
+import type { TripResult } from "@spa/api";
+import { Badge } from "@spa/components/ui/badge";
+import { Button } from "@spa/components/ui/button";
+import { tSync, useT } from "@spa/lib/i18n";
+import { VEHICLE_TYPE_LABELS } from "@spa/lib/labels";
+import { cn } from "@spa/lib/utils";
+import { useUi } from "@spa/stores/ui";
+import { bestTripId, COMPARE_ROWS } from "./compare-rows";
 
 /** Criteria down the side, one column per trip; the best value of each row is ticked. */
 export function CompareTable({ trips, onPick }: { trips: TripResult[]; onPick: () => void }) {
-  const t = useT()
-  const navigate = useNavigate()
-  const toggleCompare = useUi((s) => s.toggleCompare)
+  const t = useT();
+  const navigate = useNavigate();
+  const toggleCompare = useUi((s) => s.toggleCompare);
 
   return (
     <div className="overflow-x-auto">
@@ -22,7 +22,7 @@ export function CompareTable({ trips, onPick }: { trips: TripResult[]; onPick: (
           <tr className="border-b bg-muted">
             <th className="sticky left-0 z-10 w-24 bg-muted px-3 py-3 text-left sm:w-40 sm:px-6">
               <span className="text-xs font-semibold uppercase text-muted-foreground">
-                {t('searchPage.criteria')}
+                {t("searchPage.criteria")}
               </span>
             </th>
             {trips.map((tr) => (
@@ -33,7 +33,7 @@ export function CompareTable({ trips, onPick }: { trips: TripResult[]; onPick: (
                     <button
                       onClick={() => toggleCompare(tr.tripId)}
                       className="text-muted-foreground hover:text-rose-600"
-                      aria-label={t('searchPage.removeFromCompare')}
+                      aria-label={t("searchPage.removeFromCompare")}
                     >
                       <X className="h-3.5 w-3.5" />
                     </button>
@@ -54,7 +54,7 @@ export function CompareTable({ trips, onPick }: { trips: TripResult[]; onPick: (
         </thead>
         <tbody>
           {COMPARE_ROWS.map((row) => {
-            const best = bestTripId(row, trips)
+            const best = bestTripId(row, trips);
             return (
               <tr
                 key={row.labelKey}
@@ -70,8 +70,8 @@ export function CompareTable({ trips, onPick }: { trips: TripResult[]; onPick: (
                   <td
                     key={tr.tripId}
                     className={cn(
-                      'px-3 py-3 text-center sm:px-4',
-                      best === tr.tripId && 'bg-blue-50/60 dark:bg-blue-950/30',
+                      "px-3 py-3 text-center sm:px-4",
+                      best === tr.tripId && "bg-blue-50/60 dark:bg-blue-950/30",
                     )}
                   >
                     <div className="relative inline-flex flex-col items-center">
@@ -79,7 +79,7 @@ export function CompareTable({ trips, onPick }: { trips: TripResult[]; onPick: (
                       {best === tr.tripId && (
                         <span
                           className="absolute -right-1 -top-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-blue-500 text-white"
-                          title={t('searchPage.best')}
+                          title={t("searchPage.best")}
                         >
                           <CheckCircle2 className="h-3 w-3" />
                         </span>
@@ -88,7 +88,7 @@ export function CompareTable({ trips, onPick }: { trips: TripResult[]; onPick: (
                   </td>
                 ))}
               </tr>
-            )
+            );
           })}
           <tr>
             <td className="sticky left-0 z-10 bg-background px-3 py-3 sm:px-6" />
@@ -98,12 +98,12 @@ export function CompareTable({ trips, onPick }: { trips: TripResult[]; onPick: (
                   size="sm"
                   className="gap-1.5"
                   onClick={() => {
-                    navigate({ to: '/trips/$tripId', params: { tripId: tr.tripId } })
-                    onPick()
+                    navigate({ to: "/trips/$tripId", params: { tripId: tr.tripId } });
+                    onPick();
                   }}
                 >
                   <CheckCircle2 className="h-3.5 w-3.5" />
-                  {t('searchPage.selectTrip')}
+                  {t("searchPage.selectTrip")}
                 </Button>
               </td>
             ))}
@@ -111,5 +111,5 @@ export function CompareTable({ trips, onPick }: { trips: TripResult[]; onPick: (
         </tbody>
       </table>
     </div>
-  )
+  );
 }

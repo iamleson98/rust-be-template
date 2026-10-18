@@ -5,7 +5,11 @@ import { isAdmin } from "@/lib/auth/rbac";
 export async function GET(req: Request) {
   try {
     const staff = await requireStaff(req);
-    if (!isAdmin(staff)) return Response.json({ error: { code: "forbidden", message: "Admin access required" } }, { status: 403 });
+    if (!isAdmin(staff))
+      return Response.json(
+        { error: { code: "forbidden", message: "Admin access required" } },
+        { status: 403 },
+      );
     const now = new Date().toISOString();
     return Response.json({
       hostname: "cloudflare-workers",

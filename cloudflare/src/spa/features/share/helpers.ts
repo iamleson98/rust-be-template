@@ -18,16 +18,16 @@
  * id (rendered on the share card / image, never used as a URL).
  */
 export function buildShareUrl(tripId: string): { code: string; url: string } {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
-  let hash = 0
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let hash = 0;
   for (let i = 0; i < tripId.length; i++) {
-    hash = ((hash << 5) - hash + tripId.charCodeAt(i)) | 0
+    hash = ((hash << 5) - hash + tripId.charCodeAt(i)) | 0;
   }
-  const seed = Math.abs(hash)
-  let code = 'PT-'
+  const seed = Math.abs(hash);
+  let code = "PT-";
   for (let i = 0; i < 6; i++) {
-    code += chars[(seed + i * 31) % chars.length]
+    code += chars[(seed + i * 31) % chars.length];
   }
-  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://datxevui.com'
-  return { code, url: `${origin}/trips/${encodeURIComponent(tripId)}` }
+  const origin = typeof window !== "undefined" ? window.location.origin : "https://datxevui.com";
+  return { code, url: `${origin}/trips/${encodeURIComponent(tripId)}` };
 }

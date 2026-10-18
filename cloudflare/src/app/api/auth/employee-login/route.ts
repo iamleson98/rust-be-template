@@ -15,8 +15,7 @@ export async function POST(req: Request) {
     const body = await readJson<{ email?: string; password?: string }>(req);
     const email = (body.email ?? "").trim().toLowerCase();
     const password = body.password ?? "";
-    if (!email || !password)
-      return err(400, "validation", "email and password are required");
+    if (!email || !password) return err(400, "validation", "email and password are required");
 
     const db = await getDb();
     const user = (await db.select().from(users).where(eq(users.email, email)).limit(1))[0];
@@ -54,7 +53,9 @@ export async function POST(req: Request) {
       {
         user: sessionUserOut(user),
         expires_at: new Date(Date.now() + (await accessTtlSecs()) * 1000).toISOString(),
-        ...(mobile ? { tokens: { access_token: tokens.accessToken, refresh_token: tokens.refreshToken } } : {}),
+        ...(mobile
+          ? { tokens: { access_token: tokens.accessToken, refresh_token: tokens.refreshToken } }
+          : {}),
       },
       { headers },
     );
@@ -62,4 +63,3 @@ export async function POST(req: Request) {
     return handleRouteError(e);
   }
 }
-

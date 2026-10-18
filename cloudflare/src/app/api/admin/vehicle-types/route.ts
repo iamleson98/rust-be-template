@@ -13,7 +13,10 @@ export async function GET(req: Request) {
     await requirePermission(staff, "admin:vehicle_types:read");
     const url = new URL(req.url);
     const q = url.searchParams.get("q")?.trim() || undefined;
-    const limit = Math.min(Math.max(parseInt(url.searchParams.get("limit") ?? "100", 10) || 100, 1), 500);
+    const limit = Math.min(
+      Math.max(parseInt(url.searchParams.get("limit") ?? "100", 10) || 100, 1),
+      500,
+    );
     const offset = Math.max(parseInt(url.searchParams.get("offset") ?? "0", 10) || 0, 0);
     const result = await adminVehicleTypeList({ q, limit, offset });
     return Response.json(result);
@@ -40,7 +43,11 @@ export async function POST(req: Request) {
     const label = (body.label ?? "").trim();
     if (!code || !label) return err(400, "validation", "code and label are required");
     const db = await getDb();
-    const dupe = await db.select({ id: vehicleTypes.id }).from(vehicleTypes).where(eq(vehicleTypes.code, code)).limit(1);
+    const dupe = await db
+      .select({ id: vehicleTypes.id })
+      .from(vehicleTypes)
+      .where(eq(vehicleTypes.code, code))
+      .limit(1);
     if (dupe.length > 0) return err(409, "conflict", "code already exists");
     const id = crypto.randomUUID();
     const now = new Date().toISOString();

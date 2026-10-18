@@ -35,7 +35,10 @@ export async function GET(req: Request) {
       .orderBy(asc(addresses.name))
       .limit(limit ?? 1000)
       .offset(offset);
-    const total = await db.select({ n: sql<number>`count(*)` }).from(addresses).where(where);
+    const total = await db
+      .select({ n: sql<number>`count(*)` })
+      .from(addresses)
+      .where(where);
     return Response.json({ items: rows.map(adminAddressOut), total: Number(total[0]?.n ?? 0) });
   } catch (e) {
     return handleRouteError(e);

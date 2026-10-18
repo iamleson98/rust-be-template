@@ -1,30 +1,30 @@
-import { useNavigate } from '@tanstack/react-router'
-import { Bus, ChevronRight, Ticket } from 'lucide-react'
-import { Button } from '@spa/components/ui/button'
-import { Skeleton } from '@spa/components/ui/skeleton'
+import { useNavigate } from "@tanstack/react-router";
+import { Bus, ChevronRight, Ticket } from "lucide-react";
+import { Button } from "@spa/components/ui/button";
+import { Skeleton } from "@spa/components/ui/skeleton";
 import {
   STAGE_CONFIG,
   ticketStage,
   type BookingItem,
-} from '@spa/features/booking/history/booking-types'
-import { formatDay, formatVND } from '@spa/lib/format'
-import { useT } from '@spa/lib/i18n'
-import { BusTile } from '@spa/components/bus-tile'
-import { EmptyState, Panel } from '@spa/components/console/panel'
+} from "@spa/features/booking/history/booking-types";
+import { formatDay, formatVND } from "@spa/lib/format";
+import { useT } from "@spa/lib/i18n";
+import { BusTile } from "@spa/components/bus-tile";
+import { EmptyState, Panel } from "@spa/components/console/panel";
 
 /** The five latest bookings with their price and (localised) status. */
 export function RecentPurchasesCard({
   bookings,
   loading,
 }: {
-  bookings: BookingItem[]
-  loading: boolean
+  bookings: BookingItem[];
+  loading: boolean;
 }) {
-  const t = useT()
-  const navigate = useNavigate()
+  const t = useT();
+  const navigate = useNavigate();
 
   return (
-    <Panel icon={<Ticket />} title={t('accountPage.console.recentPurchases')}>
+    <Panel icon={<Ticket />} title={t("accountPage.console.recentPurchases")}>
       {loading ? (
         <div className="space-y-2">
           {Array.from({ length: 4 }, (_, i) => (
@@ -34,10 +34,10 @@ export function RecentPurchasesCard({
       ) : bookings.length === 0 ? (
         <EmptyState
           icon={<Bus />}
-          text={t('accountPage.console.noPurchasesYet')}
+          text={t("accountPage.console.noPurchasesYet")}
           action={
-            <Button variant="outline" size="sm" onClick={() => navigate({ to: '/' })}>
-              {t('home.bookATrip')}
+            <Button variant="outline" size="sm" onClick={() => navigate({ to: "/" })}>
+              {t("home.bookATrip")}
             </Button>
           }
         />
@@ -49,10 +49,10 @@ export function RecentPurchasesCard({
                 <BusTile size="sm" />
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-medium">
-                    {b.trip?.routeName ?? t('accountPage.feedback.tripFallback')}
+                    {b.trip?.routeName ?? t("accountPage.feedback.tripFallback")}
                   </div>
                   <div className="text-[11px] text-muted-foreground">
-                    {formatDay(b.trip?.departureAt ?? b.createdAt)} ·{' '}
+                    {formatDay(b.trip?.departureAt ?? b.createdAt)} ·{" "}
                     <code className="font-mono">{b.code}</code>
                   </div>
                 </div>
@@ -69,13 +69,13 @@ export function RecentPurchasesCard({
             variant="ghost"
             size="sm"
             className="mt-2 w-full gap-1 text-primary hover:bg-primary/5"
-            onClick={() => navigate({ to: '/account/trips' })}
+            onClick={() => navigate({ to: "/account/trips" })}
           >
-            {t('accountPage.console.viewAllPurchases')}
+            {t("accountPage.console.viewAllPurchases")}
             <ChevronRight className="h-3.5 w-3.5" />
           </Button>
         </>
       )}
     </Panel>
-  )
+  );
 }

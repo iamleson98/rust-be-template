@@ -10,7 +10,11 @@ export async function POST(req: Request) {
     const body = await readJson<{ ids?: string[] }>(req).catch(() => ({ ids: undefined }));
     const db = await getDb();
     const where = body.ids?.length
-      ? and(eq(notifications.userId, user.id), eq(notifications.read, false), inArray(notifications.id, body.ids))
+      ? and(
+          eq(notifications.userId, user.id),
+          eq(notifications.read, false),
+          inArray(notifications.id, body.ids),
+        )
       : and(eq(notifications.userId, user.id), eq(notifications.read, false));
     const rows = await db
       .update(notifications)

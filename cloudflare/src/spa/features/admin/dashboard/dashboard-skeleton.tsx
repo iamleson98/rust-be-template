@@ -1,8 +1,8 @@
-'use client'
+"use client";
 
-import { memo } from 'react'
-import { Card, CardContent } from '@spa/components/ui/card'
-import { Shimmer } from '@spa/components/ui/shimmer'
+import { memo } from "react";
+import { Card, CardContent } from "@spa/components/ui/card";
+import { Shimmer } from "@spa/components/ui/shimmer";
 
 /* ─── Admin Dashboard Skeleton — KPI + chart skeletons ─── */
 export const AdminDashboardSkeleton = memo(function AdminDashboardSkeleton() {
@@ -146,5 +146,5 @@ export const AdminDashboardSkeleton = memo(function AdminDashboardSkeleton() {
         </div>
       </div>
     </div>
-  )
-})
+  );
+});

@@ -11,7 +11,10 @@ export async function GET(req: Request) {
     await requirePermission(staff, "admin:cron-jobs:read");
     const url = new URL(req.url);
     const jobType = url.searchParams.get("jobType") ?? undefined;
-    const limit = Math.min(Math.max(parseInt(url.searchParams.get("limit") ?? "50", 10) || 50, 1), 200);
+    const limit = Math.min(
+      Math.max(parseInt(url.searchParams.get("limit") ?? "50", 10) || 50, 1),
+      200,
+    );
     const db = await getDb();
     const items = await db
       .select({

@@ -4,9 +4,16 @@
  * by channel; this REST layer is the durable source of truth + fallback.
  * Serialization matches the SPA SDK contract (`ChatChannelOut`).
  */
-import { getDb, rawAll, atomicBatch, type Database } from "@/lib/db/client";
-import { chatAssignments, chatChannelMembers, chatChannels, chatMessages } from "@/lib/db/schema";
-import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import { getDb, atomicBatch, type AtomicStatement, type Database } from "@/lib/db/client";
+import {
+  chatAssignments,
+  chatChannelMembers,
+  chatChannels,
+  chatMessages,
+  users,
+} from "@/lib/db/schema";
+import { and, desc, eq, gte, isNull, ne, or, sql, type SQL } from "drizzle-orm";
+import { alias } from "drizzle-orm/sqlite-core";
 import { ApiError } from "@/lib/auth/rbac";
 import type { SessionUser } from "@/lib/auth/session";
 
@@ -44,7 +51,7 @@ export async function ensureCustomerChannel(
   const existing = await db
     .select()
     .from(chatChannels)
-    .where(and(eq(chatChannels.userId, userId), sql`${chatChannels.status} != 'closed'`))
+    .where(and(eq(chatChannels.userId, userId), ne(chatChannels.status, "closed")))
     .orderBy(desc(chatChannels.createdAt))
     .limit(1);
   if (existing[0]) return existing[0];
@@ -73,81 +80,105 @@ export async function ensureCustomerChannel(
   return ch;
 }
 
-interface ChannelRow {
-  id: string;
-  user_id: string;
-  customer_name: string | null;
-  customer_email: string | null;
-  customer_phone: string | null;
-  customer_avatar: string | null;
-  brand_id: string | null;
-  topic: string | null;
-  status: string;
-  last_message_at: string | null;
-  last_message_preview: string | null;
-  unread_user: number;
-  unread_employee: number;
-  created_at: string;
-  assignee_id: string | null;
-  assignee_name: string | null;
+/** The joined, serializer-ready channel row — built by the typed query
+ * builder below (chat_channel + customer + active assignee + assignee
+ * user), so every column name is compiler-checked. */
+interface ChannelJoinedRow {
+  channel: typeof chatChannels.$inferSelect;
+  customer: { fullName: string; email: string; phone: string | null; avatarUrl: string | null };
+  assignee: { employeeId: string | null; fullName: string | null } | null;
 }
 
-/** Channel rows joined with customer + active assignee, for serialization. */
-function channelQuery(where: ReturnType<typeof sql>) {
-  return sql`
-    SELECT ch.id, ch.user_id,
-           u.full_name AS customer_name, u.email AS customer_email,
-           u.phone AS customer_phone, u.avatar_url AS customer_avatar,
-           ch.brand_id, ch.topic, ch.status,
-           ch.last_message_at, ch.last_message_preview,
-           ch.unread_user, ch.unread_employee, ch.created_at,
-           asg.employee_id AS assignee_id, au.full_name AS assignee_name
-    FROM chat_channel ch
-    JOIN user u ON u.id = ch.user_id
-    LEFT JOIN chat_assignment asg ON asg.channel_id = ch.id AND asg.unassigned_at IS NULL
-    LEFT JOIN user au ON au.id = asg.employee_id
-    WHERE ${where}
-    ORDER BY COALESCE(ch.last_message_at, ch.created_at) DESC
-  `;
+/** Channel rows joined with customer + active assignee, ordered by most
+ * recent activity (COALESCE(last_message_at, created_at) DESC). */
+async function channelRows(db: Database, where: SQL | undefined): Promise<ChannelJoinedRow[]> {
+  const assigneeUser = alias(users, "au");
+  const flat = await db
+    .select({
+      channel: chatChannels,
+      customerName: users.fullName,
+      customerEmail: users.email,
+      customerPhone: users.phone,
+      customerAvatar: users.avatarUrl,
+      assigneeId: chatAssignments.employeeId,
+      assigneeName: assigneeUser.fullName,
+    })
+    .from(chatChannels)
+    .innerJoin(users, eq(users.id, chatChannels.userId))
+    .leftJoin(
+      chatAssignments,
+      and(eq(chatAssignments.channelId, chatChannels.id), isNull(chatAssignments.unassignedAt)),
+    )
+    .leftJoin(assigneeUser, eq(assigneeUser.id, chatAssignments.employeeId))
+    .where(where)
+    .orderBy(desc(sql`COALESCE(${chatChannels.lastMessageAt}, ${chatChannels.createdAt})`));
+  return flat.map(toJoinedRow);
 }
 
-export function serializeChannel(r: ChannelRow, viewerId?: string): ChatChannelOut {
-  const customer: ChannelUserOut = {
-    id: r.user_id,
-    fullName: r.customer_name,
-    email: r.customer_email,
-    phone: r.customer_phone,
-    avatarUrl: r.customer_avatar,
-  };
-  const assignee = r.assignee_id
-    ? { id: r.assignee_id, fullName: r.assignee_name }
-    : null;
+function toJoinedRow(r: {
+  channel: typeof chatChannels.$inferSelect;
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string | null;
+  customerAvatar: string | null;
+  assigneeId: string | null;
+  assigneeName: string | null;
+}): ChannelJoinedRow {
   return {
-    id: r.id,
-    userId: r.user_id,
+    channel: r.channel,
+    customer: {
+      fullName: r.customerName,
+      email: r.customerEmail,
+      phone: r.customerPhone,
+      avatarUrl: r.customerAvatar,
+    },
+    assignee: r.assigneeId !== null ? { employeeId: r.assigneeId, fullName: r.assigneeName } : null,
+  };
+}
+
+export function serializeChannel(r: ChannelJoinedRow, viewerId?: string): ChatChannelOut {
+  const ch = r.channel;
+  const customer: ChannelUserOut = {
+    id: ch.userId,
+    fullName: r.customer.fullName,
+    email: r.customer.email,
+    phone: r.customer.phone,
+    avatarUrl: r.customer.avatarUrl,
+  };
+  const assignee =
+    r.assignee !== null && r.assignee.employeeId !== null
+      ? { id: r.assignee.employeeId, fullName: r.assignee.fullName }
+      : null;
+  return {
+    id: ch.id,
+    userId: ch.userId,
     user: customer,
-    brandId: r.brand_id,
-    topic: r.topic,
-    status: r.status,
-    lastMessageAt: r.last_message_at,
-    lastMessagePreview: r.last_message_preview,
-    unreadUser: r.unread_user,
-    unreadEmployee: r.unread_employee,
-    createdAt: r.created_at,
+    brandId: ch.brandId,
+    topic: ch.topic,
+    status: ch.status,
+    lastMessageAt: ch.lastMessageAt,
+    lastMessagePreview: ch.lastMessagePreview,
+    unreadUser: ch.unreadUser,
+    unreadEmployee: ch.unreadEmployee,
+    createdAt: ch.createdAt,
     assignedTo: assignee,
-    assignedToMe: !!r.assignee_id && r.assignee_id === viewerId,
+    assignedToMe: assignee !== null && assignee.id === viewerId,
   };
 }
 
 /** Channels visible to caller: customers see own; staff see the queue (brand-scoped). */
 export async function listChannels(user: SessionUser): Promise<ChatChannelOut[]> {
+  const db = await getDb();
   const staff = user.role === "employee" || user.role === "admin";
   const where = staff
-    ? user.brandId
-      ? sql`ch.status != 'closed' AND (ch.brand_id IS NULL OR ch.brand_id = ${user.brandId})`
-      : sql`ch.status != 'closed'`
-    : sql`ch.user_id = ${user.id}`;
-  const rows = await rawAll<ChannelRow>(channelQuery(where));
+    ? user.brandId != null // narrows both null and undefined
+      ? and(
+          ne(chatChannels.status, "closed"),
+          or(isNull(chatChannels.brandId), eq(chatChannels.brandId, user.brandId)),
+        )
+      : ne(chatChannels.status, "closed")
+    : eq(chatChannels.userId, user.id);
+  const rows = await channelRows(db, where);
   return rows.map((r) => serializeChannel(r, user.id));
 }
 
@@ -157,10 +188,13 @@ export async function onlineChannels(): Promise<{
   seq: number;
   userIds: string[];
 }> {
+  const db = await getDb();
   const cutoff = new Date(Date.now() - 15 * 60_000).toISOString();
-  const rows = await rawAll<ChannelRow>(
-    channelQuery(sql`ch.status != 'closed' AND COALESCE(ch.last_message_at, ch.created_at) >= ${cutoff}`),
+  const where = and(
+    ne(chatChannels.status, "closed"),
+    gte(sql`COALESCE(${chatChannels.lastMessageAt}, ${chatChannels.createdAt})`, cutoff),
   );
+  const rows = await channelRows(db, where);
   const items = rows.map((r) => serializeChannel(r));
   return {
     items,
@@ -170,21 +204,24 @@ export async function onlineChannels(): Promise<{
 }
 
 export async function getChannelOut(user: SessionUser, channelId: string): Promise<ChatChannelOut> {
-  const rows = await rawAll<ChannelRow>(channelQuery(sql`ch.id = ${channelId}`));
+  const db = await getDb();
+  const rows = await channelRows(db, eq(chatChannels.id, channelId));
   const row = rows[0];
   if (!row) throw new ApiError(404, "not-found", "Channel not found");
   const staff = user.role === "employee" || user.role === "admin";
-  if (!staff && row.user_id !== user.id) throw new ApiError(403, "forbidden", "Not your channel");
+  if (!staff && row.channel.userId !== user.id)
+    throw new ApiError(403, "forbidden", "Not your channel");
   return serializeChannel(row, user.id);
 }
 
 async function assertChannelAccess(user: SessionUser, channelId: string) {
   const db = await getDb();
-  const ch = (await db.select().from(chatChannels).where(eq(chatChannels.id, channelId)).limit(1))[0];
+  const ch = (
+    await db.select().from(chatChannels).where(eq(chatChannels.id, channelId)).limit(1)
+  )[0];
   if (!ch) throw new ApiError(404, "not-found", "Channel not found");
   const staff = user.role === "employee" || user.role === "admin";
-  if (!staff && ch.userId !== user.id)
-    throw new ApiError(403, "forbidden", "Not your channel");
+  if (!staff && ch.userId !== user.id) throw new ApiError(403, "forbidden", "Not your channel");
   return ch;
 }
 
@@ -204,7 +241,12 @@ export async function listMessages(user: SessionUser, channelId: string, limit =
 export async function postMessage(
   user: SessionUser,
   channelId: string,
-  body: { content?: string | null; clientMsgId?: string | null; kind?: string; attachments?: string | null },
+  body: {
+    content?: string | null;
+    clientMsgId?: string | null;
+    kind?: string;
+    attachments?: string | null;
+  },
 ): Promise<typeof chatMessages.$inferSelect> {
   const ch = await assertChannelAccess(user, channelId);
   const db = await getDb();
@@ -239,8 +281,28 @@ export async function postMessage(
     clientMsgId: body.clientMsgId ?? null,
     createdAt: now,
   };
-  const unreadCol = sql.raw(staff ? "unread_user" : "unread_employee");
-  await atomicBatch([
+  const preview = text.slice(0, 80);
+  // Staff messages bump the customer's unread counter; user messages the
+  // staff one. One typed builder per side — no dynamic column names.
+  const touchChannel =
+    senderType === "employee"
+      ? db
+          .update(chatChannels)
+          .set({
+            lastMessageAt: now,
+            lastMessagePreview: preview,
+            unreadUser: sql`${chatChannels.unreadUser} + 1`,
+          })
+          .where(eq(chatChannels.id, channelId))
+      : db
+          .update(chatChannels)
+          .set({
+            lastMessageAt: now,
+            lastMessagePreview: preview,
+            unreadEmployee: sql`${chatChannels.unreadEmployee} + 1`,
+          })
+          .where(eq(chatChannels.id, channelId));
+  const stmts: AtomicStatement[] = [
     db.insert(chatMessages).values({
       id: msg.id,
       channelId,
@@ -253,18 +315,17 @@ export async function postMessage(
       clientMsgId: msg.clientMsgId,
       createdAt: now,
     }),
-    sql`
-      UPDATE chat_channel SET last_message_at = ${now}, last_message_preview = ${text.slice(0, 80)},
-        ${unreadCol} = ${unreadCol} + 1
-      WHERE id = ${channelId}
-    `,
-    ch.status === "open" && staff
-      ? db
-          .update(chatChannels)
-          .set({ status: "assigned" })
-          .where(and(eq(chatChannels.id, channelId), eq(chatChannels.status, "open")))
-      : sql`SELECT 1`,
-  ]);
+    touchChannel,
+  ];
+  if (ch.status === "open" && staff) {
+    stmts.push(
+      db
+        .update(chatChannels)
+        .set({ status: "assigned" })
+        .where(and(eq(chatChannels.id, channelId), eq(chatChannels.status, "open"))),
+    );
+  }
+  await atomicBatch(stmts);
   return msg;
 }
 

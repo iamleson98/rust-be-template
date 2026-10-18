@@ -1,4 +1,4 @@
-'use client'
+"use client";
 
 /**
  * Admin route — `/admin/bus-layouts` — seat-layout catalog page.
@@ -12,16 +12,16 @@
  *    descriptive 409 that is surfaced in the confirm dialog.
  */
 
-import { useQuery, useMutation, keepPreviousData } from '@tanstack/react-query'
+import { useQuery, useMutation, keepPreviousData } from "@tanstack/react-query";
 import {
   adminBrandsListOptions,
   adminBusLayoutsDeleteMutation,
   adminBusLayoutsListOptions,
-} from '@spa/api'
-import { useMemo, useState } from 'react'
-import { createColumnHelper } from '@tanstack/react-table'
-import { Armchair, Bus, LayoutGrid, Loader2, Pencil, Plus, Trash2 } from 'lucide-react'
-import { toast } from 'sonner'
+} from "@spa/api";
+import { useMemo, useState } from "react";
+import { createColumnHelper } from "@tanstack/react-table";
+import { Armchair, Bus, LayoutGrid, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 
 import {
   AlertDialog,
@@ -32,144 +32,148 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@spa/components/ui/alert-dialog'
-import { ConsolePage, PageHeader } from '@spa/components/console/page'
-import { Badge } from '@spa/components/ui/badge'
-import { Button } from '@spa/components/ui/button'
-import { ComboboxField } from '@spa/components/ui/combobox'
+} from "@spa/components/ui/alert-dialog";
+import { ConsolePage, PageHeader } from "@spa/components/console/page";
+import { Badge } from "@spa/components/ui/badge";
+import { Button } from "@spa/components/ui/button";
+import { ComboboxField } from "@spa/components/ui/combobox";
 
-import { DataTable, DataTableColumnHeader, type DataTableFeatures } from '@spa/components/data-table'
-import type { AdminBusLayoutOut } from '@spa/api'
+import {
+  DataTable,
+  DataTableColumnHeader,
+  type DataTableFeatures,
+} from "@spa/components/data-table";
+import type { AdminBusLayoutOut } from "@spa/api";
 
-import { BusLayoutDialog } from '@spa/features/admin/bus-layouts/bus-layout-dialog'
-import { vehicleCodeLabel } from '@spa/features/admin/brands/brand-tree-helpers'
-import { getErrorMessage } from '@spa/lib/error-message'
-import { useT } from '@spa/lib/i18n'
+import { BusLayoutDialog } from "@spa/features/admin/bus-layouts/bus-layout-dialog";
+import { vehicleCodeLabel } from "@spa/features/admin/brands/brand-tree-helpers";
+import { getErrorMessage } from "@spa/lib/error-message";
+import { useT } from "@spa/lib/i18n";
 
 /** Server-side page size for the bus-layouts table. */
-const PAGE_SIZE = 20
+const PAGE_SIZE = 20;
 
 interface BusLayoutRow {
-  id: string
-  name: string
-  brandId: string | null
-  brandName: string | null
-  vehicleType: string | null
-  vehicleLabel: string | null
-  seatCount: number | null
-  planned: boolean
+  id: string;
+  name: string;
+  brandId: string | null;
+  brandName: string | null;
+  vehicleType: string | null;
+  vehicleLabel: string | null;
+  seatCount: number | null;
+  planned: boolean;
 }
 
-const columnHelper = createColumnHelper<DataTableFeatures, BusLayoutRow>()
+const columnHelper = createColumnHelper<DataTableFeatures, BusLayoutRow>();
 
 export function AdminBusLayoutsPage() {
-  const t = useT()
-  const [page, setPage] = useState(0)
-  const [brandId, setBrandId] = useState<string | undefined>(undefined)
+  const t = useT();
+  const [page, setPage] = useState(0);
+  const [brandId, setBrandId] = useState<string | undefined>(undefined);
 
-  const [dialogOpen, setDialogOpen] = useState(false)
-  const [editLayout, setEditLayout] = useState<AdminBusLayoutOut | null>(null)
-  const [deleteTarget, setDeleteTarget] = useState<AdminBusLayoutOut | null>(null)
-  const [deleting, setDeleting] = useState(false)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editLayout, setEditLayout] = useState<AdminBusLayoutOut | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<AdminBusLayoutOut | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  const brandsQuery = useQuery(adminBrandsListOptions())
+  const brandsQuery = useQuery(adminBrandsListOptions());
   const brands = useMemo(
     () =>
       (brandsQuery.data?.items ?? []) as {
-        id: string
-        name: string
+        id: string;
+        name: string;
       }[],
     [brandsQuery.data],
-  )
-  const brandById = useMemo(() => new Map(brands.map((b) => [b.id, b])), [brands])
+  );
+  const brandById = useMemo(() => new Map(brands.map((b) => [b.id, b])), [brands]);
 
   const { data, isLoading } = useQuery({
     ...adminBusLayoutsListOptions({
       query: { brandId, limit: PAGE_SIZE, offset: page * PAGE_SIZE },
     }),
     placeholderData: keepPreviousData,
-  })
+  });
 
-  const deleteMutation = useMutation(adminBusLayoutsDeleteMutation())
+  const deleteMutation = useMutation(adminBusLayoutsDeleteMutation());
 
   const items: AdminBusLayoutOut[] = useMemo(
     () => (data?.items ?? []) as AdminBusLayoutOut[],
     [data],
-  )
-  const itemById = useMemo(() => new Map(items.map((l) => [l.id, l])), [items])
-  const total = data?.total ?? 0
+  );
+  const itemById = useMemo(() => new Map(items.map((l) => [l.id, l])), [items]);
+  const total = data?.total ?? 0;
 
   const rows: BusLayoutRow[] = items.map((layout) => {
-    const brand = layout.brandId ? brandById.get(layout.brandId) : undefined
+    const brand = layout.brandId ? brandById.get(layout.brandId) : undefined;
     return {
       id: layout.id,
-      name: layout.name ?? '',
+      name: layout.name ?? "",
       brandId: layout.brandId ?? null,
       brandName: brand?.name ?? null,
       vehicleType: layout.vehicleType ?? null,
       vehicleLabel: layout.vehicleType ? vehicleCodeLabel(layout.vehicleType) : null,
       seatCount: layout.totalSeats ?? null,
       planned: layout.planned,
-    }
-  })
+    };
+  });
 
   const openCreate = () => {
-    setEditLayout(null)
-    setDialogOpen(true)
-  }
+    setEditLayout(null);
+    setDialogOpen(true);
+  };
 
   const confirmDelete = async () => {
-    if (!deleteTarget) return
-    setDeleting(true)
-    setDeleteError(null)
+    if (!deleteTarget) return;
+    setDeleting(true);
+    setDeleteError(null);
     try {
-      await deleteMutation.mutateAsync({ path: { id: deleteTarget.id } })
-      toast.success(t('busLayouts.deleted'))
-      setDeleteTarget(null)
+      await deleteMutation.mutateAsync({ path: { id: deleteTarget.id } });
+      toast.success(t("busLayouts.deleted"));
+      setDeleteTarget(null);
     } catch (e) {
       // The backend's 409 guard explains exactly what still references
       // the layout — surface it inside the dialog instead of a toast
       // the user dismisses before reading.
-      setDeleteError(getErrorMessage(e, t('busLayouts.deleteFailed')))
+      setDeleteError(getErrorMessage(e, t("busLayouts.deleteFailed")));
     } finally {
-      setDeleting(false)
+      setDeleting(false);
     }
-  }
+  };
 
   // Column cells only close over stable setters + memoized lookups, so
   // the defs themselves stay stable across data refreshes.
   const columns = useMemo(
     () =>
       columnHelper.columns([
-        columnHelper.accessor('name', {
+        columnHelper.accessor("name", {
           header: ({ column }) => (
-            <DataTableColumnHeader column={column} title={t('busLayouts.name')} />
+            <DataTableColumnHeader column={column} title={t("busLayouts.name")} />
           ),
           cell: ({ getValue, row }) => (
             <span className="flex items-center gap-2 font-medium">
-              {getValue() || '—'}
+              {getValue() || "—"}
               {!row.original.planned && (
                 <Badge variant="outline" className="text-[10px] font-normal text-amber-700">
-                  {t('seatPlan.legacyBadge')}
+                  {t("seatPlan.legacyBadge")}
                 </Badge>
               )}
             </span>
           ),
-          sortFn: 'text',
-          meta: { label: t('busLayouts.name') },
+          sortFn: "text",
+          meta: { label: t("busLayouts.name") },
         }),
-        columnHelper.accessor('brandName', {
+        columnHelper.accessor("brandName", {
           header: ({ column }) => (
-            <DataTableColumnHeader column={column} title={t('busLayouts.brand')} />
+            <DataTableColumnHeader column={column} title={t("busLayouts.brand")} />
           ),
           cell: ({ getValue }) => getValue() || <span className="text-muted-foreground">—</span>,
-          sortFn: 'text',
-          meta: { label: t('busLayouts.brand') },
+          sortFn: "text",
+          meta: { label: t("busLayouts.brand") },
         }),
-        columnHelper.accessor('vehicleLabel', {
+        columnHelper.accessor("vehicleLabel", {
           header: ({ column }) => (
-            <DataTableColumnHeader column={column} title={t('busLayouts.vehicleType')} />
+            <DataTableColumnHeader column={column} title={t("busLayouts.vehicleType")} />
           ),
           cell: ({ getValue }) =>
             getValue() ? (
@@ -177,75 +181,75 @@ export function AdminBusLayoutsPage() {
             ) : (
               <span className="text-muted-foreground">—</span>
             ),
-          sortFn: 'text',
-          meta: { label: t('busLayouts.vehicleType') },
+          sortFn: "text",
+          meta: { label: t("busLayouts.vehicleType") },
         }),
-        columnHelper.accessor('seatCount', {
+        columnHelper.accessor("seatCount", {
           header: ({ column }) => (
-            <DataTableColumnHeader column={column} title={t('adminBusLayouts.seatCount')} />
+            <DataTableColumnHeader column={column} title={t("adminBusLayouts.seatCount")} />
           ),
           cell: ({ getValue }) => (
             <span className="flex items-center justify-end gap-1 tabular-nums font-semibold">
               <Armchair className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
-              {getValue() ?? '—'}
+              {getValue() ?? "—"}
             </span>
           ),
-          sortFn: 'basic',
-          meta: { label: t('adminBusLayouts.seatCount'), align: 'right' },
+          sortFn: "basic",
+          meta: { label: t("adminBusLayouts.seatCount"), align: "right" },
         }),
         columnHelper.display({
-          id: 'actions',
-          header: t('common.actions'),
+          id: "actions",
+          header: t("common.actions"),
           cell: ({ row }) => (
             <div className="flex items-center justify-end gap-1">
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => {
-                  const original = itemById.get(row.original.id)
+                  const original = itemById.get(row.original.id);
                   if (original) {
-                    setEditLayout(original)
-                    setDialogOpen(true)
+                    setEditLayout(original);
+                    setDialogOpen(true);
                   }
                 }}
               >
                 <Pencil className="h-3.5 w-3.5" />
-                <span className="sr-only">{t('busLayouts.editTitle')}</span>
+                <span className="sr-only">{t("busLayouts.editTitle")}</span>
               </Button>
               <Button
                 variant="ghost"
                 size="sm"
                 className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950"
                 onClick={() => {
-                  const original = itemById.get(row.original.id)
+                  const original = itemById.get(row.original.id);
                   if (original) {
-                    setDeleteError(null)
-                    setDeleteTarget(original)
+                    setDeleteError(null);
+                    setDeleteTarget(original);
                   }
                 }}
               >
                 <Trash2 className="h-3.5 w-3.5" />
-                <span className="sr-only">{t('adminBusLayouts.deleteLayout')}</span>
+                <span className="sr-only">{t("adminBusLayouts.deleteLayout")}</span>
               </Button>
             </div>
           ),
           enableSorting: false,
           enableHiding: false,
-          meta: { align: 'right', label: t('common.actions') },
+          meta: { align: "right", label: t("common.actions") },
         }),
       ]),
     [itemById, t],
-  )
+  );
 
   return (
     <ConsolePage>
       <PageHeader
-        title={t('busLayouts.title')}
-        description={t('adminBusLayouts.pageSubtitle')}
+        title={t("busLayouts.title")}
+        description={t("adminBusLayouts.pageSubtitle")}
         actions={
           <Button onClick={openCreate}>
             <Plus />
-            {t('busLayouts.add')}
+            {t("busLayouts.add")}
           </Button>
         }
       />
@@ -255,19 +259,19 @@ export function AdminBusLayoutsPage() {
         <div className="flex items-center gap-2">
           <Bus className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
           <ComboboxField
-            value={brandId ?? 'all'}
+            value={brandId ?? "all"}
             onValueChange={(v) => {
-              setBrandId(v === 'all' ? undefined : v)
-              setPage(0)
+              setBrandId(v === "all" ? undefined : v);
+              setPage(0);
             }}
             items={[
-              { value: 'all', label: t('busLayouts.allBrands') },
+              { value: "all", label: t("busLayouts.allBrands") },
               ...brands.map((b) => ({ value: b.id, label: b.name })),
             ]}
             className="flex-1"
-            placeholder={t('busLayouts.allBrands')}
-            searchPlaceholder={t('adminBusLayouts.searchBrand')}
-            aria-label={t('adminBusLayouts.filterByBrand')}
+            placeholder={t("busLayouts.allBrands")}
+            searchPlaceholder={t("adminBusLayouts.searchBrand")}
+            aria-label={t("adminBusLayouts.filterByBrand")}
             data-testid="brand-filter"
           />
         </div>
@@ -276,19 +280,19 @@ export function AdminBusLayoutsPage() {
       <DataTable
         columns={columns}
         data={rows}
-        rowNoun={t('adminBusLayouts.rowNoun')}
+        rowNoun={t("adminBusLayouts.rowNoun")}
         manualPagination
         totalRowCount={total}
         pageIndex={page}
         onPageIndexChange={setPage}
         pageSize={PAGE_SIZE}
         isLoading={isLoading}
-        emptyTitle={t('busLayouts.empty')}
-        emptyDescription={t('adminBusLayouts.emptyDesc')}
+        emptyTitle={t("busLayouts.empty")}
+        emptyDescription={t("adminBusLayouts.emptyDesc")}
         emptyIcon={<LayoutGrid className="h-5 w-5" aria-hidden />}
         emptyAction={
           <Button size="sm" className="mt-2" onClick={openCreate}>
-            <Plus className="h-4 w-4" /> {t('busLayouts.add')}
+            <Plus className="h-4 w-4" /> {t("busLayouts.add")}
           </Button>
         }
       />
@@ -306,23 +310,23 @@ export function AdminBusLayoutsPage() {
         open={!!deleteTarget}
         onOpenChange={(open) => {
           if (!deleting && !open) {
-            setDeleteTarget(null)
-            setDeleteError(null)
+            setDeleteTarget(null);
+            setDeleteError(null);
           }
         }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t('common.confirmDeleteTitle')}</AlertDialogTitle>
+            <AlertDialogTitle>{t("common.confirmDeleteTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              {t('adminBusLayouts.deleteLayout')}{' '}
+              {t("adminBusLayouts.deleteLayout")}{" "}
               <span className="font-semibold text-foreground">
-                {deleteTarget?.name ?? '—'}
+                {deleteTarget?.name ?? "—"}
                 {deleteTarget?.totalSeats
-                  ? t('adminBusLayouts.seatsParens', { count: deleteTarget.totalSeats })
-                  : ''}
+                  ? t("adminBusLayouts.seatsParens", { count: deleteTarget.totalSeats })
+                  : ""}
               </span>
-              {t('adminBusLayouts.deleteConfirmTail')}
+              {t("adminBusLayouts.deleteConfirmTail")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           {deleteError && (
@@ -332,24 +336,24 @@ export function AdminBusLayoutsPage() {
           )}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deleting}>
-              {deleteError ? t('common.close') : t('common.cancel')}
+              {deleteError ? t("common.close") : t("common.cancel")}
             </AlertDialogCancel>
             {!deleteError && (
               <AlertDialogAction
                 onClick={(e) => {
-                  e.preventDefault()
-                  confirmDelete()
+                  e.preventDefault();
+                  confirmDelete();
                 }}
                 disabled={deleting}
                 className="bg-rose-600 text-white hover:bg-rose-700"
               >
                 {deleting ? (
                   <>
-                    <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> {t('common.deleting')}
+                    <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> {t("common.deleting")}
                   </>
                 ) : (
                   <>
-                    <Trash2 className="mr-1.5 h-4 w-4" /> {t('common.delete')}
+                    <Trash2 className="mr-1.5 h-4 w-4" /> {t("common.delete")}
                   </>
                 )}
               </AlertDialogAction>
@@ -358,5 +362,5 @@ export function AdminBusLayoutsPage() {
         </AlertDialogContent>
       </AlertDialog>
     </ConsolePage>
-  )
+  );
 }

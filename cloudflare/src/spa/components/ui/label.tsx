@@ -1,9 +1,9 @@
-'use client'
+"use client";
 
-import { type LabelHTMLAttributes } from 'react'
+import type { LabelHTMLAttributes } from "react";
 
-import { Slot } from '@spa/components/ui/slot'
-import { cn } from '@spa/lib/utils'
+import { Slot } from "@spa/components/ui/slot";
+import { cn } from "@spa/lib/utils";
 
 export interface LabelProps extends LabelHTMLAttributes<HTMLLabelElement> {
   /**
@@ -12,7 +12,7 @@ export interface LabelProps extends LabelHTMLAttributes<HTMLLabelElement> {
    * `asChild` prop pattern so existing consumers continue to work.
    * @default false
    */
-  asChild?: boolean
+  asChild?: boolean;
 }
 
 /**
@@ -23,18 +23,18 @@ export interface LabelProps extends LabelHTMLAttributes<HTMLLabelElement> {
  * (including the `asChild` prop, handled via our custom Slot utility).
  */
 function Label({ className, asChild = false, ...props }: LabelProps) {
-  const Comp = asChild ? Slot : 'label'
+  const Comp = asChild ? Slot : "label";
 
   return (
     <Comp
       data-slot="label"
       className={cn(
-        'flex items-center gap-2 text-sm leading-none font-medium select-none group-data-[disabled=true]:pointer-events-none group-data-[disabled=true]:opacity-50 peer-disabled:cursor-not-allowed peer-disabled:opacity-50',
+        "flex items-center gap-2 text-sm leading-none font-medium select-none group-data-[disabled=true]:pointer-events-none group-data-[disabled=true]:opacity-50 peer-disabled:cursor-not-allowed peer-disabled:opacity-50",
         className,
       )}
       {...props}
     />
-  )
+  );
 }
 
-export { Label }
+export { Label };

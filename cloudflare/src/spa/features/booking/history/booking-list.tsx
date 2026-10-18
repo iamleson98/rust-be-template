@@ -1,69 +1,69 @@
-'use client'
+"use client";
 
-import { useMemo } from 'react'
-import { Button } from '@spa/components/ui/button'
-import { RefreshCw } from 'lucide-react'
-import { useT } from '@spa/lib/i18n'
-import { BookingCard } from '@spa/features/booking/history/booking-card'
-import { BookingItem } from '@spa/features/booking/history/booking-types'
-import { MyBookingsSkeleton } from '@spa/features/booking/history/my-bookings-skeleton'
-import { NoBookingsYet } from '@spa/features/booking/history/no-bookings-yet'
-import { NoReviewsYet } from '@spa/features/reviews/no-reviews-yet'
-import { NoResultsFound } from '@spa/features/search/no-results-found'
-import { Card } from '@spa/components/ui/card'
+import { useMemo } from "react";
+import { Button } from "@spa/components/ui/button";
+import { RefreshCw } from "lucide-react";
+import { useT } from "@spa/lib/i18n";
+import { BookingCard } from "@spa/features/booking/history/booking-card";
+import { BookingItem } from "@spa/features/booking/history/booking-types";
+import { MyBookingsSkeleton } from "@spa/features/booking/history/my-bookings-skeleton";
+import { NoBookingsYet } from "@spa/features/booking/history/no-bookings-yet";
+import { NoReviewsYet } from "@spa/features/reviews/no-reviews-yet";
+import { NoResultsFound } from "@spa/features/search/no-results-found";
+import { Card } from "@spa/components/ui/card";
 
-type Currency = 'VND' | 'USD'
+type Currency = "VND" | "USD";
 
 type Props = {
-  bookings: BookingItem[]
-  currency: Currency
-  loading: boolean
-  loaded: boolean
-  expandedId: string | null
-  onToggleExpand: (id: string) => void
-  onCancelClick?: (id: string) => void
-  cancellingId?: string | null
-  onExploreOther?: () => void
-  onLeaveFeedback?: (id: string) => void
-  feedbackOpenId?: string | null
-  onReload?: () => void
+  bookings: BookingItem[];
+  currency: Currency;
+  loading: boolean;
+  loaded: boolean;
+  expandedId: string | null;
+  onToggleExpand: (id: string) => void;
+  onCancelClick?: (id: string) => void;
+  cancellingId?: string | null;
+  onExploreOther?: () => void;
+  onLeaveFeedback?: (id: string) => void;
+  feedbackOpenId?: string | null;
+  onReload?: () => void;
   /** Optional extra action node factory for each BookingCard. */
-  renderExtraActions?: (b: BookingItem) => React.ReactNode
+  renderExtraActions?: (b: BookingItem) => React.ReactNode;
   /** Which "tab" / empty-state variant to show. */
-  variant: 'upcoming' | 'past' | 'cancelled' | 'reviews' | 'all' | 'search'
+  variant: "upcoming" | "past" | "cancelled" | "reviews" | "all" | "search";
   /** Optional node rendered below the list (e.g. the inline FeedbackForm
    *  for the booking whose id == feedbackOpenId). */
-  children?: React.ReactNode
-}
+  children?: React.ReactNode;
+};
 
 // i18n: `title`/`subtitle` hold translation KEYS resolved via `t(...)` at
 // render time (module-level constant → render-time translation pattern).
-const EMPTY_COPY: Record<Props['variant'], { title: string; subtitle: string }> = {
+const EMPTY_COPY: Record<Props["variant"], { title: string; subtitle: string }> = {
   upcoming: {
-    title: 'bookingHistory.emptyUpcomingTitle',
-    subtitle: 'bookingHistory.emptyUpcomingSubtitle',
+    title: "bookingHistory.emptyUpcomingTitle",
+    subtitle: "bookingHistory.emptyUpcomingSubtitle",
   },
   past: {
-    title: 'bookingHistory.emptyPastTitle',
-    subtitle: 'bookingHistory.emptyPastSubtitle',
+    title: "bookingHistory.emptyPastTitle",
+    subtitle: "bookingHistory.emptyPastSubtitle",
   },
   cancelled: {
-    title: 'bookingHistory.emptyCancelledTitle',
-    subtitle: 'bookingHistory.emptyCancelledSubtitle',
+    title: "bookingHistory.emptyCancelledTitle",
+    subtitle: "bookingHistory.emptyCancelledSubtitle",
   },
   reviews: {
-    title: 'bookingHistory.emptyReviewsTitle',
-    subtitle: 'bookingHistory.emptyReviewsSubtitle',
+    title: "bookingHistory.emptyReviewsTitle",
+    subtitle: "bookingHistory.emptyReviewsSubtitle",
   },
   all: {
-    title: 'account.noBookings',
-    subtitle: 'bookingHistory.emptyAllSubtitle',
+    title: "account.noBookings",
+    subtitle: "bookingHistory.emptyAllSubtitle",
   },
   search: {
-    title: 'bookingHistory.emptySearchTitle',
-    subtitle: 'bookingHistory.emptySearchSubtitle',
+    title: "bookingHistory.emptySearchTitle",
+    subtitle: "bookingHistory.emptySearchSubtitle",
   },
-}
+};
 
 /**
  * BookingList — renders a vertical stack of BookingCard with header
@@ -87,9 +87,9 @@ export function BookingList({
   variant,
   children,
 }: Props) {
-  const t = useT()
-  const count = bookings.length
-  const emptyCopy = EMPTY_COPY[variant]
+  const t = useT();
+  const count = bookings.length;
+  const emptyCopy = EMPTY_COPY[variant];
 
   const cards = useMemo(() => {
     return bookings.map((b) => (
@@ -110,7 +110,7 @@ export function BookingList({
         {/* Inline feedback form for this booking (rendered by parent) */}
         {feedbackOpenId === b.id && children}
       </div>
-    ))
+    ));
   }, [
     bookings,
     currency,
@@ -123,18 +123,18 @@ export function BookingList({
     feedbackOpenId,
     renderExtraActions,
     children,
-  ])
+  ]);
 
   if (loading && !loaded) {
-    return <MyBookingsSkeleton count={3} />
+    return <MyBookingsSkeleton count={3} />;
   }
 
   if (count === 0) {
     return (
       <Card className="overflow-hidden">
-        {variant === 'reviews' ? (
+        {variant === "reviews" ? (
           <NoReviewsYet onWrite={onExploreOther ?? (() => {})} />
-        ) : variant === 'search' ? (
+        ) : variant === "search" ? (
           <NoResultsFound
             onReset={onExploreOther ?? (() => {})}
             onExplore={onExploreOther ?? (() => {})}
@@ -146,22 +146,22 @@ export function BookingList({
           <div className="flex items-start gap-2.5 text-xs text-muted-foreground">
             <RefreshCw className="h-3.5 w-3.5 text-blue-500 shrink-0 mt-0.5" />
             <p>
-              <span className="font-semibold text-foreground">{t(emptyCopy.title)}.</span>{' '}
+              <span className="font-semibold text-foreground">{t(emptyCopy.title)}.</span>{" "}
               {t(emptyCopy.subtitle)}
             </p>
           </div>
         </div>
       </Card>
-    )
+    );
   }
 
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">
-          {t('bookingHistory.foundTicketsPrefix')}{' '}
-          <span className="font-bold text-foreground">{count}</span>{' '}
-          {t('bookingHistory.foundTicketsSuffix')}
+          {t("bookingHistory.foundTicketsPrefix")}{" "}
+          <span className="font-bold text-foreground">{count}</span>{" "}
+          {t("bookingHistory.foundTicketsSuffix")}
         </p>
         {onReload && (
           <Button
@@ -171,12 +171,12 @@ export function BookingList({
             onClick={onReload}
             disabled={loading}
           >
-            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-            {t('bookingHistory.reload')}
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+            {t("bookingHistory.reload")}
           </Button>
         )}
       </div>
       {cards}
     </div>
-  )
+  );
 }

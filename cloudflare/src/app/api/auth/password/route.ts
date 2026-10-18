@@ -28,10 +28,14 @@ export async function POST(req: Request) {
     const passwordHash = await hashPassword(newPassword);
     await db
       .update(users)
-      .set({ passwordHash, passwordChangedAt: new Date().toISOString(), updatedAt: new Date().toISOString() })
+      .set({
+        passwordHash,
+        passwordChangedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      })
       .where(eq(users.id, user.id));
     // Rust returns the fresh session envelope after a password change.
-    const row = (await db.select().from(users).where(eq(users.id, user.id)).limit(1))[0]!;
+    const row = (await db.select().from(users).where(eq(users.id, user.id)).limit(1))[0];
     const { sessionUserOut } = await import("@/lib/auth/session");
     return Response.json({
       user: sessionUserOut(row),

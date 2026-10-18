@@ -1,7 +1,7 @@
-'use client'
+"use client";
 
-import { type ComponentProps } from 'react'
-import { Collapsible as CollapsiblePrimitive } from '@base-ui/react/collapsible'
+import type { ComponentProps } from "react";
+import { Collapsible as CollapsiblePrimitive } from "@base-ui/react/collapsible";
 
 /**
  * Radix-compat wrapper around Base UI's Collapsible.
@@ -14,11 +14,11 @@ import { Collapsible as CollapsiblePrimitive } from '@base-ui/react/collapsible'
  */
 
 function Collapsible({ ...props }: ComponentProps<typeof CollapsiblePrimitive.Root>) {
-  return <CollapsiblePrimitive.Root data-slot="collapsible" {...props} />
+  return <CollapsiblePrimitive.Root data-slot="collapsible" {...props} />;
 }
 
 function CollapsibleTrigger({ ...props }: ComponentProps<typeof CollapsiblePrimitive.Trigger>) {
-  return <CollapsiblePrimitive.Trigger data-slot="collapsible-trigger" {...props} />
+  return <CollapsiblePrimitive.Trigger data-slot="collapsible-trigger" {...props} />;
 }
 
 function CollapsibleContent({
@@ -32,12 +32,12 @@ function CollapsibleContent({
       // `--radix-collapsible-content-height`. Base UI exposes the same value
       // under `--collapsible-panel-height`, so alias it for backward compat.
       style={{
-        ['--radix-collapsible-content-height' as string]: 'var(--collapsible-panel-height)',
+        ["--radix-collapsible-content-height" as string]: "var(--collapsible-panel-height)",
       }}
       className={className}
       {...props}
     />
-  )
+  );
 }
 
-export { Collapsible, CollapsibleTrigger, CollapsibleContent }
+export { Collapsible, CollapsibleTrigger, CollapsibleContent };

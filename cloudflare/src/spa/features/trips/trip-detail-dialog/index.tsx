@@ -1,7 +1,7 @@
-'use client'
+"use client";
 
-import { useEffect, useState } from 'react'
-import { useNavigate } from '@tanstack/react-router'
+import { useEffect, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import {
   ArrowLeftRight,
   Bus,
@@ -10,57 +10,57 @@ import {
   MapPin,
   MessageSquareQuote,
   Users,
-} from 'lucide-react'
-import type { TripDetail, TripSeat } from '@spa/api'
-import { ErrorState } from '@spa/components/error-state'
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@spa/components/ui/dialog'
-import { ScrollArea } from '@spa/components/ui/scroll-area'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@spa/components/ui/tabs'
-import { BookingFlow } from '@spa/features/booking/flow/booking-flow'
-import { RouteScheduleMap } from '@spa/features/map/route-schedule-map'
-import { ReviewsList } from '@spa/features/reviews/reviews-list'
-import { SeatMap } from '@spa/features/seat-plan'
-import { useTripDetail } from '@spa/features/trips/api'
-import { useT } from '@spa/lib/i18n'
-import { useBookingFlow } from '@spa/stores/booking-flow'
-import { useSession } from '@spa/stores/session'
-import { useUi } from '@spa/stores/ui'
-import { BoardingPoints } from './boarding-points'
-import { FareTable } from './fare-table'
-import { PolicyBlock } from './policy-block'
-import { PriceSummary } from './price-summary'
-import { StopTimeline } from './stop-timeline'
-import { TripDetailSkeleton } from './trip-detail-skeleton'
-import { TripInfo } from './trip-info'
-import { tripStops } from './trip-stops'
+} from "lucide-react";
+import type { TripDetail, TripSeat } from "@spa/api";
+import { ErrorState } from "@spa/components/error-state";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@spa/components/ui/dialog";
+import { ScrollArea } from "@spa/components/ui/scroll-area";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@spa/components/ui/tabs";
+import { BookingFlow } from "@spa/features/booking/flow/booking-flow";
+import { RouteScheduleMap } from "@spa/features/map/route-schedule-map";
+import { ReviewsList } from "@spa/features/reviews/reviews-list";
+import { SeatMap } from "@spa/features/seat-plan";
+import { useTripDetail } from "@spa/features/trips/api";
+import { useT } from "@spa/lib/i18n";
+import { useBookingFlow } from "@spa/stores/booking-flow";
+import { useSession } from "@spa/stores/session";
+import { useUi } from "@spa/stores/ui";
+import { BoardingPoints } from "./boarding-points";
+import { FareTable } from "./fare-table";
+import { PolicyBlock } from "./policy-block";
+import { PriceSummary } from "./price-summary";
+import { StopTimeline } from "./stop-timeline";
+import { TripDetailSkeleton } from "./trip-detail-skeleton";
+import { TripInfo } from "./trip-info";
+import { tripStops } from "./trip-stops";
 
 /** Seats one booking may hold. */
-const MAX_SEATS = 10
+const MAX_SEATS = 10;
 
 // Underlined tabs: icon over label on phones, side by side from sm.
 const TAB =
-  'relative h-auto flex-col gap-1 whitespace-normal rounded-none border-0 px-1 py-2.5 text-[11px] leading-tight text-slate-500 after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:rounded-full hover:text-slate-900 data-[active]:text-primary data-[active]:after:bg-primary sm:flex-row sm:gap-1.5 sm:text-sm'
+  "relative h-auto flex-col gap-1 whitespace-normal rounded-none border-0 px-1 py-2.5 text-[11px] leading-tight text-slate-500 after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:rounded-full hover:text-slate-900 data-[active]:text-primary data-[active]:after:bg-primary sm:flex-row sm:gap-1.5 sm:text-sm";
 
 /**
  * A trip in full: seat map, stops, fares and reviews, then the booking wizard, which
  * takes over the same dialog once the customer goes on to book.
  */
 export function TripDetailDialog({ tripId, onClose }: { tripId: string; onClose: () => void }) {
-  const t = useT()
-  const bookingStep = useBookingFlow((s) => s.step)
-  const { data: detail, isError, refetch } = useTripDetail(tripId)
+  const t = useT();
+  const bookingStep = useBookingFlow((s) => s.step);
+  const { data: detail, isError, refetch } = useTripDetail(tripId);
 
   // Leaving mid-booking (Back, a route change) must not leave the flow stuck open.
   useEffect(
     () => () => {
-      const flow = useBookingFlow.getState()
-      if (flow.step !== 'idle') {
-        flow.setStep('idle')
-        flow.setContext(null)
+      const flow = useBookingFlow.getState();
+      if (flow.step !== "idle") {
+        flow.setStep("idle");
+        flow.setContext(null);
       }
     },
     [],
-  )
+  );
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
@@ -70,62 +70,62 @@ export function TripDetailDialog({ tripId, onClose }: { tripId: string; onClose:
         mobile="fullscreen"
         className="flex max-h-[92dvh] max-w-7xl flex-col gap-0 overflow-hidden p-0 max-md:h-dvh max-md:max-h-dvh 2xl:max-w-[88rem]"
       >
-        {bookingStep !== 'idle' ? (
+        {bookingStep !== "idle" ? (
           <>
-            <DialogTitle className="sr-only">{t('bookingFlow.completeBooking')}</DialogTitle>
-            <DialogDescription className="sr-only">{t('tripDetail.loadingDesc')}</DialogDescription>
+            <DialogTitle className="sr-only">{t("bookingFlow.completeBooking")}</DialogTitle>
+            <DialogDescription className="sr-only">{t("tripDetail.loadingDesc")}</DialogDescription>
             <BookingFlow />
           </>
         ) : detail ? (
           <TripView detail={detail} />
         ) : isError ? (
           <>
-            <DialogTitle className="sr-only">{t('tripDetail.errorTitle')}</DialogTitle>
+            <DialogTitle className="sr-only">{t("tripDetail.errorTitle")}</DialogTitle>
             <div className="flex min-h-60 flex-1 items-center justify-center p-6">
-              <ErrorState description={t('tripDetail.errorDesc')} onRetry={() => refetch()} />
+              <ErrorState description={t("tripDetail.errorDesc")} onRetry={() => refetch()} />
             </div>
           </>
         ) : (
           <>
-            <DialogTitle className="sr-only">{t('tripDetail.loadingTitle')}</DialogTitle>
-            <DialogDescription className="sr-only">{t('tripDetail.loadingDesc')}</DialogDescription>
+            <DialogTitle className="sr-only">{t("tripDetail.loadingTitle")}</DialogTitle>
+            <DialogDescription className="sr-only">{t("tripDetail.loadingDesc")}</DialogDescription>
             <TripDetailSkeleton />
           </>
         )}
       </DialogContent>
     </Dialog>
-  )
+  );
 }
 
 function TripView({ detail }: { detail: TripDetail }) {
-  const t = useT()
-  const navigate = useNavigate()
-  const signedIn = useSession((s) => !!s.user)
-  const openShare = useUi((s) => s.openShare)
-  const setBookingStep = useBookingFlow((s) => s.setStep)
-  const setBookingContext = useBookingFlow((s) => s.setContext)
+  const t = useT();
+  const navigate = useNavigate();
+  const signedIn = useSession((s) => !!s.user);
+  const openShare = useUi((s) => s.openShare);
+  const setBookingStep = useBookingFlow((s) => s.setStep);
+  const setBookingContext = useBookingFlow((s) => s.setContext);
   // Back from signing in: the seats and stops picked before are still picked.
   const [saved] = useState(() => {
-    const context = useBookingFlow.getState().context
-    return context?.tripId === detail.trip.id ? context : null
-  })
-  const [picked, setPicked] = useState<string[]>(saved?.seatIds ?? [])
-  const [boarding, setBoarding] = useState(saved?.boardingPointId ?? '')
-  const [dropping, setDropping] = useState(saved?.droppingPointId ?? '')
+    const context = useBookingFlow.getState().context;
+    return context?.tripId === detail.trip.id ? context : null;
+  });
+  const [picked, setPicked] = useState<string[]>(saved?.seatIds ?? []);
+  const [boarding, setBoarding] = useState(saved?.boardingPointId ?? "");
+  const [dropping, setDropping] = useState(saved?.droppingPointId ?? "");
 
-  const seats = detail.seatMap.decks.flatMap((deck) => deck.rows.flatMap((row) => row.seats))
+  const seats = detail.seatMap.decks.flatMap((deck) => deck.rows.flatMap((row) => row.seats));
   // A refetch may show a picked seat sold in the meantime: it simply drops out.
-  const selected = seats.filter((seat) => picked.includes(seat.id) && seat.status === 'available')
-  const points = [...detail.pickupPoints].sort((a, b) => (a.stopOrder ?? 0) - (b.stopOrder ?? 0))
-  const boardingId = boarding || points[0]?.id || ''
-  const droppingId = dropping || points.at(-1)?.id || ''
-  const { bookable } = detail.trip
+  const selected = seats.filter((seat) => picked.includes(seat.id) && seat.status === "available");
+  const points = [...detail.pickupPoints].sort((a, b) => (a.stopOrder ?? 0) - (b.stopOrder ?? 0));
+  const boardingId = boarding || points[0]?.id || "";
+  const droppingId = dropping || points.at(-1)?.id || "";
+  const { bookable } = detail.trip;
   const canProceed =
-    bookable && selected.length > 0 && (points.length === 0 || (!!boardingId && !!droppingId))
-  const { stops, timetable } = tripStops(detail)
+    bookable && selected.length > 0 && (points.length === 0 || (!!boardingId && !!droppingId));
+  const { stops, timetable } = tripStops(detail);
   // The map shows the stops the timeline lists: the timetable, else the route's points.
-  const mapStops = detail.schedulePoints.length > 0 ? detail.schedulePoints : detail.pickupPoints
-  const located = mapStops.filter((p) => p.lat != null && p.lon != null)
+  const mapStops = detail.schedulePoints.length > 0 ? detail.schedulePoints : detail.pickupPoints;
+  const located = mapStops.filter((p) => p.lat != null && p.lon != null);
 
   const toggleSeat = ({ id }: TripSeat) =>
     setPicked((prev) =>
@@ -134,7 +134,7 @@ function TripView({ detail }: { detail: TripDetail }) {
         : prev.length < MAX_SEATS
           ? [...prev, id]
           : prev,
-    )
+    );
 
   const proceed = () => {
     setBookingContext({
@@ -142,11 +142,11 @@ function TripView({ detail }: { detail: TripDetail }) {
       seatIds: selected.map((seat) => seat.id),
       boardingPointId: points.length ? boardingId : null,
       droppingPointId: points.length ? droppingId : null,
-    })
+    });
     // Tickets belong to an account: sign in first, then come straight back.
-    if (signedIn) setBookingStep('passengers')
-    else navigate({ to: '/login', search: { redirect: `/trips/${detail.trip.id}` } })
-  }
+    if (signedIn) setBookingStep("passengers");
+    else navigate({ to: "/login", search: { redirect: `/trips/${detail.trip.id}` } });
+  };
 
   const stopPicker = (
     <BoardingPoints
@@ -156,14 +156,14 @@ function TripView({ detail }: { detail: TripDetail }) {
       onBoardingPoint={setBoarding}
       onDroppingPoint={setDropping}
     />
-  )
+  );
   const timeline = (
     <StopTimeline
-      title={t('tripDetail.scheduleTimelineTitle')}
-      aside={stops.some((s) => s.time) ? t('tripDetail.localTimeNote') : undefined}
+      title={t("tripDetail.scheduleTimelineTitle")}
+      aside={stops.some((s) => s.time) ? t("tripDetail.localTimeNote") : undefined}
       stops={stops}
     />
-  )
+  );
 
   return (
     <>
@@ -172,11 +172,11 @@ function TripView({ detail }: { detail: TripDetail }) {
         onShare={() =>
           openShare({
             tripId: detail.trip.id,
-            fromName: detail.from.name ?? '',
-            toName: detail.to.name ?? '',
+            fromName: detail.from.name ?? "",
+            toName: detail.to.name ?? "",
             departureAt: detail.trip.departureAt ?? undefined,
             departureTime: detail.trip.departureTime ?? undefined,
-            brandName: detail.brand.name ?? '',
+            brandName: detail.brand.name ?? "",
             brandRating: detail.brand.rating ?? undefined,
             minPrice: detail.pricing.fares[0]?.priceAdult ?? detail.pricing.basePriceAdult,
             vehicleTypeLabel: detail.busLayout.vehicleTypeLabel,
@@ -190,19 +190,19 @@ function TripView({ detail }: { detail: TripDetail }) {
           <Tabs defaultValue="seats" className="flex min-h-0 flex-1 flex-col">
             <TabsList className="grid h-auto w-full shrink-0 grid-cols-5 rounded-none border-b border-slate-200/80 bg-white p-0 px-2 md:grid-cols-4">
               <TabsTrigger value="seats" className={TAB}>
-                <Bus className="h-4 w-4 shrink-0" /> {t('booking.seatSelector')}
+                <Bus className="h-4 w-4 shrink-0" /> {t("booking.seatSelector")}
               </TabsTrigger>
               <TabsTrigger value="points" className={`${TAB} md:hidden`}>
-                <ArrowLeftRight className="h-4 w-4 shrink-0" /> {t('tripDetail.tabPoints')}
+                <ArrowLeftRight className="h-4 w-4 shrink-0" /> {t("tripDetail.tabPoints")}
               </TabsTrigger>
               <TabsTrigger value="route" className={TAB}>
-                <MapPin className="h-4 w-4 shrink-0" /> {t('tripDetail.tabRoute')}
+                <MapPin className="h-4 w-4 shrink-0" /> {t("tripDetail.tabRoute")}
               </TabsTrigger>
               <TabsTrigger value="info" className={TAB}>
-                <CheckCircle2 className="h-4 w-4 shrink-0" /> {t('tripDetail.tabPolicy')}
+                <CheckCircle2 className="h-4 w-4 shrink-0" /> {t("tripDetail.tabPolicy")}
               </TabsTrigger>
               <TabsTrigger value="reviews" className={TAB}>
-                <MessageSquareQuote className="h-4 w-4 shrink-0" /> {t('tripDetail.tabReviews')}
+                <MessageSquareQuote className="h-4 w-4 shrink-0" /> {t("tripDetail.tabReviews")}
               </TabsTrigger>
             </TabsList>
 
@@ -210,21 +210,21 @@ function TripView({ detail }: { detail: TripDetail }) {
               <TabsContent value="seats" className="m-0 p-4">
                 <div className="mb-3 flex items-center justify-between text-sm">
                   <div className="font-semibold">
-                    {t('tripDetail.chooseSeatsUpTo', { max: MAX_SEATS })}
+                    {t("tripDetail.chooseSeatsUpTo", { max: MAX_SEATS })}
                     <span className="ml-1 font-normal text-muted-foreground">
                       ({selected.length}/{MAX_SEATS})
                     </span>
                   </div>
                   <div className="flex items-center gap-1 text-xs text-muted-foreground">
                     <Users className="h-3.5 w-3.5" />
-                    {detail.trip.availableSeats}/{detail.trip.totalSeats}{' '}
-                    {t('common.seatsAvailable')}
+                    {detail.trip.availableSeats}/{detail.trip.totalSeats}{" "}
+                    {t("common.seatsAvailable")}
                   </div>
                 </div>
                 {!bookable && (
                   <p className="mb-3 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
                     <Clock className="h-4 w-4 shrink-0" />
-                    {t('tripDetail.notBookable')}
+                    {t("tripDetail.notBookable")}
                   </p>
                 )}
                 <SeatMap
@@ -254,16 +254,16 @@ function TripView({ detail }: { detail: TripDetail }) {
                         ]
                   }
                   pickupPoints={mapStops}
-                  fromName={detail.from.name ?? ''}
-                  toName={detail.to.name ?? ''}
+                  fromName={detail.from.name ?? ""}
+                  toName={detail.to.name ?? ""}
                 />
                 <StopTimeline
-                  title={t('tripDetail.routeTimelineTitle')}
+                  title={t("tripDetail.routeTimelineTitle")}
                   stops={stops}
                   footer={
                     !timetable && (
                       <p className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-2.5 text-[11px] text-muted-foreground">
-                        {t('tripDetail.timetableFallbackNotice')}
+                        {t("tripDetail.timetableFallbackNotice")}
                       </p>
                     )
                   }
@@ -273,24 +273,24 @@ function TripView({ detail }: { detail: TripDetail }) {
               <TabsContent value="info" className="m-0 space-y-4 p-4">
                 <FareTable pricing={detail.pricing} />
                 <PolicyBlock
-                  title={t('tripDetail.changeCancelPolicy')}
+                  title={t("tripDetail.changeCancelPolicy")}
                   items={[
-                    { label: t('tripDetail.before24h'), value: t('tripDetail.refund90') },
-                    { label: t('tripDetail.before4h'), value: t('tripDetail.refund50') },
-                    { label: t('tripDetail.within4h'), value: t('tripDetail.noRefund') },
+                    { label: t("tripDetail.before24h"), value: t("tripDetail.refund90") },
+                    { label: t("tripDetail.before4h"), value: t("tripDetail.refund50") },
+                    { label: t("tripDetail.within4h"), value: t("tripDetail.noRefund") },
                   ]}
                 />
                 <PolicyBlock
-                  title={t('tripDetail.luggagePolicy')}
+                  title={t("tripDetail.luggagePolicy")}
                   items={[
-                    { label: t('tripDetail.carryOn'), value: t('tripDetail.carryOnMax') },
+                    { label: t("tripDetail.carryOn"), value: t("tripDetail.carryOnMax") },
                     {
-                      label: t('tripDetail.largeLuggage'),
-                      value: t('tripDetail.underCompartment'),
+                      label: t("tripDetail.largeLuggage"),
+                      value: t("tripDetail.underCompartment"),
                     },
                     {
-                      label: t('tripDetail.prohibitedItemsLabel'),
-                      value: t('tripDetail.prohibitedItems'),
+                      label: t("tripDetail.prohibitedItemsLabel"),
+                      value: t("tripDetail.prohibitedItems"),
                     },
                   ]}
                 />
@@ -298,9 +298,9 @@ function TripView({ detail }: { detail: TripDetail }) {
 
               <TabsContent value="reviews" className="m-0 p-4">
                 <ReviewsList
-                  brandId={detail.brand.id ?? ''}
+                  brandId={detail.brand.id ?? ""}
                   routeId={detail.route.id}
-                  brandName={detail.brand.name ?? ''}
+                  brandName={detail.brand.name ?? ""}
                   routeName={detail.route.name}
                 />
               </TabsContent>
@@ -329,5 +329,5 @@ function TripView({ detail }: { detail: TripDetail }) {
         onProceed={proceed}
       />
     </>
-  )
+  );
 }

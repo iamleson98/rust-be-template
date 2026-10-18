@@ -1,9 +1,9 @@
-'use client'
+"use client";
 
-import { type ComponentProps, type ReactElement, isValidElement } from 'react'
-import { PreviewCard as PreviewCardPrimitive } from '@base-ui/react/preview-card'
+import { type ComponentProps, type ReactElement, isValidElement } from "react";
+import { PreviewCard as PreviewCardPrimitive } from "@base-ui/react/preview-card";
 
-import { cn } from '@spa/lib/utils'
+import { cn } from "@spa/lib/utils";
 
 /**
  * Radix-compat HoverCard wrapper around Base UI's PreviewCard.
@@ -31,15 +31,15 @@ import { cn } from '@spa/lib/utils'
  */
 
 function HoverCard({ ...props }: ComponentProps<typeof PreviewCardPrimitive.Root>) {
-  return <PreviewCardPrimitive.Root data-slot="hover-card" {...props} />
+  return <PreviewCardPrimitive.Root data-slot="hover-card" {...props} />;
 }
 
 function HoverCardTrigger({
   asChild,
   children,
   ...props
-}: Omit<ComponentProps<typeof PreviewCardPrimitive.Trigger>, 'render'> & {
-  asChild?: boolean
+}: Omit<ComponentProps<typeof PreviewCardPrimitive.Trigger>, "render"> & {
+  asChild?: boolean;
 }) {
   if (asChild && isValidElement(children)) {
     return (
@@ -48,29 +48,29 @@ function HoverCardTrigger({
         render={children as ReactElement}
         {...props}
       />
-    )
+    );
   }
   return (
     <PreviewCardPrimitive.Trigger data-slot="hover-card-trigger" {...props}>
       {children}
     </PreviewCardPrimitive.Trigger>
-  )
+  );
 }
 
 function HoverCardContent({
   className,
-  align = 'center',
+  align = "center",
   sideOffset = 4,
-  side = 'bottom',
+  side = "bottom",
   ...props
 }: Omit<
   ComponentProps<typeof PreviewCardPrimitive.Positioner>,
-  'render' | 'side' | 'align' | 'sideOffset'
+  "render" | "side" | "align" | "sideOffset"
 > &
-  Omit<ComponentProps<typeof PreviewCardPrimitive.Popup>, 'render'> & {
-    side?: 'top' | 'right' | 'bottom' | 'left' | 'inline-start' | 'inline-end'
-    sideOffset?: number
-    align?: 'start' | 'center' | 'end'
+  Omit<ComponentProps<typeof PreviewCardPrimitive.Popup>, "render"> & {
+    side?: "top" | "right" | "bottom" | "left" | "inline-start" | "inline-end";
+    sideOffset?: number;
+    align?: "start" | "center" | "end";
   }) {
   return (
     <PreviewCardPrimitive.Portal data-slot="hover-card-portal">
@@ -78,17 +78,17 @@ function HoverCardContent({
         <PreviewCardPrimitive.Popup
           data-slot="hover-card-content"
           render={(componentProps, state) => (
-            <div {...componentProps} data-state={state.open ? 'open' : 'closed'} />
+            <div {...componentProps} data-state={state.open ? "open" : "closed"} />
           )}
           className={cn(
-            'bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 w-64 origin-(--transform-origin) rounded-md border p-4  outline-hidden',
+            "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 w-64 origin-(--transform-origin) rounded-md border p-4  outline-hidden",
             className,
           )}
           {...props}
         />
       </PreviewCardPrimitive.Positioner>
     </PreviewCardPrimitive.Portal>
-  )
+  );
 }
 
-export { HoverCard, HoverCardTrigger, HoverCardContent }
+export { HoverCard, HoverCardTrigger, HoverCardContent };

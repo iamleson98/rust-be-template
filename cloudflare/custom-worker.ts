@@ -1,4 +1,6 @@
-// @ts-ignore `.open-next/worker.ts` is generated at build time
+// @ts-ignore Generated at build time by `opennextjs-cloudflare build`:
+// absent on a fresh clone, present after the first build — the expect-error
+// flavor would lie in one of the two states, this one never does.
 import { default as handler } from "./.open-next/worker.js";
 import { DurableObject } from "cloudflare:workers";
 import { ChatHub } from "./chat-hub";
@@ -90,10 +92,12 @@ export default {
   },
   async scheduled(_event: ScheduledController, env: CloudflareEnv, _ctx: ExecutionContext) {
     // Heartbeat: keep the cron container awake (it owns the schedules).
-    const id = (env as unknown as { CRON_CONTAINER: DurableObjectNamespace }).CRON_CONTAINER.idFromName(
-      "singleton",
+    const id = (
+      env as unknown as { CRON_CONTAINER: DurableObjectNamespace }
+    ).CRON_CONTAINER.idFromName("singleton");
+    const stub = (env as unknown as { CRON_CONTAINER: DurableObjectNamespace }).CRON_CONTAINER.get(
+      id,
     );
-    const stub = (env as unknown as { CRON_CONTAINER: DurableObjectNamespace }).CRON_CONTAINER.get(id);
     await stub.fetch(new Request("http://container/health"));
   },
 } satisfies ExportedHandler<CloudflareEnv>;

@@ -1,5 +1,6 @@
-import { rawAll } from "@/lib/db/client";
-import { sql } from "drizzle-orm";
+import { getDb } from "@/lib/db/client";
+import { and, desc, eq, like, sql } from "drizzle-orm";
+import { brands, routes, schedules } from "@/lib/db/schema";
 import { handleRouteError } from "@/lib/api";
 import { findCity } from "@/lib/services/trip-search";
 import { listRoutesDefault } from "@/lib/services/lookups";
@@ -18,7 +19,10 @@ export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
     const brandId = url.searchParams.get("brandId");
-    const limit = Math.min(Math.max(parseInt(url.searchParams.get("limit") ?? "50", 10) || 50, 1), 500);
+    const limit = Math.min(
+      Math.max(parseInt(url.searchParams.get("limit") ?? "50", 10) || 50, 1),
+      500,
+    );
     const offset = Math.max(parseInt(url.searchParams.get("offset") ?? "0", 10) || 0, 0);
     const q = (url.searchParams.get("q") ?? "").trim();
 
@@ -28,50 +32,50 @@ export async function GET(req: Request) {
       return Response.json({ items: items.map(decorateRoute) });
     }
 
+    const db = await getDb();
     const rows = await withRetry(() =>
-      rawAll<{
-        id: string;
-        name: string;
-        status: string;
-        brand_id: string | null;
-        brand_slug: string | null;
-        brand_name: string | null;
-        brand_logo_url: string | null;
-        brand_rating: number | null;
-        start_location_id: string;
-        end_location_id: string;
-        schedule_count: number;
-        price_from: number | null;
-      }>(sql`
-        SELECT r.id, r.name, r.status,
-               r.brand_id, b.slug AS brand_slug, b.name AS brand_name,
-               b.logo_url AS brand_logo_url, b.rating AS brand_rating,
-               r.start_location_id, r.end_location_id,
-               (SELECT COUNT(*) FROM schedule s WHERE s.route_id = r.id) AS schedule_count,
-               (SELECT MIN(s.base_price_adult) FROM schedule s WHERE s.route_id = r.id) AS price_from
-        FROM route r
-        LEFT JOIN brand b ON b.id = r.brand_id
-        WHERE ${brandId ? sql`r.brand_id = ${brandId}` : sql`r.status = 'active'`}
-          ${q ? sql`AND r.name LIKE ${"%" + q + "%"}` : sql``}
-        ORDER BY r.created_at DESC
-        LIMIT ${limit} OFFSET ${offset}
-      `),
+      db
+        .select({
+          route: routes,
+          brandSlug: brands.slug,
+          brandName: brands.name,
+          brandLogoUrl: brands.logoUrl,
+          brandRating: brands.rating,
+          scheduleCount: sql<number>`(SELECT COUNT(*) FROM ${schedules} WHERE ${schedules.routeId} = ${routes.id})`,
+          priceFrom: sql<
+            number | null
+          >`(SELECT MIN(${schedules.basePriceAdult}) FROM ${schedules} WHERE ${schedules.routeId} = ${routes.id})`,
+        })
+        .from(routes)
+        .leftJoin(brands, eq(brands.id, routes.brandId))
+        .where(
+          and(
+            // `?brandId=` (empty) behaves like absent: the active-route default.
+            brandId !== null && brandId.length > 0
+              ? eq(routes.brandId, brandId)
+              : eq(routes.status, "active"),
+            q.length > 0 ? like(routes.name, `%${q}%`) : undefined,
+          ),
+        )
+        .orderBy(desc(routes.createdAt))
+        .limit(limit)
+        .offset(offset),
     );
 
     return Response.json({
       items: rows.map((r) =>
         decorateRoute({
-          id: r.id,
-          name: r.name,
-          brandId: r.brand_id,
-          brandSlug: r.brand_slug,
-          brandName: r.brand_name,
-          brandLogoUrl: r.brand_logo_url,
-          brandRating: r.brand_rating,
-          startLocationId: r.start_location_id,
-          endLocationId: r.end_location_id,
-          scheduleCount: Number(r.schedule_count),
-          priceFrom: r.price_from == null ? null : Number(r.price_from),
+          id: r.route.id,
+          name: r.route.name,
+          brandId: r.route.brandId,
+          brandSlug: r.brandSlug,
+          brandName: r.brandName,
+          brandLogoUrl: r.brandLogoUrl,
+          brandRating: r.brandRating,
+          startLocationId: r.route.startLocationId,
+          endLocationId: r.route.endLocationId,
+          scheduleCount: Number(r.scheduleCount),
+          priceFrom: r.priceFrom == null ? null : Number(r.priceFrom),
         }),
       ),
     });

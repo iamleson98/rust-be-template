@@ -1,7 +1,7 @@
-'use client'
+"use client";
 
-import { memo } from 'react'
-import { Shimmer } from '@spa/components/ui/shimmer'
+import { memo } from "react";
+import { Shimmer } from "@spa/components/ui/shimmer";
 
 /* ─── Chat Channel List Skeleton ───
  * Mirrors the chat queue rows: avatar + display name/subtitle lines +
@@ -10,7 +10,7 @@ import { Shimmer } from '@spa/components/ui/shimmer'
 export const ChatChannelListSkeleton = memo(function ChatChannelListSkeleton({
   count = 6,
 }: {
-  count?: number
+  count?: number;
 }) {
   return (
     <div className="divide-y" aria-hidden data-testid="chat-channels-skeleton">
@@ -28,5 +28,5 @@ export const ChatChannelListSkeleton = memo(function ChatChannelListSkeleton({
         </div>
       ))}
     </div>
-  )
-})
+  );
+});

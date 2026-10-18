@@ -24,7 +24,9 @@ export async function PUT(req: Request, ctx: Params) {
     const { id } = await ctx.params;
     const body = await readJson<PpBody>(req);
     const db = await getDb();
-    const existing = (await db.select().from(pickupPoints).where(eq(pickupPoints.id, id)).limit(1))[0];
+    const existing = (
+      await db.select().from(pickupPoints).where(eq(pickupPoints.id, id)).limit(1)
+    )[0];
     if (!existing) return err(404, "not-found", "pickup point not found");
     await db
       .update(pickupPoints)
@@ -51,7 +53,13 @@ export async function DELETE(req: Request, ctx: Params) {
     await requirePermission(staff, "admin:pickup_points:write");
     const { id } = await ctx.params;
     const db = await getDb();
-    const existing = (await db.select({ id: pickupPoints.id }).from(pickupPoints).where(eq(pickupPoints.id, id)).limit(1))[0];
+    const existing = (
+      await db
+        .select({ id: pickupPoints.id })
+        .from(pickupPoints)
+        .where(eq(pickupPoints.id, id))
+        .limit(1)
+    )[0];
     if (!existing) return err(404, "not-found", "pickup point not found");
     await db.delete(pickupPoints).where(eq(pickupPoints.id, id));
     return Response.json({ id });

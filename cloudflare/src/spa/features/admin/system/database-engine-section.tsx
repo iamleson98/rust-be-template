@@ -1,4 +1,4 @@
-'use client'
+"use client";
 
 /**
  * Database Engine section — the admin `/admin/system` page's deep-dive
@@ -19,57 +19,59 @@
  * path, so this observability is always-on, not sampled.
  */
 
-import type { EngineStatsOut } from '@spa/api'
-import { Activity, Database, Gauge, MemoryStick } from 'lucide-react'
+import type { EngineStatsOut } from "@spa/api";
+import { Activity, Database, Gauge, MemoryStick } from "lucide-react";
 
-import { Badge } from '@spa/components/ui/badge'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@spa/components/ui/card'
-import { Progress } from '@spa/components/ui/progress'
-import { useT } from '@spa/lib/i18n'
+import { Badge } from "@spa/components/ui/badge";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@spa/components/ui/card";
+import { Progress } from "@spa/components/ui/progress";
+import { useT } from "@spa/lib/i18n";
 
 /** Compact number: 12_400 → "12.4K", 3_500_000 → "3.5M". */
 function compact(n: number): string {
-  if (!Number.isFinite(n) || n < 0) return '—'
-  return new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(n)
+  if (!Number.isFinite(n) || n < 0) return "—";
+  return new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(
+    n,
+  );
 }
 
 /** Fixed-digits MB value. */
 function mb(value: number, digits = 2): string {
-  if (!Number.isFinite(value) || value < 0) return '—'
-  return `${value.toFixed(digits)} MB`
+  if (!Number.isFinite(value) || value < 0) return "—";
+  return `${value.toFixed(digits)} MB`;
 }
 
 /** Rate with one decimal + "/s". */
 function perSec(rate: number): string {
-  if (!Number.isFinite(rate) || rate <= 0) return '0'
-  return `${compact(rate)}/s`
+  if (!Number.isFinite(rate) || rate <= 0) return "0";
+  return `${compact(rate)}/s`;
 }
 
 /** Hit-rate tone: high is GOOD (inverted vs. usage thresholds). */
 function hitRateTone(pct: number): string {
-  if (pct >= 95) return 'text-green-600'
-  if (pct >= 80) return 'text-amber-600'
-  return 'text-red-600'
+  if (pct >= 95) return "text-green-600";
+  if (pct >= 80) return "text-amber-600";
+  return "text-red-600";
 }
 
 function hitRateBarTone(pct: number): string {
-  if (pct >= 95) return 'bg-green-500'
-  if (pct >= 80) return 'bg-amber-500'
-  return 'bg-red-500'
+  if (pct >= 95) return "bg-green-500";
+  if (pct >= 80) return "bg-amber-500";
+  return "bg-red-500";
 }
 
 export function DatabaseEngineSection({ engine }: { engine: EngineStatsOut }) {
-  const t = useT()
-  const util = Math.min(Math.max(engine.memory.utilizationPct, 0), 100)
-  const hitRate = Math.min(Math.max(engine.cache.hitRatePct, 0), 100)
+  const t = useT();
+  const util = Math.min(Math.max(engine.memory.utilizationPct, 0), 100);
+  const hitRate = Math.min(Math.max(engine.cache.hitRatePct, 0), 100);
 
   return (
     <section id="database-engine" data-testid="database-engine" className="space-y-3">
       <h2 className="flex items-center gap-2 text-lg font-semibold">
         <Database className="h-5 w-5" aria-hidden />
-        {t('adminSystem.dbEngineTitle')}
+        {t("adminSystem.dbEngineTitle")}
         <Badge variant="outline" className="max-w-70 truncate font-normal" title={engine.version}>
-          {engine.version.split(' ').slice(0, 2).join(' ')}
+          {engine.version.split(" ").slice(0, 2).join(" ")}
         </Badge>
       </h2>
 
@@ -80,9 +82,9 @@ export function DatabaseEngineSection({ engine }: { engine: EngineStatsOut }) {
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-base">
               <MemoryStick className="h-4 w-4 text-muted-foreground" aria-hidden />
-              {t('adminSystem.memory')}
+              {t("adminSystem.memory")}
             </CardTitle>
-            <CardDescription>{t('adminSystem.memoryDesc')}</CardDescription>
+            <CardDescription>{t("adminSystem.memoryDesc")}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
             <div className="flex items-baseline justify-between">
@@ -90,27 +92,27 @@ export function DatabaseEngineSection({ engine }: { engine: EngineStatsOut }) {
                 {mb(engine.memory.cacheMb, 1)}
               </span>
               <span className="text-xs text-muted-foreground">
-                {t('adminSystem.ofCapacity', { capacity: mb(engine.memory.cacheCapacityMb, 1) })}
+                {t("adminSystem.ofCapacity", { capacity: mb(engine.memory.cacheCapacityMb, 1) })}
               </span>
             </div>
             <Progress value={util} className="h-2" />
             <div className="text-xs text-muted-foreground space-y-0.5 pt-1">
               <div>
-                {t('adminSystem.cacheUtilization')}:{' '}
+                {t("adminSystem.cacheUtilization")}:{" "}
                 <span className="font-medium tabular-nums">{util.toFixed(1)}%</span>
               </div>
               <div>
-                {t('adminSystem.dbSize')}:{' '}
-                <span className="font-medium tabular-nums">{mb(engine.memory.dbSizeMb, 1)}</span> ·{' '}
-                {t('adminSystem.walFrames')}:{' '}
+                {t("adminSystem.dbSize")}:{" "}
+                <span className="font-medium tabular-nums">{mb(engine.memory.dbSizeMb, 1)}</span> ·{" "}
+                {t("adminSystem.walFrames")}:{" "}
                 <span className="font-medium tabular-nums">{compact(engine.memory.walFrames)}</span>
               </div>
               <div>
-                {t('adminSystem.freelistPages')}:{' '}
+                {t("adminSystem.freelistPages")}:{" "}
                 <span className="font-medium tabular-nums">
                   {compact(engine.memory.freelistPages)}
-                </span>{' '}
-                {t('adminSystem.reclaimable')}
+                </span>{" "}
+                {t("adminSystem.reclaimable")}
               </div>
             </div>
           </CardContent>
@@ -121,9 +123,9 @@ export function DatabaseEngineSection({ engine }: { engine: EngineStatsOut }) {
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-base">
               <Gauge className="h-4 w-4 text-muted-foreground" aria-hidden />
-              {t('adminSystem.perfCapacity')}
+              {t("adminSystem.perfCapacity")}
             </CardTitle>
-            <CardDescription>{t('adminSystem.perfCapacityDesc')}</CardDescription>
+            <CardDescription>{t("adminSystem.perfCapacityDesc")}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
             <div className="flex items-baseline justify-between">
@@ -131,7 +133,7 @@ export function DatabaseEngineSection({ engine }: { engine: EngineStatsOut }) {
                 {hitRate.toFixed(1)}%
               </span>
               <span className="text-xs text-muted-foreground">
-                {t('adminSystem.pageCacheHitRate')}
+                {t("adminSystem.pageCacheHitRate")}
               </span>
             </div>
             <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
@@ -142,37 +144,37 @@ export function DatabaseEngineSection({ engine }: { engine: EngineStatsOut }) {
             </div>
             <div className="text-xs text-muted-foreground space-y-0.5 pt-1">
               <div>
-                {t('adminSystem.connections')}:{' '}
+                {t("adminSystem.connections")}:{" "}
                 <span className="font-medium text-blue-600 tabular-nums">
                   {engine.connections.live}
-                </span>{' '}
-                {t('adminSystem.hitsMisses', {
+                </span>{" "}
+                {t("adminSystem.hitsMisses", {
                   hits: compact(engine.cache.hits),
                   misses: compact(engine.cache.misses),
                 })}
               </div>
               <div>
-                {t('adminSystem.busyWaits')}:{' '}
+                {t("adminSystem.busyWaits")}:{" "}
                 <span
-                  className={`font-medium tabular-nums ${engine.contention.busyWaits > 0 ? 'text-amber-600' : ''}`}
+                  className={`font-medium tabular-nums ${engine.contention.busyWaits > 0 ? "text-amber-600" : ""}`}
                 >
                   {compact(engine.contention.busyWaits)}
-                </span>{' '}
-                · {t('adminSystem.timeouts')}:{' '}
+                </span>{" "}
+                · {t("adminSystem.timeouts")}:{" "}
                 <span
-                  className={`font-medium tabular-nums ${engine.contention.busyTimeouts > 0 ? 'text-red-600' : ''}`}
+                  className={`font-medium tabular-nums ${engine.contention.busyTimeouts > 0 ? "text-red-600" : ""}`}
                 >
                   {compact(engine.contention.busyTimeouts)}
                 </span>
               </div>
               <div className="flex items-center gap-1">
-                {t('adminSystem.writerSlot')}:
+                {t("adminSystem.writerSlot")}:
                 {engine.transactions.active ? (
                   <Badge className="border-0 bg-emerald-100 text-emerald-700 text-[10px]">
-                    {t('adminSystem.txActive')}
+                    {t("adminSystem.txActive")}
                   </Badge>
                 ) : (
-                  <span>{t('adminSystem.idle')}</span>
+                  <span>{t("adminSystem.idle")}</span>
                 )}
               </div>
             </div>
@@ -184,9 +186,9 @@ export function DatabaseEngineSection({ engine }: { engine: EngineStatsOut }) {
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-base">
               <Activity className="h-4 w-4 text-muted-foreground" aria-hidden />
-              {t('adminSystem.throughput')}
+              {t("adminSystem.throughput")}
             </CardTitle>
-            <CardDescription>{t('adminSystem.throughputDesc')}</CardDescription>
+            <CardDescription>{t("adminSystem.throughputDesc")}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
             <div className="grid grid-cols-3 gap-2">
@@ -195,7 +197,7 @@ export function DatabaseEngineSection({ engine }: { engine: EngineStatsOut }) {
                   {perSec(engine.throughput.rowsPerSec)}
                 </div>
                 <div className="text-[10px] text-muted-foreground">
-                  {t('adminSystem.rowsPerSec')}
+                  {t("adminSystem.rowsPerSec")}
                 </div>
               </div>
               <div className="text-center">
@@ -203,7 +205,7 @@ export function DatabaseEngineSection({ engine }: { engine: EngineStatsOut }) {
                   {perSec(engine.throughput.writesPerSec)}
                 </div>
                 <div className="text-[10px] text-muted-foreground">
-                  {t('adminSystem.writesPerSec')}
+                  {t("adminSystem.writesPerSec")}
                 </div>
               </div>
               <div className="text-center">
@@ -211,27 +213,27 @@ export function DatabaseEngineSection({ engine }: { engine: EngineStatsOut }) {
                   {perSec(engine.throughput.stepsPerSec)}
                 </div>
                 <div className="text-[10px] text-muted-foreground">
-                  {t('adminSystem.stepsPerSec')}
+                  {t("adminSystem.stepsPerSec")}
                 </div>
               </div>
             </div>
             <div className="text-xs text-muted-foreground space-y-0.5 pt-1">
               <div>
-                {t('adminSystem.totalRowsReturned')}:{' '}
+                {t("adminSystem.totalRowsReturned")}:{" "}
                 <span className="font-medium tabular-nums">
                   {compact(engine.throughput.rowsReturned)}
                 </span>
               </div>
               <div>
-                {t('adminSystem.writesExecuted')}:{' '}
+                {t("adminSystem.writesExecuted")}:{" "}
                 <span className="font-medium tabular-nums">
                   {compact(engine.throughput.writesExecuted)}
-                </span>{' '}
-                ·{' '}
-                {t('adminSystem.statements', { n: compact(engine.throughput.statementsPrepared) })}
+                </span>{" "}
+                ·{" "}
+                {t("adminSystem.statements", { n: compact(engine.throughput.statementsPrepared) })}
               </div>
               <div>
-                {t('adminSystem.rowMutations')}:{' '}
+                {t("adminSystem.rowMutations")}:{" "}
                 <span className="font-medium tabular-nums">
                   {compact(engine.throughput.totalChanges)}
                 </span>
@@ -245,18 +247,18 @@ export function DatabaseEngineSection({ engine }: { engine: EngineStatsOut }) {
       {engine.files.length > 0 && (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {engine.files.map((f) => {
-            const fHit = Math.min(Math.max(f.hitRatePct, 0), 100)
+            const fHit = Math.min(Math.max(f.hitRatePct, 0), 100);
             return (
               <Card key={f.name} data-testid="engine-file-card">
                 <CardHeader className="pb-2">
                   <CardTitle className="flex items-center gap-2 text-sm">
                     <Database className="h-4 w-4 text-muted-foreground shrink-0" aria-hidden />
                     <span className="truncate" title={f.name}>
-                      {f.name.split('/').pop() || f.name}
+                      {f.name.split("/").pop() || f.name}
                     </span>
                     {f.transactionActive && (
                       <Badge className="border-0 bg-emerald-100 text-emerald-700 text-[10px] shrink-0">
-                        {t('adminSystem.txActiveShort')}
+                        {t("adminSystem.txActiveShort")}
                       </Badge>
                     )}
                   </CardTitle>
@@ -267,19 +269,19 @@ export function DatabaseEngineSection({ engine }: { engine: EngineStatsOut }) {
                 <CardContent>
                   <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">{t('adminSystem.dbSize')}</span>
+                      <span className="text-muted-foreground">{t("adminSystem.dbSize")}</span>
                       <span className="font-medium tabular-nums">{mb(f.sizeMb, 2)}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">{t('adminSystem.pages')}</span>
+                      <span className="text-muted-foreground">{t("adminSystem.pages")}</span>
                       <span className="font-medium tabular-nums">
                         {compact(f.pageCount)} × {formatPageSize(f.pageSizeBytes)}
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">{t('adminSystem.cache')}</span>
+                      <span className="text-muted-foreground">{t("adminSystem.cache")}</span>
                       <span className="font-medium tabular-nums">
-                        {t('adminSystem.cachePagesValue', {
+                        {t("adminSystem.cachePagesValue", {
                           used: compact(f.cachePages),
                           capacity: compact(f.cacheCapacityPages),
                           size: mb(f.cacheMb, 1),
@@ -287,35 +289,35 @@ export function DatabaseEngineSection({ engine }: { engine: EngineStatsOut }) {
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">{t('adminSystem.hitRate')}</span>
+                      <span className="text-muted-foreground">{t("adminSystem.hitRate")}</span>
                       <span className={`font-medium tabular-nums ${hitRateTone(fHit)}`}>
                         {fHit.toFixed(1)}%
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">{t('adminSystem.walFrames')}</span>
+                      <span className="text-muted-foreground">{t("adminSystem.walFrames")}</span>
                       <span className="font-medium tabular-nums">{compact(f.walFrames)}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">{t('adminSystem.connections')}</span>
+                      <span className="text-muted-foreground">{t("adminSystem.connections")}</span>
                       <span className="font-medium tabular-nums">
-                        {t('adminSystem.liveConns', { n: f.liveConnections })}
+                        {t("adminSystem.liveConns", { n: f.liveConnections })}
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">{t('adminSystem.freelist')}</span>
+                      <span className="text-muted-foreground">{t("adminSystem.freelist")}</span>
                       <span className="font-medium tabular-nums">
                         {compact(f.freelistPages)} pg
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">{t('adminSystem.changes')}</span>
+                      <span className="text-muted-foreground">{t("adminSystem.changes")}</span>
                       <span className="font-medium tabular-nums">{compact(f.totalChanges)}</span>
                     </div>
                   </div>
                 </CardContent>
               </Card>
-            )
+            );
           })}
         </div>
       )}
@@ -323,25 +325,25 @@ export function DatabaseEngineSection({ engine }: { engine: EngineStatsOut }) {
       {/* ── Transaction + connection ledger ─────────────────────────── */}
       <Card data-testid="engine-ledger-card">
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm">{t('adminSystem.engineLedger')}</CardTitle>
-          <CardDescription>{t('adminSystem.engineLedgerDesc')}</CardDescription>
+          <CardTitle className="text-sm">{t("adminSystem.engineLedger")}</CardTitle>
+          <CardDescription>{t("adminSystem.engineLedgerDesc")}</CardDescription>
         </CardHeader>
         <CardContent className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs sm:grid-cols-3 md:grid-cols-5">
-          <LedgerItem label={t('adminSystem.txStarted')} value={engine.transactions.begun} />
-          <LedgerItem label={t('adminSystem.committed')} value={engine.transactions.committed} />
-          <LedgerItem label={t('adminSystem.rolledBack')} value={engine.transactions.rolledBack} />
+          <LedgerItem label={t("adminSystem.txStarted")} value={engine.transactions.begun} />
+          <LedgerItem label={t("adminSystem.committed")} value={engine.transactions.committed} />
+          <LedgerItem label={t("adminSystem.rolledBack")} value={engine.transactions.rolledBack} />
           <LedgerItem
-            label={t('adminSystem.connectionsOpened')}
+            label={t("adminSystem.connectionsOpened")}
             value={engine.connections.opened}
           />
           <LedgerItem
-            label={t('adminSystem.connectionsClosed')}
+            label={t("adminSystem.connectionsClosed")}
             value={engine.connections.closed}
           />
         </CardContent>
       </Card>
     </section>
-  )
+  );
 }
 
 function LedgerItem({ label, value }: { label: string; value: number }) {
@@ -350,10 +352,10 @@ function LedgerItem({ label, value }: { label: string; value: number }) {
       <span className="text-muted-foreground">{label}</span>
       <span className="font-medium tabular-nums">{compact(value)}</span>
     </div>
-  )
+  );
 }
 
 function formatPageSize(bytes: number): string {
-  if (bytes >= 1024) return `${(bytes / 1024).toFixed(0)}KB`
-  return `${bytes}B`
+  if (bytes >= 1024) return `${(bytes / 1024).toFixed(0)}KB`;
+  return `${bytes}B`;
 }

@@ -31,22 +31,22 @@
  * hears a beep" bug.
  */
 
-let audioCtx: AudioContext | null = null
+let audioCtx: AudioContext | null = null;
 
 function getCtx(): AudioContext | null {
-  if (typeof window === 'undefined') return null
+  if (typeof window === "undefined") return null;
   if (!audioCtx) {
     try {
-      audioCtx = new (window.AudioContext || window.webkitAudioContext)()
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     } catch {
-      return null
+      return null;
     }
   }
   // Resume if suspended (browser auto-suspends until user interaction).
-  if (audioCtx.state === 'suspended') {
-    audioCtx.resume().catch(() => {})
+  if (audioCtx.state === "suspended") {
+    audioCtx.resume().catch(() => {});
   }
-  return audioCtx
+  return audioCtx;
 }
 
 /**
@@ -56,32 +56,32 @@ function getCtx(): AudioContext | null {
  * message sound overrides this to 0.35 so it's loud enough to hear
  * over background noise (Facebook Messenger style).
  */
-function playTone(freq: number, duration: number, type: OscillatorType = 'triangle', volume = 0.2) {
-  const ctx = getCtx()
-  if (!ctx) return
+function playTone(freq: number, duration: number, type: OscillatorType = "triangle", volume = 0.2) {
+  const ctx = getCtx();
+  if (!ctx) return;
 
-  const oscillator = ctx.createOscillator()
-  const gain = ctx.createGain()
+  const oscillator = ctx.createOscillator();
+  const gain = ctx.createGain();
 
-  oscillator.connect(gain)
-  gain.connect(ctx.destination)
+  oscillator.connect(gain);
+  gain.connect(ctx.destination);
 
-  oscillator.type = type
-  oscillator.frequency.value = freq
+  oscillator.type = type;
+  oscillator.frequency.value = freq;
 
   // Envelope: quick attack, sustain, quick release.
   // The attack is 5ms (fast enough to feel instant, slow enough to
   // avoid the click-pop a 0ms attack causes). Release is 50ms so
   // the tone fades smoothly rather than cutting off abruptly.
-  const now = ctx.currentTime
-  const durSec = duration / 1000
-  gain.gain.setValueAtTime(0, now)
-  gain.gain.linearRampToValueAtTime(volume, now + 0.005)
-  gain.gain.setValueAtTime(volume, now + durSec - 0.05)
-  gain.gain.linearRampToValueAtTime(0, now + durSec)
+  const now = ctx.currentTime;
+  const durSec = duration / 1000;
+  gain.gain.setValueAtTime(0, now);
+  gain.gain.linearRampToValueAtTime(volume, now + 0.005);
+  gain.gain.setValueAtTime(volume, now + durSec - 0.05);
+  gain.gain.linearRampToValueAtTime(0, now + durSec);
 
-  oscillator.start(now)
-  oscillator.stop(now + durSec)
+  oscillator.start(now);
+  oscillator.stop(now + durSec);
 }
 
 /**
@@ -90,25 +90,25 @@ function playTone(freq: number, duration: number, type: OscillatorType = 'triang
  * tone mid-cycle would still let the next scheduled tone fire ~300ms
  * later (the "phantom beep" bug).
  */
-const pendingToneTimers = new Set<ReturnType<typeof setTimeout>>()
+const pendingToneTimers = new Set<ReturnType<typeof setTimeout>>();
 
 /** Play a sequence of tones (for ringtones / connect sounds). */
 function playSequence(
   tones: Array<{ freq: number; dur: number; type?: OscillatorType; vol?: number; gap?: number }>,
 ) {
-  const ctx = getCtx()
-  if (!ctx) return
+  const ctx = getCtx();
+  if (!ctx) return;
 
-  let offset = 0
+  let offset = 0;
   for (const tone of tones) {
     const id = setTimeout(() => {
-      pendingToneTimers.delete(id)
-      playTone(tone.freq, tone.dur, tone.type, tone.vol)
-    }, offset)
-    pendingToneTimers.add(id)
+      pendingToneTimers.delete(id);
+      playTone(tone.freq, tone.dur, tone.type, tone.vol);
+    }, offset);
+    pendingToneTimers.add(id);
     // `gap` is the silence between this tone and the next; default
     // to 0 (back-to-back). Used for the "pop" pattern.
-    offset += tone.dur + (tone.gap ?? 0)
+    offset += tone.dur + (tone.gap ?? 0);
   }
 }
 
@@ -116,9 +116,9 @@ function playSequence(
  *  stop function so a cancelled ring tone doesn't leak a final beep. */
 function cancelPendingTones() {
   for (const id of pendingToneTimers) {
-    clearTimeout(id)
+    clearTimeout(id);
   }
-  pendingToneTimers.clear()
+  pendingToneTimers.clear();
 }
 
 const sounds = {
@@ -132,10 +132,10 @@ const sounds = {
    */
   ring: () => {
     playSequence([
-      { freq: 523.25, dur: 180, type: 'triangle', vol: 0.18 }, // C5
-      { freq: 659.25, dur: 180, type: 'triangle', vol: 0.18 }, // E5
-      { freq: 783.99, dur: 280, type: 'triangle', vol: 0.18 }, // G5
-    ])
+      { freq: 523.25, dur: 180, type: "triangle", vol: 0.18 }, // C5
+      { freq: 659.25, dur: 180, type: "triangle", vol: 0.18 }, // E5
+      { freq: 783.99, dur: 280, type: "triangle", vol: 0.18 }, // G5
+    ]);
   },
 
   /**
@@ -148,11 +148,11 @@ const sounds = {
    */
   incoming: () => {
     playSequence([
-      { freq: 659.25, dur: 150, type: 'triangle', vol: 0.22 }, // E5
-      { freq: 783.99, dur: 150, type: 'triangle', vol: 0.22 }, // G5
-      { freq: 987.77, dur: 150, type: 'triangle', vol: 0.22 }, // B5
-      { freq: 1318.51, dur: 250, type: 'triangle', vol: 0.22 }, // E6
-    ])
+      { freq: 659.25, dur: 150, type: "triangle", vol: 0.22 }, // E5
+      { freq: 783.99, dur: 150, type: "triangle", vol: 0.22 }, // G5
+      { freq: 987.77, dur: 150, type: "triangle", vol: 0.22 }, // B5
+      { freq: 1318.51, dur: 250, type: "triangle", vol: 0.22 }, // E6
+    ]);
   },
 
   /**
@@ -166,9 +166,9 @@ const sounds = {
    */
   message: () => {
     playSequence([
-      { freq: 987.77, dur: 90, type: 'triangle', vol: 0.35 }, // B5 — high
-      { freq: 739.99, dur: 130, type: 'triangle', vol: 0.35 }, // F#5 — low
-    ])
+      { freq: 987.77, dur: 90, type: "triangle", vol: 0.35 }, // B5 — high
+      { freq: 739.99, dur: 130, type: "triangle", vol: 0.35 }, // F#5 — low
+    ]);
   },
 
   /**
@@ -181,11 +181,11 @@ const sounds = {
    */
   connect: () => {
     playSequence([
-      { freq: 523.25, dur: 110, type: 'sine', vol: 0.22 }, // C5
-      { freq: 659.25, dur: 110, type: 'sine', vol: 0.22 }, // E5
-      { freq: 783.99, dur: 110, type: 'sine', vol: 0.22 }, // G5
-      { freq: 1046.5, dur: 180, type: 'sine', vol: 0.22 }, // C6
-    ])
+      { freq: 523.25, dur: 110, type: "sine", vol: 0.22 }, // C5
+      { freq: 659.25, dur: 110, type: "sine", vol: 0.22 }, // E5
+      { freq: 783.99, dur: 110, type: "sine", vol: 0.22 }, // G5
+      { freq: 1046.5, dur: 180, type: "sine", vol: 0.22 }, // C6
+    ]);
   },
 
   /**
@@ -197,18 +197,18 @@ const sounds = {
    */
   end: () => {
     playSequence([
-      { freq: 783.99, dur: 130, type: 'sine', vol: 0.18 }, // G5
-      { freq: 659.25, dur: 130, type: 'sine', vol: 0.18 }, // E5
-      { freq: 523.25, dur: 250, type: 'sine', vol: 0.18 }, // C5
-    ])
+      { freq: 783.99, dur: 130, type: "sine", vol: 0.18 }, // G5
+      { freq: 659.25, dur: 130, type: "sine", vol: 0.18 }, // E5
+      { freq: 523.25, dur: 250, type: "sine", vol: 0.18 }, // C5
+    ]);
   },
-}
+};
 
-export type SoundType = keyof typeof sounds
+export type SoundType = keyof typeof sounds;
 
 /** Play a sound effect. No-op if AudioContext is unavailable. */
 export function playSound(type: SoundType): void {
-  sounds[type]?.()
+  sounds[type]?.();
 }
 
 /**
@@ -222,12 +222,12 @@ export function playSound(type: SoundType): void {
  * later — which is exactly the bug where cancelling an unanswered
  * call still played a sound.
  */
-export function startRingTone(type: 'ring' | 'incoming'): () => void {
-  const interval = type === 'ring' ? 1500 : 3000
-  sounds[type]()
-  const id = setInterval(() => sounds[type](), interval)
+export function startRingTone(type: "ring" | "incoming"): () => void {
+  const interval = type === "ring" ? 1500 : 3000;
+  sounds[type]();
+  const id = setInterval(() => sounds[type](), interval);
   return () => {
-    clearInterval(id)
-    cancelPendingTones()
-  }
+    clearInterval(id);
+    cancelPendingTones();
+  };
 }

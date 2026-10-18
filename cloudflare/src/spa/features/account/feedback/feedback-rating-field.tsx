@@ -1,24 +1,24 @@
-import { useState } from 'react'
-import type { UseFormReturn } from 'react-hook-form'
-import { FormField, FormItem, FormMessage } from '@spa/components/ui/form'
-import { Star } from 'lucide-react'
-import { useT } from '@spa/lib/i18n'
-import type { FeedbackValues } from './feedback-schema'
+import { useState } from "react";
+import type { UseFormReturn } from "react-hook-form";
+import { FormField, FormItem, FormMessage } from "@spa/components/ui/form";
+import { Star } from "lucide-react";
+import { useT } from "@spa/lib/i18n";
+import type { FeedbackValues } from "./feedback-schema";
 
 export function FeedbackRatingField({ form }: { form: UseFormReturn<FeedbackValues> }) {
-  const t = useT()
-  const [hoverRating, setHoverRating] = useState(0)
-  const rating: number = form.watch('rating') ?? 0
-  const displayRating = hoverRating || rating
+  const t = useT();
+  const [hoverRating, setHoverRating] = useState(0);
+  const rating: number = form.watch("rating") ?? 0;
+  const displayRating = hoverRating || rating;
   const ratingLabels = [
-    '',
-    t('feedbackForm.ratingVeryBad'),
-    t('feedbackForm.ratingBad'),
-    t('feedbackForm.ratingOk'),
-    t('feedbackForm.ratingGood'),
-    t('feedbackForm.ratingVeryGood'),
-  ]
-  const ratingEmojis = ['', '😣', '😕', '😐', '🙂', '🤩']
+    "",
+    t("feedbackForm.ratingVeryBad"),
+    t("feedbackForm.ratingBad"),
+    t("feedbackForm.ratingOk"),
+    t("feedbackForm.ratingGood"),
+    t("feedbackForm.ratingVeryGood"),
+  ];
+  const ratingEmojis = ["", "😣", "😕", "😐", "🙂", "🤩"];
 
   return (
     <FormField
@@ -28,7 +28,7 @@ export function FeedbackRatingField({ form }: { form: UseFormReturn<FeedbackValu
         <FormItem className="space-y-1.5">
           <div className="flex flex-col items-center gap-1.5 py-2 rounded-lg">
             <div className="text-3xl" aria-hidden>
-              {ratingEmojis[displayRating] ?? '🚌'}
+              {ratingEmojis[displayRating] ?? "🚌"}
             </div>
             {/* Container-level hover: moving across stars (or the gaps
                 between them) never fires leave→enter pairs, so the
@@ -37,7 +37,7 @@ export function FeedbackRatingField({ form }: { form: UseFormReturn<FeedbackValu
               className="flex items-center gap-1.5"
               onMouseLeave={() => setHoverRating(0)}
               role="radiogroup"
-              aria-label={t('feedbackForm.formTitle')}
+              aria-label={t("feedbackForm.formTitle")}
             >
               {[1, 2, 3, 4, 5].map((n) => (
                 <button
@@ -47,7 +47,7 @@ export function FeedbackRatingField({ form }: { form: UseFormReturn<FeedbackValu
                   onBlur={() => setHoverRating(0)}
                   onClick={() => field.onChange(n)}
                   className="rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-                  aria-label={t('feedbackForm.rateAria', { count: n })}
+                  aria-label={t("feedbackForm.rateAria", { count: n })}
                   aria-checked={rating === n}
                   role="radio"
                   type="button"
@@ -55,8 +55,8 @@ export function FeedbackRatingField({ form }: { form: UseFormReturn<FeedbackValu
                   <Star
                     className={`h-8 w-8 transition-colors ${
                       n <= displayRating
-                        ? 'fill-amber-400 text-amber-400'
-                        : 'fill-slate-100 text-slate-300'
+                        ? "fill-amber-400 text-amber-400"
+                        : "fill-slate-100 text-slate-300"
                     }`}
                   />
                 </button>
@@ -65,12 +65,12 @@ export function FeedbackRatingField({ form }: { form: UseFormReturn<FeedbackValu
             {/* Stable node (no key-remount): swapping text in place
                 instead of unmounting/remounting the span. */}
             <span className="text-sm font-semibold min-h-5 text-primary">
-              {displayRating > 0 ? ratingLabels[displayRating] : ''}
+              {displayRating > 0 ? ratingLabels[displayRating] : ""}
             </span>
           </div>
           <FormMessage className="text-center" />
         </FormItem>
       )}
     />
-  )
+  );
 }

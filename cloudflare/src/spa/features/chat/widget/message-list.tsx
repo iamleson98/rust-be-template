@@ -1,38 +1,38 @@
-import { CheckCheck, ChevronUp, Loader2, Sparkles } from 'lucide-react'
-import type { RefObject } from 'react'
-import type { ChatMessageOut } from '@spa/api'
-import { useT } from '@spa/lib/i18n'
-import { cn } from '@spa/lib/utils'
-import { messageTime } from '../format'
-import { TypingDots } from '../typing-dots'
+import { CheckCheck, ChevronUp, Loader2, Sparkles } from "lucide-react";
+import type { RefObject } from "react";
+import type { ChatMessageOut } from "@spa/api";
+import { useT } from "@spa/lib/i18n";
+import { cn } from "@spa/lib/utils";
+import { messageTime } from "../format";
+import { TypingDots } from "../typing-dots";
 
 const BUBBLE = {
-  user: 'bg-primary text-primary-foreground rounded-br-md',
-  system: 'bg-muted text-muted-foreground text-center text-xs',
-  assistant: 'bg-violet-50 text-slate-800 rounded-bl-md dark:bg-violet-500/15 dark:text-violet-100',
-  other: 'bg-background border rounded-bl-md',
-}
+  user: "bg-primary text-primary-foreground rounded-br-md",
+  system: "bg-muted text-muted-foreground text-center text-xs",
+  assistant: "bg-violet-50 text-slate-800 rounded-bl-md dark:bg-violet-500/15 dark:text-violet-100",
+  other: "bg-background border rounded-bl-md",
+};
 
 function Bubble({ message, startsRun }: { message: ChatMessageOut; startsRun: boolean }) {
-  const mine = message.senderType === 'user'
-  const system = message.senderType === 'system'
-  const assistant = message.senderType === 'assistant'
-  const kind = mine ? 'user' : system ? 'system' : assistant ? 'assistant' : 'other'
+  const mine = message.senderType === "user";
+  const system = message.senderType === "system";
+  const assistant = message.senderType === "assistant";
+  const kind = mine ? "user" : system ? "system" : assistant ? "assistant" : "other";
 
   return (
     <div
       className={cn(
-        'flex animate-in fade-in slide-in-from-bottom-1 duration-200',
-        mine ? 'justify-end' : 'justify-start',
+        "flex animate-in fade-in slide-in-from-bottom-1 duration-200",
+        mine ? "justify-end" : "justify-start",
       )}
     >
-      <div className={cn('max-w-[78%]', system && 'mx-auto')}>
+      <div className={cn("max-w-[78%]", system && "mx-auto")}>
         {assistant && startsRun && (
           <div className="text-[10px] text-muted-foreground mb-0.5 px-1 flex items-center gap-1">
             <Sparkles className="h-2.5 w-2.5 text-violet-500" />
           </div>
         )}
-        <div className={cn('rounded-2xl px-3 py-2 text-sm wrap-break-word', BUBBLE[kind])}>
+        <div className={cn("rounded-2xl px-3 py-2 text-sm wrap-break-word", BUBBLE[kind])}>
           {message.content}
         </div>
         {mine && (
@@ -43,18 +43,18 @@ function Bubble({ message, startsRun }: { message: ChatMessageOut; startsRun: bo
         )}
       </div>
     </div>
-  )
+  );
 }
 
 type Props = {
-  scrollRef: RefObject<HTMLDivElement | null>
-  messages: ChatMessageOut[]
-  loading: boolean
-  peerTyping: boolean
-  hasMore: boolean
-  loadingMore: boolean
-  onLoadMore: () => void
-}
+  scrollRef: RefObject<HTMLDivElement | null>;
+  messages: ChatMessageOut[];
+  loading: boolean;
+  peerTyping: boolean;
+  hasMore: boolean;
+  loadingMore: boolean;
+  onLoadMore: () => void;
+};
 
 /** The conversation: oldest first, own messages on the right, load-more at the top. */
 export function MessageList({
@@ -66,7 +66,7 @@ export function MessageList({
   loadingMore,
   onLoadMore,
 }: Props) {
-  const t = useT()
+  const t = useT();
   return (
     <div className="flex-1 flex flex-col min-h-0">
       <div
@@ -83,7 +83,7 @@ export function MessageList({
               <div className="flex items-center justify-center py-3">
                 <div className="flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-[11px] text-muted-foreground">
                   <span className="h-3 w-3 rounded-full border-2 border-slate-300 border-t-slate-600 animate-spin" />
-                  {t('chat.loadingMore')}
+                  {t("chat.loadingMore")}
                 </div>
               </div>
             )}
@@ -94,7 +94,7 @@ export function MessageList({
                   className="inline-flex items-center gap-1 text-[11px] text-blue-600 hover:text-blue-700 hover:underline"
                 >
                   <ChevronUp className="h-3 w-3" />
-                  {t('chat.loadMore')}
+                  {t("chat.loadMore")}
                 </button>
               </div>
             )}
@@ -115,5 +115,5 @@ export function MessageList({
         )}
       </div>
     </div>
-  )
+  );
 }

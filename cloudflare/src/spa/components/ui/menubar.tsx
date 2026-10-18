@@ -1,4 +1,4 @@
-'use client'
+"use client";
 
 /**
  * Menubar — Base UI implementation preserving the Radix/shadcn public API.
@@ -27,29 +27,29 @@
  * | `<Menubar.SubContent>`         | `<Menu.Portal>` + `<Menu.Positioner>` + `<Menu.Popup>` |
  * | `data-state="open|closed"`     | `data-open`/`data-closed` + (shimmed) `data-state` via `render` |
  */
-import { type ComponentProps, type ReactElement } from 'react'
-import { Menubar as MenubarPrimitive } from '@base-ui/react/menubar'
-import { Menu as MenuPrimitive } from '@base-ui/react/menu'
-import { Separator } from '@base-ui/react/separator'
-import { CheckIcon, ChevronRightIcon, CircleIcon } from 'lucide-react'
+import type { ComponentProps, ReactElement } from "react";
+import { Menubar as MenubarPrimitive } from "@base-ui/react/menubar";
+import { Menu as MenuPrimitive } from "@base-ui/react/menu";
+import { Separator } from "@base-ui/react/separator";
+import { CheckIcon, ChevronRightIcon, CircleIcon } from "lucide-react";
 
-import { cn } from '@spa/lib/utils'
-import { resolveNativeButton } from './resolve-native-button'
+import { cn } from "@spa/lib/utils";
+import { resolveNativeButton } from "./resolve-native-button";
 
 function Menubar({ className, ...props }: ComponentProps<typeof MenubarPrimitive>) {
   return (
     <MenubarPrimitive
       data-slot="menubar"
-      className={cn('bg-background flex h-9 items-center gap-1 rounded-md border p-1 ', className)}
+      className={cn("bg-background flex h-9 items-center gap-1 rounded-md border p-1 ", className)}
       {...props}
     />
-  )
+  );
 }
 
 function MenubarMenu({
   ...props
-}: Omit<ComponentProps<typeof MenuPrimitive.Root>, 'onOpenChange'> & {
-  onOpenChange?: (open: boolean) => void
+}: Omit<ComponentProps<typeof MenuPrimitive.Root>, "onOpenChange"> & {
+  onOpenChange?: (open: boolean) => void;
 }) {
   return (
     <MenuPrimitive.Root
@@ -57,15 +57,15 @@ function MenubarMenu({
       onOpenChange={(open: boolean) => props.onOpenChange?.(open)}
       {...props}
     />
-  )
+  );
 }
 
 function MenubarGroup({ ...props }: ComponentProps<typeof MenuPrimitive.Group>) {
-  return <MenuPrimitive.Group data-slot="menubar-group" {...props} />
+  return <MenuPrimitive.Group data-slot="menubar-group" {...props} />;
 }
 
 function MenubarPortal({ ...props }: ComponentProps<typeof MenuPrimitive.Portal>) {
-  return <MenuPrimitive.Portal data-slot="menubar-portal" {...props} />
+  return <MenuPrimitive.Portal data-slot="menubar-portal" {...props} />;
 }
 
 function MenubarRadioGroup({
@@ -73,10 +73,10 @@ function MenubarRadioGroup({
   defaultValue,
   onValueChange,
   ...props
-}: Omit<ComponentProps<typeof MenuPrimitive.RadioGroup>, 'onValueChange'> & {
-  value?: unknown
-  defaultValue?: unknown
-  onValueChange?: (value: unknown) => void
+}: Omit<ComponentProps<typeof MenuPrimitive.RadioGroup>, "onValueChange"> & {
+  value?: unknown;
+  defaultValue?: unknown;
+  onValueChange?: (value: unknown) => void;
 }) {
   return (
     <MenuPrimitive.RadioGroup
@@ -86,7 +86,7 @@ function MenubarRadioGroup({
       onValueChange={(v) => onValueChange?.(v)}
       {...props}
     />
-  )
+  );
 }
 
 function MenubarTrigger({ className, ...props }: ComponentProps<typeof MenuPrimitive.Trigger>) {
@@ -94,28 +94,28 @@ function MenubarTrigger({ className, ...props }: ComponentProps<typeof MenuPrimi
     <MenuPrimitive.Trigger
       data-slot="menubar-trigger"
       render={(componentProps, state) => (
-        <button {...componentProps} data-state={state.open ? 'open' : 'closed'} />
+        <button {...componentProps} data-state={state.open ? "open" : "closed"} />
       )}
       className={cn(
-        'focus:bg-accent focus:text-accent-foreground data-[state=open]:bg-accent data-[state=open]:text-accent-foreground flex items-center rounded-sm px-2 py-1 text-sm font-medium outline-hidden select-none',
+        "focus:bg-accent focus:text-accent-foreground data-[state=open]:bg-accent data-[state=open]:text-accent-foreground flex items-center rounded-sm px-2 py-1 text-sm font-medium outline-hidden select-none",
         className,
       )}
       {...props}
     />
-  )
+  );
 }
 
 function MenubarContent({
   className,
-  align = 'start',
+  align = "start",
   alignOffset = -4,
   sideOffset = 8,
   side,
   ...props
-}: Omit<ComponentProps<typeof MenuPrimitive.Popup>, 'render'> &
+}: Omit<ComponentProps<typeof MenuPrimitive.Popup>, "render"> &
   Pick<
     ComponentProps<typeof MenuPrimitive.Positioner>,
-    'side' | 'align' | 'sideOffset' | 'alignOffset'
+    "side" | "align" | "sideOffset" | "alignOffset"
   >) {
   return (
     <MenubarPortal>
@@ -130,35 +130,35 @@ function MenubarContent({
           render={(componentProps, state) => (
             <div
               {...componentProps}
-              data-state={state.open ? 'open' : 'closed'}
+              data-state={state.open ? "open" : "closed"}
               data-side={state.side}
               data-align={state.align}
             />
           )}
           className={cn(
-            'bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 min-w-[12rem] origin-(--transform-origin) overflow-hidden rounded-md border p-1 ',
+            "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 min-w-[12rem] origin-(--transform-origin) overflow-hidden rounded-md border p-1 ",
             className,
           )}
           {...props}
         />
       </MenuPrimitive.Positioner>
     </MenubarPortal>
-  )
+  );
 }
 
 function MenubarItem({
   className,
   inset,
-  variant = 'default',
+  variant = "default",
   asChild = false,
   ...props
-}: Omit<ComponentProps<typeof MenuPrimitive.Item>, 'render'> & {
-  inset?: boolean
-  variant?: 'default' | 'destructive'
-  asChild?: boolean
+}: Omit<ComponentProps<typeof MenuPrimitive.Item>, "render"> & {
+  inset?: boolean;
+  variant?: "default" | "destructive";
+  asChild?: boolean;
 }) {
   if (asChild) {
-    const { children, ...rest } = props
+    const { children, ...rest } = props;
     return (
       <MenuPrimitive.Item
         data-slot="menubar-item"
@@ -172,7 +172,7 @@ function MenubarItem({
         )}
         {...rest}
       />
-    )
+    );
   }
   return (
     <MenuPrimitive.Item
@@ -185,7 +185,7 @@ function MenubarItem({
       )}
       {...props}
     />
-  )
+  );
 }
 
 function MenubarCheckboxItem({
@@ -194,9 +194,9 @@ function MenubarCheckboxItem({
   checked,
   onCheckedChange,
   ...props
-}: Omit<ComponentProps<typeof MenuPrimitive.CheckboxItem>, 'render' | 'onCheckedChange'> & {
-  checked?: boolean
-  onCheckedChange?: (checked: boolean) => void
+}: Omit<ComponentProps<typeof MenuPrimitive.CheckboxItem>, "render" | "onCheckedChange"> & {
+  checked?: boolean;
+  onCheckedChange?: (checked: boolean) => void;
 }) {
   return (
     <MenuPrimitive.CheckboxItem
@@ -216,14 +216,14 @@ function MenubarCheckboxItem({
       </span>
       {children}
     </MenuPrimitive.CheckboxItem>
-  )
+  );
 }
 
 function MenubarRadioItem({
   className,
   children,
   ...props
-}: Omit<ComponentProps<typeof MenuPrimitive.RadioItem>, 'render'>) {
+}: Omit<ComponentProps<typeof MenuPrimitive.RadioItem>, "render">) {
   return (
     <MenuPrimitive.RadioItem
       data-slot="menubar-radio-item"
@@ -240,7 +240,7 @@ function MenubarRadioItem({
       </span>
       {children}
     </MenuPrimitive.RadioItem>
-  )
+  );
 }
 
 function MenubarLabel({
@@ -248,42 +248,42 @@ function MenubarLabel({
   inset,
   ...props
 }: ComponentProps<typeof MenuPrimitive.GroupLabel> & {
-  inset?: boolean
+  inset?: boolean;
 }) {
   return (
     <MenuPrimitive.GroupLabel
       data-slot="menubar-label"
       data-inset={inset}
-      className={cn('px-2 py-1.5 text-sm font-medium data-[inset]:pl-8', className)}
+      className={cn("px-2 py-1.5 text-sm font-medium data-[inset]:pl-8", className)}
       {...props}
     />
-  )
+  );
 }
 
 function MenubarSeparator({ className, ...props }: ComponentProps<typeof Separator>) {
   return (
     <Separator
       data-slot="menubar-separator"
-      className={cn('bg-border -mx-1 my-1 h-px', className)}
+      className={cn("bg-border -mx-1 my-1 h-px", className)}
       {...props}
     />
-  )
+  );
 }
 
-function MenubarShortcut({ className, ...props }: ComponentProps<'span'>) {
+function MenubarShortcut({ className, ...props }: ComponentProps<"span">) {
   return (
     <span
       data-slot="menubar-shortcut"
-      className={cn('text-muted-foreground ml-auto text-xs tracking-widest', className)}
+      className={cn("text-muted-foreground ml-auto text-xs tracking-widest", className)}
       {...props}
     />
-  )
+  );
 }
 
 function MenubarSub({
   ...props
-}: Omit<ComponentProps<typeof MenuPrimitive.SubmenuRoot>, 'onOpenChange'> & {
-  onOpenChange?: (open: boolean) => void
+}: Omit<ComponentProps<typeof MenuPrimitive.SubmenuRoot>, "onOpenChange"> & {
+  onOpenChange?: (open: boolean) => void;
 }) {
   return (
     <MenuPrimitive.SubmenuRoot
@@ -291,7 +291,7 @@ function MenubarSub({
       onOpenChange={(open: boolean) => props.onOpenChange?.(open)}
       {...props}
     />
-  )
+  );
 }
 
 function MenubarSubTrigger({
@@ -299,18 +299,18 @@ function MenubarSubTrigger({
   inset,
   children,
   ...props
-}: Omit<ComponentProps<typeof MenuPrimitive.SubmenuTrigger>, 'render'> & {
-  inset?: boolean
+}: Omit<ComponentProps<typeof MenuPrimitive.SubmenuTrigger>, "render"> & {
+  inset?: boolean;
 }) {
   return (
     <MenuPrimitive.SubmenuTrigger
       data-slot="menubar-sub-trigger"
       data-inset={inset}
       render={(componentProps, state) => (
-        <div {...componentProps} data-state={state.open ? 'open' : 'closed'} />
+        <div {...componentProps} data-state={state.open ? "open" : "closed"} />
       )}
       className={cn(
-        'focus:bg-accent focus:text-accent-foreground data-[state=open]:bg-accent data-[state=open]:text-accent-foreground flex cursor-pointer items-center rounded-sm px-2 py-1.5 text-sm outline-none select-none data-[inset]:pl-8',
+        "focus:bg-accent focus:text-accent-foreground data-[state=open]:bg-accent data-[state=open]:text-accent-foreground flex cursor-pointer items-center rounded-sm px-2 py-1.5 text-sm outline-none select-none data-[inset]:pl-8",
         className,
       )}
       {...props}
@@ -318,20 +318,20 @@ function MenubarSubTrigger({
       {children}
       <ChevronRightIcon className="ml-auto h-4 w-4" />
     </MenuPrimitive.SubmenuTrigger>
-  )
+  );
 }
 
 function MenubarSubContent({
   className,
-  side = 'bottom',
+  side = "bottom",
   sideOffset = 0,
-  align = 'start',
+  align = "start",
   alignOffset = 0,
   ...props
-}: Omit<ComponentProps<typeof MenuPrimitive.Popup>, 'render'> &
+}: Omit<ComponentProps<typeof MenuPrimitive.Popup>, "render"> &
   Pick<
     ComponentProps<typeof MenuPrimitive.Positioner>,
-    'side' | 'align' | 'sideOffset' | 'alignOffset'
+    "side" | "align" | "sideOffset" | "alignOffset"
   >) {
   return (
     <MenuPrimitive.Portal>
@@ -346,20 +346,20 @@ function MenubarSubContent({
           render={(componentProps, state) => (
             <div
               {...componentProps}
-              data-state={state.open ? 'open' : 'closed'}
+              data-state={state.open ? "open" : "closed"}
               data-side={state.side}
               data-align={state.align}
             />
           )}
           className={cn(
-            'bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 min-w-[8rem] origin-(--transform-origin) overflow-hidden rounded-md border p-1 ',
+            "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 min-w-[8rem] origin-(--transform-origin) overflow-hidden rounded-md border p-1 ",
             className,
           )}
           {...props}
         />
       </MenuPrimitive.Positioner>
     </MenuPrimitive.Portal>
-  )
+  );
 }
 
 export {
@@ -379,4 +379,4 @@ export {
   MenubarSub,
   MenubarSubTrigger,
   MenubarSubContent,
-}
+};

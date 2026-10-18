@@ -1,47 +1,47 @@
-'use client'
+"use client";
 
-import type { KeyboardEvent } from 'react'
-import { FlipHorizontal2, ListOrdered, Minus, Plus, Redo2, Trash2, Undo2 } from 'lucide-react'
-import { Button } from '@spa/components/ui/button'
-import { Input } from '@spa/components/ui/input'
-import { Label } from '@spa/components/ui/label'
-import { cn } from '@spa/lib/utils'
-import { useT } from '@spa/lib/i18n'
-import { DeckFrame, DeckGrid, type GridItem } from '../deck-grid'
-import { LIMITS, isBerth, isSellable } from '../model'
-import { FixtureTile, SeatTile } from '../tiles'
-import type { PlanEditorApi } from './use-plan-editor'
+import type { KeyboardEvent } from "react";
+import { FlipHorizontal2, ListOrdered, Minus, Plus, Redo2, Trash2, Undo2 } from "lucide-react";
+import { Button } from "@spa/components/ui/button";
+import { Input } from "@spa/components/ui/input";
+import { Label } from "@spa/components/ui/label";
+import { cn } from "@spa/lib/utils";
+import { useT } from "@spa/lib/i18n";
+import { DeckFrame, DeckGrid, type GridItem } from "../deck-grid";
+import { LIMITS, isBerth, isSellable } from "../model";
+import { FixtureTile, SeatTile } from "../tiles";
+import type { PlanEditorApi } from "./use-plan-editor";
 
 const ARROWS: Record<string, [number, number]> = {
   ArrowUp: [-1, 0],
   ArrowDown: [1, 0],
   ArrowLeft: [0, -1],
   ArrowRight: [0, 1],
-}
+};
 
 /** Deck tabs, per-deck controls and the clickable grid. */
 export function Canvas({ editor }: { editor: PlanEditorApi }) {
-  const t = useT()
-  const { state, dispatch, deck, selectedCell } = editor
-  const multi = state.plan.decks.length > 1
+  const t = useT();
+  const { state, dispatch, deck, selectedCell } = editor;
+  const multi = state.plan.decks.length > 1;
 
   const onKeyDown = (e: KeyboardEvent) => {
-    if (e.target instanceof HTMLInputElement) return
-    const arrow = ARROWS[e.key]
+    if (e.target instanceof HTMLInputElement) return;
+    const arrow = ARROWS[e.key];
     if (arrow && selectedCell) {
-      e.preventDefault()
-      dispatch({ type: 'nudge', dRow: arrow[0], dCol: arrow[1] })
-    } else if ((e.key === 'Delete' || e.key === 'Backspace') && selectedCell) {
-      dispatch({ type: 'remove' })
-    } else if (e.key === 'Escape') {
-      dispatch({ type: 'select', pos: null })
+      e.preventDefault();
+      dispatch({ type: "nudge", dRow: arrow[0], dCol: arrow[1] });
+    } else if ((e.key === "Delete" || e.key === "Backspace") && selectedCell) {
+      dispatch({ type: "remove" });
+    } else if (e.key === "Escape") {
+      dispatch({ type: "select", pos: null });
     }
-  }
+  };
 
   const items: GridItem[] = deck.cells.map((cell) => {
-    const pos = { row: cell.row, col: cell.col }
-    const selected = state.selected?.row === cell.row && state.selected?.col === cell.col
-    const click = () => dispatch({ type: 'click', pos })
+    const pos = { row: cell.row, col: cell.col };
+    const selected = state.selected?.row === cell.row && state.selected?.col === cell.col;
+    const click = () => dispatch({ type: "click", pos });
     return {
       key: `${cell.row}:${cell.col}`,
       row: cell.row,
@@ -50,25 +50,25 @@ export function Canvas({ editor }: { editor: PlanEditorApi }) {
       node: isSellable(cell.kind) ? (
         <SeatTile
           kind={cell.kind}
-          label={cell.label ?? '?'}
+          label={cell.label ?? "?"}
           ring={selected}
           onClick={click}
-          aria-label={`${cell.label ?? ''} (${cell.row}, ${cell.col})`}
+          aria-label={`${cell.label ?? ""} (${cell.row}, ${cell.col})`}
         />
       ) : (
         <button
           type="button"
           onClick={click}
           className={cn(
-            'h-full w-full rounded-lg',
-            selected && 'ring-2 ring-blue-500 ring-offset-1',
+            "h-full w-full rounded-lg",
+            selected && "ring-2 ring-blue-500 ring-offset-1",
           )}
         >
           <FixtureTile kind={cell.kind} />
         </button>
       ),
-    }
-  })
+    };
+  });
 
   return (
     <div className="min-w-0 space-y-3">
@@ -77,16 +77,16 @@ export function Canvas({ editor }: { editor: PlanEditorApi }) {
           <button
             key={i}
             type="button"
-            onClick={() => dispatch({ type: 'deck', index: i })}
+            onClick={() => dispatch({ type: "deck", index: i })}
             aria-pressed={state.deck === i}
             className={cn(
-              'h-8 rounded-md border px-3 text-xs font-semibold transition-colors',
+              "h-8 rounded-md border px-3 text-xs font-semibold transition-colors",
               state.deck === i
-                ? 'border-blue-400 bg-blue-50 text-blue-700'
-                : 'border-input text-muted-foreground hover:border-blue-300',
+                ? "border-blue-400 bg-blue-50 text-blue-700"
+                : "border-input text-muted-foreground hover:border-blue-300",
             )}
           >
-            {d.name || t('seatPlan.deck', { n: i + 1 })}
+            {d.name || t("seatPlan.deck", { n: i + 1 })}
           </button>
         ))}
         {!multi && !state.locked && (
@@ -94,41 +94,41 @@ export function Canvas({ editor }: { editor: PlanEditorApi }) {
             type="button"
             variant="outline"
             size="sm"
-            onClick={() => dispatch({ type: 'addDeck' })}
+            onClick={() => dispatch({ type: "addDeck" })}
           >
-            <Plus className="h-3.5 w-3.5" /> {t('seatPlan.addDeck')}
+            <Plus className="h-3.5 w-3.5" /> {t("seatPlan.addDeck")}
           </Button>
         )}
         <div className="ml-auto flex items-center gap-1">
           <IconButton
-            label={t('seatPlan.undo')}
+            label={t("seatPlan.undo")}
             disabled={!state.past.length}
-            onClick={() => dispatch({ type: 'undo' })}
+            onClick={() => dispatch({ type: "undo" })}
           >
             <Undo2 className="h-3.5 w-3.5" />
           </IconButton>
           <IconButton
-            label={t('seatPlan.redo')}
+            label={t("seatPlan.redo")}
             disabled={!state.future.length}
-            onClick={() => dispatch({ type: 'redo' })}
+            onClick={() => dispatch({ type: "redo" })}
           >
             <Redo2 className="h-3.5 w-3.5" />
           </IconButton>
-          <IconButton label={t('seatPlan.mirror')} onClick={() => dispatch({ type: 'mirror' })}>
+          <IconButton label={t("seatPlan.mirror")} onClick={() => dispatch({ type: "mirror" })}>
             <FlipHorizontal2 className="h-3.5 w-3.5" />
           </IconButton>
           <IconButton
-            label={t('seatPlan.renumber')}
+            label={t("seatPlan.renumber")}
             disabled={state.locked}
-            onClick={() => dispatch({ type: 'renumber' })}
+            onClick={() => dispatch({ type: "renumber" })}
           >
             <ListOrdered className="h-3.5 w-3.5" />
           </IconButton>
           {multi && (
             <IconButton
-              label={t('seatPlan.removeDeck')}
+              label={t("seatPlan.removeDeck")}
               disabled={state.locked}
-              onClick={() => dispatch({ type: 'removeDeck' })}
+              onClick={() => dispatch({ type: "removeDeck" })}
             >
               <Trash2 className="h-3.5 w-3.5" />
             </IconButton>
@@ -138,29 +138,29 @@ export function Canvas({ editor }: { editor: PlanEditorApi }) {
 
       <div className="flex flex-wrap items-end gap-3">
         <Stepper
-          label={t('seatPlan.rows')}
+          label={t("seatPlan.rows")}
           value={deck.rows}
           max={LIMITS.rows}
-          onChange={(rows) => dispatch({ type: 'resize', rows, cols: deck.cols })}
+          onChange={(rows) => dispatch({ type: "resize", rows, cols: deck.cols })}
         />
         <Stepper
-          label={t('seatPlan.cols')}
+          label={t("seatPlan.cols")}
           value={deck.cols}
           max={LIMITS.cols}
-          onChange={(cols) => dispatch({ type: 'resize', rows: deck.rows, cols })}
+          onChange={(cols) => dispatch({ type: "resize", rows: deck.rows, cols })}
         />
         {multi && (
           <div className="grid gap-1">
             <Label htmlFor="deck-name" className="text-[10px] text-muted-foreground uppercase">
-              {t('seatPlan.deckName')}
+              {t("seatPlan.deckName")}
             </Label>
             <Input
               id="deck-name"
               className="h-8 w-40"
-              value={deck.name ?? ''}
+              value={deck.name ?? ""}
               maxLength={40}
-              placeholder={t('seatPlan.deck', { n: state.deck + 1 })}
-              onChange={(e) => dispatch({ type: 'deckName', name: e.target.value })}
+              placeholder={t("seatPlan.deck", { n: state.deck + 1 })}
+              onChange={(e) => dispatch({ type: "deckName", name: e.target.value })}
             />
           </div>
         )}
@@ -177,8 +177,8 @@ export function Canvas({ editor }: { editor: PlanEditorApi }) {
             renderEmpty={(row, col) => (
               <button
                 type="button"
-                onClick={() => dispatch({ type: 'click', pos: { row, col } })}
-                aria-label={t('seatPlan.emptyCell', { row, col })}
+                onClick={() => dispatch({ type: "click", pos: { row, col } })}
+                aria-label={t("seatPlan.emptyCell", { row, col })}
                 className="h-full w-full rounded-md border border-dashed border-slate-200 transition-colors hover:border-blue-300 hover:bg-blue-50"
               />
             )}
@@ -186,14 +186,14 @@ export function Canvas({ editor }: { editor: PlanEditorApi }) {
         </div>
       </DeckFrame>
       <p className="text-xs text-muted-foreground">
-        {state.tool === 'select'
-          ? t('seatPlan.hint.select')
-          : state.tool === 'erase'
-            ? t('seatPlan.hint.erase')
-            : t('seatPlan.hint.paint')}
+        {state.tool === "select"
+          ? t("seatPlan.hint.select")
+          : state.tool === "erase"
+            ? t("seatPlan.hint.erase")
+            : t("seatPlan.hint.paint")}
       </p>
     </div>
-  )
+  );
 }
 
 function IconButton({
@@ -202,10 +202,10 @@ function IconButton({
   onClick,
   children,
 }: {
-  label: string
-  disabled?: boolean
-  onClick: () => void
-  children: React.ReactNode
+  label: string;
+  disabled?: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
 }) {
   return (
     <Button
@@ -220,7 +220,7 @@ function IconButton({
     >
       {children}
     </Button>
-  )
+  );
 }
 
 function Stepper({
@@ -229,10 +229,10 @@ function Stepper({
   max,
   onChange,
 }: {
-  label: string
-  value: number
-  max: number
-  onChange: (n: number) => void
+  label: string;
+  value: number;
+  max: number;
+  onChange: (n: number) => void;
 }) {
   return (
     <div className="grid gap-1">
@@ -263,5 +263,5 @@ function Stepper({
         </Button>
       </div>
     </div>
-  )
+  );
 }

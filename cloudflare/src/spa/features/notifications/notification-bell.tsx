@@ -1,14 +1,14 @@
-'use client'
+"use client";
 
-import { useQuery, useMutation } from '@tanstack/react-query'
-import { notificationsListOptions, notificationsMarkReadMutation } from '@spa/api'
-import { useSession } from '@spa/stores/session'
-import { useUi } from '@spa/stores/ui'
-import { useState } from 'react'
-import { useNavigate } from '@tanstack/react-router'
-import type { NotificationOut } from '@spa/api'
-import { Button } from '@spa/components/ui/button'
-import { ScrollArea } from '@spa/components/ui/scroll-area'
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { notificationsListOptions, notificationsMarkReadMutation } from "@spa/api";
+import { useSession } from "@spa/stores/session";
+import { useUi } from "@spa/stores/ui";
+import { useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
+import type { NotificationOut } from "@spa/api";
+import { Button } from "@spa/components/ui/button";
+import { ScrollArea } from "@spa/components/ui/scroll-area";
 import {
   Bell,
   CheckCheck,
@@ -20,30 +20,30 @@ import {
   AlertCircle,
   Settings,
   X,
-} from 'lucide-react'
-import { relativeTime } from '@spa/lib/format'
-import { toast } from 'sonner'
-import { useT } from '@spa/lib/i18n'
-import { NoNotifications } from '@spa/features/notifications/no-notifications'
+} from "lucide-react";
+import { relativeTime } from "@spa/lib/format";
+import { toast } from "sonner";
+import { useT } from "@spa/lib/i18n";
+import { NoNotifications } from "@spa/features/notifications/no-notifications";
 
 const ICONS: Record<string, { icon: React.ReactNode; cls: string }> = {
-  booking_confirmed: { icon: <Ticket className="h-4 w-4" />, cls: 'bg-blue-100 text-blue-700' },
-  booking_cancelled: { icon: <X className="h-4 w-4" />, cls: 'bg-rose-100 text-rose-700' },
-  chat_reply: { icon: <MessageSquare className="h-4 w-4" />, cls: 'bg-blue-100 text-blue-700' },
-  promo: { icon: <Tag className="h-4 w-4" />, cls: 'bg-amber-100 text-amber-700' },
-  trip_reminder: { icon: <Clock className="h-4 w-4" />, cls: 'bg-violet-100 text-violet-700' },
-  system: { icon: <AlertCircle className="h-4 w-4" />, cls: 'bg-slate-100 text-slate-700' },
-  badge: { icon: <Sparkles className="h-4 w-4" />, cls: 'bg-fuchsia-100 text-fuchsia-700' },
-}
+  booking_confirmed: { icon: <Ticket className="h-4 w-4" />, cls: "bg-blue-100 text-blue-700" },
+  booking_cancelled: { icon: <X className="h-4 w-4" />, cls: "bg-rose-100 text-rose-700" },
+  chat_reply: { icon: <MessageSquare className="h-4 w-4" />, cls: "bg-blue-100 text-blue-700" },
+  promo: { icon: <Tag className="h-4 w-4" />, cls: "bg-amber-100 text-amber-700" },
+  trip_reminder: { icon: <Clock className="h-4 w-4" />, cls: "bg-violet-100 text-violet-700" },
+  system: { icon: <AlertCircle className="h-4 w-4" />, cls: "bg-slate-100 text-slate-700" },
+  badge: { icon: <Sparkles className="h-4 w-4" />, cls: "bg-fuchsia-100 text-fuchsia-700" },
+};
 
 export function NotificationBell() {
-  const notifOpen = useUi((s) => s.notifOpen)
-  const setNotifOpen = useUi((s) => s.setNotifOpen)
-  const setChatOpen = useUi((s) => s.setChatOpen)
-  const user = useSession((s) => s.user)
-  const navigate = useNavigate()
-  const t = useT()
-  const isLoggedIn = !!user
+  const notifOpen = useUi((s) => s.notifOpen);
+  const setNotifOpen = useUi((s) => s.setNotifOpen);
+  const setChatOpen = useUi((s) => s.setChatOpen);
+  const user = useSession((s) => s.user);
+  const navigate = useNavigate();
+  const t = useT();
+  const isLoggedIn = !!user;
 
   // Polling + dedup + caching handled by the centralized hook (60s interval).
   // The hook is disabled entirely for guests — no point fetching notifications
@@ -51,89 +51,89 @@ export function NotificationBell() {
   const { data, isLoading, isError, refetch } = useQuery({
     ...notificationsListOptions({ query: { limit: 20 } }),
     enabled: isLoggedIn,
-  })
-  const { mutateAsync: markRead } = useMutation(notificationsMarkReadMutation())
+  });
+  const { mutateAsync: markRead } = useMutation(notificationsMarkReadMutation());
 
   // Local optimistic map of id → readAt so the UI updates instantly when the
   // user clicks a notification (the server round-trip can take 100ms+).
-  const [optimisticReads, setOptimisticReads] = useState<Record<string, string>>({})
+  const [optimisticReads, setOptimisticReads] = useState<Record<string, string>>({});
 
-  const items = data?.items ?? []
-  const serverUnread = data?.unreadCount ?? 0
+  const items = data?.items ?? [];
+  const serverUnread = data?.unreadCount ?? 0;
   // Apply optimistic reads to the items list + unread count.
   // A notification is "read" when either the backend's `read` flag is
   // true OR the frontend's optimistic `readAt` timestamp is set.
-  const isRead = (n: NotificationOut) => n.read === true || !!optimisticReads[n.id]
+  const isRead = (n: NotificationOut) => n.read === true || !!optimisticReads[n.id];
   const effectiveItems = items.map((n) =>
     optimisticReads[n.id] ? { ...n, readAt: optimisticReads[n.id] } : n,
-  )
+  );
   const unread = Math.max(
     0,
     serverUnread - effectiveItems.filter((n) => optimisticReads[n.id]).length,
-  )
+  );
 
   const markAllRead = async () => {
-    if (!isLoggedIn) return
-    const unreadIds = effectiveItems.filter((n) => !isRead(n)).map((n) => n.id)
-    if (unreadIds.length === 0) return
+    if (!isLoggedIn) return;
+    const unreadIds = effectiveItems.filter((n) => !isRead(n)).map((n) => n.id);
+    if (unreadIds.length === 0) return;
     // Optimistic update
-    const nowIso = new Date().toISOString()
+    const nowIso = new Date().toISOString();
     setOptimisticReads((m) => {
-      const next = { ...m }
-      for (const id of unreadIds) next[id] = nowIso
-      return next
-    })
+      const next = { ...m };
+      for (const id of unreadIds) next[id] = nowIso;
+      return next;
+    });
     try {
-      await markRead({ body: { ids: unreadIds } })
-      toast.success(t('notifications.markedAllRead'))
+      await markRead({ body: { ids: unreadIds } });
+      toast.success(t("notifications.markedAllRead"));
     } catch {
       // Roll back optimistic state on failure — the next poll will re-sync.
       setOptimisticReads((m) => {
-        const next = { ...m }
-        for (const id of unreadIds) delete next[id]
-        return next
-      })
-      toast.error(t('notifications.markReadFailed'))
+        const next = { ...m };
+        for (const id of unreadIds) delete next[id];
+        return next;
+      });
+      toast.error(t("notifications.markReadFailed"));
     }
-  }
+  };
 
   const markSingleRead = async (id: string) => {
     // Optimistic
-    const nowIso = new Date().toISOString()
-    setOptimisticReads((m) => ({ ...m, [id]: nowIso }))
+    const nowIso = new Date().toISOString();
+    setOptimisticReads((m) => ({ ...m, [id]: nowIso }));
     try {
-      await markRead({ body: { ids: [id] } })
+      await markRead({ body: { ids: [id] } });
     } catch {
       // Roll back on failure; next poll re-syncs.
       setOptimisticReads((m) => {
-        const next = { ...m }
-        delete next[id]
-        return next
-      })
+        const next = { ...m };
+        delete next[id];
+        return next;
+      });
     }
-  }
+  };
 
   // ─── Hide for guests entirely (no point showing notifications for guests) ───
-  if (!isLoggedIn) return null
+  if (!isLoggedIn) return null;
 
   // If the user has never had any notifications, hide the bell to reduce clutter.
   // (We still keep it visible if there's any unread badge to draw attention.)
-  const isEmpty = effectiveItems.length === 0 && unread === 0
+  const isEmpty = effectiveItems.length === 0 && unread === 0;
 
   return (
     <>
       <button
         onClick={() => setNotifOpen(true)}
         className={`relative inline-flex h-9 w-9 items-center justify-center rounded-full text-blue-100 hover:bg-white/10 hover:text-white transition-colors ${
-          isEmpty ? 'opacity-60 hidden sm:inline-flex' : ''
+          isEmpty ? "opacity-60 hidden sm:inline-flex" : ""
         }`}
-        aria-label={t('account.notifications')}
-        title={t('account.notifications')}
+        aria-label={t("account.notifications")}
+        title={t("account.notifications")}
       >
-        <Bell className={unread > 0 ? 'h-4 w-4 text-amber-300' : 'h-4 w-4'} />
+        <Bell className={unread > 0 ? "h-4 w-4 text-amber-300" : "h-4 w-4"} />
         {unread > 0 && (
           <span className="absolute top-1 right-1 min-w-4 h-4 px-1 inline-flex items-center justify-center rounded-full bg-rose-500 text-white text-[10px] font-bold ring-2 ring-white">
-            {unread > 9 ? '9+' : unread}
+            {unread > 9 ? "9+" : unread}
           </span>
         )}
       </button>
@@ -152,11 +152,11 @@ export function NotificationBell() {
                   <Bell className="h-4 w-4" />
                 </div>
                 <div>
-                  <div className="font-semibold text-sm">{t('account.notifications')}</div>
+                  <div className="font-semibold text-sm">{t("account.notifications")}</div>
                   <div className="text-[10px] text-muted-foreground">
                     {unread > 0
-                      ? t('notifications.unreadCount', { count: unread })
-                      : t('notifications.allRead')}
+                      ? t("notifications.unreadCount", { count: unread })
+                      : t("notifications.allRead")}
                   </div>
                 </div>
               </div>
@@ -169,13 +169,13 @@ export function NotificationBell() {
                     onClick={markAllRead}
                   >
                     <CheckCheck className="h-3.5 w-3.5" />
-                    {t('notifications.readAll')}
+                    {t("notifications.readAll")}
                   </Button>
                 )}
                 <button
                   onClick={() => setNotifOpen(false)}
                   className="grid size-9 place-items-center rounded-md hover:bg-slate-200 text-muted-foreground"
-                  aria-label={t('common.close')}
+                  aria-label={t("common.close")}
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -186,16 +186,16 @@ export function NotificationBell() {
             <ScrollArea className="flex-1 max-h-[60dvh]">
               {isLoading ? (
                 <div className="p-8 text-center text-sm text-muted-foreground">
-                  {t('common.loading')}
+                  {t("common.loading")}
                 </div>
               ) : isError ? (
                 <div className="p-6 text-center">
                   <AlertCircle className="h-7 w-7 text-rose-500 mx-auto mb-2" />
                   <p className="text-sm text-muted-foreground mb-3">
-                    {t('notifications.loadFailed')}
+                    {t("notifications.loadFailed")}
                   </p>
                   <Button size="sm" variant="outline" onClick={() => refetch()}>
-                    {t('payment.retry')}
+                    {t("payment.retry")}
                   </Button>
                 </div>
               ) : effectiveItems.length === 0 ? (
@@ -205,60 +205,60 @@ export function NotificationBell() {
               ) : (
                 <div className="divide-y">
                   {effectiveItems.map((n) => {
-                    const cfg = ICONS[n.type] ?? ICONS.system
-                    const isUnread = !isRead(n)
+                    const cfg = ICONS[n.type] ?? ICONS.system;
+                    const isUnread = !isRead(n);
                     return (
                       <button
                         key={n.id}
                         onClick={() => {
                           // Mark as read on click (if unread)
-                          if (isUnread) void markSingleRead(n.id)
+                          if (isUnread) void markSingleRead(n.id);
                           // Some notification payloads include a deep-link in the `data` JSON
                           // field. Parse it and route to the matching app section.
                           const link = (() => {
                             try {
-                              const parsed = n.data ? JSON.parse(n.data) : null
-                              return parsed && typeof parsed === 'object' && 'link' in parsed
+                              const parsed = n.data ? JSON.parse(n.data) : null;
+                              return parsed && typeof parsed === "object" && "link" in parsed
                                 ? String((parsed as { link?: unknown }).link)
-                                : undefined
+                                : undefined;
                             } catch {
-                              return undefined
+                              return undefined;
                             }
-                          })()
-                          if (link?.includes('my-bookings')) {
-                            navigate({ to: '/account/trips' })
-                            setNotifOpen(false)
-                            return
+                          })();
+                          if (link?.includes("my-bookings")) {
+                            navigate({ to: "/account/trips" });
+                            setNotifOpen(false);
+                            return;
                           }
                           // Kind-based routing so every notification type has a
                           // sensible destination (previously only the
                           // my-bookings deep link ever navigated — chat replies,
                           // promos, reminders and badges did nothing on click).
                           switch (n.type) {
-                            case 'chat_reply':
-                              setChatOpen(true)
-                              setNotifOpen(false)
-                              break
-                            case 'booking_confirmed':
-                            case 'booking_cancelled':
-                            case 'trip_reminder':
-                              navigate({ to: '/account/trips' })
-                              setNotifOpen(false)
-                              break
-                            case 'price_drop':
-                              navigate({ to: '/search' })
-                              setNotifOpen(false)
-                              break
-                            case 'promo':
-                              navigate({ to: '/' })
-                              setNotifOpen(false)
-                              break
+                            case "chat_reply":
+                              setChatOpen(true);
+                              setNotifOpen(false);
+                              break;
+                            case "booking_confirmed":
+                            case "booking_cancelled":
+                            case "trip_reminder":
+                              navigate({ to: "/account/trips" });
+                              setNotifOpen(false);
+                              break;
+                            case "price_drop":
+                              navigate({ to: "/search" });
+                              setNotifOpen(false);
+                              break;
+                            case "promo":
+                              navigate({ to: "/" });
+                              setNotifOpen(false);
+                              break;
                             default:
-                              break
+                              break;
                           }
                         }}
                         className={`w-full text-left px-4 py-3 flex gap-3 hover:bg-slate-50 transition-colors ${
-                          isUnread ? 'bg-blue-50/40' : ''
+                          isUnread ? "bg-blue-50/40" : ""
                         }`}
                       >
                         <div
@@ -281,7 +281,7 @@ export function NotificationBell() {
                           </div>
                         </div>
                       </button>
-                    )
+                    );
                   })}
                 </div>
               )}
@@ -291,21 +291,21 @@ export function NotificationBell() {
             <div className="border-t px-4 py-2 flex items-center justify-between bg-slate-50">
               <div className="text-[10px] text-muted-foreground inline-flex items-center gap-1">
                 <Settings className="h-3 w-3" />
-                {t('notifications.updatesEvery60s')}
+                {t("notifications.updatesEvery60s")}
               </div>
               <button
                 onClick={() => {
-                  navigate({ to: '/account/trips' })
-                  setNotifOpen(false)
+                  navigate({ to: "/account/trips" });
+                  setNotifOpen(false);
                 }}
                 className="text-[11px] font-medium text-blue-700 hover:text-blue-800"
               >
-                {t('notifications.viewMyTickets')}
+                {t("notifications.viewMyTickets")}
               </button>
             </div>
           </div>
         </>
       )}
     </>
-  )
+  );
 }

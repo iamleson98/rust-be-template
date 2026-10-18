@@ -40,9 +40,7 @@ export async function PATCH(req: Request, ctx: Params) {
       );
     }
     if (status === "cancelled" || status === "refunded") {
-      stmts.push(
-        sql`UPDATE payment SET status = ${status}, updated_at = ${now} WHERE id = ${id}`,
-      );
+      stmts.push(sql`UPDATE payment SET status = ${status}, updated_at = ${now} WHERE id = ${id}`);
     }
     await atomicBatch(stmts);
 

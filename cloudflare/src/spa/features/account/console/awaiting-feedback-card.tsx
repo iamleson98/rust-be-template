@@ -1,26 +1,26 @@
-import { useNavigate } from '@tanstack/react-router'
-import { ArrowRight, History, MessageSquareHeart, Star } from 'lucide-react'
-import { Button } from '@spa/components/ui/button'
-import type { BookingItem } from '@spa/features/booking/history/booking-types'
-import { formatDay } from '@spa/lib/format'
-import { useT } from '@spa/lib/i18n'
-import { BusTile } from '@spa/components/bus-tile'
-import { CountPill, Panel } from '@spa/components/console/panel'
+import { useNavigate } from "@tanstack/react-router";
+import { ArrowRight, History, MessageSquareHeart, Star } from "lucide-react";
+import { Button } from "@spa/components/ui/button";
+import type { BookingItem } from "@spa/features/booking/history/booking-types";
+import { formatDay } from "@spa/lib/format";
+import { useT } from "@spa/lib/i18n";
+import { BusTile } from "@spa/components/bus-tile";
+import { CountPill, Panel } from "@spa/components/console/panel";
 
 /** Finished trips still waiting for a review (hidden when there are none). */
 export function AwaitingFeedbackCard({ bookings }: { bookings: BookingItem[] }) {
-  const t = useT()
-  const navigate = useNavigate()
-  if (bookings.length === 0) return null
+  const t = useT();
+  const navigate = useNavigate();
+  if (bookings.length === 0) return null;
 
   return (
     <Panel
       icon={<MessageSquareHeart />}
-      title={t('accountPage.console.rateYourTrips')}
+      title={t("accountPage.console.rateYourTrips")}
       action={<CountPill n={bookings.length} tone="amber" />}
     >
       <p className="mb-3 text-xs text-muted-foreground">
-        {t('accountPage.console.rateYourTripsDesc')}
+        {t("accountPage.console.rateYourTripsDesc")}
       </p>
       <ul className="space-y-2">
         {bookings.slice(0, 3).map((b) => (
@@ -28,7 +28,7 @@ export function AwaitingFeedbackCard({ bookings }: { bookings: BookingItem[] }) 
             <BusTile size="md" />
             <div className="min-w-0 flex-1">
               <div className="truncate text-sm font-semibold">
-                {b.trip?.routeName ?? t('accountPage.feedback.tripFallback')}
+                {b.trip?.routeName ?? t("accountPage.feedback.tripFallback")}
               </div>
               <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground">
                 <span className="inline-flex items-center gap-1">
@@ -46,11 +46,11 @@ export function AwaitingFeedbackCard({ bookings }: { bookings: BookingItem[] }) 
           </li>
         ))}
       </ul>
-      <Button className="mt-3 w-full gap-1.5" onClick={() => navigate({ to: '/account/feedback' })}>
+      <Button className="mt-3 w-full gap-1.5" onClick={() => navigate({ to: "/account/feedback" })}>
         <MessageSquareHeart className="h-4 w-4" />
-        {t('accountPage.console.giveFeedbackCta')}
+        {t("accountPage.console.giveFeedbackCta")}
         <ArrowRight className="h-4 w-4" />
       </Button>
     </Panel>
-  )
+  );
 }

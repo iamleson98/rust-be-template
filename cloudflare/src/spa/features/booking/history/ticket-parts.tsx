@@ -1,20 +1,20 @@
-import { MapPin } from 'lucide-react'
-import type { BookingOut } from '@spa/api'
-import { useMoney } from '@spa/lib/format'
-import { useT } from '@spa/lib/i18n'
-import { SEAT_CLASS_LABELS } from '@spa/lib/labels'
+import { MapPin } from "lucide-react";
+import type { BookingOut } from "@spa/api";
+import { useMoney } from "@spa/lib/format";
+import { useT } from "@spa/lib/i18n";
+import { SEAT_CLASS_LABELS } from "@spa/lib/labels";
 
-type Stop = BookingOut['pickup']
+type Stop = BookingOut["pickup"];
 
 /** Where the passengers get on and off. */
 export function TicketStops({ pickup, dropoff }: { pickup: Stop; dropoff: Stop }) {
-  const t = useT()
+  const t = useT();
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-      <StopTile label={t('bookingHistory.pickupPoint')} stop={pickup} tone="text-blue-600" />
-      <StopTile label={t('bookingHistory.dropoffPoint')} stop={dropoff} tone="text-rose-600" />
+      <StopTile label={t("bookingHistory.pickupPoint")} stop={pickup} tone="text-blue-600" />
+      <StopTile label={t("bookingHistory.dropoffPoint")} stop={dropoff} tone="text-rose-600" />
     </div>
-  )
+  );
 }
 
 function StopTile({ label, stop, tone }: { label: string; stop: Stop; tone: string }) {
@@ -24,16 +24,16 @@ function StopTile({ label, stop, tone }: { label: string; stop: Stop; tone: stri
         <MapPin className={`h-3.5 w-3.5 ${tone}`} />
         {label}
       </div>
-      <div className="text-sm font-semibold">{stop?.name ?? '—'}</div>
+      <div className="text-sm font-semibold">{stop?.name ?? "—"}</div>
       {stop?.address && <div className="mt-0.5 text-xs text-muted-foreground">{stop.address}</div>}
     </div>
-  )
+  );
 }
 
 /** One row per passenger: the seat number, class, who sits there and what they paid. */
-export function TicketPassengers({ seats }: { seats: BookingOut['seats'] }) {
-  const t = useT()
-  const money = useMoney()
+export function TicketPassengers({ seats }: { seats: BookingOut["seats"] }) {
+  const t = useT();
+  const money = useMoney();
   return (
     <ul className="space-y-1.5">
       {seats.map((s, i) => (
@@ -44,22 +44,22 @@ export function TicketPassengers({ seats }: { seats: BookingOut['seats'] }) {
           <div className="flex min-w-0 items-center gap-3">
             <span
               className="inline-flex h-9 min-w-12 shrink-0 flex-col items-center justify-center rounded-md bg-primary/10 px-1.5 leading-none text-primary"
-              title={t('bookingHistory.seatNumber')}
+              title={t("bookingHistory.seatNumber")}
             >
-              <span className="text-[9px] font-semibold uppercase">{t('bookingHistory.seat')}</span>
-              <span className="font-mono text-sm font-bold">{s.seatCode ?? '—'}</span>
+              <span className="text-[9px] font-semibold uppercase">{t("bookingHistory.seat")}</span>
+              <span className="font-mono text-sm font-bold">{s.seatCode ?? "—"}</span>
             </span>
             <div className="min-w-0">
               <div className="truncate font-semibold">
-                {s.passengerName || t('booking.passengers')}
+                {s.passengerName || t("booking.passengers")}
               </div>
               <div className="text-[11px] text-muted-foreground">
-                {s.passengerType === 'child'
-                  ? t('booking.passengerType.child')
-                  : t('booking.passengerType.adult')}
+                {s.passengerType === "child"
+                  ? t("booking.passengerType.child")
+                  : t("booking.passengerType.adult")}
                 {s.passengerAge != null &&
                   s.passengerAge > 0 &&
-                  t('bookingHistory.ageSuffix', { age: s.passengerAge })}
+                  t("bookingHistory.ageSuffix", { age: s.passengerAge })}
                 {s.seatClass && ` • ${t(SEAT_CLASS_LABELS[s.seatClass] ?? s.seatClass)}`}
               </div>
             </div>
@@ -68,5 +68,5 @@ export function TicketPassengers({ seats }: { seats: BookingOut['seats'] }) {
         </li>
       ))}
     </ul>
-  )
+  );
 }

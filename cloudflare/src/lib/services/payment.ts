@@ -11,7 +11,7 @@
  *
  * One active payment per booking (prior pending auto-cancelled).
  */
-import { getDb, type Database } from "@/lib/db/client";
+import type { Database } from "@/lib/db/client";
 import { bookings, payments } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
 import { ApiError } from "@/lib/auth/rbac";
@@ -30,7 +30,8 @@ export async function enabledProviders(): Promise<
     list.push({ id: "cod", label: "Thanh toán khi lên xe (COD)", requiresRedirect: false });
   if (on(env.VIETQR_ENABLED)) {
     const ready = !!(env.VIETQR_BANK_BIN && env.VIETQR_ACCOUNT_NO);
-    if (ready) list.push({ id: "vietqr", label: "Chuyển khoản QR (VietQR)", requiresRedirect: false });
+    if (ready)
+      list.push({ id: "vietqr", label: "Chuyển khoản QR (VietQR)", requiresRedirect: false });
   }
   if (on(env.VNPAY_ENABLED) && env.VNPAY_TMN_CODE && env.VNPAY_HASH_SECRET)
     list.push({ id: "vnpay", label: "VNPay", requiresRedirect: true });
@@ -69,7 +70,10 @@ export function buildVietQr(
 ): string {
   const tl = (id: string, value: string) =>
     `${id}${value.length.toString().padStart(2, "0")}${value}`;
-  const beneficiary = tl("00", tl("00", "A000000727") + tl("01", tl("00", bankBin) + tl("01", accountNo)));
+  const beneficiary = tl(
+    "00",
+    tl("00", "A000000727") + tl("01", tl("00", bankBin) + tl("01", accountNo)),
+  );
   let payload =
     tl("00", "01") +
     tl("01", "12") + // dynamic QR
@@ -105,9 +109,10 @@ async function buildVnpayUrl(
   txnRef: string,
   ip: string,
 ): Promise<string> {
-  const base = env.APP_ENV === "development"
-    ? "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html"
-    : "https://pay.vnpay.vn/vpcpay.html";
+  const base =
+    env.APP_ENV === "development"
+      ? "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html"
+      : "https://pay.vnpay.vn/vpcpay.html";
   const now = new Date(Date.now() + 10 * 60_000); // default expiry 10 min
   const params: Record<string, string> = {
     vnp_Version: "2.1.0",
@@ -126,7 +131,7 @@ async function buildVnpayUrl(
   };
   const sorted = Object.keys(params)
     .sort()
-    .map((k) => `${k}=${encodeURIComponent(params[k]!)}`)
+    .map((k) => `${k}=${encodeURIComponent(params[k])}`)
     .join("&");
   const secureHash = await hmacSha512Hex(env.VNPAY_HASH_SECRET!, sorted);
   return `${base}?${sorted}&vnp_SecureHashType=HMACSHA512&vnp_SecureHash=${secureHash}`;
@@ -153,8 +158,7 @@ export async function createPayment(
     await db.select().from(bookings).where(eq(bookings.id, input.bookingId)).limit(1)
   )[0];
   if (!booking) throw new ApiError(404, "not-found", "Booking not found");
-  if (booking.status === "cancelled")
-    throw new ApiError(409, "conflict", "Booking was cancelled");
+  if (booking.status === "cancelled") throw new ApiError(409, "conflict", "Booking was cancelled");
 
   const providers = await enabledProviders();
   if (!providers.some((p) => p.id === input.provider))
@@ -214,8 +218,11 @@ export async function createPayment(
 
   // COD on zero-total bookings confirms immediately.
   if (input.provider === "cod" && booking.total <= 0) {
-    await db.update(payments).set({ status: "completed", updatedAt: now }).where(eq(payments.id, id));
-    await completeBookingPayment(db, booking.id);
+    await db
+      .update(payments)
+      .set({ status: "completed", updatedAt: now })
+      .where(eq(payments.id, id));
+    await completeBookingPayment(booking.id);
     row.status = "completed";
   }
   return row;
@@ -224,9 +231,7 @@ export async function createPayment(
 /** Staff: mark COD cash collected → completed + booking confirmed. */
 export async function markCodCollected(db: Database, paymentId: string, staffId: string) {
   const now = new Date().toISOString();
-  const payment = (
-    await db.select().from(payments).where(eq(payments.id, paymentId)).limit(1)
-  )[0];
+  const payment = (await db.select().from(payments).where(eq(payments.id, paymentId)).limit(1))[0];
   if (!payment) throw new ApiError(404, "not-found", "Payment not found");
   if (payment.provider !== "cod") throw new ApiError(400, "validation", "Not a COD payment");
   if (payment.status === "completed") return payment; // idempotent
@@ -236,18 +241,19 @@ export async function markCodCollected(db: Database, paymentId: string, staffId:
     .update(payments)
     .set({ status: "completed", collectedAt: now, collectedBy: staffId, updatedAt: now })
     .where(eq(payments.id, paymentId));
-  await completeBookingPayment(db, payment.bookingId);
+  await completeBookingPayment(payment.bookingId);
   return { ...payment, status: "completed", collectedAt: now, collectedBy: staffId };
 }
 
 export async function cancelPayment(db: Database, paymentId: string) {
   const now = new Date().toISOString();
-  const payment = (
-    await db.select().from(payments).where(eq(payments.id, paymentId)).limit(1)
-  )[0];
+  const payment = (await db.select().from(payments).where(eq(payments.id, paymentId)).limit(1))[0];
   if (!payment) throw new ApiError(404, "not-found", "Payment not found");
   if (payment.status !== "pending")
     throw new ApiError(409, "conflict", `Payment is ${payment.status}`);
-  await db.update(payments).set({ status: "cancelled", updatedAt: now }).where(eq(payments.id, paymentId));
+  await db
+    .update(payments)
+    .set({ status: "cancelled", updatedAt: now })
+    .where(eq(payments.id, paymentId));
   return { ...payment, status: "cancelled" };
 }

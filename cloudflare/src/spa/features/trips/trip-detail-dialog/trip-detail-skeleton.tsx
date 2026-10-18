@@ -1,10 +1,10 @@
-'use client'
+"use client";
 
-import { memo } from 'react'
-import { Shimmer } from '@spa/components/ui/shimmer'
+import { memo } from "react";
+import { Shimmer } from "@spa/components/ui/shimmer";
 
 /** Seat rows of the placeholder bus: two seats, the aisle, two seats. */
-const ROWS = 6
+const ROWS = 6;
 
 /**
  * The trip dialog while it loads, laid out like the trip it becomes — the
@@ -73,5 +73,5 @@ export const TripDetailSkeleton = memo(function TripDetailSkeleton() {
         </div>
       </div>
     </div>
-  )
-})
+  );
+});

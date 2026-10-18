@@ -1,10 +1,10 @@
-import { useQuery } from '@tanstack/react-query'
-import { tripDetailOptions } from '@spa/api'
+import { useQuery } from "@tanstack/react-query";
+import { tripDetailOptions } from "@spa/api";
 
 /** Trip detail (seat map, stops, pricing); idle until an id is given. */
 export function useTripDetail(tripId: string | undefined) {
   return useQuery({
-    ...tripDetailOptions({ path: { id: tripId ?? '' } }),
+    ...tripDetailOptions({ path: { id: tripId ?? "" } }),
     enabled: !!tripId,
-  })
+  });
 }

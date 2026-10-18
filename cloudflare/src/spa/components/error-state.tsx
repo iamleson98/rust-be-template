@@ -1,7 +1,7 @@
-import { memo } from 'react'
-import { Button } from '@spa/components/ui/button'
-import { EmptyState } from '@spa/components/empty-state'
-import { useT } from '@spa/lib/i18n'
+import { memo } from "react";
+import { Button } from "@spa/components/ui/button";
+import { EmptyState } from "@spa/components/empty-state";
+import { useT } from "@spa/lib/i18n";
 
 function WarningSVG() {
   return (
@@ -37,7 +37,7 @@ function WarningSVG() {
       <circle cx="100" cy="50" r="2.5" fill="oklch(0.65 0.21 25 / 0.4)" />
       <circle cx="98" cy="92" r="2" fill="oklch(0.65 0.21 25 / 0.4)" />
     </svg>
-  )
+  );
 }
 
 export const ErrorState = memo(function ErrorState({
@@ -45,16 +45,16 @@ export const ErrorState = memo(function ErrorState({
   description,
   className,
 }: {
-  onRetry?: () => void
-  description?: string
-  className?: string
+  onRetry?: () => void;
+  description?: string;
+  className?: string;
 }) {
-  const t = useT()
+  const t = useT();
   return (
     <EmptyState
       illustration={<WarningSVG />}
-      title={t('layout.error.title')}
-      description={description ?? t('layout.error.description')}
+      title={t("layout.error.title")}
+      description={description ?? t("layout.error.description")}
       className={className}
     >
       {onRetry && (
@@ -64,9 +64,9 @@ export const ErrorState = memo(function ErrorState({
           className="gap-1.5 border-amber-300 text-amber-700 hover:bg-amber-50"
           onClick={onRetry}
         >
-          {t('payment.retry')}
+          {t("payment.retry")}
         </Button>
       )}
     </EmptyState>
-  )
-})
+  );
+});

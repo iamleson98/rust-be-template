@@ -1,19 +1,19 @@
 const AUTH_ENDPOINTS = new Set([
-  '/api/auth/employee-login',
-  '/api/auth/login',
-  '/api/auth/logout',
-  '/api/auth/refresh',
-  '/api/auth/register',
-])
+  "/api/auth/employee-login",
+  "/api/auth/login",
+  "/api/auth/logout",
+  "/api/auth/refresh",
+  "/api/auth/register",
+]);
 
-const isAuthEndpoint = (request: Request) => AUTH_ENDPOINTS.has(new URL(request.url).pathname)
+const isAuthEndpoint = (request: Request) => AUTH_ENDPOINTS.has(new URL(request.url).pathname);
 
 function acceptLanguage() {
   const lang =
-    typeof window === 'undefined'
-      ? 'vi'
-      : (document.cookie.match(/bus_lang=(vi|en)/)?.[1] ?? localStorage.getItem('bus_lang'))
-  return lang === 'en' ? 'en-US,en;q=0.9' : 'vi-VN,vi;q=0.9'
+    typeof window === "undefined"
+      ? "vi"
+      : (document.cookie.match(/bus_lang=(vi|en)/)?.[1] ?? localStorage.getItem("bus_lang"));
+  return lang === "en" ? "en-US,en;q=0.9" : "vi-VN,vi;q=0.9";
 }
 
 /**
@@ -23,34 +23,34 @@ function acceptLanguage() {
  * are sent.
  */
 export const createAuthFetch = (fetchImpl: typeof fetch = globalThis.fetch): typeof fetch => {
-  let refreshing: Promise<boolean> | undefined
+  let refreshing: Promise<boolean> | undefined;
 
   const refresh = () =>
-    (refreshing ??= fetchImpl('/api/auth/refresh', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Accept-Language': acceptLanguage() },
-      body: '{}',
-      credentials: 'include',
+    (refreshing ??= fetchImpl("/api/auth/refresh", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Accept-Language": acceptLanguage() },
+      body: "{}",
+      credentials: "include",
     })
       .then((response) => response.ok)
       .catch(() => false)
       .finally(() => {
-        refreshing = undefined
-      }))
+        refreshing = undefined;
+      }));
 
   return (async (input: RequestInfo | URL, init?: RequestInit) => {
     // The SDK passes a Request as `input`: copy its headers, because a
     // `headers` entry in `init` would replace them (dropping Content-Type → 415).
-    const headers = new Headers(input instanceof Request ? input.headers : init?.headers)
-    if (!headers.has('Accept-Language')) headers.set('Accept-Language', acceptLanguage())
+    const headers = new Headers(input instanceof Request ? input.headers : init?.headers);
+    if (!headers.has("Accept-Language")) headers.set("Accept-Language", acceptLanguage());
 
-    const request = new Request(input, { ...init, headers })
-    const retry = request.clone()
-    const response = await fetchImpl(request)
+    const request = new Request(input, { ...init, headers });
+    const retry = request.clone();
+    const response = await fetchImpl(request);
 
-    if (response.status !== 401 || isAuthEndpoint(request) || !(await refresh())) return response
+    if (response.status !== 401 || isAuthEndpoint(request) || !(await refresh())) return response;
     // DOM `Request` vs the workers-augmented `fetch` signature (both exist in
     // this project's type space) — runtime is the browser's native fetch.
-    return fetchImpl(retry as unknown as Parameters<typeof fetchImpl>[0])
-  }) as typeof fetch
-}
+    return fetchImpl(retry as unknown as Parameters<typeof fetchImpl>[0]);
+  }) as typeof fetch;
+};

@@ -1,13 +1,13 @@
-'use client'
+"use client";
 
-import { Input } from '@spa/components/ui/input'
-import { Label } from '@spa/components/ui/label'
-import { Badge } from '@spa/components/ui/badge'
-import { ComboboxField } from '@spa/components/ui/combobox'
-import { User, Armchair, Sparkles } from 'lucide-react'
-import type { ChildFarePolicy } from '@spa/api'
-import { useT } from '@spa/lib/i18n'
-import type { Passenger } from './chat-ticket-picker-types'
+import { Input } from "@spa/components/ui/input";
+import { Label } from "@spa/components/ui/label";
+import { Badge } from "@spa/components/ui/badge";
+import { ComboboxField } from "@spa/components/ui/combobox";
+import { User, Armchair, Sparkles } from "lucide-react";
+import type { ChildFarePolicy } from "@spa/api";
+import { useT } from "@spa/lib/i18n";
+import type { Passenger } from "./chat-ticket-picker-types";
 
 // ── PassengerStep ───────────────────────────────────────────
 
@@ -24,42 +24,42 @@ export function PassengerStep({
   setAutoConfirm,
   childFare,
 }: {
-  passengers: Passenger[]
-  setPassengers: (updater: (prev: Passenger[]) => Passenger[]) => void
-  contactName: string
-  contactPhone: string
-  contactEmail: string
-  setContactName: (v: string) => void
-  setContactPhone: (v: string) => void
-  setContactEmail: (v: string) => void
-  autoConfirm: boolean
-  setAutoConfirm: (v: boolean) => void
+  passengers: Passenger[];
+  setPassengers: (updater: (prev: Passenger[]) => Passenger[]) => void;
+  contactName: string;
+  contactPhone: string;
+  contactEmail: string;
+  setContactName: (v: string) => void;
+  setContactPhone: (v: string) => void;
+  setContactEmail: (v: string) => void;
+  autoConfirm: boolean;
+  setAutoConfirm: (v: boolean) => void;
   /** The brand's child tickets; without them every passenger pays the adult price. */
-  childFare: ChildFarePolicy | null | undefined
+  childFare: ChildFarePolicy | null | undefined;
 }) {
-  const t = useT()
+  const t = useT();
   return (
     <div className="space-y-3">
       {/* Contact info */}
       <div className="rounded-lg border p-3 bg-slate-50/50">
         <div className="text-xs font-semibold mb-2 flex items-center gap-1.5">
-          <User className="h-3.5 w-3.5" /> {t('booking.contactInfo')}
+          <User className="h-3.5 w-3.5" /> {t("booking.contactInfo")}
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <div>
             <Label className="text-[10px] text-muted-foreground uppercase">
-              {t('adminTickets.bookerName')}
+              {t("adminTickets.bookerName")}
             </Label>
             <Input
               value={contactName}
               onChange={(e) => setContactName(e.target.value)}
-              placeholder={t('adminTickets.nameExample')}
+              placeholder={t("adminTickets.nameExample")}
               className="h-9"
             />
           </div>
           <div>
             <Label className="text-[10px] text-muted-foreground uppercase">
-              {t('adminTickets.phoneLabel')}
+              {t("adminTickets.phoneLabel")}
             </Label>
             <Input
               value={contactPhone}
@@ -70,7 +70,7 @@ export function PassengerStep({
           </div>
           <div className="sm:col-span-2">
             <Label className="text-[10px] text-muted-foreground uppercase">
-              {t('adminTickets.emailOptional')}
+              {t("adminTickets.emailOptional")}
             </Label>
             <Input
               type="email"
@@ -86,11 +86,11 @@ export function PassengerStep({
       {/* Passengers per seat */}
       <div className="rounded-lg border p-3">
         <div className="text-xs font-semibold mb-2 flex items-center gap-1.5">
-          <Armchair className="h-3.5 w-3.5" /> {t('adminTickets.passengersBySeat')}
+          <Armchair className="h-3.5 w-3.5" /> {t("adminTickets.passengersBySeat")}
         </div>
         {passengers.length === 0 ? (
           <div className="text-xs text-muted-foreground py-2">
-            {t('adminTickets.noSeatsSelected')}
+            {t("adminTickets.noSeatsSelected")}
           </div>
         ) : (
           <div className="space-y-2">
@@ -106,7 +106,7 @@ export function PassengerStep({
                       prev.map((x) => (x.seatId === p.seatId ? { ...x, name: e.target.value } : x)),
                     )
                   }
-                  placeholder={t('adminTickets.passengerNamePh')}
+                  placeholder={t("adminTickets.passengerNamePh")}
                   className="h-8 flex-1 text-xs"
                 />
                 {childFare && (
@@ -116,22 +116,22 @@ export function PassengerStep({
                       setPassengers((prev) =>
                         prev.map((x) =>
                           x.seatId === p.seatId
-                            ? { ...x, type: v === 'child' ? 'child' : 'adult' }
+                            ? { ...x, type: v === "child" ? "child" : "adult" }
                             : x,
                         ),
                       )
                     }
                     items={[
-                      { value: 'adult', label: t('booking.passengerType.adult') },
+                      { value: "adult", label: t("booking.passengerType.adult") },
                       {
-                        value: 'child',
-                        label: t('adminTickets.childUpTo', { age: childFare.maxAge }),
+                        value: "child",
+                        label: t("adminTickets.childUpTo", { age: childFare.maxAge }),
                       },
                     ]}
                     className="h-8 w-32 text-xs"
-                    placeholder={t('adminTickets.typeLabel')}
-                    searchPlaceholder={t('combobox.search')}
-                    aria-label={t('adminTickets.passengerTypeAria')}
+                    placeholder={t("adminTickets.typeLabel")}
+                    searchPlaceholder={t("combobox.search")}
+                    aria-label={t("adminTickets.passengerTypeAria")}
                   />
                 )}
               </div>
@@ -151,13 +151,13 @@ export function PassengerStep({
         <div className="flex-1">
           <div className="text-xs font-semibold flex items-center gap-1.5">
             <Sparkles className="h-3.5 w-3.5 text-emerald-600" />
-            {t('adminTickets.autoConfirmTitle')}
+            {t("adminTickets.autoConfirmTitle")}
           </div>
           <div className="text-[11px] text-muted-foreground">
-            {t('adminTickets.autoConfirmDesc')}
+            {t("adminTickets.autoConfirmDesc")}
           </div>
         </div>
       </label>
     </div>
-  )
+  );
 }

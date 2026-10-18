@@ -6,7 +6,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ idOrCode: stri
   try {
     const user = await requireUser(req);
     const { idOrCode } = await ctx.params;
-    const body = await readJson<{ reason?: string | null }>(req).catch(() => ({ reason: undefined }));
+    const body = await readJson<{ reason?: string | null }>(req).catch(() => ({
+      reason: undefined,
+    }));
     const result = await cancelBooking(user.id, idOrCode);
     return Response.json({
       success: true,

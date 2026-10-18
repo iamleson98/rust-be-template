@@ -1,4 +1,4 @@
-'use client'
+"use client";
 
 /**
  * Moderation detail dialog of the admin feedback panel — full review
@@ -14,15 +14,15 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-} from '@spa/components/ui/dialog'
-import { Avatar, AvatarFallback } from '@spa/components/ui/avatar'
-import { Badge } from '@spa/components/ui/badge'
-import { Button } from '@spa/components/ui/button'
-import { Textarea } from '@spa/components/ui/textarea'
-import { CheckCircle2, EyeOff, Send, XCircle } from 'lucide-react'
-import { useT } from '@spa/lib/i18n'
-import { StarRating } from '@spa/features/account/feedback/star-rating'
-import { formatDate, type FeedbackRow } from './helpers'
+} from "@spa/components/ui/dialog";
+import { Avatar, AvatarFallback } from "@spa/components/ui/avatar";
+import { Badge } from "@spa/components/ui/badge";
+import { Button } from "@spa/components/ui/button";
+import { Textarea } from "@spa/components/ui/textarea";
+import { CheckCircle2, EyeOff, Send, XCircle } from "lucide-react";
+import { useT } from "@spa/lib/i18n";
+import { StarRating } from "@spa/features/account/feedback/star-rating";
+import { formatDate, type FeedbackRow } from "./helpers";
 
 export function FeedbackDetailDialog({
   selected,
@@ -33,19 +33,19 @@ export function FeedbackDetailDialog({
   moderate,
   onClose,
 }: {
-  selected: FeedbackRow | null
-  setSelected: React.Dispatch<React.SetStateAction<FeedbackRow | null>>
-  replyText: string
-  setReplyText: React.Dispatch<React.SetStateAction<string>>
-  updating: boolean
+  selected: FeedbackRow | null;
+  setSelected: React.Dispatch<React.SetStateAction<FeedbackRow | null>>;
+  replyText: string;
+  setReplyText: React.Dispatch<React.SetStateAction<string>>;
+  updating: boolean;
   moderate: (
     id: string,
     body: { status?: string; brandReply?: string | null },
     successMsg: string,
-  ) => Promise<boolean>
-  onClose: () => void
+  ) => Promise<boolean>;
+  onClose: () => void;
 }) {
-  const t = useT()
+  const t = useT();
   return (
     <Dialog open={!!selected} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-lg">
@@ -55,12 +55,12 @@ export function FeedbackDetailDialog({
               <DialogTitle className="flex items-center gap-2.5 pr-6">
                 <Avatar className="size-9">
                   <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">
-                    {(selected.authorName || '?').slice(0, 1).toUpperCase()}
+                    {(selected.authorName || "?").slice(0, 1).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
                 <div className="min-w-0">
                   <div className="truncate text-base">
-                    {selected.authorName || t('adminFeedback.anonymousCustomer')}
+                    {selected.authorName || t("adminFeedback.anonymousCustomer")}
                   </div>
                   <div className="text-xs font-normal text-muted-foreground">
                     {formatDate(selected.createdAt)}
@@ -68,7 +68,7 @@ export function FeedbackDetailDialog({
                 </div>
               </DialogTitle>
               <DialogDescription className="sr-only">
-                {t('adminFeedback.detailSr')}
+                {t("adminFeedback.detailSr")}
               </DialogDescription>
             </DialogHeader>
 
@@ -91,7 +91,7 @@ export function FeedbackDetailDialog({
 
               {/* Status action row */}
               <div className="flex flex-wrap gap-1.5">
-                {selected.status !== 'approved' && (
+                {selected.status !== "approved" && (
                   <Button
                     size="sm"
                     variant="outline"
@@ -100,19 +100,19 @@ export function FeedbackDetailDialog({
                       if (
                         await moderate(
                           selected.id,
-                          { status: 'approved' },
-                          t('adminFeedback.approvedToast'),
+                          { status: "approved" },
+                          t("adminFeedback.approvedToast"),
                         )
                       ) {
-                        setSelected({ ...selected, status: 'approved' })
+                        setSelected({ ...selected, status: "approved" });
                       }
                     }}
                     className="gap-1.5 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
                   >
-                    <CheckCircle2 className="size-3.5" /> {t('adminFeedback.approveAction')}
+                    <CheckCircle2 className="size-3.5" /> {t("adminFeedback.approveAction")}
                   </Button>
                 )}
-                {selected.status !== 'rejected' && (
+                {selected.status !== "rejected" && (
                   <Button
                     size="sm"
                     variant="outline"
@@ -121,19 +121,19 @@ export function FeedbackDetailDialog({
                       if (
                         await moderate(
                           selected.id,
-                          { status: 'rejected' },
-                          t('adminFeedback.rejectedToast'),
+                          { status: "rejected" },
+                          t("adminFeedback.rejectedToast"),
                         )
                       ) {
-                        setSelected({ ...selected, status: 'rejected' })
+                        setSelected({ ...selected, status: "rejected" });
                       }
                     }}
                     className="gap-1.5 border-rose-300 text-rose-700 hover:bg-rose-50"
                   >
-                    <XCircle className="size-3.5" /> {t('adminFeedback.statusRejected')}
+                    <XCircle className="size-3.5" /> {t("adminFeedback.statusRejected")}
                   </Button>
                 )}
-                {selected.status !== 'hidden' && (
+                {selected.status !== "hidden" && (
                   <Button
                     size="sm"
                     variant="outline"
@@ -142,16 +142,16 @@ export function FeedbackDetailDialog({
                       if (
                         await moderate(
                           selected.id,
-                          { status: 'hidden' },
-                          t('adminFeedback.hiddenToast'),
+                          { status: "hidden" },
+                          t("adminFeedback.hiddenToast"),
                         )
                       ) {
-                        setSelected({ ...selected, status: 'hidden' })
+                        setSelected({ ...selected, status: "hidden" });
                       }
                     }}
                     className="gap-1.5"
                   >
-                    <EyeOff className="size-3.5" /> {t('adminFeedback.hideAction')}
+                    <EyeOff className="size-3.5" /> {t("adminFeedback.hideAction")}
                   </Button>
                 )}
               </div>
@@ -159,12 +159,12 @@ export function FeedbackDetailDialog({
               {/* Brand reply editor */}
               <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
                 <div className="text-xs font-semibold text-muted-foreground">
-                  {t('adminFeedback.brandReplyLabel')}
+                  {t("adminFeedback.brandReplyLabel")}
                 </div>
                 <Textarea
                   value={replyText}
                   onChange={(e) => setReplyText(e.target.value)}
-                  placeholder={t('adminFeedback.brandReplyPlaceholder')}
+                  placeholder={t("adminFeedback.brandReplyPlaceholder")}
                   rows={3}
                   className="bg-background text-base md:text-sm resize-none"
                 />
@@ -177,15 +177,15 @@ export function FeedbackDetailDialog({
                         await moderate(
                           selected.id,
                           { brandReply: replyText.trim() },
-                          t('adminFeedback.replySentToast'),
+                          t("adminFeedback.replySentToast"),
                         )
                       ) {
-                        setSelected({ ...selected, reply: replyText.trim() })
+                        setSelected({ ...selected, reply: replyText.trim() });
                       }
                     }}
                     className="gap-1.5"
                   >
-                    <Send className="size-3.5" /> {t('adminFeedback.sendReply')}
+                    <Send className="size-3.5" /> {t("adminFeedback.sendReply")}
                   </Button>
                 </div>
               </div>
@@ -194,5 +194,5 @@ export function FeedbackDetailDialog({
         )}
       </DialogContent>
     </Dialog>
-  )
+  );
 }

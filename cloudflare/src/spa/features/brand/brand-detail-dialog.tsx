@@ -1,21 +1,21 @@
-'use client'
+"use client";
 
-import { useQuery } from '@tanstack/react-query'
-import { brandDetailOptions, reviewsStatsOptions, routesOptions } from '@spa/api'
-import { useSearchForm } from '@spa/stores/search-form'
-import { useState } from 'react'
-import { useNavigate } from '@tanstack/react-router'
-import { useT } from '@spa/lib/i18n'
-import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@spa/components/ui/dialog'
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@spa/components/ui/tabs'
-import { Badge } from '@spa/components/ui/badge'
-import { Button } from '@spa/components/ui/button'
-import { ScrollArea } from '@spa/components/ui/scroll-area'
-import { AlertCircle, Loader2, MessageSquareQuote, Route as RouteIcon } from 'lucide-react'
-import { buildSearchInput } from '@spa/lib/search-params'
-import { ReviewsList } from '@spa/features/reviews/reviews-list'
-import { BrandDialogHeader } from './brand-dialog-header'
-import { BrandRoutesTab } from './brand-routes-tab'
+import { useQuery } from "@tanstack/react-query";
+import { brandDetailOptions, reviewsStatsOptions, routesOptions } from "@spa/api";
+import { useSearchForm } from "@spa/stores/search-form";
+import { useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
+import { useT } from "@spa/lib/i18n";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@spa/components/ui/dialog";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@spa/components/ui/tabs";
+import { Badge } from "@spa/components/ui/badge";
+import { Button } from "@spa/components/ui/button";
+import { ScrollArea } from "@spa/components/ui/scroll-area";
+import { AlertCircle, Loader2, MessageSquareQuote, Route as RouteIcon } from "lucide-react";
+import { buildSearchInput } from "@spa/lib/search-params";
+import { ReviewsList } from "@spa/features/reviews/reviews-list";
+import { BrandDialogHeader } from "./brand-dialog-header";
+import { BrandRoutesTab } from "./brand-routes-tab";
 
 /**
  * A brand's public profile: who they are, the routes they run and what
@@ -24,33 +24,33 @@ import { BrandRoutesTab } from './brand-routes-tab'
  * reviews. Full screen on phones.
  */
 export function BrandDetailDialog({ slug, onClose }: { slug: string; onClose: () => void }) {
-  const navigate = useNavigate()
-  const setSearchParams = useSearchForm((s) => s.setSearchParams)
-  const t = useT()
-  const [tab, setTab] = useState('routes')
+  const navigate = useNavigate();
+  const setSearchParams = useSearchForm((s) => s.setSearchParams);
+  const t = useT();
+  const [tab, setTab] = useState("routes");
 
-  const brandQuery = useQuery(brandDetailOptions({ path: { slug } }))
-  const brand = brandQuery.data
+  const brandQuery = useQuery(brandDetailOptions({ path: { slug } }));
+  const brand = brandQuery.data;
   const routesQuery = useQuery({
     ...routesOptions({ query: { brand_id: brand?.id } }),
     enabled: !!brand,
-  })
-  const routes = routesQuery.data?.items ?? []
+  });
+  const routes = routesQuery.data?.items ?? [];
   const statsQuery = useQuery({
     ...reviewsStatsOptions({ query: { brand_id: brand?.id } }),
     enabled: !!brand,
-  })
-  const reviewCount = statsQuery.data?.count ?? 0
+  });
+  const reviewCount = statsQuery.data?.count ?? 0;
 
   // Search this route from tomorrow.
   const quickSearch = (fromName: string, toName: string) => {
-    const tomorrow = new Date()
-    tomorrow.setDate(tomorrow.getDate() + 1)
-    const date = tomorrow.toISOString().slice(0, 10)
-    setSearchParams({ from: fromName, to: toName, date })
-    onClose()
-    navigate({ to: '/search', search: buildSearchInput({ from: fromName, to: toName, date }) })
-  }
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const date = tomorrow.toISOString().slice(0, 10);
+    setSearchParams({ from: fromName, to: toName, date });
+    onClose();
+    navigate({ to: "/search", search: buildSearchInput({ from: fromName, to: toName, date }) });
+  };
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
@@ -60,23 +60,23 @@ export function BrandDetailDialog({ slug, onClose }: { slug: string; onClose: ()
       >
         {!brand ? (
           <>
-            <DialogTitle className="sr-only">{t('brandDetail.loadingTitle')}</DialogTitle>
+            <DialogTitle className="sr-only">{t("brandDetail.loadingTitle")}</DialogTitle>
             <DialogDescription className="sr-only">
-              {t('brandDetail.loadingDesc')}
+              {t("brandDetail.loadingDesc")}
             </DialogDescription>
             <div className="flex h-64 flex-col items-center justify-center gap-2">
               {brandQuery.isError ? (
                 <>
                   <AlertCircle className="size-8 text-rose-500" />
-                  <p className="text-sm text-muted-foreground">{t('brandDetail.loadError')}</p>
+                  <p className="text-sm text-muted-foreground">{t("brandDetail.loadError")}</p>
                   <Button size="sm" variant="outline" onClick={() => brandQuery.refetch()}>
-                    {t('payment.retry')}
+                    {t("payment.retry")}
                   </Button>
                 </>
               ) : (
                 <>
                   <Loader2 className="size-7 animate-spin text-primary" />
-                  <p className="text-sm text-muted-foreground">{t('brandDetail.loadingText')}</p>
+                  <p className="text-sm text-muted-foreground">{t("brandDetail.loadingText")}</p>
                 </>
               )}
             </div>
@@ -89,14 +89,14 @@ export function BrandDetailDialog({ slug, onClose }: { slug: string; onClose: ()
               <TabsList className="h-auto w-full justify-start gap-1 rounded-none border-b bg-background px-3 py-2">
                 <TabsTrigger value="routes" className="flex-none gap-1.5">
                   <RouteIcon className="size-4" />
-                  {t('admin.routes')}
+                  {t("admin.routes")}
                   <Badge variant="secondary" className="ml-0.5 text-[10px]">
                     {routes.length}
                   </Badge>
                 </TabsTrigger>
                 <TabsTrigger value="reviews" className="flex-none gap-1.5">
                   <MessageSquareQuote className="size-4" />
-                  {t('tripDetail.tabReviews')}
+                  {t("tripDetail.tabReviews")}
                   <Badge variant="secondary" className="ml-0.5 text-[10px]">
                     {reviewCount}
                   </Badge>
@@ -118,5 +118,5 @@ export function BrandDetailDialog({ slug, onClose }: { slug: string; onClose: ()
         )}
       </DialogContent>
     </Dialog>
-  )
+  );
 }

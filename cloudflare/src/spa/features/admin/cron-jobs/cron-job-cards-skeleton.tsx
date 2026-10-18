@@ -1,7 +1,7 @@
-'use client'
+"use client";
 
-import { memo } from 'react'
-import { Shimmer } from '@spa/components/ui/shimmer'
+import { memo } from "react";
+import { Shimmer } from "@spa/components/ui/shimmer";
 
 /* ─── Cron Job Cards Skeleton — job card grid ───
  * Mirrors a cron JobCard: title + code chip row, schedule subline,
@@ -10,7 +10,7 @@ import { Shimmer } from '@spa/components/ui/shimmer'
 export const CronJobCardsSkeleton = memo(function CronJobCardsSkeleton({
   count = 3,
 }: {
-  count?: number
+  count?: number;
 }) {
   return (
     <div className="grid gap-3" aria-hidden data-testid="cron-jobs-skeleton">
@@ -43,5 +43,5 @@ export const CronJobCardsSkeleton = memo(function CronJobCardsSkeleton({
         </div>
       ))}
     </div>
-  )
-})
+  );
+});

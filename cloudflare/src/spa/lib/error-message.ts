@@ -12,19 +12,19 @@
  *  - plain objects with a `message` field
  *  - strings / numbers                   → String(value)
  */
-import { tSync } from '@spa/lib/i18n'
+import { tSync } from "@spa/lib/i18n";
 
 export function getErrorMessage(e: unknown, fallback?: string): string {
-  if (e instanceof Error && e.message) return e.message
-  if (typeof e === 'object' && e !== null) {
-    const err = (e as { error?: { message?: unknown } }).error
-    if (typeof err?.message === 'string' && err.message) return err.message
-    const msg = (e as { message?: unknown }).message
-    if (typeof msg === 'string' && msg) return msg
+  if (e instanceof Error && e.message) return e.message;
+  if (typeof e === "object" && e !== null) {
+    const err = (e as { error?: { message?: unknown } }).error;
+    if (typeof err?.message === "string" && err.message) return err.message;
+    const msg = (e as { message?: unknown }).message;
+    if (typeof msg === "string" && msg) return msg;
   }
-  if (typeof e === 'string' && e) return e
-  if (typeof e === 'number' && Number.isFinite(e)) return String(e)
+  if (typeof e === "string" && e) return e;
+  if (typeof e === "number" && Number.isFinite(e)) return String(e);
   // Fallback follows the app language (vi default) — same string in
   // VI mode, English when the user switched.
-  return fallback ?? tSync('common.errorOccurred')
+  return fallback ?? tSync("common.errorOccurred");
 }

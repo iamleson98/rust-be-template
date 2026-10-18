@@ -1,4 +1,4 @@
-'use client'
+"use client";
 
 /**
  * Dialog for editing a cron schedule: interval (days) + fire time
@@ -6,7 +6,7 @@
  * backend's `UpdateCronJobRequest` ranges (1-365 days, 0-23 h, 0-59 m).
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -14,13 +14,13 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@spa/components/ui/dialog'
-import { Button } from '@spa/components/ui/button'
-import { Input } from '@spa/components/ui/input'
-import { Label } from '@spa/components/ui/label'
-import { Loader2 } from 'lucide-react'
-import { useT } from '@spa/lib/i18n'
-import type { CronJobOut, UpdateCronJobRequest } from '@spa/api'
+} from "@spa/components/ui/dialog";
+import { Button } from "@spa/components/ui/button";
+import { Input } from "@spa/components/ui/input";
+import { Label } from "@spa/components/ui/label";
+import { Loader2 } from "lucide-react";
+import { useT } from "@spa/lib/i18n";
+import type { CronJobOut, UpdateCronJobRequest } from "@spa/api";
 
 export function ScheduleEditDialog({
   job,
@@ -29,18 +29,18 @@ export function ScheduleEditDialog({
   onSave,
   saving,
 }: {
-  job: CronJobOut | null
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  onSave: (body: UpdateCronJobRequest) => void
-  saving: boolean
+  job: CronJobOut | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSave: (body: UpdateCronJobRequest) => void;
+  saving: boolean;
 }) {
-  const t = useT()
-  const [intervalDays, setIntervalDays] = useState('14')
-  const [atHour, setAtHour] = useState('2')
-  const [atMinute, setAtMinute] = useState('0')
-  const [resetNextRun, setResetNextRun] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const t = useT();
+  const [intervalDays, setIntervalDays] = useState("14");
+  const [atHour, setAtHour] = useState("2");
+  const [atMinute, setAtMinute] = useState("0");
+  const [resetNextRun, setResetNextRun] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Re-seed the form each time a different job is opened.
   useEffect(() => {
@@ -48,53 +48,53 @@ export function ScheduleEditDialog({
       // Intentional effect-synced state (dialog reset-on-open /
       // server-data snapshot / DOM-availability gate).
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setIntervalDays(String(job.intervalDays))
-      setAtHour(String(job.atHour))
-      setAtMinute(String(job.atMinute))
-      setResetNextRun(true)
-      setError(null)
+      setIntervalDays(String(job.intervalDays));
+      setAtHour(String(job.atHour));
+      setAtMinute(String(job.atMinute));
+      setResetNextRun(true);
+      setError(null);
     }
-  }, [job, open])
+  }, [job, open]);
 
   const submit = () => {
-    const days = Number.parseInt(intervalDays, 10)
-    const hour = Number.parseInt(atHour, 10)
-    const minute = Number.parseInt(atMinute, 10)
+    const days = Number.parseInt(intervalDays, 10);
+    const hour = Number.parseInt(atHour, 10);
+    const minute = Number.parseInt(atMinute, 10);
     if (Number.isNaN(days) || days < 1 || days > 365) {
-      setError(t('adminCronJobs.intervalRange'))
-      return
+      setError(t("adminCronJobs.intervalRange"));
+      return;
     }
     if (Number.isNaN(hour) || hour < 0 || hour > 23) {
-      setError(t('adminCronJobs.hourRange'))
-      return
+      setError(t("adminCronJobs.hourRange"));
+      return;
     }
     if (Number.isNaN(minute) || minute < 0 || minute > 59) {
-      setError(t('adminCronJobs.minuteRange'))
-      return
+      setError(t("adminCronJobs.minuteRange"));
+      return;
     }
-    setError(null)
+    setError(null);
     onSave({
       intervalDays: days,
       atHour: hour,
       atMinute: minute,
       resetNextRun,
-    })
-  }
+    });
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{t('adminCronJobs.editDialogTitle')}</DialogTitle>
+          <DialogTitle>{t("adminCronJobs.editDialogTitle")}</DialogTitle>
           <DialogDescription>
-            {job ? t('adminCronJobs.editDialogDesc', { job: job.jobType }) : ''}
+            {job ? t("adminCronJobs.editDialogDesc", { job: job.jobType }) : ""}
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-4 py-2">
           <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="cron-interval">{t('adminCronJobs.intervalDays')}</Label>
+              <Label htmlFor="cron-interval">{t("adminCronJobs.intervalDays")}</Label>
               <Input
                 id="cron-interval"
                 type="number"
@@ -105,7 +105,7 @@ export function ScheduleEditDialog({
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="cron-hour">{t('adminCronJobs.hour')}</Label>
+              <Label htmlFor="cron-hour">{t("adminCronJobs.hour")}</Label>
               <Input
                 id="cron-hour"
                 type="number"
@@ -116,7 +116,7 @@ export function ScheduleEditDialog({
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="cron-minute">{t('adminCronJobs.minute')}</Label>
+              <Label htmlFor="cron-minute">{t("adminCronJobs.minute")}</Label>
               <Input
                 id="cron-minute"
                 type="number"
@@ -136,9 +136,9 @@ export function ScheduleEditDialog({
               onChange={(e) => setResetNextRun(e.target.checked)}
             />
             <span>
-              {t('adminCronJobs.resetNextRun')}
+              {t("adminCronJobs.resetNextRun")}
               <span className="block text-xs text-muted-foreground">
-                {t('adminCronJobs.resetNextRunHint')}
+                {t("adminCronJobs.resetNextRunHint")}
               </span>
             </span>
           </label>
@@ -152,14 +152,14 @@ export function ScheduleEditDialog({
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-            {t('common.cancel')}
+            {t("common.cancel")}
           </Button>
           <Button onClick={submit} disabled={saving}>
             {saving ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : null}
-            {t('adminCronJobs.saveSchedule')}
+            {t("adminCronJobs.saveSchedule")}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

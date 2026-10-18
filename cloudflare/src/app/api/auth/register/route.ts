@@ -31,7 +31,11 @@ export async function POST(req: Request) {
     const db = await getDb();
 
     if (email) {
-      const existing = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1);
+      const existing = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.email, email))
+        .limit(1);
       if (existing.length > 0) return err(409, "conflict", "email already registered");
     }
 
@@ -55,9 +59,16 @@ export async function POST(req: Request) {
 
     // Grant the matching RBAC role row.
     const roleName = isFirst ? "admin" : "user";
-    const roleRow = await db.select({ id: roles.id }).from(roles).where(eq(roles.name, roleName)).limit(1);
+    const roleRow = await db
+      .select({ id: roles.id })
+      .from(roles)
+      .where(eq(roles.name, roleName))
+      .limit(1);
     if (roleRow[0]) {
-      await db.insert(userRoles).values({ userId: id, roleId: roleRow[0].id }).onConflictDoNothing();
+      await db
+        .insert(userRoles)
+        .values({ userId: id, roleId: roleRow[0].id })
+        .onConflictDoNothing();
     }
 
     const tokens = await issueSession(id, {
@@ -73,7 +84,9 @@ export async function POST(req: Request) {
       {
         user: sessionUserOut({ id, fullName, email, phone, role: roleName }),
         expires_at: new Date(Date.now() + 900 * 1000).toISOString(),
-        ...(mobile ? { tokens: { access_token: tokens.accessToken, refresh_token: tokens.refreshToken } } : {}),
+        ...(mobile
+          ? { tokens: { access_token: tokens.accessToken, refresh_token: tokens.refreshToken } }
+          : {}),
       },
       { headers },
     );

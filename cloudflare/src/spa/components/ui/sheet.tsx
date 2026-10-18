@@ -1,18 +1,18 @@
-'use client'
+"use client";
 
-import { type ComponentProps, type ReactElement, type ReactNode, isValidElement } from 'react'
-import { Dialog as SheetPrimitive } from '@base-ui/react/dialog'
-import { XIcon } from 'lucide-react'
+import { type ComponentProps, type ReactElement, type ReactNode, isValidElement } from "react";
+import { Dialog as SheetPrimitive } from "@base-ui/react/dialog";
+import { XIcon } from "lucide-react";
 
-import { cn } from '@spa/lib/utils'
+import { cn } from "@spa/lib/utils";
 import {
   MODAL_CLOSE,
   MODAL_DESCRIPTION,
   MODAL_OVERLAY,
   MODAL_SURFACE,
   MODAL_TITLE,
-} from './modal-styles'
-import { resolveNativeButton } from './resolve-native-button'
+} from "./modal-styles";
+import { resolveNativeButton } from "./resolve-native-button";
 
 /**
  * Radix-compat Sheet wrapper around Base UI's Dialog.
@@ -38,18 +38,18 @@ import { resolveNativeButton } from './resolve-native-button'
 
 function Sheet({
   ...props
-}: Omit<ComponentProps<typeof SheetPrimitive.Root>, 'children'> & {
-  children?: ReactNode
+}: Omit<ComponentProps<typeof SheetPrimitive.Root>, "children"> & {
+  children?: ReactNode;
 }) {
-  return <SheetPrimitive.Root data-slot="sheet" {...props} />
+  return <SheetPrimitive.Root data-slot="sheet" {...props} />;
 }
 
 function SheetTrigger({
   asChild,
   children,
   ...props
-}: Omit<ComponentProps<typeof SheetPrimitive.Trigger>, 'render'> & {
-  asChild?: boolean
+}: Omit<ComponentProps<typeof SheetPrimitive.Trigger>, "render"> & {
+  asChild?: boolean;
 }) {
   if (asChild && isValidElement(children)) {
     return (
@@ -59,21 +59,21 @@ function SheetTrigger({
         render={children as ReactElement}
         {...props}
       />
-    )
+    );
   }
   return (
     <SheetPrimitive.Trigger data-slot="sheet-trigger" {...props}>
       {children}
     </SheetPrimitive.Trigger>
-  )
+  );
 }
 
 function SheetClose({
   asChild,
   children,
   ...props
-}: Omit<ComponentProps<typeof SheetPrimitive.Close>, 'render'> & {
-  asChild?: boolean
+}: Omit<ComponentProps<typeof SheetPrimitive.Close>, "render"> & {
+  asChild?: boolean;
 }) {
   if (asChild && isValidElement(children)) {
     return (
@@ -83,17 +83,17 @@ function SheetClose({
         render={children as ReactElement}
         {...props}
       />
-    )
+    );
   }
   return (
     <SheetPrimitive.Close data-slot="sheet-close" {...props}>
       {children}
     </SheetPrimitive.Close>
-  )
+  );
 }
 
 function SheetPortal({ ...props }: ComponentProps<typeof SheetPrimitive.Portal>) {
-  return <SheetPrimitive.Portal data-slot="sheet-portal" {...props} />
+  return <SheetPrimitive.Portal data-slot="sheet-portal" {...props} />;
 }
 
 function SheetOverlay({ className, ...props }: ComponentProps<typeof SheetPrimitive.Backdrop>) {
@@ -101,21 +101,21 @@ function SheetOverlay({ className, ...props }: ComponentProps<typeof SheetPrimit
     <SheetPrimitive.Backdrop
       data-slot="sheet-overlay"
       render={(componentProps, state) => (
-        <div {...componentProps} data-state={state.open ? 'open' : 'closed'} />
+        <div {...componentProps} data-state={state.open ? "open" : "closed"} />
       )}
       className={cn(MODAL_OVERLAY, className)}
       {...props}
     />
-  )
+  );
 }
 
 function SheetContent({
   className,
   children,
-  side = 'right',
+  side = "right",
   ...props
-}: Omit<ComponentProps<typeof SheetPrimitive.Popup>, 'render'> & {
-  side?: 'top' | 'right' | 'bottom' | 'left'
+}: Omit<ComponentProps<typeof SheetPrimitive.Popup>, "render"> & {
+  side?: "top" | "right" | "bottom" | "left";
 }) {
   return (
     <SheetPortal>
@@ -123,19 +123,19 @@ function SheetContent({
       <SheetPrimitive.Popup
         data-slot="sheet-content"
         render={(componentProps, state) => (
-          <div {...componentProps} data-state={state.open ? 'open' : 'closed'} />
+          <div {...componentProps} data-state={state.open ? "open" : "closed"} />
         )}
         className={cn(
           MODAL_SURFACE,
-          'data-[state=open]:animate-in data-[state=closed]:animate-out fixed z-50 flex flex-col gap-4 ease-out data-[state=closed]:duration-200 data-[state=open]:duration-300',
-          side === 'right' &&
-            'data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right inset-y-0 right-0 h-full w-3/4 overflow-y-auto overscroll-contain sm:max-w-sm',
-          side === 'left' &&
-            'data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left inset-y-0 left-0 h-full w-3/4 overflow-y-auto overscroll-contain sm:max-w-sm',
-          side === 'top' &&
-            'data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top inset-x-0 top-0 h-auto max-h-[92dvh] overflow-y-auto overscroll-contain rounded-b-[1.75rem]',
-          side === 'bottom' &&
-            'data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom inset-x-0 bottom-0 h-auto max-h-[92dvh] overflow-y-auto overscroll-contain rounded-t-[1.75rem] pb-[env(safe-area-inset-bottom)]',
+          "data-[state=open]:animate-in data-[state=closed]:animate-out fixed z-50 flex flex-col gap-4 ease-out data-[state=closed]:duration-200 data-[state=open]:duration-300",
+          side === "right" &&
+            "data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right inset-y-0 right-0 h-full w-3/4 overflow-y-auto overscroll-contain sm:max-w-sm",
+          side === "left" &&
+            "data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left inset-y-0 left-0 h-full w-3/4 overflow-y-auto overscroll-contain sm:max-w-sm",
+          side === "top" &&
+            "data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top inset-x-0 top-0 h-auto max-h-[92dvh] overflow-y-auto overscroll-contain rounded-b-[1.75rem]",
+          side === "bottom" &&
+            "data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom inset-x-0 bottom-0 h-auto max-h-[92dvh] overflow-y-auto overscroll-contain rounded-t-[1.75rem] pb-[env(safe-area-inset-bottom)]",
           className,
         )}
         {...props}
@@ -151,28 +151,28 @@ function SheetContent({
         </SheetPrimitive.Close>
       </SheetPrimitive.Popup>
     </SheetPortal>
-  )
+  );
 }
 
-function SheetHeader({ className, ...props }: ComponentProps<'div'>) {
+function SheetHeader({ className, ...props }: ComponentProps<"div">) {
   return (
     <div
       data-slot="sheet-header"
       // pr-14 keeps header content clear of the close button (size-8 at top-4/right-4).
-      className={cn('flex flex-col gap-1 p-5 pr-14', className)}
+      className={cn("flex flex-col gap-1 p-5 pr-14", className)}
       {...props}
     />
-  )
+  );
 }
 
-function SheetFooter({ className, ...props }: ComponentProps<'div'>) {
+function SheetFooter({ className, ...props }: ComponentProps<"div">) {
   return (
     <div
       data-slot="sheet-footer"
-      className={cn('mt-auto flex flex-col gap-2 p-5', className)}
+      className={cn("mt-auto flex flex-col gap-2 p-5", className)}
       {...props}
     />
-  )
+  );
 }
 
 function SheetTitle({ className, ...props }: ComponentProps<typeof SheetPrimitive.Title>) {
@@ -182,7 +182,7 @@ function SheetTitle({ className, ...props }: ComponentProps<typeof SheetPrimitiv
       className={cn(MODAL_TITLE, className)}
       {...props}
     />
-  )
+  );
 }
 
 function SheetDescription({
@@ -195,7 +195,7 @@ function SheetDescription({
       className={cn(MODAL_DESCRIPTION, className)}
       {...props}
     />
-  )
+  );
 }
 
 export {
@@ -207,4 +207,4 @@ export {
   SheetFooter,
   SheetTitle,
   SheetDescription,
-}
+};

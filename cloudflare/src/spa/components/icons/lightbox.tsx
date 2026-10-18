@@ -1,52 +1,52 @@
-import { useEffect, useState, useCallback } from 'react'
-import { X, ChevronLeft, ChevronRight } from 'lucide-react'
+import { useEffect, useState, useCallback } from "react";
+import { X, ChevronLeft, ChevronRight } from "lucide-react";
 
-import { useT } from '@spa/lib/i18n'
+import { useT } from "@spa/lib/i18n";
 
 type Props = {
-  open: boolean
-  images: string[]
-  initialIndex?: number
-  onClose: () => void
-}
+  open: boolean;
+  images: string[];
+  initialIndex?: number;
+  onClose: () => void;
+};
 
 export function Lightbox({ open, images, initialIndex = 0, onClose }: Props) {
-  const t = useT()
-  const [idx, setIdx] = useState(initialIndex)
+  const t = useT();
+  const [idx, setIdx] = useState(initialIndex);
 
   useEffect(() => {
     // When the lightbox opens, snap to the requested image.
     if (open) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setIdx(Math.min(initialIndex, images.length - 1))
+      setIdx(Math.min(initialIndex, images.length - 1));
     }
-  }, [open, initialIndex, images.length])
+  }, [open, initialIndex, images.length]);
 
   const goPrev = useCallback(() => {
-    setIdx((i) => (i - 1 + images.length) % images.length)
-  }, [images.length])
+    setIdx((i) => (i - 1 + images.length) % images.length);
+  }, [images.length]);
 
   const goNext = useCallback(() => {
-    setIdx((i) => (i + 1) % images.length)
-  }, [images.length])
+    setIdx((i) => (i + 1) % images.length);
+  }, [images.length]);
 
   // Keyboard navigation
   useEffect(() => {
-    if (!open) return
+    if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-      else if (e.key === 'ArrowLeft') goPrev()
-      else if (e.key === 'ArrowRight') goNext()
-    }
-    window.addEventListener('keydown', onKey)
+      if (e.key === "Escape") onClose();
+      else if (e.key === "ArrowLeft") goPrev();
+      else if (e.key === "ArrowRight") goNext();
+    };
+    window.addEventListener("keydown", onKey);
     // Lock body scroll
-    const prevOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     return () => {
-      window.removeEventListener('keydown', onKey)
-      document.body.style.overflow = prevOverflow
-    }
-  }, [open, onClose, goPrev, goNext])
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [open, onClose, goPrev, goNext]);
 
   return (
     <>
@@ -56,7 +56,7 @@ export function Lightbox({ open, images, initialIndex = 0, onClose }: Props) {
           className="fixed inset-0 z-100 bg-black/90 backdrop-blur-sm flex items-center justify-center"
           role="dialog"
           aria-modal="true"
-          aria-label={t('lightbox.dialogLabel')}
+          aria-label={t("lightbox.dialogLabel")}
         >
           {/* Top bar */}
           <div className="absolute top-0 inset-x-0 flex items-center justify-between px-4 py-3 text-white">
@@ -66,7 +66,7 @@ export function Lightbox({ open, images, initialIndex = 0, onClose }: Props) {
             <button
               onClick={onClose}
               className="h-10 w-10 inline-flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors"
-              aria-label={t('common.close')}
+              aria-label={t("common.close")}
             >
               <X className="h-5 w-5" />
             </button>
@@ -76,11 +76,11 @@ export function Lightbox({ open, images, initialIndex = 0, onClose }: Props) {
           {images.length > 1 && (
             <button
               onClick={(e) => {
-                e.stopPropagation()
-                goPrev()
+                e.stopPropagation();
+                goPrev();
               }}
               className="absolute left-2 sm:left-4 h-12 w-12 inline-flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
-              aria-label={t('lightbox.prevImage')}
+              aria-label={t("lightbox.prevImage")}
             >
               <ChevronLeft className="h-6 w-6" />
             </button>
@@ -95,7 +95,7 @@ export function Lightbox({ open, images, initialIndex = 0, onClose }: Props) {
           >
             <img
               src={images[idx]}
-              alt={t('lightbox.imageAlt', { index: idx + 1 })}
+              alt={t("lightbox.imageAlt", { index: idx + 1 })}
               className="max-w-[92vw] max-h-[82dvh] object-contain rounded-lg"
               loading="eager"
               decoding="async"
@@ -106,11 +106,11 @@ export function Lightbox({ open, images, initialIndex = 0, onClose }: Props) {
           {images.length > 1 && (
             <button
               onClick={(e) => {
-                e.stopPropagation()
-                goNext()
+                e.stopPropagation();
+                goNext();
               }}
               className="absolute right-2 sm:right-4 h-12 w-12 inline-flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
-              aria-label={t('lightbox.nextImage')}
+              aria-label={t("lightbox.nextImage")}
             >
               <ChevronRight className="h-6 w-6" />
             </button>
@@ -123,15 +123,15 @@ export function Lightbox({ open, images, initialIndex = 0, onClose }: Props) {
                 <button
                   key={i}
                   onClick={(e) => {
-                    e.stopPropagation()
-                    setIdx(i)
+                    e.stopPropagation();
+                    setIdx(i);
                   }}
                   className={`h-14 w-14 rounded-md overflow-hidden ring-2 transition-all ${
                     i === idx
-                      ? 'ring-white scale-105'
-                      : 'ring-white/20 opacity-70 hover:opacity-100'
+                      ? "ring-white scale-105"
+                      : "ring-white/20 opacity-70 hover:opacity-100"
                   }`}
-                  aria-label={t('lightbox.imageAlt', { index: i + 1 })}
+                  aria-label={t("lightbox.imageAlt", { index: i + 1 })}
                 >
                   <img
                     src={src}
@@ -147,5 +147,5 @@ export function Lightbox({ open, images, initialIndex = 0, onClose }: Props) {
         </div>
       )}
     </>
-  )
+  );
 }

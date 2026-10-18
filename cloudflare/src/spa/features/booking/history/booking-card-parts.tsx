@@ -1,8 +1,8 @@
-'use client'
+"use client";
 
 // Extracted from the original 'booking-card.tsx'.
 
-import { formatDateTimeVN } from '@spa/lib/format'
+import { formatDateTimeVN } from "@spa/lib/format";
 
 /* ───────────────────────────────────────────────────────────────────────
  * Small presentational helpers — kept in this file so the BookingCard is
@@ -13,9 +13,9 @@ export function InfoTile({
   label,
   value,
 }: {
-  icon: React.ReactNode
-  label: string
-  value: string
+  icon: React.ReactNode;
+  label: string;
+  value: string;
 }) {
   return (
     <div className="rounded-lg border bg-card p-3">
@@ -25,7 +25,7 @@ export function InfoTile({
       </div>
       <div className="text-sm font-semibold">{value}</div>
     </div>
-  )
+  );
 }
 
 export function PriceRow({
@@ -33,16 +33,16 @@ export function PriceRow({
   value,
   valueClass,
 }: {
-  label: string
-  value: string
-  valueClass?: string
+  label: string;
+  value: string;
+  valueClass?: string;
 }) {
   return (
     <div className="flex items-center justify-between">
       <span className="text-muted-foreground">{label}</span>
-      <span className={valueClass ?? 'font-medium'}>{value}</span>
+      <span className={valueClass ?? "font-medium"}>{value}</span>
     </div>
-  )
+  );
 }
 
 export function TimelineItem({
@@ -52,29 +52,29 @@ export function TimelineItem({
   active,
   destructive,
 }: {
-  icon: React.ReactNode
-  label: string
-  time: string
-  active?: boolean
-  destructive?: boolean
+  icon: React.ReactNode;
+  label: string;
+  time: string;
+  active?: boolean;
+  destructive?: boolean;
 }) {
   return (
     <div className="flex items-center gap-3">
       <div
         className={`h-9 w-9 rounded-full flex items-center justify-center shrink-0 ${
           destructive
-            ? 'bg-rose-100 text-rose-600'
+            ? "bg-rose-100 text-rose-600"
             : active
-              ? 'bg-blue-100 text-blue-600'
-              : 'bg-slate-100 text-slate-400'
+              ? "bg-blue-100 text-blue-600"
+              : "bg-slate-100 text-slate-400"
         }`}
       >
         {icon}
       </div>
       <div className="flex-1">
-        <div className={`text-sm font-semibold ${destructive ? 'text-rose-700' : ''}`}>{label}</div>
+        <div className={`text-sm font-semibold ${destructive ? "text-rose-700" : ""}`}>{label}</div>
         <div className="text-xs text-muted-foreground">{formatDateTimeVN(time)}</div>
       </div>
     </div>
-  )
+  );
 }

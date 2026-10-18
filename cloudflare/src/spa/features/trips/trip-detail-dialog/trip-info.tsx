@@ -1,19 +1,19 @@
-import { ArrowRight, CalendarDays, Clock, Share2, Star } from 'lucide-react'
-import type { TripDetail } from '@spa/api'
-import { DialogDescription, DialogTitle } from '@spa/components/ui/dialog'
-import { formatDateVN, formatTimeVN } from '@spa/lib/format'
-import { useT } from '@spa/lib/i18n'
-import { amenityIcon } from './amenity-icons'
+import { ArrowRight, CalendarDays, Clock, Share2, Star } from "lucide-react";
+import type { TripDetail } from "@spa/api";
+import { DialogDescription, DialogTitle } from "@spa/components/ui/dialog";
+import { formatDateVN, formatTimeVN } from "@spa/lib/format";
+import { useT } from "@spa/lib/i18n";
+import { amenityIcon } from "./amenity-icons";
 
 /** The dialog header: the journey first, then the operator, bus and amenities; share on the side. */
 export function TripInfo({ detail, onShare }: { detail: TripDetail; onShare: () => void }) {
-  const t = useT()
-  const brandName = detail.brand.name ?? ''
-  const vehicle = detail.busLayout.vehicleTypeLabel
-  const layout = detail.busLayout.name
+  const t = useT();
+  const brandName = detail.brand.name ?? "";
+  const vehicle = detail.busLayout.vehicleTypeLabel;
+  const layout = detail.busLayout.name;
   // "Giường nằm · Giường nằm 40" says it twice: the layout name only when it adds something.
-  const bus = layout && !layout.includes(vehicle) ? `${vehicle} · ${layout}` : (layout ?? vehicle)
-  const fewSeats = detail.trip.availableSeats > 0 && detail.trip.availableSeats <= 5
+  const bus = layout && !layout.includes(vehicle) ? `${vehicle} · ${layout}` : (layout ?? vehicle);
+  const fewSeats = detail.trip.availableSeats > 0 && detail.trip.availableSeats <= 5;
 
   // pr-14 keeps the dialog's close button clear of the share button.
   return (
@@ -21,9 +21,9 @@ export function TripInfo({ detail, onShare }: { detail: TripDetail; onShare: () 
       <div className="flex items-start gap-3">
         <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-primary text-sm font-bold text-primary-foreground">
           {brandName
-            .split(' ')
+            .split(" ")
             .map((w) => w[0])
-            .join('')
+            .join("")
             .slice(0, 2)
             .toUpperCase()}
         </span>
@@ -49,8 +49,8 @@ export function TripInfo({ detail, onShare }: { detail: TripDetail; onShare: () 
         <button
           type="button"
           onClick={onShare}
-          aria-label={t('trips.share')}
-          title={t('trips.share')}
+          aria-label={t("trips.share")}
+          title={t("trips.share")}
           className="grid size-9 shrink-0 place-items-center rounded-full text-slate-500 ring-1 ring-slate-200 transition-colors hover:bg-slate-50 hover:text-primary"
         >
           <Share2 className="size-4" />
@@ -61,19 +61,19 @@ export function TripInfo({ detail, onShare }: { detail: TripDetail; onShare: () 
         <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 font-semibold text-primary">
           <CalendarDays className="size-3.5" />
           {formatDateVN(detail.trip.departureAt, {
-            weekday: 'long',
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric',
+            weekday: "long",
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
           })}
         </span>
         <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 font-semibold text-slate-700">
           <Clock className="size-3.5" />
-          {t('booking.departure')} {formatTimeVN(detail.trip.departureAt)}
+          {t("booking.departure")} {formatTimeVN(detail.trip.departureAt)}
         </span>
         {fewSeats && (
           <span className="rounded-full bg-rose-50 px-2.5 py-1 font-semibold text-rose-600">
-            {t('tripDetail.fewSeatsLeft', { count: detail.trip.availableSeats })}
+            {t("tripDetail.fewSeatsLeft", { count: detail.trip.availableSeats })}
           </span>
         )}
         {detail.amenities.map((a) => (
@@ -87,5 +87,5 @@ export function TripInfo({ detail, onShare }: { detail: TripDetail; onShare: () 
         ))}
       </DialogDescription>
     </div>
-  )
+  );
 }

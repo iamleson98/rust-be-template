@@ -1,4 +1,4 @@
-'use client'
+"use client";
 
 /**
  * Mobile card list for the admin payments panel (rendered below md,
@@ -7,13 +7,13 @@
  * Extracted from the original 'src/features/admin/payments/payments-panel.tsx'.
  */
 
-import { Button } from '@spa/components/ui/button'
-import { useT } from '@spa/lib/i18n'
-import { formatCurrency } from '@spa/lib/format'
-import type { Currency } from '@spa/lib/format'
-import type { AdminPaymentOut } from '@spa/api'
-import { ProviderBadge, StatusBadge } from './payment-badges'
-import type { PaymentAction, UpdatePaymentStatusMutation } from './types'
+import { Button } from "@spa/components/ui/button";
+import { useT } from "@spa/lib/i18n";
+import { formatCurrency } from "@spa/lib/format";
+import type { Currency } from "@spa/lib/format";
+import type { AdminPaymentOut } from "@spa/api";
+import { ProviderBadge, StatusBadge } from "./payment-badges";
+import type { PaymentAction, UpdatePaymentStatusMutation } from "./types";
 
 export function PaymentMobileList({
   items,
@@ -23,14 +23,14 @@ export function PaymentMobileList({
   setActionAmount,
   setSelectedPayment,
 }: {
-  items: AdminPaymentOut[]
-  currency: Currency
-  updateStatus: UpdatePaymentStatusMutation
-  setActionDialog: React.Dispatch<React.SetStateAction<PaymentAction | null>>
-  setActionAmount: React.Dispatch<React.SetStateAction<string>>
-  setSelectedPayment: (p: AdminPaymentOut | null) => void
+  items: AdminPaymentOut[];
+  currency: Currency;
+  updateStatus: UpdatePaymentStatusMutation;
+  setActionDialog: React.Dispatch<React.SetStateAction<PaymentAction | null>>;
+  setActionAmount: React.Dispatch<React.SetStateAction<string>>;
+  setSelectedPayment: (p: AdminPaymentOut | null) => void;
 }) {
-  const t = useT()
+  const t = useT();
   return (
     <div className="divide-y divide-border/50">
       {items.map((p) => (
@@ -52,49 +52,49 @@ export function PaymentMobileList({
             </span>
           </div>
           <div className="text-xs text-muted-foreground mt-1.5">
-            {new Date(p.createdAt).toLocaleString('vi-VN', {
-              day: '2-digit',
-              month: '2-digit',
-              hour: '2-digit',
-              minute: '2-digit',
+            {new Date(p.createdAt).toLocaleString("vi-VN", {
+              day: "2-digit",
+              month: "2-digit",
+              hour: "2-digit",
+              minute: "2-digit",
             })}
           </div>
-          {(p.status === 'pending' || p.status === 'completed') && (
+          {(p.status === "pending" || p.status === "completed") && (
             <div className="flex items-center gap-2 mt-2" onClick={(e) => e.stopPropagation()}>
-              {p.status === 'pending' && (
+              {p.status === "pending" && (
                 <Button
                   variant="outline"
                   size="sm"
                   className="h-7 text-xs text-rose-600 border-rose-200 hover:bg-rose-50"
                   disabled={updateStatus.isPending}
-                  onClick={() => setActionDialog({ type: 'cancel', payment: p })}
+                  onClick={() => setActionDialog({ type: "cancel", payment: p })}
                 >
-                  {t('common.cancel')}
+                  {t("common.cancel")}
                 </Button>
               )}
-              {p.status === 'pending' && p.provider === 'cod' && (
+              {p.status === "pending" && p.provider === "cod" && (
                 <Button
                   variant="outline"
                   size="sm"
                   className="h-7 text-xs text-emerald-600 border-emerald-200 hover:bg-emerald-50"
                   disabled={updateStatus.isPending}
                   onClick={() => {
-                    setActionDialog({ type: 'mark_collected', payment: p })
-                    setActionAmount(String(p.amount))
+                    setActionDialog({ type: "mark_collected", payment: p });
+                    setActionAmount(String(p.amount));
                   }}
                 >
-                  {t('adminPayments.markCollected')}
+                  {t("adminPayments.markCollected")}
                 </Button>
               )}
-              {p.status === 'completed' && (
+              {p.status === "completed" && (
                 <Button
                   variant="outline"
                   size="sm"
                   className="h-7 text-xs text-blue-600 border-blue-200 hover:bg-blue-50"
                   disabled={updateStatus.isPending}
-                  onClick={() => setActionDialog({ type: 'refund', payment: p })}
+                  onClick={() => setActionDialog({ type: "refund", payment: p })}
                 >
-                  {t('adminPayments.refund')}
+                  {t("adminPayments.refund")}
                 </Button>
               )}
             </div>
@@ -102,5 +102,5 @@ export function PaymentMobileList({
         </div>
       ))}
     </div>
-  )
+  );
 }

@@ -1,4 +1,4 @@
-'use client'
+"use client";
 
 /**
  * Memory (host RAM) metric card — React port of pdf-tts's admin metrics
@@ -7,12 +7,12 @@
  * Extracted from the original 'src/features/admin/system/metric-cards.tsx'.
  */
 
-import { MemoryStick } from 'lucide-react'
+import { MemoryStick } from "lucide-react";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@spa/components/ui/card'
-import { Progress } from '@spa/components/ui/progress'
-import { formatBytes, usageTone } from './metric-helpers'
-import { useT } from '@spa/lib/i18n'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@spa/components/ui/card";
+import { Progress } from "@spa/components/ui/progress";
+import { formatBytes, usageTone } from "./metric-helpers";
+import { useT } from "@spa/lib/i18n";
 
 // ─── Memory ────────────────────────────────────────────────────────
 
@@ -22,20 +22,20 @@ export function MemoryCard({
   totalBytes,
   availableBytes,
 }: {
-  usagePercent: number
-  usedBytes: number
-  totalBytes: number
-  availableBytes: number
+  usagePercent: number;
+  usedBytes: number;
+  totalBytes: number;
+  availableBytes: number;
 }) {
-  const t = useT()
+  const t = useT();
   return (
     <Card data-testid="metric-memory-card">
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center gap-2 text-base">
           <MemoryStick className="h-4 w-4 text-muted-foreground" aria-hidden />
-          {t('adminSystem.memory')}
+          {t("adminSystem.memory")}
         </CardTitle>
-        <CardDescription>{t('adminSystem.hostRam')}</CardDescription>
+        <CardDescription>{t("adminSystem.hostRam")}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">
         <div className="flex items-baseline justify-between">
@@ -48,10 +48,10 @@ export function MemoryCard({
         </div>
         <Progress value={memPercent} className="h-2" />
         <dl className="grid grid-cols-2 gap-x-4 gap-y-1 pt-1 text-sm">
-          <dt className="text-muted-foreground">{t('adminSystem.available')}</dt>
+          <dt className="text-muted-foreground">{t("adminSystem.available")}</dt>
           <dd className="text-right tabular-nums">{formatBytes(availableBytes)}</dd>
         </dl>
       </CardContent>
     </Card>
-  )
+  );
 }

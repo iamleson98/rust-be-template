@@ -1,4 +1,4 @@
-'use client'
+"use client";
 
 /**
  * ShareDialog — the trip sharing dialog.
@@ -17,139 +17,139 @@
  * generator + shared types in `share-helpers.ts`.
  */
 
-import { useEffect, useMemo, useState } from 'react'
-import { useUi } from '@spa/stores/ui'
-import { usePrefs } from '@spa/stores/prefs'
-import { useT } from '@spa/lib/i18n'
+import { useEffect, useMemo, useState } from "react";
+import { useUi } from "@spa/stores/ui";
+import { usePrefs } from "@spa/stores/prefs";
+import { useT } from "@spa/lib/i18n";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogDescription,
-} from '@spa/components/ui/dialog'
-import { formatCurrency, EXCHANGE_RATE } from '@spa/lib/format'
-import { Share2 } from 'lucide-react'
-import { toast } from 'sonner'
-import { buildShareUrl } from './helpers'
-import { downloadTripImage } from './image'
-import { ShareTripCard } from './trip-card'
-import { ShareActionGrid } from './action-grid'
-import { ShareEmailForm } from './email-form'
+} from "@spa/components/ui/dialog";
+import { formatCurrency, EXCHANGE_RATE } from "@spa/lib/format";
+import { Share2 } from "lucide-react";
+import { toast } from "sonner";
+import { buildShareUrl } from "./helpers";
+import { downloadTripImage } from "./image";
+import { ShareTripCard } from "./trip-card";
+import { ShareActionGrid } from "./action-grid";
+import { ShareEmailForm } from "./email-form";
 
 export function ShareDialog() {
-  const shareTripData = useUi((s) => s.shareTrip)
-  const close = useUi((s) => s.closeShare)
-  const currency = usePrefs((s) => s.currency)
-  const shareOpen = !!shareTripData
-  const t = useT()
-  const [copied, setCopied] = useState(false)
+  const shareTripData = useUi((s) => s.shareTrip);
+  const close = useUi((s) => s.closeShare);
+  const currency = usePrefs((s) => s.currency);
+  const shareOpen = !!shareTripData;
+  const t = useT();
+  const [copied, setCopied] = useState(false);
 
   // Reset copied state when dialog toggles
   useEffect(() => {
     if (!shareOpen) {
-      const t = setTimeout(() => setCopied(false), 200)
-      return () => clearTimeout(t)
+      const t = setTimeout(() => setCopied(false), 200);
+      return () => clearTimeout(t);
     }
-  }, [shareOpen])
+  }, [shareOpen]);
 
   const shareInfo = useMemo(() => {
-    if (!shareTripData) return null
-    return buildShareUrl(shareTripData.tripId)
-  }, [shareTripData])
+    if (!shareTripData) return null;
+    return buildShareUrl(shareTripData.tripId);
+  }, [shareTripData]);
 
   const handleCopy = async () => {
-    if (!shareInfo) return
+    if (!shareInfo) return;
     try {
-      await navigator.clipboard.writeText(shareInfo.url)
-      setCopied(true)
-      toast.success(t('trips.linkCopied'), { description: shareInfo.url })
-      setTimeout(() => setCopied(false), 1800)
+      await navigator.clipboard.writeText(shareInfo.url);
+      setCopied(true);
+      toast.success(t("trips.linkCopied"), { description: shareInfo.url });
+      setTimeout(() => setCopied(false), 1800);
     } catch {
       // Fallback for older browsers
-      const ta = document.createElement('textarea')
-      ta.value = shareInfo.url
-      document.body.appendChild(ta)
-      ta.select()
+      const ta = document.createElement("textarea");
+      ta.value = shareInfo.url;
+      document.body.appendChild(ta);
+      ta.select();
       try {
-        document.execCommand('copy')
-        setCopied(true)
-        toast.success(t('trips.linkCopied'), { description: shareInfo.url })
-        setTimeout(() => setCopied(false), 1800)
+        document.execCommand("copy");
+        setCopied(true);
+        toast.success(t("trips.linkCopied"), { description: shareInfo.url });
+        setTimeout(() => setCopied(false), 1800);
       } catch {
-        toast.error(t('trips.copyFailedManual'))
+        toast.error(t("trips.copyFailedManual"));
       } finally {
-        document.body.removeChild(ta)
+        document.body.removeChild(ta);
       }
     }
-  }
+  };
 
   const handleDownload = () => {
-    if (!shareTripData) return
-    downloadTripImage(shareTripData)
-  }
+    if (!shareTripData) return;
+    downloadTripImage(shareTripData);
+  };
 
   const handleFacebook = () => {
-    if (!shareInfo) return
-    const u = encodeURIComponent(shareInfo.url)
+    if (!shareInfo) return;
+    const u = encodeURIComponent(shareInfo.url);
     const quote = encodeURIComponent(
       shareTripData
-        ? t('trips.shareQuote', {
+        ? t("trips.shareQuote", {
             from: shareTripData.fromName,
             to: shareTripData.toName,
             price: formatCurrency(shareTripData.minPrice, currency),
             brand: shareTripData.brandName,
           })
-        : t('trips.shareFallbackQuote'),
-    )
+        : t("trips.shareFallbackQuote"),
+    );
     window.open(
       `https://www.facebook.com/sharer/sharer.php?u=${u}&quote=${quote}`,
-      '_blank',
-      'noopener,noreferrer,width=640,height=540',
-    )
-  }
+      "_blank",
+      "noopener,noreferrer,width=640,height=540",
+    );
+  };
 
   const handleZalo = () => {
-    if (!shareInfo) return
+    if (!shareInfo) return;
     // Zalo share URL (official OA share endpoint)
-    const u = encodeURIComponent(shareInfo.url)
+    const u = encodeURIComponent(shareInfo.url);
     const desc = encodeURIComponent(
       shareTripData
         ? `${shareTripData.fromName} → ${shareTripData.toName} • ${shareTripData.brandName}`
-        : 'DatXeVui',
-    )
+        : "DatXeVui",
+    );
     window.open(
       `https://zalo.me/share?url=${u}&title=${desc}`,
-      '_blank',
-      'noopener,noreferrer,width=640,height=540',
-    )
-  }
+      "_blank",
+      "noopener,noreferrer,width=640,height=540",
+    );
+  };
 
   const handleWhatsApp = () => {
-    if (!shareInfo || !shareTripData) return
+    if (!shareInfo || !shareTripData) return;
     const text = encodeURIComponent(
-      t('trips.shareQuoteWa', {
+      t("trips.shareQuoteWa", {
         from: shareTripData.fromName,
         to: shareTripData.toName,
         brand: shareTripData.brandName,
         price: formatCurrency(shareTripData.minPrice, currency),
         url: shareInfo.url,
       }),
-    )
+    );
     window.open(
       `https://api.whatsapp.com/send?text=${text}`,
-      '_blank',
-      'noopener,noreferrer,width=640,height=540',
-    )
-  }
+      "_blank",
+      "noopener,noreferrer,width=640,height=540",
+    );
+  };
 
   return (
     <Dialog open={shareOpen} onOpenChange={(o) => !o && close()}>
       {/* The header stays put; the body scrolls (the email form is long on phones). */}
       <DialogContent className="flex w-[95vw] max-w-md flex-col gap-0 overflow-hidden p-0 max-sm:p-0">
         <DialogHeader icon={<Share2 />} className="shrink-0 border-b px-5 py-4 pr-14">
-          <DialogTitle>{t('trips.shareTrip')}</DialogTitle>
-          <DialogDescription>{t('trips.shareTripDesc')}</DialogDescription>
+          <DialogTitle>{t("trips.shareTrip")}</DialogTitle>
+          <DialogDescription>{t("trips.shareTripDesc")}</DialogDescription>
         </DialogHeader>
 
         {shareTripData && shareInfo && (
@@ -182,11 +182,11 @@ export function ShareDialog() {
             {/* Exchange rate note (contact info lives in the site
                 footer — no hotline repetition here) */}
             <div className="text-center text-[11px] text-muted-foreground">
-              {t('trips.shareRateNote', { rate: EXCHANGE_RATE.toLocaleString('vi-VN') })}
+              {t("trips.shareRateNote", { rate: EXCHANGE_RATE.toLocaleString("vi-VN") })}
             </div>
           </div>
         )}
       </DialogContent>
     </Dialog>
-  )
+  );
 }

@@ -1,11 +1,11 @@
-import { Check } from 'lucide-react'
-import type { LoyaltyTierOut } from '@spa/api'
-import { useT } from '@spa/lib/i18n'
-import { BENEFIT_LABELS } from './tier-styles'
+import { Check } from "lucide-react";
+import type { LoyaltyTierOut } from "@spa/api";
+import { useT } from "@spa/lib/i18n";
+import { BENEFIT_LABELS } from "./tier-styles";
 
 /** The tier's benefits: backend codes, translated here. */
 export function LoyaltyTierBenefits({ tier }: { tier: LoyaltyTierOut }) {
-  const t = useT()
+  const t = useT();
   return (
     <ul className="space-y-2.5">
       {tier.benefitCodes.map((code) => (
@@ -17,5 +17,5 @@ export function LoyaltyTierBenefits({ tier }: { tier: LoyaltyTierOut }) {
         </li>
       ))}
     </ul>
-  )
+  );
 }

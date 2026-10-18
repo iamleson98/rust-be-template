@@ -14,45 +14,45 @@
  * `src/features/admin/system/system-status-cards.tsx`; this file is
  * the thin page shell (data wiring + layout).
  */
-import { useQuery } from '@tanstack/react-query'
-import { systemStatusOptions } from '@spa/api'
-import { Activity } from 'lucide-react'
-import { ConsolePage, PageHeader } from '@spa/components/console/page'
-import { useT } from '@spa/lib/i18n'
+import { useQuery } from "@tanstack/react-query";
+import { systemStatusOptions } from "@spa/api";
+import { Activity } from "lucide-react";
+import { ConsolePage, PageHeader } from "@spa/components/console/page";
+import { useT } from "@spa/lib/i18n";
 
-import { DatabaseEngineSection } from '@spa/features/admin/system/database-engine-section'
-import { SystemMetricsSection } from '@spa/features/admin/system/system-metrics-section'
-import { SystemStatusSkeleton } from '@spa/features/admin/system/system-status-skeleton'
+import { DatabaseEngineSection } from "@spa/features/admin/system/database-engine-section";
+import { SystemMetricsSection } from "@spa/features/admin/system/system-metrics-section";
+import { SystemStatusSkeleton } from "@spa/features/admin/system/system-status-skeleton";
 import {
   CallCard,
   DatabaseCard,
   UptimeCard,
   WebSocketCard,
-} from '@spa/features/admin/system/system-status-cards'
+} from "@spa/features/admin/system/system-status-cards";
 
 export function AdminSystemPage() {
-  const t = useT()
-  const { data, isLoading } = useQuery({ ...systemStatusOptions(), refetchInterval: 5000 })
+  const t = useT();
+  const { data, isLoading } = useQuery({ ...systemStatusOptions(), refetchInterval: 5000 });
 
   return (
     <ConsolePage>
       <PageHeader
-        title={t('admin.systemMonitoring')}
+        title={t("admin.systemMonitoring")}
         description={
           <span className="inline-flex items-center gap-1.5">
             <Activity className="size-3.5 animate-pulse" aria-hidden />
-            {t('adminSystem.autoRefresh')}
+            {t("adminSystem.autoRefresh")}
           </span>
         }
       />
 
       {/* ── System Status (platform runtime) ───────────────────────── */}
       <section className="space-y-3" data-testid="system-status">
-        <h2 className="text-lg font-semibold">{t('adminSystem.statusTitle')}</h2>
+        <h2 className="text-lg font-semibold">{t("adminSystem.statusTitle")}</h2>
         {isLoading ? (
           <SystemStatusSkeleton />
         ) : !data ? (
-          <p className="text-sm text-muted-foreground">{t('adminSystem.statusLoadFailed')}</p>
+          <p className="text-sm text-muted-foreground">{t("adminSystem.statusLoadFailed")}</p>
         ) : (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
             <UptimeCard data={data} />
@@ -69,5 +69,5 @@ export function AdminSystemPage() {
       {/* ── Server Metrics (host hardware, pdf-tts feature) ────────── */}
       <SystemMetricsSection />
     </ConsolePage>
-  )
+  );
 }

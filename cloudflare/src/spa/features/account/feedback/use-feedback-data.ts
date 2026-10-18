@@ -1,30 +1,30 @@
-import { useMemo } from 'react'
-import { keepPreviousData, useQuery } from '@tanstack/react-query'
-import { bookingsListOptions, reviewsMineOptions } from '@spa/api'
+import { useMemo } from "react";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { bookingsListOptions, reviewsMineOptions } from "@spa/api";
 import {
   isBookingReviewable,
   type BookingItem,
   type ReviewItem,
-} from '@spa/features/booking/history/booking-types'
+} from "@spa/features/booking/history/booking-types";
 
-export const PAGE_SIZE = 8
-const NONE: never[] = []
+export const PAGE_SIZE = 8;
+const NONE: never[] = [];
 
 /** The customer's past rides and one page of their reviews, plus what is derived from both. */
 export function useFeedbackData(page: number) {
-  const rides = useQuery(bookingsListOptions())
+  const rides = useQuery(bookingsListOptions());
   const mine = useQuery({
     ...reviewsMineOptions({ query: { limit: PAGE_SIZE, offset: page * PAGE_SIZE } }),
     placeholderData: keepPreviousData,
-  })
-  const bookings: BookingItem[] = rides.data?.items ?? NONE
-  const reviews = (mine.data?.items ?? NONE) as unknown as ReviewItem[]
+  });
+  const bookings: BookingItem[] = rides.data?.items ?? NONE;
+  const reviews = (mine.data?.items ?? NONE) as unknown as ReviewItem[];
 
   // Rides taken but not reviewed yet (judged on the loaded page of reviews).
   const pending = useMemo(() => {
-    const reviewed = new Set(reviews.map((r) => r.bookingId).filter(Boolean))
-    return bookings.filter((b) => isBookingReviewable(b) && !reviewed.has(b.id))
-  }, [bookings, reviews])
+    const reviewed = new Set(reviews.map((r) => r.bookingId).filter(Boolean));
+    return bookings.filter((b) => isBookingReviewable(b) && !reviewed.has(b.id));
+  }, [bookings, reviews]);
 
   return {
     bookings,
@@ -35,8 +35,8 @@ export function useFeedbackData(page: number) {
     ridesLoading: rides.isLoading,
     reviewsLoading: mine.isLoading,
     refetch: () => {
-      void rides.refetch()
-      void mine.refetch()
+      void rides.refetch();
+      void mine.refetch();
     },
-  }
+  };
 }

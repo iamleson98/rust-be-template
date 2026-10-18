@@ -1,9 +1,9 @@
-'use client'
+"use client";
 
-import { memo } from 'react'
-import { Button } from '@spa/components/ui/button'
-import { EmptyState } from '@spa/components/empty-state'
-import { useT } from '@spa/lib/i18n'
+import { memo } from "react";
+import { Button } from "@spa/components/ui/button";
+import { EmptyState } from "@spa/components/empty-state";
+import { useT } from "@spa/lib/i18n";
 
 /* ─── SVG Illustrations (line-art style with teal accents) ─── */
 
@@ -89,30 +89,30 @@ function TicketSVG() {
       <circle cx="18" cy="100" r="2" fill="oklch(0.596 0.12 220 / 0.4)" />
       <circle cx="104" cy="28" r="2.5" fill="oklch(0.596 0.12 220 / 0.4)" />
     </svg>
-  )
+  );
 }
 
 export const NoBookingsYet = memo(function NoBookingsYet({
   onSearch,
   className,
 }: {
-  onSearch?: () => void
-  className?: string
+  onSearch?: () => void;
+  className?: string;
 }) {
-  const t = useT()
+  const t = useT();
   return (
     <EmptyState
       illustration={<TicketSVG />}
-      title={t('account.noBookings')}
-      description={t('bookingHistory.noBookingsDesc')}
+      title={t("account.noBookings")}
+      description={t("bookingHistory.noBookingsDesc")}
       className={className}
       size="lg"
     >
       {onSearch && (
         <Button size="sm" className="gap-1.5" onClick={onSearch}>
-          {t('bookingHistory.bookFirstTrip')}
+          {t("bookingHistory.bookFirstTrip")}
         </Button>
       )}
     </EmptyState>
-  )
-})
+  );
+});

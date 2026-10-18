@@ -1,7 +1,7 @@
-'use client'
+"use client";
 
-import { memo } from 'react'
-import { Shimmer } from '@spa/components/ui/shimmer'
+import { memo } from "react";
+import { Shimmer } from "@spa/components/ui/shimmer";
 
 /* ─── Ticket Detail Skeleton — admin booking dialog ───
  * Mirrors the ticket detail dialog body: the dashed status-management
@@ -47,5 +47,5 @@ export const TicketDetailSkeleton = memo(function TicketDetailSkeleton() {
         </div>
       </div>
     </div>
-  )
-})
+  );
+});

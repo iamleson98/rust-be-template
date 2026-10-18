@@ -1,7 +1,37 @@
-import { rawAll } from "@/lib/db/client";
-import { sql } from "drizzle-orm";
+import { getDb } from "@/lib/db/client";
+import { and, desc, eq, gte, like, lte, or, sql } from "drizzle-orm";
+import { bookingSeats, bookings, routes, schedules, tripSessions } from "@/lib/db/schema";
 import { handleRouteError, requireStaff } from "@/lib/api";
 import { requirePermission } from "@/lib/auth/rbac";
+
+/** One CSV row: booking fields + computed seats/route/departure. */
+interface ExportRow {
+  code: string;
+  status: string;
+  seats: number;
+  routeName: string | null;
+  departure: string | null;
+  total: number;
+  currency: string;
+  contactName: string | null;
+  contactPhone: string | null;
+  contactEmail: string | null;
+  createdAt: string;
+}
+
+const csvColumns: Array<{ col: string; get: (r: ExportRow) => string | number | null }> = [
+  { col: "code", get: (r) => r.code },
+  { col: "status", get: (r) => r.status },
+  { col: "seats", get: (r) => r.seats },
+  { col: "route", get: (r) => r.routeName },
+  { col: "departure", get: (r) => r.departure },
+  { col: "total", get: (r) => r.total },
+  { col: "currency", get: (r) => r.currency },
+  { col: "contact_name", get: (r) => r.contactName },
+  { col: "contact_phone", get: (r) => r.contactPhone },
+  { col: "contact_email", get: (r) => r.contactEmail },
+  { col: "created_at", get: (r) => r.createdAt },
+];
 
 /**
  * `GET /api/admin/bookings/export` — CSV export of the filtered ticket
@@ -12,59 +42,62 @@ export async function GET(req: Request) {
     const staff = await requireStaff(req);
     await requirePermission(staff, "admin:export");
     const url = new URL(req.url);
-    const statusRaw = url.searchParams.get("status") ?? undefined;
+    const statusRaw = url.searchParams.get("status");
     const status = statusRaw === "awaiting" ? "pending" : statusRaw;
-    const search = url.searchParams.get("search")?.trim() || undefined;
-    const dateFrom = url.searchParams.get("dateFrom") ?? undefined;
-    const dateTo = url.searchParams.get("dateTo") ?? undefined;
+    const search = url.searchParams.get("search")?.trim();
+    const dateFrom = url.searchParams.get("dateFrom");
+    const dateTo = url.searchParams.get("dateTo");
 
-    const rows = await rawAll<Record<string, unknown>>(sql`
-      SELECT b.code, b.status, b.total, b.currency, b.contact_name, b.contact_phone,
-             b.contact_email, b.created_at,
-             (SELECT COUNT(*) FROM booking_seat bs WHERE bs.booking_id = b.id) AS seats,
-             (SELECT r.name FROM trip_session ts JOIN schedule s ON s.id = ts.schedule_id
-               JOIN route r ON r.id = s.route_id WHERE ts.id = b.trip_session_id) AS route_name,
-             (SELECT ts.departure_date || ' ' || s.departure_time FROM trip_session ts
-               JOIN schedule s ON s.id = ts.schedule_id WHERE ts.id = b.trip_session_id) AS departure
-      FROM booking b
-      WHERE 1=1
-        ${status ? sql`AND b.status = ${status}` : sql``}
-        ${search ? sql`AND (b.code LIKE ${"%" + search + "%"} OR b.contact_name LIKE ${"%" + search + "%"} OR b.contact_phone LIKE ${"%" + search + "%"})` : sql``}
-        ${dateFrom ? sql`AND b.created_at >= ${dateFrom}` : sql``}
-        ${dateTo ? sql`AND b.created_at <= ${dateTo + "T23:59:59"}` : sql``}
-      ORDER BY b.created_at DESC
-      LIMIT 10000
-    `);
+    const db = await getDb();
+    const rows = await db
+      .select({
+        code: bookings.code,
+        status: bookings.status,
+        seats: sql<number>`(SELECT COUNT(*) FROM ${bookingSeats} WHERE ${bookingSeats.bookingId} = ${bookings.id})`,
+        routeName: sql<string | null>`(SELECT r.name FROM ${tripSessions} ts
+          JOIN ${schedules} s ON s.id = ts.schedule_id
+          JOIN ${routes} r ON r.id = s.route_id WHERE ts.id = ${bookings.tripSessionId})`,
+        departure: sql<
+          string | null
+        >`(SELECT ts.departure_date || ' ' || s.departure_time FROM ${tripSessions} ts
+          JOIN ${schedules} s ON s.id = ts.schedule_id WHERE ts.id = ${bookings.tripSessionId})`,
+        total: bookings.total,
+        currency: bookings.currency,
+        contactName: bookings.contactName,
+        contactPhone: bookings.contactPhone,
+        contactEmail: bookings.contactEmail,
+        createdAt: bookings.createdAt,
+      })
+      .from(bookings)
+      .where(
+        and(
+          status != null ? eq(bookings.status, status) : undefined,
+          search != null && search.length > 0
+            ? or(
+                like(bookings.code, `%${search}%`),
+                like(bookings.contactName, `%${search}%`),
+                like(bookings.contactPhone, `%${search}%`),
+              )
+            : undefined,
+          dateFrom != null ? gte(bookings.createdAt, dateFrom) : undefined,
+          dateTo != null ? lte(bookings.createdAt, `${dateTo}T23:59:59`) : undefined,
+        ),
+      )
+      .orderBy(desc(bookings.createdAt))
+      .limit(10_000);
 
-    const columns = [
-      "code",
-      "status",
-      "seats",
-      "route",
-      "departure",
-      "total",
-      "currency",
-      "contact_name",
-      "contact_phone",
-      "contact_email",
-      "created_at",
-    ];
-    const esc = (v: unknown) => {
-      const s = v == null ? "" : String(v);
+    const esc = (v: string | number | null): string => {
+      const s = v === null ? "" : String(v);
       return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     };
     const csv = [
-      columns.join(","),
-      ...rows.map((r) =>
-        columns
-          .map((c) => esc(c === "route" ? r.route_name : c === "seats" ? r.seats : c === "departure" ? r.departure : r[c]))
-          .join(","),
-      ),
+      csvColumns.map((c) => c.col).join(","),
+      ...rows.map((r) => csvColumns.map((c) => esc(c.get(r))).join(",")),
     ].join("\n");
 
     const today = new Date().toISOString().slice(0, 10);
     return Response.json({
-      columns,
+      columns: csvColumns.map((c) => c.col),
       csv,
       count: rows.length,
       filename: `bookings-${today}.csv`,

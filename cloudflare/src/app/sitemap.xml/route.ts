@@ -1,14 +1,18 @@
-import { rawAll } from "@/lib/db/client";
-import { sql } from "drizzle-orm";
+import { getDb } from "@/lib/db/client";
+import { asc, eq } from "drizzle-orm";
+import { brands } from "@/lib/db/schema";
 
 const BASE = "https://datxevui.com";
 
 /** `GET /sitemap.xml` — static shell + one URL per brand slug. */
 export async function GET() {
   try {
-    const brands = await rawAll<{ slug: string }>(
-      sql`SELECT slug FROM brand WHERE status = 'active' ORDER BY slug`,
-    );
+    const db = await getDb();
+    const brandRows = await db
+      .select({ slug: brands.slug })
+      .from(brands)
+      .where(eq(brands.status, "active"))
+      .orderBy(asc(brands.slug));
     const now = new Date().toISOString().slice(0, 10);
     const urls = [
       { loc: `${BASE}/`, changefreq: "daily", priority: "1.0" },
@@ -17,7 +21,7 @@ export async function GET() {
       { loc: `${BASE}/login`, changefreq: "monthly", priority: "0.5" },
       { loc: `${BASE}/privacy`, changefreq: "yearly", priority: "0.3" },
       { loc: `${BASE}/terms`, changefreq: "yearly", priority: "0.3" },
-      ...brands.map((b) => ({
+      ...brandRows.map((b) => ({
         loc: `${BASE}/brands/${b.slug}`,
         changefreq: "weekly",
         priority: "0.7",
@@ -33,7 +37,10 @@ ${urls
   .join("\n")}
 </urlset>`;
     return new Response(xml, {
-      headers: { "Content-Type": "application/xml; charset=utf-8", "Cache-Control": "public, max-age=3600" },
+      headers: {
+        "Content-Type": "application/xml; charset=utf-8",
+        "Cache-Control": "public, max-age=3600",
+      },
     });
   } catch {
     return new Response(

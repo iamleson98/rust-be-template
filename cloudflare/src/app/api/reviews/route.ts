@@ -1,6 +1,6 @@
 import { getDb } from "@/lib/db/client";
 import { reviews } from "@/lib/db/schema";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { handleRouteError, requireUser, readJson, err } from "@/lib/api";
 
 export async function GET(req: Request) {

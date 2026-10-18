@@ -1,4 +1,4 @@
-'use client'
+"use client";
 
 /**
  * The address-sequence section of ScheduleFormDialog — start point,
@@ -6,8 +6,8 @@
  * time. Extracted from the original 'src/features/admin/schedules/schedule-form.tsx'.
  */
 
-import { FormField, FormItem, FormLabel, FormControl, FormMessage } from '@spa/components/ui/form'
-import { TimePicker } from '@spa/components/ui/time-picker'
+import { FormField, FormItem, FormLabel, FormControl, FormMessage } from "@spa/components/ui/form";
+import { TimePicker } from "@spa/components/ui/time-picker";
 import {
   ArrowDown,
   ArrowUp,
@@ -17,11 +17,11 @@ import {
   Plus,
   Route as RouteIcon,
   Trash2,
-} from 'lucide-react'
-import type { AdminAddressOut } from '@spa/api'
-import { useT } from '@spa/lib/i18n'
-import { AddressPointSelect } from '@spa/features/admin/addresses/address-point-select'
-import type { ScheduleFormInput, ScheduleFormInstance } from './schedule-schema'
+} from "lucide-react";
+import type { AdminAddressOut } from "@spa/api";
+import { useT } from "@spa/lib/i18n";
+import { AddressPointSelect } from "@spa/features/admin/addresses/address-point-select";
+import type { ScheduleFormInput, ScheduleFormInstance } from "./schedule-schema";
 
 export function ScheduleRouteSection({
   form,
@@ -37,20 +37,20 @@ export function ScheduleRouteSection({
   addMiddle,
   removeMiddle,
 }: {
-  form: ScheduleFormInstance
-  brandId?: string
-  knownAddresses: AdminAddressOut[]
-  startName: string | undefined
-  endName: string | undefined
-  middlePoints: ScheduleFormInput['middlePoints']
-  openCreateFor: (slot: 'start' | 'end' | number) => void
-  setMiddle: (index: number, value: string | undefined) => void
-  setMiddleTime: (index: number, time: string | null) => void
-  moveMiddle: (index: number, delta: -1 | 1) => void
-  addMiddle: () => void
-  removeMiddle: (index: number) => void
+  form: ScheduleFormInstance;
+  brandId?: string;
+  knownAddresses: AdminAddressOut[];
+  startName: string | undefined;
+  endName: string | undefined;
+  middlePoints: ScheduleFormInput["middlePoints"];
+  openCreateFor: (slot: "start" | "end" | number) => void;
+  setMiddle: (index: number, value: string | undefined) => void;
+  setMiddleTime: (index: number, time: string | null) => void;
+  moveMiddle: (index: number, delta: -1 | 1) => void;
+  addMiddle: () => void;
+  removeMiddle: (index: number) => void;
 }) {
-  const t = useT()
+  const t = useT();
   return (
     <>
       {/* ── Điểm đón / trả (address sequence + arrival times) ── */}
@@ -58,7 +58,7 @@ export function ScheduleRouteSection({
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 text-sm font-semibold">
             <RouteIcon className="h-4 w-4 text-blue-600" />
-            {t('adminSchedules.routeSectionTitle')}
+            {t("adminSchedules.routeSectionTitle")}
           </div>
           {startName && endName ? (
             <span className="hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground truncate">
@@ -85,7 +85,7 @@ export function ScheduleRouteSection({
                 <FormLabel>
                   <span className="flex items-center gap-1.5">
                     <CircleDot className="h-3.5 w-3.5 text-blue-600" />
-                    {t('adminSchedules.startPoint')} <span className="text-destructive">*</span>
+                    {t("adminSchedules.startPoint")} <span className="text-destructive">*</span>
                   </span>
                 </FormLabel>
                 <FormControl>
@@ -95,7 +95,7 @@ export function ScheduleRouteSection({
                     onChange={field.onChange}
                     brandId={brandId}
                     extraAddresses={knownAddresses}
-                    onCreateNew={() => openCreateFor('start')}
+                    onCreateNew={() => openCreateFor("start")}
                   />
                 </FormControl>
                 <FormMessage />
@@ -108,7 +108,7 @@ export function ScheduleRouteSection({
             render={({ field }) => (
               <FormItem className="grid gap-1.5 w-30">
                 <FormLabel className="text-muted-foreground">
-                  {t('adminSchedules.arrivalTime')}
+                  {t("adminSchedules.arrivalTime")}
                 </FormLabel>
                 <FormControl>
                   <TimePicker value={field.value} onChange={field.onChange} />
@@ -127,7 +127,7 @@ export function ScheduleRouteSection({
             <FormItem className="grid gap-2">
               <FormLabel className="flex items-center gap-1.5">
                 <MapPin className="h-3.5 w-3.5 text-amber-600" />
-                {t('adminSchedules.middlePointLabel')}
+                {t("adminSchedules.middlePointLabel")}
               </FormLabel>
               <div className="space-y-2">
                 {field.value.map((mid, i: number) => (
@@ -156,7 +156,7 @@ export function ScheduleRouteSection({
                     <div className="flex flex-col gap-0.5">
                       <button
                         type="button"
-                        aria-label={t('adminSchedules.moveUp')}
+                        aria-label={t("adminSchedules.moveUp")}
                         disabled={i === 0}
                         onClick={() => moveMiddle(i, -1)}
                         className="h-4 w-6 rounded text-muted-foreground hover:text-foreground hover:bg-slate-100 disabled:opacity-30 flex items-center justify-center"
@@ -165,7 +165,7 @@ export function ScheduleRouteSection({
                       </button>
                       <button
                         type="button"
-                        aria-label={t('adminSchedules.moveDown')}
+                        aria-label={t("adminSchedules.moveDown")}
                         disabled={i === field.value.length - 1}
                         onClick={() => moveMiddle(i, 1)}
                         className="h-4 w-6 rounded text-muted-foreground hover:text-foreground hover:bg-slate-100 disabled:opacity-30 flex items-center justify-center"
@@ -175,7 +175,7 @@ export function ScheduleRouteSection({
                     </div>
                     <button
                       type="button"
-                      aria-label={t('adminSchedules.removeMiddlePoint')}
+                      aria-label={t("adminSchedules.removeMiddlePoint")}
                       onClick={() => removeMiddle(i)}
                       className="h-9 w-9 shrink-0 rounded-md text-muted-foreground hover:text-rose-600 hover:bg-rose-50 flex items-center justify-center transition-colors"
                     >
@@ -189,7 +189,7 @@ export function ScheduleRouteSection({
                   className="w-full h-9 rounded-md border border-dashed text-sm text-muted-foreground hover:text-blue-600 hover:border-blue-400 hover:bg-blue-50/50 flex items-center justify-center gap-1.5 transition-colors"
                 >
                   <Plus className="h-4 w-4" />
-                  {t('adminSchedules.addMiddlePoint')}
+                  {t("adminSchedules.addMiddlePoint")}
                 </button>
               </div>
               <FormMessage />
@@ -207,7 +207,7 @@ export function ScheduleRouteSection({
                 <FormLabel>
                   <span className="flex items-center gap-1.5">
                     <Flag className="h-3.5 w-3.5 text-rose-600" />
-                    {t('adminSchedules.endPoint')} <span className="text-destructive">*</span>
+                    {t("adminSchedules.endPoint")} <span className="text-destructive">*</span>
                   </span>
                 </FormLabel>
                 <FormControl>
@@ -217,7 +217,7 @@ export function ScheduleRouteSection({
                     onChange={field.onChange}
                     brandId={brandId}
                     extraAddresses={knownAddresses}
-                    onCreateNew={() => openCreateFor('end')}
+                    onCreateNew={() => openCreateFor("end")}
                   />
                 </FormControl>
                 <FormMessage />
@@ -230,7 +230,7 @@ export function ScheduleRouteSection({
             render={({ field }) => (
               <FormItem className="grid gap-1.5 w-30">
                 <FormLabel className="text-muted-foreground">
-                  {t('adminSchedules.arrivalTime')}
+                  {t("adminSchedules.arrivalTime")}
                 </FormLabel>
                 <FormControl>
                   <TimePicker value={field.value} onChange={field.onChange} />
@@ -241,8 +241,8 @@ export function ScheduleRouteSection({
           />
         </div>
 
-        <p className="text-[11px] text-muted-foreground">{t('adminSchedules.arrivalTimeHint')}</p>
+        <p className="text-[11px] text-muted-foreground">{t("adminSchedules.arrivalTimeHint")}</p>
       </div>
     </>
-  )
+  );
 }

@@ -11,7 +11,11 @@ import { getEnv } from "@/lib/db/client";
 export async function GET(req: Request) {
   try {
     const staff = await requireStaff(req);
-    if (!isAdmin(staff)) return Response.json({ error: { code: "forbidden", message: "Admin access required" } }, { status: 403 });
+    if (!isAdmin(staff))
+      return Response.json(
+        { error: { code: "forbidden", message: "Admin access required" } },
+        { status: 403 },
+      );
     const env = await getEnv();
 
     let pageCount = 0;
@@ -30,11 +34,13 @@ export async function GET(req: Request) {
 
     let topTables: Array<{ name: string; rows: number; approxBytes: number }> = [];
     try {
-      topTables = (await rawAll<{ name: string; rows: number }>(sql`
+      topTables = (
+        await rawAll<{ name: string; rows: number }>(sql`
         SELECT m.name AS name,
                (SELECT COUNT(*) FROM sqlite_master) AS rows
         FROM sqlite_master m WHERE m.type = 'table' LIMIT 10
-      `)).map((r) => ({ name: r.name, rows: Number(r.rows), approxBytes: 0 }));
+      `)
+      ).map((r) => ({ name: r.name, rows: Number(r.rows), approxBytes: 0 }));
     } catch {
       topTables = [];
     }

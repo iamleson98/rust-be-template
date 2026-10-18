@@ -1,14 +1,14 @@
-'use client'
+"use client";
 
-import { memo } from 'react'
-import { Card, CardContent } from '@spa/components/ui/card'
-import { Shimmer } from '@spa/components/ui/shimmer'
+import { memo } from "react";
+import { Card, CardContent } from "@spa/components/ui/card";
+import { Shimmer } from "@spa/components/ui/shimmer";
 
 /* ─── My Bookings Skeleton — booking cards ─── */
 export const MyBookingsSkeleton = memo(function MyBookingsSkeleton({
   count = 3,
 }: {
-  count?: number
+  count?: number;
 }) {
   return (
     <div className="space-y-5">
@@ -64,5 +64,5 @@ export const MyBookingsSkeleton = memo(function MyBookingsSkeleton({
         </Card>
       ))}
     </div>
-  )
-})
+  );
+});

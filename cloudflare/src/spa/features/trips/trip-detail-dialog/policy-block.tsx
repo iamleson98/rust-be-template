@@ -1,4 +1,4 @@
-'use client'
+"use client";
 
 /**
  * PolicyBlock — small two-column policy list used inside the
@@ -12,8 +12,8 @@ export function PolicyBlock({
   title,
   items,
 }: {
-  title: string
-  items: { label: string; value: string }[]
+  title: string;
+  items: { label: string; value: string }[];
 }) {
   return (
     <div>
@@ -27,5 +27,5 @@ export function PolicyBlock({
         ))}
       </div>
     </div>
-  )
+  );
 }

@@ -47,14 +47,17 @@ async function cf<T>(path: string, init?: RequestInit): Promise<T> {
   if (!cfg.enabled || !cfg.apiToken || !cfg.accountId || !cfg.appId) {
     throw new ApiError(503, "realtime-disabled", "Realtime is not configured");
   }
-  const res = await fetch(`${API_BASE}/accounts/${cfg.accountId}/realtime/kit/${cfg.appId}${path}`, {
-    ...init,
-    headers: {
-      Authorization: `Bearer ${cfg.apiToken}`,
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
+  const res = await fetch(
+    `${API_BASE}/accounts/${cfg.accountId}/realtime/kit/${cfg.appId}${path}`,
+    {
+      ...init,
+      headers: {
+        Authorization: `Bearer ${cfg.apiToken}`,
+        "Content-Type": "application/json",
+        ...(init?.headers ?? {}),
+      },
     },
-  });
+  );
   const body = (await res.json().catch(() => ({ success: false }))) as CfResponse<T>;
   if (!res.ok || !body.success) {
     throw new ApiError(
@@ -97,7 +100,9 @@ export async function meetingForChannel(channelId: string): Promise<string> {
     }),
   });
   // Column added by migration 0002.
-  await db.run(sql`UPDATE chat_channel SET realtime_meeting_id = ${meeting.id} WHERE id = ${channelId}`);
+  await db.run(
+    sql`UPDATE chat_channel SET realtime_meeting_id = ${meeting.id} WHERE id = ${channelId}`,
+  );
   return meeting.id;
 }
 
@@ -118,21 +123,25 @@ export async function mintChannelToken(
   user: { id: string; fullName: string; role: string },
 ): Promise<RealtimeJoinInfo> {
   const cfg = await realtimeConfig();
-  if (!cfg.enabled) return { enabled: false, meetingId: null, token: null, participantId: null, expiresInDays: null };
+  if (!cfg.enabled)
+    return {
+      enabled: false,
+      meetingId: null,
+      token: null,
+      participantId: null,
+      expiresInDays: null,
+    };
   const meetingId = await meetingForChannel(channelId);
   const preset = user.role === "user" ? "audio_only" : "audio_only";
-  const participant = await cf<ParticipantResult>(
-    `/meetings/${meetingId}/participants`,
-    {
-      method: "POST",
-      body: JSON.stringify({
-        name: user.fullName,
-        preset_name: preset,
-        custom_participant_id: user.id,
-        custom_participant_data: { role: user.role, channelId },
-      }),
-    },
-  );
+  const participant = await cf<ParticipantResult>(`/meetings/${meetingId}/participants`, {
+    method: "POST",
+    body: JSON.stringify({
+      name: user.fullName,
+      preset_name: preset,
+      custom_participant_id: user.id,
+      custom_participant_data: { role: user.role, channelId },
+    }),
+  });
   return {
     enabled: true,
     meetingId,

@@ -33,11 +33,13 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     // role (same semantics as the Rust role-management rewrite).
     const { userRoles, roles: roleTable } = await import("@/lib/db/schema");
     await db.delete(userRoles).where(eq(userRoles.userId, id));
-    const roleRow = (await db.select({ id: roleTable.id }).from(roleTable).where(eq(roleTable.name, role)).limit(1))[0];
+    const roleRow = (
+      await db.select({ id: roleTable.id }).from(roleTable).where(eq(roleTable.name, role)).limit(1)
+    )[0];
     if (roleRow) {
       await db.insert(userRoles).values({ userId: id, roleId: roleRow.id }).onConflictDoNothing();
     }
-    const updated = (await db.select().from(users).where(eq(users.id, id)).limit(1))[0]!;
+    const updated = (await db.select().from(users).where(eq(users.id, id)).limit(1))[0];
     return Response.json({
       user: {
         id: updated.id,

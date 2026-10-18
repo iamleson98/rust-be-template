@@ -99,7 +99,12 @@ export async function GET(req: Request) {
 export async function DELETE(req: Request) {
   try {
     const user = await requireUser(req);
-    const rows = await rawAll<{ id: string; tier_id: string; campaign_id: string; status: string }>(sql`
+    const rows = await rawAll<{
+      id: string;
+      tier_id: string;
+      campaign_id: string;
+      status: string;
+    }>(sql`
       SELECT id, tier_id, campaign_id, status FROM coupon
       WHERE active_holder = ${user.id} AND status = 'held'
       ORDER BY claimed_at DESC LIMIT 1

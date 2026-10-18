@@ -1,10 +1,10 @@
-'use client'
+"use client";
 
-import { type ComponentProps, type ReactElement, type ReactNode, isValidElement } from 'react'
-import { AlertDialog as AlertDialogPrimitive } from '@base-ui/react/alert-dialog'
+import { type ComponentProps, type ReactElement, type ReactNode, isValidElement } from "react";
+import { AlertDialog as AlertDialogPrimitive } from "@base-ui/react/alert-dialog";
 
-import { cn } from '@spa/lib/utils'
-import { buttonVariants } from '@spa/components/ui/button'
+import { cn } from "@spa/lib/utils";
+import { buttonVariants } from "@spa/components/ui/button";
 import {
   MODAL_CENTERED,
   MODAL_DESCRIPTION,
@@ -15,8 +15,8 @@ import {
   MODAL_VIEWPORT_SHEET_ON_PHONE,
   MODAL_SURFACE,
   MODAL_TITLE,
-} from './modal-styles'
-import { resolveNativeButton } from './resolve-native-button'
+} from "./modal-styles";
+import { resolveNativeButton } from "./resolve-native-button";
 
 /**
  * Radix-compat wrapper around Base UI's AlertDialog.
@@ -47,18 +47,18 @@ import { resolveNativeButton } from './resolve-native-button'
 
 function AlertDialog({
   ...props
-}: Omit<ComponentProps<typeof AlertDialogPrimitive.Root>, 'children'> & {
-  children?: ReactNode
+}: Omit<ComponentProps<typeof AlertDialogPrimitive.Root>, "children"> & {
+  children?: ReactNode;
 }) {
-  return <AlertDialogPrimitive.Root data-slot="alert-dialog" {...props} />
+  return <AlertDialogPrimitive.Root data-slot="alert-dialog" {...props} />;
 }
 
 function AlertDialogTrigger({
   asChild,
   children,
   ...props
-}: Omit<ComponentProps<typeof AlertDialogPrimitive.Trigger>, 'render'> & {
-  asChild?: boolean
+}: Omit<ComponentProps<typeof AlertDialogPrimitive.Trigger>, "render"> & {
+  asChild?: boolean;
 }) {
   if (asChild && isValidElement(children)) {
     return (
@@ -68,17 +68,17 @@ function AlertDialogTrigger({
         render={children as ReactElement}
         {...props}
       />
-    )
+    );
   }
   return (
     <AlertDialogPrimitive.Trigger data-slot="alert-dialog-trigger" {...props}>
       {children}
     </AlertDialogPrimitive.Trigger>
-  )
+  );
 }
 
 function AlertDialogPortal({ ...props }: ComponentProps<typeof AlertDialogPrimitive.Portal>) {
-  return <AlertDialogPrimitive.Portal data-slot="alert-dialog-portal" {...props} />
+  return <AlertDialogPrimitive.Portal data-slot="alert-dialog-portal" {...props} />;
 }
 
 function AlertDialogOverlay({
@@ -89,18 +89,18 @@ function AlertDialogOverlay({
     <AlertDialogPrimitive.Backdrop
       data-slot="alert-dialog-overlay"
       render={(componentProps, state) => (
-        <div {...componentProps} data-state={state.open ? 'open' : 'closed'} />
+        <div {...componentProps} data-state={state.open ? "open" : "closed"} />
       )}
       className={cn(MODAL_OVERLAY, className)}
       {...props}
     />
-  )
+  );
 }
 
 function AlertDialogContent({
   className,
   ...props
-}: Omit<ComponentProps<typeof AlertDialogPrimitive.Popup>, 'render'>) {
+}: Omit<ComponentProps<typeof AlertDialogPrimitive.Popup>, "render">) {
   return (
     <AlertDialogPortal>
       <AlertDialogOverlay />
@@ -108,7 +108,7 @@ function AlertDialogContent({
         <AlertDialogPrimitive.Popup
           data-slot="alert-dialog-content"
           render={(componentProps, state) => (
-            <div {...componentProps} data-state={state.open ? 'open' : 'closed'} />
+            <div {...componentProps} data-state={state.open ? "open" : "closed"} />
           )}
           // A confirmation: the modal look, narrower, a bottom sheet on phones.
           className={cn(
@@ -117,28 +117,28 @@ function AlertDialogContent({
             MODAL_SHEET_ON_PHONE,
             MODAL_VIEWPORT,
             MODAL_VIEWPORT_SHEET_ON_PHONE,
-            'sm:max-w-md',
+            "sm:max-w-md",
             className,
           )}
           {...props}
         />
       </AlertDialogPrimitive.Viewport>
     </AlertDialogPortal>
-  )
+  );
 }
 
-function AlertDialogHeader({ className, ...props }: ComponentProps<'div'>) {
+function AlertDialogHeader({ className, ...props }: ComponentProps<"div">) {
   return (
     <div
       data-slot="alert-dialog-header"
-      className={cn('flex flex-col gap-1.5 text-left', className)}
+      className={cn("flex flex-col gap-1.5 text-left", className)}
       {...props}
     />
-  )
+  );
 }
 
-function AlertDialogFooter({ className, ...props }: ComponentProps<'div'>) {
-  return <div data-slot="alert-dialog-footer" className={cn(MODAL_FOOTER, className)} {...props} />
+function AlertDialogFooter({ className, ...props }: ComponentProps<"div">) {
+  return <div data-slot="alert-dialog-footer" className={cn(MODAL_FOOTER, className)} {...props} />;
 }
 
 function AlertDialogTitle({
@@ -151,7 +151,7 @@ function AlertDialogTitle({
       className={cn(MODAL_TITLE, className)}
       {...props}
     />
-  )
+  );
 }
 
 function AlertDialogDescription({
@@ -164,13 +164,13 @@ function AlertDialogDescription({
       className={cn(MODAL_DESCRIPTION, className)}
       {...props}
     />
-  )
+  );
 }
 
 function AlertDialogAction({
   className,
   ...props
-}: Omit<ComponentProps<typeof AlertDialogPrimitive.Close>, 'render'>) {
+}: Omit<ComponentProps<typeof AlertDialogPrimitive.Close>, "render">) {
   return (
     <AlertDialogPrimitive.Close
       data-slot="alert-dialog-action"
@@ -178,21 +178,21 @@ function AlertDialogAction({
       className={cn(buttonVariants(), className)}
       {...props}
     />
-  )
+  );
 }
 
 function AlertDialogCancel({
   className,
   ...props
-}: Omit<ComponentProps<typeof AlertDialogPrimitive.Close>, 'render'>) {
+}: Omit<ComponentProps<typeof AlertDialogPrimitive.Close>, "render">) {
   return (
     <AlertDialogPrimitive.Close
       data-slot="alert-dialog-cancel"
       render={(componentProps) => <button {...componentProps} data-state="open" />}
-      className={cn(buttonVariants({ variant: 'outline' }), className)}
+      className={cn(buttonVariants({ variant: "outline" }), className)}
       {...props}
     />
-  )
+  );
 }
 
 export {
@@ -207,4 +207,4 @@ export {
   AlertDialogDescription,
   AlertDialogAction,
   AlertDialogCancel,
-}
+};

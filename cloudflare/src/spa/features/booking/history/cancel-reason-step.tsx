@@ -1,21 +1,21 @@
-'use client'
+"use client";
 
 // Extracted from the original 'cancel-dialog.tsx'.
 
-import type { UseFormReturn } from 'react-hook-form'
-import { useT } from '@spa/lib/i18n'
-import { Textarea } from '@spa/components/ui/textarea'
-import { FormField, FormItem, FormLabel, FormControl, FormMessage } from '@spa/components/ui/form'
-import { CANCEL_REASONS, type CancelValues } from './cancel-dialog-schema'
+import type { UseFormReturn } from "react-hook-form";
+import { useT } from "@spa/lib/i18n";
+import { Textarea } from "@spa/components/ui/textarea";
+import { FormField, FormItem, FormLabel, FormControl, FormMessage } from "@spa/components/ui/form";
+import { CANCEL_REASONS, type CancelValues } from "./cancel-dialog-schema";
 
 export function CancelReasonStep({
   form,
   selectedReason,
 }: {
-  form: UseFormReturn<CancelValues>
-  selectedReason: string
+  form: UseFormReturn<CancelValues>;
+  selectedReason: string;
 }) {
-  const t = useT()
+  const t = useT();
 
   return (
     <div key="step1" className="space-y-3 py-2">
@@ -30,20 +30,20 @@ export function CancelReasonStep({
                   key={reason.key}
                   type="button"
                   onClick={() => {
-                    field.onChange(reason.key)
-                    form.clearErrors('selectedReason')
+                    field.onChange(reason.key);
+                    form.clearErrors("selectedReason");
                   }}
                   className={`w-full text-left rounded-xl border-2 px-4 py-3 transition-all duration-200 flex items-center gap-3 ${
                     field.value === reason.key
-                      ? 'border-rose-400 bg-rose-50 ring-1 ring-rose-200'
-                      : 'border-slate-200 hover:border-slate-300 bg-white'
+                      ? "border-rose-400 bg-rose-50 ring-1 ring-rose-200"
+                      : "border-slate-200 hover:border-slate-300 bg-white"
                   }`}
                 >
                   <div
                     className={`h-5 w-5 rounded-full border-2 flex items-center justify-center transition-colors ${
                       field.value === reason.key
-                        ? 'border-rose-500 bg-rose-500'
-                        : 'border-slate-300'
+                        ? "border-rose-500 bg-rose-500"
+                        : "border-slate-300"
                     }`}
                   >
                     {field.value === reason.key && (
@@ -52,7 +52,7 @@ export function CancelReasonStep({
                   </div>
                   <span
                     className={`text-sm font-medium ${
-                      field.value === reason.key ? 'text-rose-700' : 'text-foreground'
+                      field.value === reason.key ? "text-rose-700" : "text-foreground"
                     }`}
                   >
                     {t(reason.labelKey)}
@@ -65,20 +65,20 @@ export function CancelReasonStep({
         )}
       />
 
-      {selectedReason === 'other' && (
+      {selectedReason === "other" && (
         <FormField
           control={form.control}
           name="otherReason"
           render={({ field }) => (
             <FormItem className="overflow-hidden">
               <FormLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                {t('cancel.reason.other')} <span className="text-destructive">*</span>
+                {t("cancel.reason.other")} <span className="text-destructive">*</span>
               </FormLabel>
               <FormControl>
                 <Textarea
                   {...field}
-                  value={field.value ?? ''}
-                  placeholder={t('bookingHistory.otherReasonPh')}
+                  value={field.value ?? ""}
+                  placeholder={t("bookingHistory.otherReasonPh")}
                   className="mt-2 resize-none"
                   rows={3}
                 />
@@ -89,5 +89,5 @@ export function CancelReasonStep({
         />
       )}
     </div>
-  )
+  );
 }

@@ -1,7 +1,7 @@
-'use client'
+"use client";
 
-import { memo } from 'react'
-import { Shimmer } from '@spa/components/ui/shimmer'
+import { memo } from "react";
+import { Shimmer } from "@spa/components/ui/shimmer";
 
 /* ─── Admin System Status Skeleton ───
  * Mirrors the /admin/system "System Status" card row (Uptime /
@@ -27,5 +27,5 @@ export const SystemStatusSkeleton = memo(function SystemStatusSkeleton() {
         </div>
       ))}
     </div>
-  )
-})
+  );
+});

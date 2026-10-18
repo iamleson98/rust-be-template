@@ -13,7 +13,10 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const result = await adminBusLayoutList({
       brandId: url.searchParams.get("brandId") ?? undefined,
-      limit: Math.min(Math.max(parseInt(url.searchParams.get("limit") ?? "100", 10) || 100, 1), 500),
+      limit: Math.min(
+        Math.max(parseInt(url.searchParams.get("limit") ?? "100", 10) || 100, 1),
+        500,
+      ),
       offset: Math.max(parseInt(url.searchParams.get("offset") ?? "0", 10) || 0, 0),
     });
     return Response.json(result);
@@ -84,10 +87,22 @@ function gridToPlan(grid: { rows?: number; cols?: number; floors?: number }): Se
       for (let c = 1; c <= cols; c++) {
         if (cols >= 4 && c === Math.ceil(cols / 2)) continue; // centre aisle
         n += 1;
-        cells.push({ row: r, col: c, kind: "seat", label: String(n).padStart(2, "0"), seatClass: null, seatId: null });
+        cells.push({
+          row: r,
+          col: c,
+          kind: "seat",
+          label: String(n).padStart(2, "0"),
+          seatClass: null,
+          seatId: null,
+        });
       }
     }
-    decks.push({ name: floors > 1 ? (f === 0 ? "Tầng dưới" : "Tầng trên") : null, rows, cols, cells });
+    decks.push({
+      name: floors > 1 ? (f === 0 ? "Tầng dưới" : "Tầng trên") : null,
+      rows,
+      cols,
+      cells,
+    });
   }
   return { decks };
 }

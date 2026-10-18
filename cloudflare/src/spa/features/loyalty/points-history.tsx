@@ -1,9 +1,9 @@
-import { formatDay, formatNum, useMoney } from '@spa/lib/format'
-import type { LoyaltyHistoryEntry } from '@spa/api'
+import { formatDay, formatNum, useMoney } from "@spa/lib/format";
+import type { LoyaltyHistoryEntry } from "@spa/api";
 
 /** Points earned per completed booking, newest first (the backend's ledger). */
 export function LoyaltyPointsHistory({ history }: { history: LoyaltyHistoryEntry[] }) {
-  const money = useMoney()
+  const money = useMoney();
   return (
     <ul className="divide-y divide-slate-100">
       {history.map((h) => (
@@ -15,7 +15,7 @@ export function LoyaltyPointsHistory({ history }: { history: LoyaltyHistoryEntry
             <div className="truncate text-xs text-slate-500">
               {[h.departureAt && formatDay(h.departureAt), h.bookingCode, money(h.total)]
                 .filter(Boolean)
-                .join(' · ')}
+                .join(" · ")}
             </div>
           </div>
           <span className="shrink-0 text-sm font-semibold text-emerald-600 tabular-nums">
@@ -24,5 +24,5 @@ export function LoyaltyPointsHistory({ history }: { history: LoyaltyHistoryEntry
         </li>
       ))}
     </ul>
-  )
+  );
 }

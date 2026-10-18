@@ -1,4 +1,4 @@
-'use client'
+"use client";
 
 /**
  * ChatTicketPicker — the "Đặt vé cho khách" dialog used inside the admin
@@ -24,9 +24,9 @@ import {
   adminBookingsUpdateStatusMutation,
   bookingsHoldMutation,
   bookingsPlaceMutation,
-} from '@spa/api'
-import { useMutation } from '@tanstack/react-query'
-import { useState, useMemo, useCallback, useEffect } from 'react'
+} from "@spa/api";
+import { useMutation } from "@tanstack/react-query";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -34,12 +34,12 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-} from '@spa/components/ui/dialog'
-import { Button } from '@spa/components/ui/button'
-import { Badge } from '@spa/components/ui/badge'
-import { ScrollArea } from '@spa/components/ui/scroll-area'
-import { SeatMapSkeleton } from '@spa/features/seat-plan'
-import { toast } from 'sonner'
+} from "@spa/components/ui/dialog";
+import { Button } from "@spa/components/ui/button";
+import { Badge } from "@spa/components/ui/badge";
+import { ScrollArea } from "@spa/components/ui/scroll-area";
+import { SeatMapSkeleton } from "@spa/features/seat-plan";
+import { toast } from "sonner";
 import {
   Search,
   User,
@@ -49,45 +49,45 @@ import {
   ChevronLeft,
   Loader2,
   Ticket as TicketIcon,
-} from 'lucide-react'
-import { format } from 'date-fns'
-import { usePlaceSearch } from '@spa/features/map/api'
-import { useTripSearch } from '@spa/features/search/api'
-import { useTripDetail } from '@spa/features/trips/api'
-import type { TripResult } from '@spa/api'
-import type { ChatChannelOut as Channel } from '@spa/api'
-import type { Seat, Passenger, Step } from './chat-ticket-picker-types'
-import { SearchStep } from './ticket-picker-search-step'
-import { SeatsStep } from './ticket-picker-seats-step'
-import { PassengerStep } from './ticket-picker-passenger-step'
-import { ConfirmStep } from './ticket-picker-confirm-step'
-import { getErrorMessage } from '@spa/lib/error-message'
-import { useT } from '@spa/lib/i18n'
-import { ticketPrice } from '@spa/features/booking/fares'
+} from "lucide-react";
+import { format } from "date-fns";
+import { usePlaceSearch } from "@spa/features/map/api";
+import { useTripSearch } from "@spa/features/search/api";
+import { useTripDetail } from "@spa/features/trips/api";
+import type { TripResult } from "@spa/api";
+import type { ChatChannelOut as Channel } from "@spa/api";
+import type { Seat, Passenger, Step } from "./chat-ticket-picker-types";
+import { SearchStep } from "./ticket-picker-search-step";
+import { SeatsStep } from "./ticket-picker-seats-step";
+import { PassengerStep } from "./ticket-picker-passenger-step";
+import { ConfirmStep } from "./ticket-picker-confirm-step";
+import { getErrorMessage } from "@spa/lib/error-message";
+import { useT } from "@spa/lib/i18n";
+import { ticketPrice } from "@spa/features/booking/fares";
 
 /** Stable empty default — keeps useMemo deps referentially stable when data is not loaded yet. */
-const EMPTY_POINTS: never[] = []
+const EMPTY_POINTS: never[] = [];
 
 export type CreatedTicketPayload = {
-  bookingId: string
-  bookingCode: string
-  status: string
-  totalAmount: number
-  currency: string | null
-  contactName: string
-  contactPhone: string
+  bookingId: string;
+  bookingCode: string;
+  status: string;
+  totalAmount: number;
+  currency: string | null;
+  contactName: string;
+  contactPhone: string;
   trip: {
-    routeName: string | null
-    fromName: string | null
-    toName: string | null
-    departureDate: string | null
-    departureAt: string | null
-    brandName: string | null
-    brandLogo: string | null
-  }
-  seats: { code: string; passengerName: string; price: number }[]
-  createdAt: string
-}
+    routeName: string | null;
+    fromName: string | null;
+    toName: string | null;
+    departureDate: string | null;
+    departureAt: string | null;
+    brandName: string | null;
+    brandLogo: string | null;
+  };
+  seats: { code: string; passengerName: string; price: number }[];
+  createdAt: string;
+};
 
 // ── Component ───────────────────────────────────────────────
 
@@ -97,81 +97,81 @@ export function ChatTicketPicker({
   channel,
   onCreated,
 }: {
-  open: boolean
-  onOpenChange: (v: boolean) => void
-  channel: Channel | null
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  channel: Channel | null;
   /** Called after a booking is successfully created. The parent uses this
    * to send a `kind: 'ticket'` chat message with the booking-card payload. */
-  onCreated: (payload: CreatedTicketPayload) => void
+  onCreated: (payload: CreatedTicketPayload) => void;
 }) {
-  const t = useT()
+  const t = useT();
 
   // ── Step state ──
-  const [step, setStep] = useState<Step>('search')
-  const [selectedTrip, setSelectedTrip] = useState<TripResult | null>(null)
-  const [selectedSeats, setSelectedSeats] = useState<Seat[]>([])
-  const [boardingPointId, setBoardingPointId] = useState<string>('')
-  const [droppingPointId, setDroppingPointId] = useState<string>('')
-  const [passengers, setPassengers] = useState<Passenger[]>([])
-  const [contactName, setContactName] = useState('')
-  const [contactPhone, setContactPhone] = useState('')
-  const [contactEmail, setContactEmail] = useState('')
-  const [autoConfirm, setAutoConfirm] = useState(true)
+  const [step, setStep] = useState<Step>("search");
+  const [selectedTrip, setSelectedTrip] = useState<TripResult | null>(null);
+  const [selectedSeats, setSelectedSeats] = useState<Seat[]>([]);
+  const [boardingPointId, setBoardingPointId] = useState<string>("");
+  const [droppingPointId, setDroppingPointId] = useState<string>("");
+  const [passengers, setPassengers] = useState<Passenger[]>([]);
+  const [contactName, setContactName] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
+  const [autoConfirm, setAutoConfirm] = useState(true);
 
   // ── Search state ──
-  const [fromQuery, setFromQuery] = useState('')
-  const [toQuery, setToQuery] = useState('')
-  const [fromPlace, setFromPlace] = useState<{ id: string; name: string } | null>(null)
-  const [toPlace, setToPlace] = useState<{ id: string; name: string } | null>(null)
-  const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'))
+  const [fromQuery, setFromQuery] = useState("");
+  const [toQuery, setToQuery] = useState("");
+  const [fromPlace, setFromPlace] = useState<{ id: string; name: string } | null>(null);
+  const [toPlace, setToPlace] = useState<{ id: string; name: string } | null>(null);
+  const [date, setDate] = useState(format(new Date(), "yyyy-MM-dd"));
 
   // ── Reset state when dialog closes ──
   useEffect(() => {
     if (!open) {
       const timer = setTimeout(() => {
-        setStep('search')
-        setSelectedTrip(null)
-        setSelectedSeats([])
-        setBoardingPointId('')
-        setDroppingPointId('')
-        setPassengers([])
-        setFromQuery('')
-        setToQuery('')
-        setFromPlace(null)
-        setToPlace(null)
-        setContactEmail('')
-      }, 200)
-      return () => clearTimeout(timer)
+        setStep("search");
+        setSelectedTrip(null);
+        setSelectedSeats([]);
+        setBoardingPointId("");
+        setDroppingPointId("");
+        setPassengers([]);
+        setFromQuery("");
+        setToQuery("");
+        setFromPlace(null);
+        setToPlace(null);
+        setContactEmail("");
+      }, 200);
+      return () => clearTimeout(timer);
     }
     // Pre-fill contact info from the channel's user.
     if (channel?.user) {
       // Intentional effect-synced state (dialog reset-on-open /
       // server-data snapshot / DOM-availability gate).
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setContactName(channel.user.fullName ?? '')
-      setContactPhone(channel.user.phone ?? '')
+      setContactName(channel.user.fullName ?? "");
+      setContactPhone(channel.user.phone ?? "");
     }
-  }, [open, channel])
+  }, [open, channel]);
 
   // ── Data hooks ──
-  const fromSearch = usePlaceSearch(fromQuery, { enabled: fromQuery.length >= 1 })
-  const toSearch = usePlaceSearch(toQuery, { enabled: toQuery.length >= 1 })
+  const fromSearch = usePlaceSearch(fromQuery, { enabled: fromQuery.length >= 1 });
+  const toSearch = usePlaceSearch(toQuery, { enabled: toQuery.length >= 1 });
   const tripSearch = useTripSearch(
     fromPlace && toPlace && date ? { from: fromPlace.name, to: toPlace.name, date } : null,
-  )
-  const tripDetail = useTripDetail(selectedTrip?.tripId)
-  const createBooking = useMutation(bookingsHoldMutation())
-  const placeBooking = useMutation(bookingsPlaceMutation())
-  const confirmBooking = useMutation(adminBookingsUpdateStatusMutation())
+  );
+  const tripDetail = useTripDetail(selectedTrip?.tripId);
+  const createBooking = useMutation(bookingsHoldMutation());
+  const placeBooking = useMutation(bookingsPlaceMutation());
+  const confirmBooking = useMutation(adminBookingsUpdateStatusMutation());
 
   // ── Derived state ──
-  const trip = tripDetail.data
-  const pickupPoints = trip?.pickupPoints ?? EMPTY_POINTS
+  const trip = tripDetail.data;
+  const pickupPoints = trip?.pickupPoints ?? EMPTY_POINTS;
   const boardingPoints = useMemo(
     () => pickupPoints, // all points can be boarding
     [pickupPoints],
-  )
-  const droppingPoints = pickupPoints // symmetric
+  );
+  const droppingPoints = pickupPoints; // symmetric
 
   // Auto-select first boarding/dropping when trip loads.
   useEffect(() => {
@@ -179,32 +179,32 @@ export function ChatTicketPicker({
       // Intentional effect-synced state (dialog reset-on-open /
       // server-data snapshot / DOM-availability gate).
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setBoardingPointId(boardingPoints[0].id)
+      setBoardingPointId(boardingPoints[0].id);
     }
     if (trip && !droppingPointId && droppingPoints[0]) {
       setDroppingPointId(
-        droppingPoints[droppingPoints.length - 1]?.id ?? droppingPoints[0]?.id ?? '',
-      )
+        droppingPoints[droppingPoints.length - 1]?.id ?? droppingPoints[0]?.id ?? "",
+      );
     }
-  }, [trip, boardingPointId, droppingPointId, boardingPoints, droppingPoints])
+  }, [trip, boardingPointId, droppingPointId, boardingPoints, droppingPoints]);
 
   // ── Handlers ──
   const toggleSeat = useCallback(
     (seat: Seat) => {
       setSelectedSeats((prev) => {
-        const exists = prev.find((s) => s.id === seat.id)
+        const exists = prev.find((s) => s.id === seat.id);
         if (exists) {
-          return prev.filter((s) => s.id !== seat.id)
+          return prev.filter((s) => s.id !== seat.id);
         }
         if (prev.length >= 6) {
-          toast.warning(t('adminTickets.maxSeatsPerBooking'))
-          return prev
+          toast.warning(t("adminTickets.maxSeatsPerBooking"));
+          return prev;
         }
-        return [...prev, seat]
-      })
+        return [...prev, seat];
+      });
     },
     [t],
-  )
+  );
 
   // When selectedSeats changes, sync passengers array.
   useEffect(() => {
@@ -213,52 +213,52 @@ export function ChatTicketPicker({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setPassengers((prev) => {
       const next: Passenger[] = selectedSeats.map((s) => {
-        const existing = prev.find((p) => p.seatId === s.id)
-        if (existing) return existing
+        const existing = prev.find((p) => p.seatId === s.id);
+        if (existing) return existing;
         return {
           seatId: s.id,
           seatCode: s.code,
-          name: contactName || '',
-          type: 'adult' as const,
-        }
-      })
-      return next
-    })
-  }, [selectedSeats, contactName])
+          name: contactName || "",
+          type: "adult" as const,
+        };
+      });
+      return next;
+    });
+  }, [selectedSeats, contactName]);
 
   const totalPrice = useMemo(
     () =>
       selectedSeats.reduce((sum, seat) => {
-        const sitter = passengers.find((p) => p.seatId === seat.id)
+        const sitter = passengers.find((p) => p.seatId === seat.id);
         return (
           sum +
           ticketPrice(
             { price: seat.finalPrice, childPrice: seat.childPrice },
-            sitter?.type ?? 'adult',
+            sitter?.type ?? "adult",
           )
-        )
+        );
       }, 0),
     [selectedSeats, passengers],
-  )
+  );
 
-  const canProceedSeats = selectedSeats.length > 0
+  const canProceedSeats = selectedSeats.length > 0;
   const canProceedPassenger =
     passengers.every((p) => p.name.trim().length >= 2) &&
     contactName.trim().length >= 2 &&
-    contactPhone.trim().length >= 7
+    contactPhone.trim().length >= 7;
 
   const handleSubmit = useCallback(async () => {
     if (!selectedTrip || !trip) {
-      toast.error(t('adminTickets.missingTripInfo'))
-      return
+      toast.error(t("adminTickets.missingTripInfo"));
+      return;
     }
-    const hasStops = pickupPoints.length > 0
+    const hasStops = pickupPoints.length > 0;
     if (hasStops && (!boardingPointId || !droppingPointId)) {
-      toast.error(t('adminTickets.chooseBoardingDropoff'))
-      return
+      toast.error(t("adminTickets.chooseBoardingDropoff"));
+      return;
     }
     // The server prices by age: a child is sent at the brand's age limit.
-    const childAge = trip.pricing.childFare?.maxAge
+    const childAge = trip.pricing.childFare?.maxAge;
     try {
       const held = await createBooking.mutateAsync({
         body: {
@@ -267,7 +267,7 @@ export function ChatTicketPicker({
           passengers: passengers.map((p) => ({
             name: p.name,
             seatId: p.seatId,
-            age: p.type === 'child' ? childAge : undefined,
+            age: p.type === "child" ? childAge : undefined,
           })),
           boardingPointId: hasStops ? boardingPointId : null,
           droppingPointId: hasStops ? droppingPointId : null,
@@ -275,23 +275,23 @@ export function ChatTicketPicker({
           contactPhone,
           contactEmail: contactEmail || undefined,
         },
-      })
+      });
       // Paid on board; staff selling it at the counter can confirm it on the spot.
-      await placeBooking.mutateAsync({ path: { id: held.bookingId } })
+      await placeBooking.mutateAsync({ path: { id: held.bookingId } });
       const confirmed = autoConfirm
         ? (
             await confirmBooking.mutateAsync({
               path: { id: held.bookingId },
-              body: { status: 'confirmed', reason: 'counter sale' },
+              body: { status: "confirmed", reason: "counter sale" },
             })
           ).item
-        : null
+        : null;
       const payload: CreatedTicketPayload = {
         bookingId: held.bookingId,
         bookingCode: held.code,
         status: confirmed?.status ?? held.status,
         totalAmount: held.total,
-        currency: 'VND',
+        currency: "VND",
         contactName,
         contactPhone,
         trip: {
@@ -304,21 +304,21 @@ export function ChatTicketPicker({
           brandLogo: selectedTrip.brandLogo ?? null,
         },
         seats: held.seats.map((s) => ({
-          code: s.seatCode ?? '',
-          passengerName: s.passengerName ?? '',
+          code: s.seatCode ?? "",
+          passengerName: s.passengerName ?? "",
           price: s.price ?? 0,
         })),
         createdAt: new Date().toISOString(),
-      }
-      onCreated(payload)
-      toast.success(t('adminTickets.bookingCreated'), {
-        description: t('adminTickets.bookingCodeDesc', { code: payload.bookingCode }),
-      })
-      onOpenChange(false)
+      };
+      onCreated(payload);
+      toast.success(t("adminTickets.bookingCreated"), {
+        description: t("adminTickets.bookingCodeDesc", { code: payload.bookingCode }),
+      });
+      onOpenChange(false);
     } catch (e) {
-      toast.error(t('adminTickets.bookingCreateFailed'), {
-        description: getErrorMessage(e, t('adminTickets.pleaseRetry')),
-      })
+      toast.error(t("adminTickets.bookingCreateFailed"), {
+        description: getErrorMessage(e, t("adminTickets.pleaseRetry")),
+      });
     }
   }, [
     selectedTrip,
@@ -338,15 +338,15 @@ export function ChatTicketPicker({
     onCreated,
     onOpenChange,
     t,
-  ])
+  ]);
 
   // ── Render ──
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader icon={<TicketIcon />}>
-          <DialogTitle>{t('chat.bookForCustomer')}</DialogTitle>
-          <DialogDescription>{t('adminTickets.pickerDescription')}</DialogDescription>
+          <DialogTitle>{t("chat.bookForCustomer")}</DialogTitle>
+          <DialogDescription>{t("adminTickets.pickerDescription")}</DialogDescription>
         </DialogHeader>
 
         {/* Step indicator */}
@@ -354,7 +354,7 @@ export function ChatTicketPicker({
 
         <ScrollArea className="flex-1 -mx-6 px-6">
           <div className="pb-4 min-h-75">
-            {step === 'search' && (
+            {step === "search" && (
               <SearchStep
                 fromQuery={fromQuery}
                 toQuery={toQuery}
@@ -370,13 +370,13 @@ export function ChatTicketPicker({
                 toSearch={toSearch}
                 tripSearch={tripSearch}
                 onSelectTrip={(tr) => {
-                  setSelectedTrip(tr)
-                  setStep('seats')
+                  setSelectedTrip(tr);
+                  setStep("seats");
                 }}
               />
             )}
 
-            {step === 'seats' && trip && (
+            {step === "seats" && trip && (
               <SeatsStep
                 trip={trip}
                 selectedTrip={selectedTrip!}
@@ -392,9 +392,9 @@ export function ChatTicketPicker({
               />
             )}
 
-            {step === 'seats' && tripDetail.isLoading && <SeatMapSkeleton />}
+            {step === "seats" && tripDetail.isLoading && <SeatMapSkeleton />}
 
-            {step === 'passenger' && (
+            {step === "passenger" && (
               <PassengerStep
                 passengers={passengers}
                 setPassengers={setPassengers}
@@ -410,7 +410,7 @@ export function ChatTicketPicker({
               />
             )}
 
-            {step === 'confirm' && selectedTrip && trip && (
+            {step === "confirm" && selectedTrip && trip && (
               <ConfirmStep
                 selectedTrip={selectedTrip}
                 trip={trip}
@@ -434,43 +434,43 @@ export function ChatTicketPicker({
             {selectedSeats.length > 0 && (
               <Badge variant="secondary" className="gap-1">
                 <Armchair className="h-3 w-3" />
-                {t('adminTickets.seatsCount', { count: selectedSeats.length })}
+                {t("adminTickets.seatsCount", { count: selectedSeats.length })}
               </Badge>
             )}
             {totalPrice > 0 && (
               <Badge variant="outline" className="gap-1 text-blue-700 border-blue-300">
-                {new Intl.NumberFormat('vi-VN').format(totalPrice)}₫
+                {new Intl.NumberFormat("vi-VN").format(totalPrice)}₫
               </Badge>
             )}
           </div>
           <div className="flex items-center gap-2">
-            {step !== 'search' && (
+            {step !== "search" && (
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => {
-                  if (step === 'seats') setStep('search')
-                  else if (step === 'passenger') setStep('seats')
-                  else if (step === 'confirm') setStep('passenger')
+                  if (step === "seats") setStep("search");
+                  else if (step === "passenger") setStep("seats");
+                  else if (step === "confirm") setStep("passenger");
                 }}
               >
                 <ChevronLeft className="h-4 w-4" />
-                {t('common.back')}
+                {t("common.back")}
               </Button>
             )}
-            {step === 'seats' && (
-              <Button size="sm" disabled={!canProceedSeats} onClick={() => setStep('passenger')}>
-                {t('adminTickets.continue')}
+            {step === "seats" && (
+              <Button size="sm" disabled={!canProceedSeats} onClick={() => setStep("passenger")}>
+                {t("adminTickets.continue")}
                 <ChevronRight className="h-4 w-4" />
               </Button>
             )}
-            {step === 'passenger' && (
-              <Button size="sm" disabled={!canProceedPassenger} onClick={() => setStep('confirm')}>
-                {t('common.confirm')}
+            {step === "passenger" && (
+              <Button size="sm" disabled={!canProceedPassenger} onClick={() => setStep("confirm")}>
+                {t("common.confirm")}
                 <ChevronRight className="h-4 w-4" />
               </Button>
             )}
-            {step === 'confirm' && (
+            {step === "confirm" && (
               <Button
                 size="sm"
                 onClick={handleSubmit}
@@ -480,12 +480,12 @@ export function ChatTicketPicker({
                 {createBooking.isPending ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    {t('adminTickets.bookingInProgress')}
+                    {t("adminTickets.bookingInProgress")}
                   </>
                 ) : (
                   <>
                     <TicketIcon className="h-4 w-4" />
-                    {t('adminTickets.bookNow')}
+                    {t("adminTickets.bookNow")}
                   </>
                 )}
               </Button>
@@ -494,24 +494,24 @@ export function ChatTicketPicker({
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
+  );
 }
 
 // ── StepIndicator ───────────────────────────────────────────
 
 function StepIndicator({ step }: { step: Step }) {
-  const t = useT()
+  const t = useT();
   const steps: { key: Step; label: string; icon: React.ReactNode }[] = [
-    { key: 'search', label: t('nav.searchTrips'), icon: <Search className="h-3.5 w-3.5" /> },
+    { key: "search", label: t("nav.searchTrips"), icon: <Search className="h-3.5 w-3.5" /> },
     {
-      key: 'seats',
-      label: t('adminTickets.chooseSeats'),
+      key: "seats",
+      label: t("adminTickets.chooseSeats"),
       icon: <Armchair className="h-3.5 w-3.5" />,
     },
-    { key: 'passenger', label: t('booking.passengers'), icon: <User className="h-3.5 w-3.5" /> },
-    { key: 'confirm', label: t('common.confirm'), icon: <CheckCircle2 className="h-3.5 w-3.5" /> },
-  ]
-  const currentIdx = steps.findIndex((s) => s.key === step)
+    { key: "passenger", label: t("booking.passengers"), icon: <User className="h-3.5 w-3.5" /> },
+    { key: "confirm", label: t("common.confirm"), icon: <CheckCircle2 className="h-3.5 w-3.5" /> },
+  ];
+  const currentIdx = steps.findIndex((s) => s.key === step);
   return (
     <div className="flex items-center gap-1 px-1 pb-2">
       {steps.map((s, i) => (
@@ -519,10 +519,10 @@ function StepIndicator({ step }: { step: Step }) {
           <div
             className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-[11px] font-medium transition-colors ${
               i === currentIdx
-                ? 'bg-blue-600 text-white'
+                ? "bg-blue-600 text-white"
                 : i < currentIdx
-                  ? 'bg-emerald-100 text-emerald-700'
-                  : 'bg-slate-100 text-muted-foreground'
+                  ? "bg-emerald-100 text-emerald-700"
+                  : "bg-slate-100 text-muted-foreground"
             }`}
           >
             {s.icon}
@@ -532,5 +532,5 @@ function StepIndicator({ step }: { step: Step }) {
         </div>
       ))}
     </div>
-  )
+  );
 }

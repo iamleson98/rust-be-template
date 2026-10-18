@@ -1,4 +1,4 @@
-'use client'
+"use client";
 
 /**
  * Filter toolbar of the admin feedback panel — status tabs (with the
@@ -6,22 +6,22 @@
  * the "clear brand filter" escape hatch.
  */
 
-import { Search } from 'lucide-react'
-import type { AdminReviewBrandSummary } from '@spa/api'
-import { PillTab, PillTabs } from '@spa/components/console/pill-tabs'
-import { Button } from '@spa/components/ui/button'
-import { Input } from '@spa/components/ui/input'
-import { Tabs } from '@spa/components/ui/tabs'
-import { useT } from '@spa/lib/i18n'
+import { Search } from "lucide-react";
+import type { AdminReviewBrandSummary } from "@spa/api";
+import { PillTab, PillTabs } from "@spa/components/console/pill-tabs";
+import { Button } from "@spa/components/ui/button";
+import { Input } from "@spa/components/ui/input";
+import { Tabs } from "@spa/components/ui/tabs";
+import { useT } from "@spa/lib/i18n";
 
 /** Real backend moderation statuses (NOT the legacy `published/flagged`). */
 const STATUS_FILTERS = [
-  { value: 'all', labelKey: 'common.all' },
-  { value: 'pending', labelKey: 'adminFeedback.statusPending' },
-  { value: 'approved', labelKey: 'adminFeedback.statusApproved' },
-  { value: 'rejected', labelKey: 'adminFeedback.statusRejected' },
-  { value: 'hidden', labelKey: 'adminFeedback.statusHidden' },
-] as const
+  { value: "all", labelKey: "common.all" },
+  { value: "pending", labelKey: "adminFeedback.statusPending" },
+  { value: "approved", labelKey: "adminFeedback.statusApproved" },
+  { value: "rejected", labelKey: "adminFeedback.statusRejected" },
+  { value: "hidden", labelKey: "adminFeedback.statusHidden" },
+] as const;
 
 export function FeedbackFilterToolbar({
   status,
@@ -32,15 +32,15 @@ export function FeedbackFilterToolbar({
   setBrandId,
   activeSummary,
 }: {
-  status: string
-  setStatus: React.Dispatch<React.SetStateAction<string>>
-  search: string
-  setSearch: React.Dispatch<React.SetStateAction<string>>
-  brandId: string | null
-  setBrandId: React.Dispatch<React.SetStateAction<string | null>>
-  activeSummary: AdminReviewBrandSummary | null
+  status: string;
+  setStatus: React.Dispatch<React.SetStateAction<string>>;
+  search: string;
+  setSearch: React.Dispatch<React.SetStateAction<string>>;
+  brandId: string | null;
+  setBrandId: React.Dispatch<React.SetStateAction<string | null>>;
+  activeSummary: AdminReviewBrandSummary | null;
 }) {
-  const t = useT()
+  const t = useT();
   return (
     <div className="space-y-3">
       {/* Scrolls sideways on phones instead of pushing the page wider. */}
@@ -51,7 +51,7 @@ export function FeedbackFilterToolbar({
               key={s.value}
               value={s.value}
               label={t(s.labelKey)}
-              count={s.value === 'all' ? undefined : activeSummary?.[s.value]}
+              count={s.value === "all" ? undefined : activeSummary?.[s.value]}
             />
           ))}
         </PillTabs>
@@ -62,7 +62,7 @@ export function FeedbackFilterToolbar({
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder={t('adminFeedback.searchPlaceholder')}
+            placeholder={t("adminFeedback.searchPlaceholder")}
             className="pl-9"
           />
         </div>
@@ -73,10 +73,10 @@ export function FeedbackFilterToolbar({
             onClick={() => setBrandId(null)}
             className="text-rose-600"
           >
-            {t('adminFeedback.clearBrandFilter')}
+            {t("adminFeedback.clearBrandFilter")}
           </Button>
         )}
       </div>
     </div>
-  )
+  );
 }

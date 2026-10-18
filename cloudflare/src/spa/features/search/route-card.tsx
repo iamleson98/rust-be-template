@@ -1,8 +1,8 @@
-import { Star } from 'lucide-react'
-import type { RouteOut } from '@spa/api'
-import { formatCurrency } from '@spa/lib/format'
-import { useT } from '@spa/lib/i18n'
-import { usePrefs } from '@spa/stores/prefs'
+import { Star } from "lucide-react";
+import type { RouteOut } from "@spa/api";
+import { formatCurrency } from "@spa/lib/format";
+import { useT } from "@spa/lib/i18n";
+import { usePrefs } from "@spa/stores/prefs";
 
 /**
  * One route: operator (and rating), the two ends, trips a day and the
@@ -14,13 +14,13 @@ export function RouteCard({
   onSelect,
   onHover,
 }: {
-  route: RouteOut
-  onSelect: () => void
+  route: RouteOut;
+  onSelect: () => void;
   /** Warm the search cache before the tap. */
-  onHover?: () => void
+  onHover?: () => void;
 }) {
-  const t = useT()
-  const currency = usePrefs((s) => s.currency)
+  const t = useT();
+  const currency = usePrefs((s) => s.currency);
   return (
     <button
       type="button"
@@ -62,19 +62,19 @@ export function RouteCard({
 
       <div className="mt-4 flex items-end justify-between gap-2 border-t border-slate-100 pt-3">
         <span className="text-xs text-slate-500">
-          {r.scheduleCount > 0 ? t('home.tripsPerDay', { count: r.scheduleCount }) : ''}
+          {r.scheduleCount > 0 ? t("home.tripsPerDay", { count: r.scheduleCount }) : ""}
         </span>
         {r.priceFrom != null ? (
           <span className="text-right leading-tight">
-            <span className="block text-[11px] text-slate-500">{t('home.priceFrom')}</span>
+            <span className="block text-[11px] text-slate-500">{t("home.priceFrom")}</span>
             <span className="text-base font-bold text-primary tabular-nums">
               {formatCurrency(r.priceFrom, currency)}
             </span>
           </span>
         ) : (
-          <span className="text-xs text-slate-400">{t('searchPage.noSchedulesYet')}</span>
+          <span className="text-xs text-slate-400">{t("searchPage.noSchedulesYet")}</span>
         )}
       </div>
     </button>
-  )
+  );
 }

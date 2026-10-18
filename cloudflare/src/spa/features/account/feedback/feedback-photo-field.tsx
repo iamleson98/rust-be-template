@@ -1,62 +1,62 @@
-import { useCallback, useRef } from 'react'
-import type { UseFormReturn } from 'react-hook-form'
-import { FormField, FormItem, FormLabel, FormMessage } from '@spa/components/ui/form'
-import { Upload, X, Image as ImageIcon } from 'lucide-react'
-import { toast } from 'sonner'
-import { useT } from '@spa/lib/i18n'
-import type { FeedbackValues } from './feedback-schema'
+import { useCallback, useRef } from "react";
+import type { UseFormReturn } from "react-hook-form";
+import { FormField, FormItem, FormLabel, FormMessage } from "@spa/components/ui/form";
+import { Upload, X, Image as ImageIcon } from "lucide-react";
+import { toast } from "sonner";
+import { useT } from "@spa/lib/i18n";
+import type { FeedbackValues } from "./feedback-schema";
 
-const MAX_PHOTOS = 3
-const MAX_PHOTO_SIZE = 2 * 1024 * 1024 // 2MB
+const MAX_PHOTOS = 3;
+const MAX_PHOTO_SIZE = 2 * 1024 * 1024; // 2MB
 
 export function FeedbackPhotoField({ form }: { form: UseFormReturn<FeedbackValues> }) {
-  const t = useT()
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const t = useT();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handlePickPhotos = useCallback(
     async (files: FileList | null) => {
-      if (!files || files.length === 0) return
-      const current = form.getValues('photos')
-      const slotsLeft = MAX_PHOTOS - current.length
+      if (!files || files.length === 0) return;
+      const current = form.getValues("photos");
+      const slotsLeft = MAX_PHOTOS - current.length;
       if (slotsLeft <= 0) {
-        toast.error(t('feedbackForm.maxPhotosError', { count: MAX_PHOTOS }))
-        return
+        toast.error(t("feedbackForm.maxPhotosError", { count: MAX_PHOTOS }));
+        return;
       }
-      const picked = Array.from(files).slice(0, slotsLeft)
-      const next: string[] = []
+      const picked = Array.from(files).slice(0, slotsLeft);
+      const next: string[] = [];
       for (const f of picked) {
-        if (!f.type.startsWith('image/')) {
-          toast.error(t('feedbackForm.notAnImage', { name: f.name }))
-          continue
+        if (!f.type.startsWith("image/")) {
+          toast.error(t("feedbackForm.notAnImage", { name: f.name }));
+          continue;
         }
         if (f.size > MAX_PHOTO_SIZE) {
-          toast.error(t('feedbackForm.fileTooLarge', { name: f.name }))
-          continue
+          toast.error(t("feedbackForm.fileTooLarge", { name: f.name }));
+          continue;
         }
         try {
-          const dataUrl = await readAsDataURL(f)
-          next.push(dataUrl)
+          const dataUrl = await readAsDataURL(f);
+          next.push(dataUrl);
         } catch {
-          toast.error(t('feedbackForm.cannotReadFile', { name: f.name }))
+          toast.error(t("feedbackForm.cannotReadFile", { name: f.name }));
         }
       }
       if (next.length > 0) {
-        const updated = [...current, ...next].slice(0, MAX_PHOTOS)
-        form.setValue('photos', updated, { shouldDirty: true, shouldValidate: true })
+        const updated = [...current, ...next].slice(0, MAX_PHOTOS);
+        form.setValue("photos", updated, { shouldDirty: true, shouldValidate: true });
       }
-      if (fileInputRef.current) fileInputRef.current.value = ''
+      if (fileInputRef.current) fileInputRef.current.value = "";
     },
     [form, t],
-  )
+  );
 
   const removePhoto = (idx: number) => {
-    const current = form.getValues('photos')
+    const current = form.getValues("photos");
     form.setValue(
-      'photos',
+      "photos",
       current.filter((_, i) => i !== idx),
       { shouldDirty: true, shouldValidate: true },
-    )
-  }
+    );
+  };
 
   return (
     <FormField
@@ -66,10 +66,10 @@ export function FeedbackPhotoField({ form }: { form: UseFormReturn<FeedbackValue
         <FormItem className="space-y-2">
           <div className="flex items-center justify-between">
             <FormLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              {t('feedbackForm.photosLabel')}
+              {t("feedbackForm.photosLabel")}
             </FormLabel>
             <span className="text-[10px] text-muted-foreground">
-              {t('feedbackForm.photosCounter', {
+              {t("feedbackForm.photosCounter", {
                 count: (field.value ?? []).length,
                 max: MAX_PHOTOS,
               })}
@@ -90,9 +90,9 @@ export function FeedbackPhotoField({ form }: { form: UseFormReturn<FeedbackValue
               className="w-full rounded-xl border-2 border-dashed border-slate-300 hover:border-amber-400 hover:bg-amber-50/40 transition-colors py-4 flex flex-col items-center justify-center gap-1 text-muted-foreground"
             >
               <Upload className="h-5 w-5" />
-              <span className="text-xs font-medium">{t('feedbackForm.addPhotos')}</span>
+              <span className="text-xs font-medium">{t("feedbackForm.addPhotos")}</span>
               <span className="text-[10px]">
-                {t('feedbackForm.addPhotosHint', { count: MAX_PHOTOS })}
+                {t("feedbackForm.addPhotosHint", { count: MAX_PHOTOS })}
               </span>
             </button>
           ) : (
@@ -104,7 +104,7 @@ export function FeedbackPhotoField({ form }: { form: UseFormReturn<FeedbackValue
                 >
                   <img
                     src={src}
-                    alt={t('reviews.photoAlt', { index: i + 1 })}
+                    alt={t("reviews.photoAlt", { index: i + 1 })}
                     className="w-full h-full object-cover"
                     loading="lazy"
                     decoding="async"
@@ -113,7 +113,7 @@ export function FeedbackPhotoField({ form }: { form: UseFormReturn<FeedbackValue
                     type="button"
                     onClick={() => removePhoto(i)}
                     className="absolute top-1 right-1 h-6 w-6 rounded-full bg-black/60 hover:bg-rose-600 text-white inline-flex items-center justify-center transition-colors"
-                    aria-label={t('feedbackForm.removePhoto')}
+                    aria-label={t("feedbackForm.removePhoto")}
                   >
                     <X className="h-3.5 w-3.5" />
                   </button>
@@ -126,7 +126,7 @@ export function FeedbackPhotoField({ form }: { form: UseFormReturn<FeedbackValue
                   className="aspect-square rounded-lg border-2 border-dashed border-slate-300 hover:border-amber-400 hover:bg-amber-50/40 transition-colors flex flex-col items-center justify-center gap-1 text-muted-foreground"
                 >
                   <ImageIcon className="h-4 w-4" />
-                  <span className="text-[10px] font-medium">{t('common.add')}</span>
+                  <span className="text-[10px] font-medium">{t("common.add")}</span>
                 </button>
               )}
             </div>
@@ -135,14 +135,14 @@ export function FeedbackPhotoField({ form }: { form: UseFormReturn<FeedbackValue
         </FormItem>
       )}
     />
-  )
+  );
 }
 
 function readAsDataURL(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(reader.result as string)
-    reader.onerror = () => reject(reader.error)
-    reader.readAsDataURL(file)
-  })
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
 }

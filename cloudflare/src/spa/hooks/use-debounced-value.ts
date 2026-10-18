@@ -1,6 +1,6 @@
-'use client'
+"use client";
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState } from "react";
 
 /**
  * Debounce a fast-changing value (e.g. a search input) so effect-heavy
@@ -10,13 +10,13 @@ import { useEffect, useState } from 'react'
  * the community-standard pattern for search-as-you-type.
  */
 export function useDebouncedValue<T>(value: T, delay = 250): T {
-  const [debounced, setDebounced] = useState(value)
+  const [debounced, setDebounced] = useState(value);
 
   useEffect(() => {
-    const timer = setTimeout(() => setDebounced(value), delay)
+    const timer = setTimeout(() => setDebounced(value), delay);
     // Cancel the pending update when `value` changes again first.
-    return () => clearTimeout(timer)
-  }, [value, delay])
+    return () => clearTimeout(timer);
+  }, [value, delay]);
 
-  return debounced
+  return debounced;
 }

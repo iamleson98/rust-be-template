@@ -1,8 +1,8 @@
-'use client'
+"use client";
 
-import { Bookmark, X } from 'lucide-react'
-import { useT } from '@spa/lib/i18n'
-import type { SavedSearch } from './use-saved-searches'
+import { Bookmark, X } from "lucide-react";
+import { useT } from "@spa/lib/i18n";
+import type { SavedSearch } from "./use-saved-searches";
 
 /** The user's starred searches as removable chips. */
 export function SavedSearchesList({
@@ -10,16 +10,16 @@ export function SavedSearchesList({
   onApply,
   onRemove,
 }: {
-  items: SavedSearch[]
-  onApply: (search: SavedSearch) => void
-  onRemove: (id: string) => void
+  items: SavedSearch[];
+  onApply: (search: SavedSearch) => void;
+  onRemove: (id: string) => void;
 }) {
-  const t = useT()
+  const t = useT();
   return (
     <div className="mt-2 -mx-1 flex items-center gap-2 overflow-x-auto p-1 scrollbar-none">
       <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-slate-500">
         <Bookmark className="size-3.5" />
-        {t('searchPage.savedSearches', { count: items.length })}
+        {t("searchPage.savedSearches", { count: items.length })}
       </span>
       {items.slice(0, 6).map((s) => (
         <span
@@ -36,13 +36,13 @@ export function SavedSearchesList({
           <button
             onClick={() => onRemove(s.id)}
             className="ml-0.5 grid size-7 place-items-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-rose-600"
-            title={t('common.delete')}
-            aria-label={t('common.delete')}
+            title={t("common.delete")}
+            aria-label={t("common.delete")}
           >
             <X className="size-3.5" />
           </button>
         </span>
       ))}
     </div>
-  )
+  );
 }

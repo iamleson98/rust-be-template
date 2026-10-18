@@ -1,4 +1,4 @@
-'use client'
+"use client";
 
 /**
  * Server Metrics section — the admin `/admin/system` page's realtime
@@ -13,39 +13,39 @@
  * Errors render a red alert card with the backend's message.
  */
 
-import { useQuery } from '@tanstack/react-query'
-import { systemMetricsOptions } from '@spa/api'
-import { AlertCircle, RefreshCw, Server } from 'lucide-react'
-import { getErrorMessage } from '@spa/lib/error-message'
+import { useQuery } from "@tanstack/react-query";
+import { systemMetricsOptions } from "@spa/api";
+import { AlertCircle, RefreshCw, Server } from "lucide-react";
+import { getErrorMessage } from "@spa/lib/error-message";
 
-import { SystemMetricsSkeleton } from '@spa/features/admin/system/system-metrics-skeleton'
-import { Button } from '@spa/components/ui/button'
-import { Card, CardContent } from '@spa/components/ui/card'
-import { CpuCard } from './cpu-card'
-import { DisksCard } from './disks-card'
-import { HostCard } from './host-card'
-import { MemoryCard } from './memory-card'
-import { ProcessCard } from './process-card'
-import { useT } from '@spa/lib/i18n'
+import { SystemMetricsSkeleton } from "@spa/features/admin/system/system-metrics-skeleton";
+import { Button } from "@spa/components/ui/button";
+import { Card, CardContent } from "@spa/components/ui/card";
+import { CpuCard } from "./cpu-card";
+import { DisksCard } from "./disks-card";
+import { HostCard } from "./host-card";
+import { MemoryCard } from "./memory-card";
+import { ProcessCard } from "./process-card";
+import { useT } from "@spa/lib/i18n";
 
-const POLL_SECONDS = 5
+const POLL_SECONDS = 5;
 
 export function SystemMetricsSection() {
-  const t = useT()
-  const metricsQuery = useQuery({ ...systemMetricsOptions(), refetchInterval: 5_000 })
+  const t = useT();
+  const metricsQuery = useQuery({ ...systemMetricsOptions(), refetchInterval: 5_000 });
 
   return (
     <section id="server-metrics" data-testid="system-metrics" className="space-y-3">
       <div className="flex items-center justify-between gap-3">
         <h2 className="flex items-center gap-2 text-lg font-semibold">
           <Server className="h-5 w-5" aria-hidden />
-          {t('adminSystem.serverMetrics')}
+          {t("adminSystem.serverMetrics")}
           <span className="ml-1 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium text-muted-foreground">
             <RefreshCw
-              className={`h-3 w-3 ${metricsQuery.isFetching ? 'animate-spin' : ''}`}
+              className={`h-3 w-3 ${metricsQuery.isFetching ? "animate-spin" : ""}`}
               aria-hidden
             />
-            {t('adminSystem.liveEvery', { s: POLL_SECONDS })}
+            {t("adminSystem.liveEvery", { s: POLL_SECONDS })}
           </span>
         </h2>
         <Button
@@ -55,10 +55,10 @@ export function SystemMetricsSection() {
           disabled={metricsQuery.isFetching}
         >
           <RefreshCw
-            className={`h-4 w-4 ${metricsQuery.isFetching ? 'animate-spin' : ''}`}
+            className={`h-4 w-4 ${metricsQuery.isFetching ? "animate-spin" : ""}`}
             aria-hidden
           />
-          {t('common.refresh')}
+          {t("common.refresh")}
         </Button>
       </div>
 
@@ -67,9 +67,9 @@ export function SystemMetricsSection() {
           <CardContent className="flex items-center gap-3 pt-6 text-red-600">
             <AlertCircle className="h-5 w-5 shrink-0" aria-hidden />
             <div>
-              <p className="font-medium">{t('adminSystem.metricsLoadFailed')}</p>
+              <p className="font-medium">{t("adminSystem.metricsLoadFailed")}</p>
               <p className="text-sm text-muted-foreground">
-                {getErrorMessage(metricsQuery.error, t('adminSystem.unknownError'))}
+                {getErrorMessage(metricsQuery.error, t("adminSystem.unknownError"))}
               </p>
             </div>
           </CardContent>
@@ -113,5 +113,5 @@ export function SystemMetricsSection() {
         </div>
       ) : null}
     </section>
-  )
+  );
 }

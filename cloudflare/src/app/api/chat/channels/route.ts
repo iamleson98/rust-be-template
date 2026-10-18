@@ -15,8 +15,14 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const user = await requireUser(req);
-    const body = await readJson<{ brandId?: string | null; topic?: string | null }>(req).catch(() => ({}) as { brandId?: string | null; topic?: string | null });
-    const channel = await ensureCustomerChannel(user.id, body.brandId ?? undefined, body.topic ?? undefined);
+    const body = await readJson<{ brandId?: string | null; topic?: string | null }>(req).catch(
+      () => ({}) as { brandId?: string | null; topic?: string | null },
+    );
+    const channel = await ensureCustomerChannel(
+      user.id,
+      body.brandId ?? undefined,
+      body.topic ?? undefined,
+    );
     return Response.json({ channel: await getChannelOut(user, channel.id) }, { status: 201 });
   } catch (e) {
     return handleRouteError(e);

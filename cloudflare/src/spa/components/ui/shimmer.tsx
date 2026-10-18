@@ -1,4 +1,4 @@
-import { cn } from '@spa/lib/utils'
+import { cn } from "@spa/lib/utils";
 
 /**
  * Shimmer skeleton primitive — a placeholder block with the animated
@@ -12,8 +12,8 @@ export function Shimmer({ className, style }: { className?: string; style?: Reac
     <div
       data-slot="shimmer"
       aria-hidden
-      className={cn('shimmer rounded-md bg-slate-200/80 dark:bg-slate-800/70', className)}
+      className={cn("shimmer rounded-md bg-slate-200/80 dark:bg-slate-800/70", className)}
       style={style}
     />
-  )
+  );
 }

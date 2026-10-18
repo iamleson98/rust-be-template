@@ -13,11 +13,21 @@ const HISTORY_LIMIT = 20;
 const TIERS: Array<{ key: string; name: string; minPoints: number; benefitCodes: string[] }> = [
   { key: "bronze", name: "Bronze", minPoints: 0, benefitCodes: ["earn_points", "redeem_voucher"] },
   { key: "silver", name: "Silver", minPoints: 1_000, benefitCodes: ["discount_5", "voucher_25k"] },
-  { key: "gold", name: "Gold", minPoints: 5_000, benefitCodes: ["discount_10", "priority_seat", "voucher_60k"] },
-  { key: "platinum", name: "Platinum", minPoints: 20_000, benefitCodes: ["discount_15", "priority_seat", "free_refund", "voucher_150k"] },
+  {
+    key: "gold",
+    name: "Gold",
+    minPoints: 5_000,
+    benefitCodes: ["discount_10", "priority_seat", "voucher_60k"],
+  },
+  {
+    key: "platinum",
+    name: "Platinum",
+    minPoints: 20_000,
+    benefitCodes: ["discount_15", "priority_seat", "free_refund", "voucher_150k"],
+  },
 ];
 
-const tierOut = (i: number) => TIERS[i]!;
+const tierOut = (i: number) => TIERS[i];
 
 export async function GET(req: Request) {
   try {

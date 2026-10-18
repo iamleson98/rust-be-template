@@ -37,78 +37,78 @@
  *   - `debugger` loop (kills performance + can crash the tab).
  */
 
-const DEVTOOLS_CHECK_INTERVAL_MS = 2000
-const SIZE_THRESHOLD = 200 // px difference that indicates docked DevTools
+const DEVTOOLS_CHECK_INTERVAL_MS = 2000;
+const SIZE_THRESHOLD = 200; // px difference that indicates docked DevTools
 
-let devtoolsOpen = false
-let warningShown = false
+let devtoolsOpen = false;
+let warningShown = false;
 
 function checkDevtools(): boolean {
   // Window size delta — DevTools docked to the side or bottom adds
   // significant width/height to the inner window.
-  const widthDelta = window.outerWidth - window.innerWidth
-  const heightDelta = window.outerHeight - window.innerHeight
+  const widthDelta = window.outerWidth - window.innerWidth;
+  const heightDelta = window.outerHeight - window.innerHeight;
 
   // Also check for the Firebug console (legacy, but cheap to test).
-  const firebug = window.firebug?.isEnabled
+  const firebug = window.firebug?.isEnabled;
 
-  return widthDelta > SIZE_THRESHOLD || heightDelta > SIZE_THRESHOLD || !!firebug
+  return widthDelta > SIZE_THRESHOLD || heightDelta > SIZE_THRESHOLD || !!firebug;
 }
 
 function logWarning(): void {
   // Use a styled console.log so the warning is visually prominent.
-  const banner = '%c⚠️ DatXeVui — Cảnh báo bảo mật'
+  const banner = "%c⚠️ DatXeVui — Cảnh báo bảo mật";
   const style =
-    'color: white; background: #dc2626; font-size: 16px; font-weight: bold; padding: 4px 8px; border-radius: 4px;'
+    "color: white; background: #dc2626; font-size: 16px; font-weight: bold; padding: 4px 8px; border-radius: 4px;";
   const message = [
-    '',
-    'Công cụ nhà phát triển (DevTools) đang mở.',
-    '',
-    '⚠️ KHÔNG chạy mã JavaScript không rõ nguồn — có thể gây mất dữ liệu.',
-    '⚠️ Không nhập thông tin nhạy cảm vào console.',
-    '⚠️ Chúng tôi KHÔNG bao giờ yêu cầu bạn chạy script trong console.',
-    '',
-    'Nếu bạn là lập trình viên, vui lòng liên hệ admin@datxevui.com để được cấp quyền dev.',
-  ].join('\n')
+    "",
+    "Công cụ nhà phát triển (DevTools) đang mở.",
+    "",
+    "⚠️ KHÔNG chạy mã JavaScript không rõ nguồn — có thể gây mất dữ liệu.",
+    "⚠️ Không nhập thông tin nhạy cảm vào console.",
+    "⚠️ Chúng tôi KHÔNG bao giờ yêu cầu bạn chạy script trong console.",
+    "",
+    "Nếu bạn là lập trình viên, vui lòng liên hệ admin@datxevui.com để được cấp quyền dev.",
+  ].join("\n");
 
-  console.log(banner, style)
-  console.log(message)
+  console.log(banner, style);
+  console.log(message);
 
   // Fire a GA4 event (if analytics is configured).
-  if (typeof window !== 'undefined' && window.gtag) {
-    window.gtag('event', 'devtools_opened', {
-      event_category: 'security',
+  if (typeof window !== "undefined" && window.gtag) {
+    window.gtag("event", "devtools_opened", {
+      event_category: "security",
       event_label: window.location.pathname,
-    })
+    });
   }
 }
 
 function startDevtoolsDetection(): void {
-  if (typeof window === 'undefined' || typeof window.outerWidth === 'undefined') {
-    return
+  if (typeof window === "undefined" || typeof window.outerWidth === "undefined") {
+    return;
   }
 
   setInterval(() => {
-    const wasOpen = devtoolsOpen
-    devtoolsOpen = checkDevtools()
+    const wasOpen = devtoolsOpen;
+    devtoolsOpen = checkDevtools();
 
     // On transition: closed → open, show the warning.
     if (devtoolsOpen && !wasOpen && !warningShown) {
-      warningShown = true
-      logWarning()
+      warningShown = true;
+      logWarning();
       // Add a CSS class so consumer pages can react (e.g. blur content).
-      document.body.classList.add('devtools-detected')
+      document.body.classList.add("devtools-detected");
     }
 
     // On transition: open → closed, remove the class.
     if (!devtoolsOpen && wasOpen) {
-      document.body.classList.remove('devtools-detected')
+      document.body.classList.remove("devtools-detected");
       // Reset warning after 30s so re-opening triggers it again.
       setTimeout(() => {
-        warningShown = false
-      }, 30_000)
+        warningShown = false;
+      }, 30_000);
     }
-  }, DEVTOOLS_CHECK_INTERVAL_MS)
+  }, DEVTOOLS_CHECK_INTERVAL_MS);
 }
 
 /**
@@ -120,32 +120,32 @@ function startDevtoolsDetection(): void {
  * key `vexevn_allow_context_menu`).
  */
 export function initConsoleProtection(): void {
-  if (typeof window === 'undefined') return
-  if (process.env.NODE_ENV !== 'production') return // Skip in dev — developers need DevTools.
+  if (typeof window === "undefined") return;
+  if (process.env.NODE_ENV !== "production") return; // Skip in dev — developers need DevTools.
 
   // ── 1. Start DevTools detection ─────────────────────────────
-  startDevtoolsDetection()
+  startDevtoolsDetection();
 
   // ── 2. Console warning banner (on first console use) ───────
   // Override console.log once to show our banner, then restore.
-  const originalLog = console.log
-  let bannerShown = false
+  const originalLog = console.log;
+  let bannerShown = false;
   console.log = function (...args: unknown[]) {
     if (!bannerShown) {
-      bannerShown = true
+      bannerShown = true;
       originalLog(
-        '%cVeXeVN',
-        'color: #2563eb; font-size: 24px; font-weight: bold; padding: 4px 8px;',
-      )
+        "%cVeXeVN",
+        "color: #2563eb; font-size: 24px; font-weight: bold; padding: 4px 8px;",
+      );
       originalLog(
-        '%c⚠️ Cảnh báo: Không chạy script không rõ nguồn trong console.',
-        'color: #dc2626; font-size: 14px; font-weight: bold;',
-      )
+        "%c⚠️ Cảnh báo: Không chạy script không rõ nguồn trong console.",
+        "color: #dc2626; font-size: 14px; font-weight: bold;",
+      );
       // Restore original console.log after the banner.
-      console.log = originalLog
+      console.log = originalLog;
     }
-    originalLog(...args)
-  }
+    originalLog(...args);
+  };
 
   // ── 3. Disable right-click context menu (optional) ─────────
   // Can be bypassed by setting localStorage.vexevn_allow_context_menu = '1'.
@@ -162,28 +162,28 @@ export function initConsoleProtection(): void {
   // Ctrl+Shift+I (DevTools), F12, Ctrl+Shift+J (Console), Ctrl+Shift+C (Inspector)
   // These are SOFT blocks — they show a warning but don't prevent opening
   // (browsers can't truly block these shortcuts without extensions).
-  document.addEventListener('keydown', (e) => {
+  document.addEventListener("keydown", (e) => {
     const isDevtoolsShortcut =
       (e.ctrlKey &&
         e.shiftKey &&
-        (e.key === 'I' ||
-          e.key === 'i' ||
-          e.key === 'J' ||
-          e.key === 'j' ||
-          e.key === 'C' ||
-          e.key === 'c')) ||
-      e.key === 'F12'
+        (e.key === "I" ||
+          e.key === "i" ||
+          e.key === "J" ||
+          e.key === "j" ||
+          e.key === "C" ||
+          e.key === "c")) ||
+      e.key === "F12";
 
     if (isDevtoolsShortcut) {
       // Don't preventDefault — that would break developer workflow.
       // Just log a warning.
       if (!warningShown) {
-        warningShown = true
-        logWarning()
+        warningShown = true;
+        logWarning();
         setTimeout(() => {
-          warningShown = false
-        }, 10_000)
+          warningShown = false;
+        }, 10_000);
       }
     }
-  })
+  });
 }

@@ -5,24 +5,24 @@
  * this page only lays it out.
  */
 
-import { useNavigate } from '@tanstack/react-router'
-import { Bus, History, LogIn, Sparkles } from 'lucide-react'
-import { ConsolePage, PageHeader } from '@spa/components/console/page'
-import { EmptyState, Panel } from '@spa/components/console/panel'
-import { Button } from '@spa/components/ui/button'
-import { Skeleton } from '@spa/components/ui/skeleton'
-import { useT } from '@spa/lib/i18n'
-import { useSession } from '@spa/stores/session'
-import { useLoyalty } from './api'
-import { LoyaltyPointsCard } from './points-card'
-import { LoyaltyPointsHistory } from './points-history'
-import { LoyaltyTierBenefits } from './tier-benefits'
+import { useNavigate } from "@tanstack/react-router";
+import { Bus, History, LogIn, Sparkles } from "lucide-react";
+import { ConsolePage, PageHeader } from "@spa/components/console/page";
+import { EmptyState, Panel } from "@spa/components/console/panel";
+import { Button } from "@spa/components/ui/button";
+import { Skeleton } from "@spa/components/ui/skeleton";
+import { useT } from "@spa/lib/i18n";
+import { useSession } from "@spa/stores/session";
+import { useLoyalty } from "./api";
+import { LoyaltyPointsCard } from "./points-card";
+import { LoyaltyPointsHistory } from "./points-history";
+import { LoyaltyTierBenefits } from "./tier-benefits";
 
 export function AccountLoyaltyPage() {
-  const user = useSession((s) => s.user)
-  const t = useT()
-  const navigate = useNavigate()
-  const { data: summary, isLoading } = useLoyalty()
+  const user = useSession((s) => s.user);
+  const t = useT();
+  const navigate = useNavigate();
+  const { data: summary, isLoading } = useLoyalty();
 
   if (!user) {
     return (
@@ -33,25 +33,25 @@ export function AccountLoyaltyPage() {
             text={
               <>
                 <span className="block font-medium text-foreground">
-                  {t('home.loyaltyLoginTitle')}
+                  {t("home.loyaltyLoginTitle")}
                 </span>
-                {t('home.loyaltyLoginDesc')}
+                {t("home.loyaltyLoginDesc")}
               </>
             }
             action={
-              <Button size="sm" onClick={() => navigate({ to: '/login' })}>
-                {t('auth.login')}
+              <Button size="sm" onClick={() => navigate({ to: "/login" })}>
+                {t("auth.login")}
               </Button>
             }
           />
         </Panel>
       </ConsolePage>
-    )
+    );
   }
 
   return (
     <ConsolePage>
-      <PageHeader title={t('nav.loyalty')} description={t('home.earnRateExplainerShort')} />
+      <PageHeader title={t("nav.loyalty")} description={t("home.earnRateExplainerShort")} />
 
       {isLoading || !summary ? (
         <>
@@ -66,18 +66,18 @@ export function AccountLoyaltyPage() {
           <LoyaltyPointsCard summary={summary} />
 
           <div className="grid grid-cols-1 items-start gap-5 md:grid-cols-2">
-            <Panel icon={<Sparkles />} title={t('home.tierBenefits', { name: summary.tier.name })}>
+            <Panel icon={<Sparkles />} title={t("home.tierBenefits", { name: summary.tier.name })}>
               <LoyaltyTierBenefits tier={summary.tier} />
             </Panel>
 
-            <Panel icon={<History />} title={t('home.pointsHistory')} bodyClassName="py-1">
+            <Panel icon={<History />} title={t("home.pointsHistory")} bodyClassName="py-1">
               {summary.history.length === 0 ? (
                 <EmptyState
                   icon={<Bus />}
-                  text={t('home.historyEmpty')}
+                  text={t("home.historyEmpty")}
                   action={
-                    <Button variant="outline" size="sm" onClick={() => navigate({ to: '/' })}>
-                      {t('home.bookATrip')}
+                    <Button variant="outline" size="sm" onClick={() => navigate({ to: "/" })}>
+                      {t("home.bookATrip")}
                     </Button>
                   }
                 />
@@ -89,5 +89,5 @@ export function AccountLoyaltyPage() {
         </>
       )}
     </ConsolePage>
-  )
+  );
 }

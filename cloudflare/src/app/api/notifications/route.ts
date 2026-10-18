@@ -8,7 +8,10 @@ export async function GET(req: Request) {
   try {
     const user = await requireUser(req);
     const url = new URL(req.url);
-    const limit = Math.min(Math.max(parseInt(url.searchParams.get("limit") ?? "30", 10) || 30, 1), 100);
+    const limit = Math.min(
+      Math.max(parseInt(url.searchParams.get("limit") ?? "30", 10) || 30, 1),
+      100,
+    );
     const offset = Math.max(parseInt(url.searchParams.get("offset") ?? "0", 10) || 0, 0);
     const db = await getDb();
     const rows = await db

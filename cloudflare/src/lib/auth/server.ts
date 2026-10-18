@@ -6,7 +6,9 @@ export async function currentUserFromCookies(): Promise<SessionUser | null> {
   try {
     const store = await cookies();
     const cookieHeader = store.toString();
-    return await currentUser(new Request("http://local/_session", { headers: { cookie: cookieHeader } }));
+    return await currentUser(
+      new Request("http://local/_session", { headers: { cookie: cookieHeader } }),
+    );
   } catch {
     return null;
   }

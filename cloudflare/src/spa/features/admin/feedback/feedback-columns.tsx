@@ -1,4 +1,4 @@
-'use client'
+"use client";
 
 /**
  * Column model for the admin feedback panel's DataTable — customer,
@@ -7,30 +7,30 @@
  * Extracted from the original 'src/features/admin/feedback/feedback-panel.tsx'.
  */
 
-import { useMemo } from 'react'
-import { createColumnHelper } from '@tanstack/react-table'
-import { DataTableColumnHeader, type DataTableFeatures } from '@spa/components/data-table'
-import { Avatar, AvatarFallback } from '@spa/components/ui/avatar'
-import { Badge } from '@spa/components/ui/badge'
-import { useT } from '@spa/lib/i18n'
-import { StarRating } from '@spa/features/account/feedback/star-rating'
-import { StatusBadge } from './feedback-status-badge'
-import { formatDate, type FeedbackRow } from './helpers'
+import { useMemo } from "react";
+import { createColumnHelper } from "@tanstack/react-table";
+import { DataTableColumnHeader, type DataTableFeatures } from "@spa/components/data-table";
+import { Avatar, AvatarFallback } from "@spa/components/ui/avatar";
+import { Badge } from "@spa/components/ui/badge";
+import { useT } from "@spa/lib/i18n";
+import { StarRating } from "@spa/features/account/feedback/star-rating";
+import { StatusBadge } from "./feedback-status-badge";
+import { formatDate, type FeedbackRow } from "./helpers";
 
-const feedbackColumnHelper = createColumnHelper<DataTableFeatures, FeedbackRow>()
+const feedbackColumnHelper = createColumnHelper<DataTableFeatures, FeedbackRow>();
 
 export function useFeedbackColumns() {
-  const t = useT()
+  const t = useT();
   return useMemo(
     () =>
       feedbackColumnHelper.columns([
-        feedbackColumnHelper.accessor('authorName', {
+        feedbackColumnHelper.accessor("authorName", {
           header: ({ column }) => (
-            <DataTableColumnHeader column={column} title={t('adminFeedback.customer')} />
+            <DataTableColumnHeader column={column} title={t("adminFeedback.customer")} />
           ),
           cell: ({ row }) => {
-            const name = row.original.authorName || t('adminFeedback.anonymous')
-            const phone = row.original.authorPhone
+            const name = row.original.authorName || t("adminFeedback.anonymous");
+            const phone = row.original.authorPhone;
             return (
               <div className="flex items-center gap-2.5 min-w-0">
                 <Avatar className="size-8 shrink-0">
@@ -45,27 +45,27 @@ export function useFeedbackColumns() {
                   )}
                 </div>
               </div>
-            )
+            );
           },
-          meta: { label: t('adminFeedback.customer') },
+          meta: { label: t("adminFeedback.customer") },
         }),
-        feedbackColumnHelper.accessor('rating', {
+        feedbackColumnHelper.accessor("rating", {
           header: ({ column }) => (
-            <DataTableColumnHeader column={column} title={t('adminFeedback.rating')} />
+            <DataTableColumnHeader column={column} title={t("adminFeedback.rating")} />
           ),
           cell: ({ getValue }) => <StarRating value={getValue()} size="sm" />,
-          meta: { label: t('adminFeedback.rating') },
+          meta: { label: t("adminFeedback.rating") },
         }),
-        feedbackColumnHelper.accessor('title', {
+        feedbackColumnHelper.accessor("title", {
           header: ({ column }) => (
-            <DataTableColumnHeader column={column} title={t('adminFeedback.content')} />
+            <DataTableColumnHeader column={column} title={t("adminFeedback.content")} />
           ),
           cell: ({ row }) => {
-            const r = row.original
+            const r = row.original;
             return (
               <div className="max-w-80 space-y-1">
                 {r.title && <div className="text-sm font-medium truncate">{r.title}</div>}
-                <p className="text-xs text-muted-foreground line-clamp-2">{r.content || '—'}</p>
+                <p className="text-xs text-muted-foreground line-clamp-2">{r.content || "—"}</p>
                 {(r.tags?.length ?? 0) > 0 && (
                   <div className="flex flex-wrap gap-1">
                     {(r.tags ?? []).slice(0, 3).map((t) => (
@@ -76,29 +76,29 @@ export function useFeedbackColumns() {
                   </div>
                 )}
               </div>
-            )
+            );
           },
-          meta: { label: t('adminFeedback.content') },
+          meta: { label: t("adminFeedback.content") },
         }),
-        feedbackColumnHelper.accessor('status', {
+        feedbackColumnHelper.accessor("status", {
           header: ({ column }) => (
-            <DataTableColumnHeader column={column} title={t('common.status')} />
+            <DataTableColumnHeader column={column} title={t("common.status")} />
           ),
           cell: ({ getValue }) => <StatusBadge status={getValue() as string} />,
-          meta: { label: t('common.status') },
+          meta: { label: t("common.status") },
         }),
-        feedbackColumnHelper.accessor('createdAt', {
+        feedbackColumnHelper.accessor("createdAt", {
           header: ({ column }) => (
-            <DataTableColumnHeader column={column} title={t('adminPayments.time')} />
+            <DataTableColumnHeader column={column} title={t("adminPayments.time")} />
           ),
           cell: ({ getValue }) => (
             <span className="text-xs text-muted-foreground whitespace-nowrap">
               {formatDate(getValue() as string)}
             </span>
           ),
-          meta: { label: t('adminPayments.time') },
+          meta: { label: t("adminPayments.time") },
         }),
       ]),
     [t],
-  )
+  );
 }

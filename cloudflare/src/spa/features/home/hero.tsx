@@ -1,19 +1,19 @@
-import { useQuery } from '@tanstack/react-query'
-import { Armchair, BusFront, QrCode, ShieldCheck } from 'lucide-react'
-import { statsOptions } from '@spa/api'
-import { SearchWidget } from '@spa/features/search/widget/search-widget'
-import { formatNum } from '@spa/lib/format'
-import { useT } from '@spa/lib/i18n'
-import { HeroBackground } from './hero-background'
-import { WelcomeBar } from './welcome-bar'
+import { useQuery } from "@tanstack/react-query";
+import { Armchair, BusFront, QrCode, ShieldCheck } from "lucide-react";
+import { statsOptions } from "@spa/api";
+import { SearchWidget } from "@spa/features/search/widget/search-widget";
+import { formatNum } from "@spa/lib/format";
+import { useT } from "@spa/lib/i18n";
+import { HeroBackground } from "./hero-background";
+import { WelcomeBar } from "./welcome-bar";
 
 /** What the product really does for a traveller — features, not claims. */
 const FEATURES = [
-  { icon: BusFront, title: 'home.featureCompare', body: 'home.featureCompareBody' },
-  { icon: Armchair, title: 'home.featureSeats', body: 'home.featureSeatsBody' },
-  { icon: QrCode, title: 'home.featureTicket', body: 'home.featureTicketBody' },
-  { icon: ShieldCheck, title: 'home.featurePay', body: 'home.featurePayBody' },
-] as const
+  { icon: BusFront, title: "home.featureCompare", body: "home.featureCompareBody" },
+  { icon: Armchair, title: "home.featureSeats", body: "home.featureSeatsBody" },
+  { icon: QrCode, title: "home.featureTicket", body: "home.featureTicketBody" },
+  { icon: ShieldCheck, title: "home.featurePay", body: "home.featurePayBody" },
+] as const;
 
 /**
  * The landing hero: a framed photo with the promise, the search card lifted
@@ -21,15 +21,15 @@ const FEATURES = [
  * you. Platform numbers come straight from `GET /api/stats`.
  */
 export function Hero() {
-  const t = useT()
-  const { data: stats } = useQuery(statsOptions())
+  const t = useT();
+  const { data: stats } = useQuery(statsOptions());
   const counts = stats
     ? [
-        { value: Number(stats.brands) || 0, label: t('home.statBrands') },
-        { value: Number(stats.routes) || 0, label: t('home.statRoutes') },
-        { value: Number(stats.trips) || 0, label: t('home.statTrips') },
+        { value: Number(stats.brands) || 0, label: t("home.statBrands") },
+        { value: Number(stats.routes) || 0, label: t("home.statRoutes") },
+        { value: Number(stats.trips) || 0, label: t("home.statTrips") },
       ].filter((c) => c.value > 0)
-    : []
+    : [];
 
   return (
     <section className="page-x pt-3 sm:pt-5">
@@ -37,10 +37,10 @@ export function Hero() {
         <HeroBackground />
         <div className="px-5 pt-9 pb-24 sm:px-10 sm:pt-14 sm:pb-32 lg:px-14 lg:pt-20 lg:pb-40">
           <h1 className="max-w-2xl text-[2rem] leading-[1.08] font-extrabold tracking-tight text-balance text-white sm:text-5xl lg:text-6xl">
-            {t('hero.title')} <span className="text-amber-300">{t('hero.titleHighlight')}</span>
+            {t("hero.title")} <span className="text-amber-300">{t("hero.titleHighlight")}</span>
           </h1>
           <p className="mt-4 max-w-xl text-[15px] leading-relaxed text-white/85 sm:text-lg">
-            {t('hero.subtitle')}
+            {t("hero.subtitle")}
           </p>
           <WelcomeBar />
           {counts.length > 0 && (
@@ -81,5 +81,5 @@ export function Hero() {
         ))}
       </ul>
     </section>
-  )
+  );
 }

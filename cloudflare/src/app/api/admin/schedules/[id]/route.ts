@@ -56,7 +56,8 @@ export async function PUT(req: Request, ctx: Params) {
           scheduleId: id,
           addressId: (p.addressId ?? "").trim(),
           stopOrder: i + 1,
-          kind: i === 0 ? "departure" : i === body.points!.length - 1 ? "destination" : "intermediate",
+          kind:
+            i === 0 ? "departure" : i === body.points!.length - 1 ? "destination" : "intermediate",
           arrivalTime: p.arrivalTime ?? null,
           createdAt: new Date().toISOString(),
         }))
@@ -96,7 +97,9 @@ export async function DELETE(req: Request, ctx: Params) {
     await requirePermission(staff, "admin:schedules:write");
     const { id } = await ctx.params;
     const db = await getDb();
-    const existing = (await db.select({ id: schedules.id }).from(schedules).where(eq(schedules.id, id)).limit(1))[0];
+    const existing = (
+      await db.select({ id: schedules.id }).from(schedules).where(eq(schedules.id, id)).limit(1)
+    )[0];
     if (!existing) return err(404, "not-found", "schedule not found");
     await db.delete(schedules).where(eq(schedules.id, id));
     await invalidateRoutes();

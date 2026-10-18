@@ -1,5 +1,5 @@
-import { client } from './generated/client.gen'
-import { createAuthFetch } from './auth-fetch'
+import { client } from "./generated/client.gen";
+import { createAuthFetch } from "./auth-fetch";
 
 /**
  * Point the generated SDK at the backend. In the browser requests stay
@@ -10,8 +10,8 @@ export function configureApiClient() {
   client.setConfig({
     // Same-origin relative URLs: Next.js serves the API routes (/api/*)
     // from the same host, so SameSite cookies flow naturally.
-    baseUrl: '',
-    credentials: 'include',
+    baseUrl: "",
+    credentials: "include",
     fetch: createAuthFetch(),
-  })
+  });
 }

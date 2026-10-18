@@ -119,6 +119,12 @@ export class ChatHub extends DurableObject {
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair) as [WebSocket, WebSocket];
     this.ctx.acceptWebSocket(server);
+    // Liveness pings (fixed `{"type":"ping"}`) are answered by the
+    // platform without waking this DO — same hibernation pattern as
+    // CallHub. Richer frames still go through webSocketMessage.
+    this.ctx.setWebSocketAutoResponse(
+      new WebSocketRequestResponsePair('{"type":"ping"}', '{"type":"pong"}'),
+    );
 
     // Session state rides on the socket — it survives DO eviction.
     const isStaff = user.role === "employee" || user.role === "admin";
@@ -188,6 +194,9 @@ export class ChatHub extends DurableObject {
     const type = String(frame.type ?? "");
     switch (type) {
       case "ping":
+        // Fallback for non-exact pings (old clients, test scripts with
+        // timestamps): fixed `{"type":"ping"}` frames are answered by the
+        // platform auto-response above without waking this DO.
         this.sendFrame(ws, { type: "pong", __server_ts: Date.now() });
         break;
 
@@ -256,7 +265,10 @@ export class ChatHub extends DurableObject {
             (s) => s.isStaff && s.channelId !== channelId,
           );
         } catch (e) {
-          this.sendFrame(ws, { type: "error", message: e instanceof Error ? e.message : "send failed" });
+          this.sendFrame(ws, {
+            type: "error",
+            message: e instanceof Error ? e.message : "send failed",
+          });
         }
         break;
       }
@@ -357,7 +369,11 @@ export class ChatHub extends DurableObject {
         .bind(channelId, clientMsgId)
         .first<{ id: string; sender_type: string; created_at: string }>();
       if (existing) {
-        return { id: existing.id, senderType: existing.sender_type, createdAt: existing.created_at };
+        return {
+          id: existing.id,
+          senderType: existing.sender_type,
+          createdAt: existing.created_at,
+        };
       }
     }
 

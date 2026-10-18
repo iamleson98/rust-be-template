@@ -6,16 +6,16 @@
  * contract + form-instance type.
  */
 
-import type { UseFormReturn } from 'react-hook-form'
-import { z } from 'zod'
-import { phoneSchema } from '@spa/lib/forms'
-import { tSync } from '@spa/lib/i18n'
+import type { UseFormReturn } from "react-hook-form";
+import { z } from "zod";
+import { phoneSchema } from "@spa/lib/forms";
+import { tSync } from "@spa/lib/i18n";
 
 // Error messages use Zod's functional `{ error: () => ... }` form so the
 // string is resolved (in the store's current language) at validation
 // time, not at module load.
 
-export type Frequency = 'immediate' | 'daily' | 'weekly'
+export type Frequency = "immediate" | "daily" | "weekly";
 
 export const priceAlertSchema = z.object({
   phone: phoneSchema,
@@ -23,14 +23,14 @@ export const priceAlertSchema = z.object({
     .string()
     .trim()
     .refine((v) => !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), {
-      error: () => tSync('validation.email'),
+      error: () => tSync("validation.email"),
     }),
   targetPrice: z.coerce
     .number()
-    .positive({ error: () => tSync('priceAlertSchema.targetPricePositive') }),
-  frequency: z.enum(['immediate', 'daily', 'weekly']),
-})
-export type PriceAlertFormValues = z.infer<typeof priceAlertSchema>
+    .positive({ error: () => tSync("priceAlertSchema.targetPricePositive") }),
+  frequency: z.enum(["immediate", "daily", "weekly"]),
+});
+export type PriceAlertFormValues = z.infer<typeof priceAlertSchema>;
 
 /**
  * The dialog's `useForm` instance type (input ≠ output because of the
@@ -41,4 +41,4 @@ export type PriceAlertForm = UseFormReturn<
   z.input<typeof priceAlertSchema>,
   unknown,
   z.output<typeof priceAlertSchema>
->
+>;

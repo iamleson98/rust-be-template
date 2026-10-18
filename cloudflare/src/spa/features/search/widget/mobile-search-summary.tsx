@@ -1,4 +1,4 @@
-'use client'
+"use client";
 
 /**
  * Stand-in for the compact search widget on /search below lg (phones and
@@ -7,25 +7,25 @@
  * comes from the parent so fields are registered once.
  */
 
-import type { UseFormReturn } from 'react-hook-form'
-import { ArrowRight, Search } from 'lucide-react'
-import { formatDateVN } from '@spa/lib/format'
-import { useT } from '@spa/lib/i18n'
-import { Button } from '@spa/components/ui/button'
+import type { UseFormReturn } from "react-hook-form";
+import { ArrowRight, Search } from "lucide-react";
+import { formatDateVN } from "@spa/lib/format";
+import { useT } from "@spa/lib/i18n";
+import { Button } from "@spa/components/ui/button";
 import {
   Sheet,
   SheetContent,
   SheetDescription,
   SheetHeader,
   SheetTitle,
-} from '@spa/components/ui/sheet'
-import { Form } from '@spa/components/ui/form'
-import type { SearchParams } from '@spa/lib/search-params'
-import { SearchRouteFields } from './route-fields'
-import { SearchDateFields } from './date-fields'
-import { SearchPassengerPicker } from './passenger-picker'
-import { useRef, useState } from 'react'
-import type { SearchFormValues } from './schema'
+} from "@spa/components/ui/sheet";
+import { Form } from "@spa/components/ui/form";
+import type { SearchParams } from "@spa/lib/search-params";
+import { SearchRouteFields } from "./route-fields";
+import { SearchDateFields } from "./date-fields";
+import { SearchPassengerPicker } from "./passenger-picker";
+import { useRef, useState } from "react";
+import type { SearchFormValues } from "./schema";
 
 export function MobileSearchSummary({
   searchParams,
@@ -38,23 +38,23 @@ export function MobileSearchSummary({
   onSubmit,
   submitting,
 }: {
-  searchParams: SearchParams
-  setSearchParams: (p: Partial<SearchParams>) => void
-  swap: () => void
-  onOpen: () => void
-  sheetOpen: boolean
-  setSheetOpen: (open: boolean) => void
-  form: UseFormReturn<SearchFormValues>
-  onSubmit: (e?: React.BaseSyntheticEvent) => Promise<void>
-  submitting: boolean
+  searchParams: SearchParams;
+  setSearchParams: (p: Partial<SearchParams>) => void;
+  swap: () => void;
+  onOpen: () => void;
+  sheetOpen: boolean;
+  setSheetOpen: (open: boolean) => void;
+  form: UseFormReturn<SearchFormValues>;
+  onSubmit: (e?: React.BaseSyntheticEvent) => Promise<void>;
+  submitting: boolean;
 }) {
-  const t = useT()
-  const [paxOpen, setPaxOpen] = useState(false)
-  const formAreaRef = useRef<HTMLDivElement>(null)
-  const pax = (searchParams.adults ?? 1) + (searchParams.children ?? 0)
+  const t = useT();
+  const [paxOpen, setPaxOpen] = useState(false);
+  const formAreaRef = useRef<HTMLDivElement>(null);
+  const pax = (searchParams.adults ?? 1) + (searchParams.children ?? 0);
   const dateLabel = searchParams.date
-    ? formatDateVN(searchParams.date, { weekday: 'short', day: '2-digit', month: '2-digit' })
-    : ''
+    ? formatDateVN(searchParams.date, { weekday: "short", day: "2-digit", month: "2-digit" })
+    : "";
 
   return (
     <>
@@ -62,7 +62,7 @@ export function MobileSearchSummary({
       <button
         type="button"
         onClick={onOpen}
-        aria-label={t('searchPage.editSearch')}
+        aria-label={t("searchPage.editSearch")}
         className="flex w-full items-center gap-3 rounded-2xl bg-white py-2 pr-3 pl-2 text-left ring-1 ring-slate-200 transition-colors hover:ring-primary/40"
       >
         <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
@@ -71,24 +71,24 @@ export function MobileSearchSummary({
         {searchParams.from || searchParams.to ? (
           <span className="min-w-0 flex-1">
             <span className="flex min-w-0 items-center gap-1.5 text-sm font-semibold text-slate-900">
-              <span className="truncate">{searchParams.from || t('search.placeholder')}</span>
+              <span className="truncate">{searchParams.from || t("search.placeholder")}</span>
               <ArrowRight className="size-3.5 shrink-0 text-slate-400" />
-              <span className="truncate">{searchParams.to || t('search.placeholder')}</span>
+              <span className="truncate">{searchParams.to || t("search.placeholder")}</span>
             </span>
             <span className="block truncate text-xs text-slate-500">
               {dateLabel && <span className="tabular-nums">{dateLabel} · </span>}
-              {pax} {t('searchPage.paxCountUnit')}
+              {pax} {t("searchPage.paxCountUnit")}
             </span>
           </span>
         ) : (
           // Nothing chosen yet: one prompt, not two clipped placeholders.
           <span className="min-w-0 flex-1 truncate text-sm text-slate-500">
-            {t('searchPage.wherePrompt')}
+            {t("searchPage.wherePrompt")}
           </span>
         )}
         {(searchParams.from || searchParams.to) && (
           <span className="shrink-0 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700">
-            {t('searchPage.change')}
+            {t("searchPage.change")}
           </span>
         )}
       </button>
@@ -103,8 +103,8 @@ export function MobileSearchSummary({
           className="flex max-h-[85dvh] flex-col gap-0 p-0 sm:mx-auto sm:max-w-xl sm:rounded-t-3xl"
         >
           <SheetHeader className="px-4 py-3 border-b shrink-0">
-            <SheetTitle>{t('search.title')}</SheetTitle>
-            <SheetDescription className="sr-only">{t('search.title')}</SheetDescription>
+            <SheetTitle>{t("search.title")}</SheetTitle>
+            <SheetDescription className="sr-only">{t("search.title")}</SheetDescription>
           </SheetHeader>
           <div
             ref={formAreaRef}
@@ -117,7 +117,7 @@ export function MobileSearchSummary({
                 onSubmit={onSubmit}
                 className="space-y-3"
                 noValidate
-                aria-label={t('search.title')}
+                aria-label={t("search.title")}
               >
                 {/* Stacked: one compact group, the swap button between the fields. */}
                 <SearchRouteFields form={form} swap={swap} layout="stacked" />
@@ -137,7 +137,7 @@ export function MobileSearchSummary({
                 </div>
                 <Button type="submit" disabled={submitting} size="lg" className="h-11 w-full gap-2">
                   <Search className="h-4 w-4" />
-                  <span>{submitting ? t('home.searching') : t('search.btn')}</span>
+                  <span>{submitting ? t("home.searching") : t("search.btn")}</span>
                 </Button>
               </form>
             </Form>
@@ -145,5 +145,5 @@ export function MobileSearchSummary({
         </SheetContent>
       </Sheet>
     </>
-  )
+  );
 }

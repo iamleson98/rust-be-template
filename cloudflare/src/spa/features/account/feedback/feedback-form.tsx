@@ -1,14 +1,14 @@
-'use client'
+"use client";
 
-import { reviewsCreateMutation, reviewsUpdateMutation } from '@spa/api'
-import { useMutation } from '@tanstack/react-query'
-import { memo, useState } from 'react'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { Card, CardContent } from '@spa/components/ui/card'
-import { Button } from '@spa/components/ui/button'
-import { Input } from '@spa/components/ui/input'
-import { Badge } from '@spa/components/ui/badge'
+import { reviewsCreateMutation, reviewsUpdateMutation } from "@spa/api";
+import { useMutation } from "@tanstack/react-query";
+import { memo, useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { Card, CardContent } from "@spa/components/ui/card";
+import { Button } from "@spa/components/ui/button";
+import { Input } from "@spa/components/ui/input";
+import { Badge } from "@spa/components/ui/badge";
 import {
   Form,
   FormField,
@@ -16,27 +16,27 @@ import {
   FormLabel,
   FormControl,
   FormMessage,
-} from '@spa/components/ui/form'
-import { Send, Loader2, Check, Sparkles, Bus, Route as RouteIcon } from 'lucide-react'
-import { toast } from 'sonner'
-import { useT } from '@spa/lib/i18n'
-import { BookingItem, ReviewSummary } from '@spa/features/booking/history/booking-types'
-import { feedbackSchema, type FeedbackValues } from './feedback-schema'
-import { ExistingReviewCard } from './existing-review-card'
-import { FeedbackRatingField } from './feedback-rating-field'
-import { FeedbackTagPickerField } from './feedback-tag-picker-field'
-import { FeedbackCommentField } from './feedback-comment-field'
-import { FeedbackPhotoField } from './feedback-photo-field'
+} from "@spa/components/ui/form";
+import { Send, Loader2, Check, Sparkles, Bus, Route as RouteIcon } from "lucide-react";
+import { toast } from "sonner";
+import { useT } from "@spa/lib/i18n";
+import { BookingItem, ReviewSummary } from "@spa/features/booking/history/booking-types";
+import { feedbackSchema, type FeedbackValues } from "./feedback-schema";
+import { ExistingReviewCard } from "./existing-review-card";
+import { FeedbackRatingField } from "./feedback-rating-field";
+import { FeedbackTagPickerField } from "./feedback-tag-picker-field";
+import { FeedbackCommentField } from "./feedback-comment-field";
+import { FeedbackPhotoField } from "./feedback-photo-field";
 
 type Props = {
-  booking: BookingItem
+  booking: BookingItem;
   /** Existing review (if any) — when provided the form renders in "view/edit" mode. */
-  existingReview?: ReviewSummary | null
+  existingReview?: ReviewSummary | null;
   /** Called after a successful submit OR edit — parent should refresh state. */
-  onSubmitted?: (review: ReviewSummary) => void
+  onSubmitted?: (review: ReviewSummary) => void;
   /** Called when the user clicks "Đóng" / cancels. */
-  onClose?: () => void
-}
+  onClose?: () => void;
+};
 
 export const FeedbackForm = memo(function FeedbackForm({
   booking,
@@ -44,59 +44,61 @@ export const FeedbackForm = memo(function FeedbackForm({
   onSubmitted,
   onClose,
 }: Props) {
-  const t = useT()
-  const isEditingExisting = !!existingReview
-  const [editMode, setEditMode] = useState(!isEditingExisting)
-  const [submitted, setSubmitted] = useState(false)
+  const t = useT();
+  const isEditingExisting = !!existingReview;
+  const [editMode, setEditMode] = useState(!isEditingExisting);
+  const [submitted, setSubmitted] = useState(false);
 
   const createMut = useMutation({
     ...reviewsCreateMutation(),
     onSuccess: (data) => {
       const review = (((data ?? {}) as { review?: unknown; data?: { review?: unknown } }).review ??
-        ((data ?? {}) as { data?: { review?: unknown } }).data?.review) as ReviewSummary | undefined
-      if (review) onSubmitted?.(review)
-      setSubmitted(true)
-      toast.success(t('feedbackForm.thanksToast'))
+        ((data ?? {}) as { data?: { review?: unknown } }).data?.review) as
+        ReviewSummary | undefined;
+      if (review) onSubmitted?.(review);
+      setSubmitted(true);
+      toast.success(t("feedbackForm.thanksToast"));
     },
     onError: () => {
-      toast.error(t('feedbackForm.sendError'))
+      toast.error(t("feedbackForm.sendError"));
     },
-  })
+  });
 
   const updateMut = useMutation({
     ...reviewsUpdateMutation(),
     onSuccess: (data) => {
       const review = (((data ?? {}) as { review?: unknown; data?: { review?: unknown } }).review ??
-        ((data ?? {}) as { data?: { review?: unknown } }).data?.review) as ReviewSummary | undefined
-      if (review) onSubmitted?.(review)
-      setSubmitted(true)
-      toast.success(t('feedbackForm.updatedToast'))
+        ((data ?? {}) as { data?: { review?: unknown } }).data?.review) as
+        ReviewSummary | undefined;
+      if (review) onSubmitted?.(review);
+      setSubmitted(true);
+      toast.success(t("feedbackForm.updatedToast"));
     },
     onError: () => {
-      toast.error(t('feedbackForm.updateError'))
+      toast.error(t("feedbackForm.updateError"));
     },
-  })
+  });
 
-  const submitting = createMut.isPending || updateMut.isPending
+  const submitting = createMut.isPending || updateMut.isPending;
 
   const form = useForm<FeedbackValues>({
     resolver: zodResolver(feedbackSchema),
     // Errors appear on submit, then follow each change: an error popping up
     // on blur shifts the layout under the pointer and swallows the click.
-    mode: 'onSubmit',
-    reValidateMode: 'onChange',
+    mode: "onSubmit",
+    reValidateMode: "onChange",
     defaultValues: {
       rating: existingReview?.rating ?? 0,
-      title: existingReview?.title ?? '',
-      content: existingReview?.content ?? '',
+      title: existingReview?.title ?? "",
+      content: existingReview?.content ?? "",
       tags: existingReview?.tags ?? [],
       photos: existingReview?.photos ?? [],
     },
-  })
+  });
 
   // Live-watched values (for inline disabled-state + counter UX)
-  const rating = form.watch('rating')
-  const comment = form.watch('content')
+  const rating = form.watch("rating");
+  const comment = form.watch("content");
 
   const onSubmit = (values: FeedbackValues) => {
     // The bookings list carries no routeId/brandId; the backend derives both from the booking.
@@ -106,23 +108,23 @@ export const FeedbackForm = memo(function FeedbackForm({
       content: values.content.trim(),
       tags: values.tags,
       photos: values.photos,
-    }
-    if (existingReview) updateMut.mutate({ path: { id: existingReview.id }, body })
-    else createMut.mutate({ body: { ...body, bookingId: booking.id } })
-  }
+    };
+    if (existingReview) updateMut.mutate({ path: { id: existingReview.id }, body });
+    else createMut.mutate({ body: { ...body, bookingId: booking.id } });
+  };
 
   const reset = () => {
     form.reset({
       rating: 0,
-      title: '',
-      content: '',
+      title: "",
+      content: "",
       tags: [],
       photos: [],
-    })
-    setSubmitted(false)
-  }
+    });
+    setSubmitted(false);
+  };
 
-  const isShortComment = comment.trim().length > 0 && comment.trim().length < 20
+  const isShortComment = comment.trim().length > 0 && comment.trim().length < 20;
 
   // ─── "Read-only" view for an existing review ─────────────────
   if (isEditingExisting && !editMode) {
@@ -132,7 +134,7 @@ export const FeedbackForm = memo(function FeedbackForm({
         setEditMode={setEditMode}
         onClose={onClose}
       />
-    )
+    );
   }
 
   // ─── "Submitted" success state ─────────────────────────────
@@ -143,14 +145,14 @@ export const FeedbackForm = memo(function FeedbackForm({
           <div className="inline-flex h-14 w-14 rounded-full bg-amber-50 items-center justify-center mb-3">
             <Check className="h-7 w-7 text-amber-600" strokeWidth={3} />
           </div>
-          <h4 className="font-bold text-lg mb-1">{t('feedbackForm.thanksToast')}</h4>
+          <h4 className="font-bold text-lg mb-1">{t("feedbackForm.thanksToast")}</h4>
           <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-            {t('feedbackForm.thanksDesc')}
+            {t("feedbackForm.thanksDesc")}
           </p>
           <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1.5">
             <Sparkles className="h-3.5 w-3.5 text-amber-500" />
             <span className="text-xs font-medium text-amber-700">
-              {t('feedbackForm.pointsEarned')}
+              {t("feedbackForm.pointsEarned")}
             </span>
           </div>
           <div className="mt-4 flex items-center justify-center gap-2">
@@ -158,16 +160,16 @@ export const FeedbackForm = memo(function FeedbackForm({
               variant="outline"
               size="sm"
               onClick={() => {
-                setEditMode(false)
-                reset()
+                setEditMode(false);
+                reset();
               }}
             >
-              {t('common.close')}
+              {t("common.close")}
             </Button>
           </div>
         </CardContent>
       </Card>
-    )
+    );
   }
 
   // ─── Editable form (POST new OR PATCH existing) ────────────
@@ -179,12 +181,12 @@ export const FeedbackForm = memo(function FeedbackForm({
           <div>
             <h4 className="font-bold text-base flex items-center gap-1.5">
               <Sparkles className="h-4 w-4 text-amber-500" />
-              {existingReview ? t('feedbackForm.editTitle') : t('feedbackForm.formTitle')}
+              {existingReview ? t("feedbackForm.editTitle") : t("feedbackForm.formTitle")}
             </h4>
             <div className="mt-1 flex items-center gap-2 text-xs">
               <Badge variant="outline" className="gap-1 bg-blue-50">
                 <Bus className="h-3 w-3" />
-                {booking.trip?.brandName ?? t('bookingHistory.brandFallback')}
+                {booking.trip?.brandName ?? t("bookingHistory.brandFallback")}
               </Badge>
               <Badge variant="outline" className="gap-1 bg-slate-50">
                 <RouteIcon className="h-3 w-3" />
@@ -199,7 +201,7 @@ export const FeedbackForm = memo(function FeedbackForm({
               className="text-xs h-7"
               onClick={() => setEditMode(false)}
             >
-              {t('feedbackForm.cancelEdit')}
+              {t("feedbackForm.cancelEdit")}
             </Button>
           )}
         </div>
@@ -219,18 +221,18 @@ export const FeedbackForm = memo(function FeedbackForm({
               render={({ field }) => (
                 <FormItem className="space-y-1.5">
                   <FormLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    {t('feedbackForm.titleLabel')}
+                    {t("feedbackForm.titleLabel")}
                   </FormLabel>
                   <FormControl>
                     <Input
                       {...field}
-                      value={field.value ?? ''}
-                      placeholder={t('feedbackForm.titlePlaceholder')}
+                      value={field.value ?? ""}
+                      placeholder={t("feedbackForm.titlePlaceholder")}
                       maxLength={80}
                     />
                   </FormControl>
                   <div className="text-[10px] text-right text-muted-foreground">
-                    {(field.value ?? '').length}/80
+                    {(field.value ?? "").length}/80
                   </div>
                   <FormMessage />
                 </FormItem>
@@ -255,11 +257,11 @@ export const FeedbackForm = memo(function FeedbackForm({
                 ) : (
                   <Send className="h-4 w-4" />
                 )}
-                {existingReview ? t('feedbackForm.saveEdit') : t('feedbackForm.submit')}
+                {existingReview ? t("feedbackForm.saveEdit") : t("feedbackForm.submit")}
               </Button>
               {onClose && (
                 <Button type="button" variant="outline" onClick={onClose} disabled={submitting}>
-                  {t('feedbackForm.cancel')}
+                  {t("feedbackForm.cancel")}
                 </Button>
               )}
             </div>
@@ -267,5 +269,5 @@ export const FeedbackForm = memo(function FeedbackForm({
         </Form>
       </CardContent>
     </Card>
-  )
-})
+  );
+});

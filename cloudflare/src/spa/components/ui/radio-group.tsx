@@ -1,10 +1,10 @@
-'use client'
+"use client";
 
-import { type ComponentProps } from 'react'
-import { RadioGroup as RadioGroupPrimitive } from '@base-ui/react/radio-group'
-import { Radio as RadioPrimitive } from '@base-ui/react/radio'
+import type { ComponentProps } from "react";
+import { RadioGroup as RadioGroupPrimitive } from "@base-ui/react/radio-group";
+import { Radio as RadioPrimitive } from "@base-ui/react/radio";
 
-import { cn } from '@spa/lib/utils'
+import { cn } from "@spa/lib/utils";
 
 /**
  * Radix-compat wrapper around Base UI's RadioGroup + Radio primitives.
@@ -25,10 +25,10 @@ function RadioGroup({ className, ...props }: ComponentProps<typeof RadioGroupPri
   return (
     <RadioGroupPrimitive
       data-slot="radio-group"
-      className={cn('grid gap-3', className)}
+      className={cn("grid gap-3", className)}
       {...props}
     />
-  )
+  );
 }
 
 function RadioGroupItem({ className, ...props }: ComponentProps<typeof RadioPrimitive.Root>) {
@@ -36,11 +36,11 @@ function RadioGroupItem({ className, ...props }: ComponentProps<typeof RadioPrim
     <RadioPrimitive.Root
       data-slot="radio-group-item"
       render={(componentProps, state) => (
-        <span {...componentProps} data-state={state.checked ? 'checked' : 'unchecked'} />
+        <span {...componentProps} data-state={state.checked ? "checked" : "unchecked"} />
       )}
       // A grid that centres the dot (the root renders as a span, which has no layout).
       className={cn(
-        'border-input focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:bg-input/30 data-[state=checked]:border-primary inline-grid aspect-square size-4 shrink-0 place-items-center rounded-full border bg-white transition-[color,box-shadow,border-color] outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50',
+        "border-input focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:bg-input/30 data-[state=checked]:border-primary inline-grid aspect-square size-4 shrink-0 place-items-center rounded-full border bg-white transition-[color,box-shadow,border-color] outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50",
         className,
       )}
       {...props}
@@ -50,7 +50,7 @@ function RadioGroupItem({ className, ...props }: ComponentProps<typeof RadioPrim
         className="size-2 rounded-full bg-primary"
       />
     </RadioPrimitive.Root>
-  )
+  );
 }
 
-export { RadioGroup, RadioGroupItem }
+export { RadioGroup, RadioGroupItem };

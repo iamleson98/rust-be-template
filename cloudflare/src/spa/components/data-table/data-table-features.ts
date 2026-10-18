@@ -13,20 +13,20 @@ import {
   sortFn_datetime,
   sortFn_text,
   tableFeatures,
-} from '@tanstack/react-table'
+} from "@tanstack/react-table";
 
 /** Per-column presentation options consumed by the DataTable renderer. */
 export interface DataTableColumnMeta {
   /** Horizontal alignment applied to both the header and the cells. */
-  align?: 'left' | 'center' | 'right'
+  align?: "left" | "center" | "right";
   /** Extra classes for the `<th>` (e.g. responsive `hidden md:table-cell`). */
-  headerClassName?: string
+  headerClassName?: string;
   /** Extra classes for the `<td>` (e.g. responsive `hidden md:table-cell`). */
-  cellClassName?: string
+  cellClassName?: string;
   /** Human-friendly column name for the column-visibility menu. */
-  label?: string
+  label?: string;
   /** Title of the row's phone card (default: the first labelled column). */
-  cardTitle?: boolean
+  cardTitle?: boolean;
 }
 
 export const dataTableFeatures = tableFeatures({
@@ -46,6 +46,6 @@ export const dataTableFeatures = tableFeatures({
     datetime: sortFn_datetime,
   },
   columnMeta: {} as DataTableColumnMeta,
-})
+});
 
-export type DataTableFeatures = typeof dataTableFeatures
+export type DataTableFeatures = typeof dataTableFeatures;

@@ -1,7 +1,7 @@
-import { getDb, getR2 } from "@/lib/db/client";
+import { getDb } from "@/lib/db/client";
 import { invalidateBrands } from "@/lib/services/lookups";
 import { brands } from "@/lib/db/schema";
-import { desc, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { handleRouteError, requireStaff, readJson, err } from "@/lib/api";
 import { requirePermission } from "@/lib/auth/rbac";
 import { adminBrandList } from "@/lib/services/admin-out";
@@ -44,7 +44,11 @@ export async function POST(req: Request) {
       .replace(/^-|-$/g, "");
     if (!name || !slug) return err(400, "validation", "name/slug required");
     const db = await getDb();
-    const existing = await db.select({ id: brands.id }).from(brands).where(eq(brands.slug, slug)).limit(1);
+    const existing = await db
+      .select({ id: brands.id })
+      .from(brands)
+      .where(eq(brands.slug, slug))
+      .limit(1);
     if (existing.length > 0) return err(409, "conflict", "slug already exists");
     const id = crypto.randomUUID();
     const now = new Date().toISOString();

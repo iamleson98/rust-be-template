@@ -1,36 +1,36 @@
-import { ShieldCheck, Lock, FileCheck } from 'lucide-react'
-import { useT } from '@spa/lib/i18n'
-import { cn } from '@spa/lib/utils'
+import { ShieldCheck, Lock, FileCheck } from "lucide-react";
+import { useT } from "@spa/lib/i18n";
+import { cn } from "@spa/lib/utils";
 
 const TRUST_ITEMS = [
   {
     icon: Lock,
-    label: 'trust.sslLabel',
-    description: 'trust.sslDesc',
+    label: "trust.sslLabel",
+    description: "trust.sslDesc",
   },
   {
     icon: ShieldCheck,
-    label: 'trust.dataProtection',
-    description: 'trust.noThirdParty',
+    label: "trust.dataProtection",
+    description: "trust.noThirdParty",
   },
   {
     icon: FileCheck,
-    label: 'trust.decree',
-    description: 'trust.decreeCompliance',
+    label: "trust.decree",
+    description: "trust.decreeCompliance",
   },
-]
+];
 
 /** Compact trust bar — shows 3 trust badges in a row. */
 export function TrustBar({ className }: { className?: string }) {
-  const t = useT()
+  const t = useT();
   return (
     <div
-      className={cn('flex items-center justify-center gap-4 sm:gap-6 py-3', 'flex-wrap', className)}
+      className={cn("flex items-center justify-center gap-4 sm:gap-6 py-3", "flex-wrap", className)}
       role="region"
-      aria-label={t('trust.regionLabel')}
+      aria-label={t("trust.regionLabel")}
     >
       {TRUST_ITEMS.map((item) => {
-        const Icon = item.icon
+        const Icon = item.icon;
         return (
           <div key={item.label} className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <Icon className="h-3.5 w-3.5 text-success" />
@@ -39,10 +39,10 @@ export function TrustBar({ className }: { className?: string }) {
               · {t(item.description)}
             </span>
           </div>
-        )
+        );
       })}
     </div>
-  )
+  );
 }
 
 /**
@@ -50,27 +50,27 @@ export function TrustBar({ className }: { className?: string }) {
  * Place near the contact-info form in the booking dialog.
  */
 export function PrivacyNotice({ className }: { className?: string }) {
-  const t = useT()
+  const t = useT();
   return (
     <div
       className={cn(
-        'flex items-start gap-2 rounded-lg bg-info/5 border border-info/20 p-3',
-        'text-xs text-muted-foreground',
+        "flex items-start gap-2 rounded-lg bg-info/5 border border-info/20 p-3",
+        "text-xs text-muted-foreground",
         className,
       )}
       role="note"
-      aria-label={t('trust.privacyNoteLabel')}
+      aria-label={t("trust.privacyNoteLabel")}
     >
       <ShieldCheck className="h-4 w-4 text-info shrink-0 mt-0.5" />
       <div className="space-y-1">
-        <p className="font-semibold text-info">{t('trust.privacyTitle')}</p>
+        <p className="font-semibold text-info">{t("trust.privacyTitle")}</p>
         <p>
-          {t('trust.privacyBody')}
-          <strong className="text-foreground"> {t('trust.privacyNoShare')}</strong> —
-          {` ${t('trust.privacyDecree')}`}
+          {t("trust.privacyBody")}
+          <strong className="text-foreground"> {t("trust.privacyNoShare")}</strong> —
+          {` ${t("trust.privacyDecree")}`}
         </p>
-        <p className="text-muted-foreground/80">{t('trust.privacyRights')}</p>
+        <p className="text-muted-foreground/80">{t("trust.privacyRights")}</p>
       </div>
     </div>
-  )
+  );
 }

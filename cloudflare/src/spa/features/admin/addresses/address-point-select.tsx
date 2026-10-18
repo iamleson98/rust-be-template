@@ -1,12 +1,12 @@
-import { CircleDot, Flag, MapPin, Plus } from 'lucide-react'
-import { InfiniteSelect } from '@spa/components/ui/infinite-select'
-import { Skeleton } from '@spa/components/ui/skeleton'
-import { useT } from '@spa/lib/i18n'
-import type { AdminAddressOut } from '@spa/api'
-import { brandAddressesPage } from './api'
-import { cn } from '@spa/lib/utils'
+import { CircleDot, Flag, MapPin, Plus } from "lucide-react";
+import { InfiniteSelect } from "@spa/components/ui/infinite-select";
+import { Skeleton } from "@spa/components/ui/skeleton";
+import { useT } from "@spa/lib/i18n";
+import type { AdminAddressOut } from "@spa/api";
+import { brandAddressesPage } from "./api";
+import { cn } from "@spa/lib/utils";
 
-type PointKind = 'pickup' | 'middle' | 'drop'
+type PointKind = "pickup" | "middle" | "drop";
 
 const getKindMeta = (
   t: ReturnType<typeof useT>,
@@ -15,40 +15,40 @@ const getKindMeta = (
   { placeholder: string; searchPlaceholder: string; icon: typeof MapPin; iconClass: string }
 > => ({
   pickup: {
-    placeholder: t('adminAddresses.pickupPh'),
-    searchPlaceholder: t('adminAddresses.pickupSearchPh'),
+    placeholder: t("adminAddresses.pickupPh"),
+    searchPlaceholder: t("adminAddresses.pickupSearchPh"),
     icon: CircleDot,
-    iconClass: 'text-blue-600',
+    iconClass: "text-blue-600",
   },
   middle: {
-    placeholder: t('adminAddresses.middlePh'),
-    searchPlaceholder: t('adminAddresses.middleSearchPh'),
+    placeholder: t("adminAddresses.middlePh"),
+    searchPlaceholder: t("adminAddresses.middleSearchPh"),
     icon: MapPin,
-    iconClass: 'text-amber-600',
+    iconClass: "text-amber-600",
   },
   drop: {
-    placeholder: t('adminAddresses.dropPh'),
-    searchPlaceholder: t('adminAddresses.dropSearchPh'),
+    placeholder: t("adminAddresses.dropPh"),
+    searchPlaceholder: t("adminAddresses.dropSearchPh"),
     icon: Flag,
-    iconClass: 'text-rose-600',
+    iconClass: "text-rose-600",
   },
-})
+});
 
 type Props = {
-  value: string | undefined
-  onChange: (addressId: string | undefined) => void
+  value: string | undefined;
+  onChange: (addressId: string | undefined) => void;
   /** The brand whose addresses populate the list. */
-  brandId: string | undefined
+  brandId: string | undefined;
   /** Addresses that must always resolve/show (edit-mode points, newly created). */
-  extraAddresses?: AdminAddressOut[]
-  loading?: boolean
+  extraAddresses?: AdminAddressOut[];
+  loading?: boolean;
   /** Which slot this select fills — controls icon + placeholder. */
-  kind: PointKind
+  kind: PointKind;
   /** Opens the "create address" map modal (owned by the parent form). */
-  onCreateNew: () => void
-  disabled?: boolean
-  className?: string
-}
+  onCreateNew: () => void;
+  disabled?: boolean;
+  className?: string;
+};
 
 export function AddressPointSelect({
   value,
@@ -61,12 +61,12 @@ export function AddressPointSelect({
   disabled,
   className,
 }: Props) {
-  const t = useT()
-  const meta = getKindMeta(t)[kind]
-  const Icon = meta.icon
+  const t = useT();
+  const meta = getKindMeta(t)[kind];
+  const Icon = meta.icon;
 
   return (
-    <div className={cn('flex items-start gap-1.5', className)}>
+    <div className={cn("flex items-start gap-1.5", className)}>
       {loading || !brandId ? (
         <Skeleton className="h-9 flex-1" />
       ) : (
@@ -84,7 +84,7 @@ export function AddressPointSelect({
           className="flex-1 w-auto"
           renderValue={(item, rawValue) => (
             <span className="flex min-w-0 items-center gap-2">
-              <Icon className={cn('h-3.5 w-3.5 shrink-0', meta.iconClass)} />
+              <Icon className={cn("h-3.5 w-3.5 shrink-0", meta.iconClass)} />
               <span className="truncate">{item ? item.name : (rawValue ?? meta.placeholder)}</span>
             </span>
           )}
@@ -105,12 +105,12 @@ export function AddressPointSelect({
         type="button"
         onClick={onCreateNew}
         disabled={disabled}
-        title={t('adminAddresses.createTitle')}
-        aria-label={t('adminAddresses.createTitle')}
+        title={t("adminAddresses.createTitle")}
+        aria-label={t("adminAddresses.createTitle")}
         className="mt-px h-9 w-9 shrink-0 rounded-md border border-dashed flex items-center justify-center text-muted-foreground hover:text-blue-600 hover:border-blue-400 hover:bg-blue-50 transition-colors disabled:opacity-50"
       >
         <Plus className="h-4 w-4" />
       </button>
     </div>
-  )
+  );
 }

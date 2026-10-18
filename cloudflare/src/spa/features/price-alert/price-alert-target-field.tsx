@@ -1,4 +1,4 @@
-'use client'
+"use client";
 
 /**
  * PriceAlertTargetField — the "Mức giá mục tiêu" input of the
@@ -9,20 +9,20 @@
  * suggestedPrices computation moved along with the field.
  */
 
-import type { PriceAlertForm } from './price-alert-schema'
-import { FormField, FormItem, FormLabel, FormControl, FormMessage } from '@spa/components/ui/form'
-import { Input } from '@spa/components/ui/input'
-import { TrendingDown } from 'lucide-react'
-import { useT } from '@spa/lib/i18n'
-import { formatVND } from '@spa/lib/format'
+import type { PriceAlertForm } from "./price-alert-schema";
+import { FormField, FormItem, FormLabel, FormControl, FormMessage } from "@spa/components/ui/form";
+import { Input } from "@spa/components/ui/input";
+import { TrendingDown } from "lucide-react";
+import { useT } from "@spa/lib/i18n";
+import { formatVND } from "@spa/lib/format";
 
 export function PriceAlertTargetField({
   form,
   minPrice,
   targetPrice,
 }: {
-  form: PriceAlertForm
-  minPrice: number
+  form: PriceAlertForm;
+  minPrice: number;
   /**
    * Raw watched form value — `unknown` because the schema's
    * `z.coerce.number()` only produces a number AFTER validation;
@@ -30,19 +30,19 @@ export function PriceAlertTargetField({
    * highlighting (`targetPrice === suggestion.value`), where the
    * loose type matches the original inline code exactly.
    */
-  targetPrice: unknown
+  targetPrice: unknown;
 }) {
-  const t = useT()
-  const { control, setValue } = form
+  const t = useT();
+  const { control, setValue } = form;
 
   const suggestedPrices =
     minPrice > 0
       ? [
-          { pct: 10, label: '-10%', value: Math.round((minPrice * 0.9) / 1000) * 1000 },
-          { pct: 20, label: '-20%', value: Math.round((minPrice * 0.8) / 1000) * 1000 },
-          { pct: 30, label: '-30%', value: Math.round((minPrice * 0.7) / 1000) * 1000 },
+          { pct: 10, label: "-10%", value: Math.round((minPrice * 0.9) / 1000) * 1000 },
+          { pct: 20, label: "-20%", value: Math.round((minPrice * 0.8) / 1000) * 1000 },
+          { pct: 30, label: "-30%", value: Math.round((minPrice * 0.7) / 1000) * 1000 },
         ]
-      : []
+      : [];
 
   return (
     <FormField
@@ -51,7 +51,7 @@ export function PriceAlertTargetField({
       render={({ field }) => (
         <FormItem className="space-y-1.5">
           <FormLabel htmlFor="target-price" className="text-sm font-medium text-slate-900">
-            {t('priceAlert.targetPriceLabel')} <span className="text-destructive">*</span>
+            {t("priceAlert.targetPriceLabel")} <span className="text-destructive">*</span>
           </FormLabel>
           <div className="relative">
             <TrendingDown className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-blue-500 z-10" />
@@ -63,13 +63,13 @@ export function PriceAlertTargetField({
                 min={1000}
                 step={1000}
                 value={
-                  typeof field.value === 'number' && Number.isFinite(field.value) && field.value > 0
+                  typeof field.value === "number" && Number.isFinite(field.value) && field.value > 0
                     ? field.value
-                    : ''
+                    : ""
                 }
                 onChange={(e) => field.onChange(Math.max(0, Math.floor(Number(e.target.value))))}
                 onBlur={field.onBlur}
-                placeholder={t('priceAlert.targetPricePh')}
+                placeholder={t("priceAlert.targetPricePh")}
                 className="pl-9"
               />
             </FormControl>
@@ -77,17 +77,17 @@ export function PriceAlertTargetField({
           {suggestedPrices.length > 0 && (
             <div className="flex items-center gap-1.5 flex-wrap pt-1">
               <span className="text-[11px] text-muted-foreground mr-1">
-                {t('priceAlert.suggestions')}
+                {t("priceAlert.suggestions")}
               </span>
               {suggestedPrices.map((s) => (
                 <button
                   key={s.pct}
                   type="button"
-                  onClick={() => setValue('targetPrice', s.value, { shouldValidate: true })}
+                  onClick={() => setValue("targetPrice", s.value, { shouldValidate: true })}
                   className={`text-[11px] px-2 py-0.5 rounded-full border transition-all ${
                     targetPrice === s.value
-                      ? 'bg-blue-600 text-white border-blue-600'
-                      : 'border-slate-200 text-slate-600 hover:border-blue-400 hover:text-blue-700'
+                      ? "bg-blue-600 text-white border-blue-600"
+                      : "border-slate-200 text-slate-600 hover:border-blue-400 hover:text-blue-700"
                   }`}
                 >
                   {s.label} ({formatVND(s.value)})
@@ -99,5 +99,5 @@ export function PriceAlertTargetField({
         </FormItem>
       )}
     />
-  )
+  );
 }

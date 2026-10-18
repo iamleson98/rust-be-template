@@ -1,4 +1,4 @@
-import type { Metric } from 'web-vitals'
+import type { Metric } from "web-vitals";
 /**
  * Web Vitals RUM — collects LCP / INP / CLS / TTFB / FCP from real
  * users and POSTs them to `/api/vitals` via `navigator.sendBeacon`.
@@ -8,37 +8,37 @@ import type { Metric } from 'web-vitals'
  */
 
 interface WebVitalMetric {
-  name: 'LCP' | 'INP' | 'CLS' | 'TTFB' | 'FCP'
-  value: number
-  rating: 'good' | 'needs-improvement' | 'poor'
-  delta: number
-  entries: PerformanceEntry[]
-  id: string
-  navigationType: string
+  name: "LCP" | "INP" | "CLS" | "TTFB" | "FCP";
+  value: number;
+  rating: "good" | "needs-improvement" | "poor";
+  delta: number;
+  entries: PerformanceEntry[];
+  id: string;
+  navigationType: string;
 }
 
-function rate(name: WebVitalMetric['name'], value: number): WebVitalMetric['rating'] {
+function rate(name: WebVitalMetric["name"], value: number): WebVitalMetric["rating"] {
   switch (name) {
-    case 'LCP':
-      if (value <= 2500) return 'good'
-      if (value <= 4000) return 'needs-improvement'
-      return 'poor'
-    case 'INP':
-      if (value <= 200) return 'good'
-      if (value <= 500) return 'needs-improvement'
-      return 'poor'
-    case 'CLS':
-      if (value <= 0.1) return 'good'
-      if (value <= 0.25) return 'needs-improvement'
-      return 'poor'
-    case 'TTFB':
-      if (value <= 800) return 'good'
-      if (value <= 1800) return 'needs-improvement'
-      return 'poor'
-    case 'FCP':
-      if (value <= 1800) return 'good'
-      if (value <= 3000) return 'needs-improvement'
-      return 'poor'
+    case "LCP":
+      if (value <= 2500) return "good";
+      if (value <= 4000) return "needs-improvement";
+      return "poor";
+    case "INP":
+      if (value <= 200) return "good";
+      if (value <= 500) return "needs-improvement";
+      return "poor";
+    case "CLS":
+      if (value <= 0.1) return "good";
+      if (value <= 0.25) return "needs-improvement";
+      return "poor";
+    case "TTFB":
+      if (value <= 800) return "good";
+      if (value <= 1800) return "needs-improvement";
+      return "poor";
+    case "FCP":
+      if (value <= 1800) return "good";
+      if (value <= 3000) return "needs-improvement";
+      return "poor";
   }
 }
 
@@ -50,40 +50,40 @@ function report(metric: WebVitalMetric): void {
     id: metric.id,
     delta: metric.delta,
     navigationType: metric.navigationType,
-    path: typeof location !== 'undefined' ? location.pathname : '',
-    userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
+    path: typeof location !== "undefined" ? location.pathname : "",
+    userAgent: typeof navigator !== "undefined" ? navigator.userAgent : "",
     connection:
-      typeof navigator !== 'undefined' && 'connection' in navigator
+      typeof navigator !== "undefined" && "connection" in navigator
         ? ((navigator as Navigator & { connection?: { effectiveType?: string } }).connection
-            ?.effectiveType ?? '')
-        : '',
+            ?.effectiveType ?? "")
+        : "",
     deviceMemory:
-      typeof navigator !== 'undefined' && 'deviceMemory' in navigator
+      typeof navigator !== "undefined" && "deviceMemory" in navigator
         ? (navigator as Navigator & { deviceMemory?: number }).deviceMemory
         : 0,
     timestamp: Date.now(),
+  };
+
+  if (typeof navigator !== "undefined" && "sendBeacon" in navigator) {
+    const blob = new Blob([JSON.stringify(payload)], { type: "application/json" });
+    if (navigator.sendBeacon("/api/vitals", blob)) return;
   }
 
-  if (typeof navigator !== 'undefined' && 'sendBeacon' in navigator) {
-    const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' })
-    if (navigator.sendBeacon('/api/vitals', blob)) return
-  }
-
-  if (typeof fetch !== 'undefined') {
-    fetch('/api/vitals', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+  if (typeof fetch !== "undefined") {
+    fetch("/api/vitals", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
       keepalive: true,
-      credentials: 'omit',
-    }).catch(() => {})
+      credentials: "omit",
+    }).catch(() => {});
   }
 }
 
 export async function bootstrapWebVitals(): Promise<void> {
-  if (typeof window === 'undefined') return
+  if (typeof window === "undefined") return;
   try {
-    const webVitals = await import('web-vitals')
+    const webVitals = await import("web-vitals");
     const reportBound = () => (metric: Metric) =>
       report({
         name: metric.name,
@@ -93,14 +93,14 @@ export async function bootstrapWebVitals(): Promise<void> {
         entries: metric.entries,
         id: metric.id,
         navigationType: metric.navigationType,
-      })
+      });
 
-    if (typeof webVitals.onCLS === 'function') webVitals.onCLS(reportBound())
-    if (typeof webVitals.onFCP === 'function') webVitals.onFCP(reportBound())
-    if (typeof webVitals.onINP === 'function') webVitals.onINP(reportBound())
-    if (typeof webVitals.onLCP === 'function') webVitals.onLCP(reportBound())
-    if (typeof webVitals.onTTFB === 'function') webVitals.onTTFB(reportBound())
+    if (typeof webVitals.onCLS === "function") webVitals.onCLS(reportBound());
+    if (typeof webVitals.onFCP === "function") webVitals.onFCP(reportBound());
+    if (typeof webVitals.onINP === "function") webVitals.onINP(reportBound());
+    if (typeof webVitals.onLCP === "function") webVitals.onLCP(reportBound());
+    if (typeof webVitals.onTTFB === "function") webVitals.onTTFB(reportBound());
   } catch (err) {
-    console.warn('[web-vitals] failed to bootstrap', err)
+    console.warn("[web-vitals] failed to bootstrap", err);
   }
 }

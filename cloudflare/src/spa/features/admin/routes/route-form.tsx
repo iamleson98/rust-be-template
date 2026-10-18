@@ -1,4 +1,4 @@
-'use client'
+"use client";
 
 /**
  * RouteFormDialog — create/edit a Route under a given Brand.
@@ -19,12 +19,12 @@
  * (name, brand, start/end city, status).
  */
 
-import { adminRoutesCreateMutation, adminRoutesUpdateMutation } from '@spa/api'
-import { useMutation } from '@tanstack/react-query'
-import { useEffect, useMemo } from 'react'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
+import { adminRoutesCreateMutation, adminRoutesUpdateMutation } from "@spa/api";
+import { useMutation } from "@tanstack/react-query";
+import { useEffect, useMemo } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import {
   Dialog,
   DialogContent,
@@ -32,10 +32,10 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@spa/components/ui/dialog'
-import { Button } from '@spa/components/ui/button'
-import { Input } from '@spa/components/ui/input'
-import { ComboboxField } from '@spa/components/ui/combobox'
+} from "@spa/components/ui/dialog";
+import { Button } from "@spa/components/ui/button";
+import { Input } from "@spa/components/ui/input";
+import { ComboboxField } from "@spa/components/ui/combobox";
 import {
   Form,
   FormField,
@@ -43,14 +43,14 @@ import {
   FormLabel,
   FormControl,
   FormMessage,
-} from '@spa/components/ui/form'
-import { Route as RouteIcon, Loader2 } from 'lucide-react'
-import { toast } from 'sonner'
-import { useT } from '@spa/lib/i18n'
-import type { AdminRouteOut } from '@spa/api'
-import type { AdminBrandOut } from '@spa/api'
-import { getCityGroups } from './city-select-content'
-import { getErrorMessage } from '@spa/lib/error-message'
+} from "@spa/components/ui/form";
+import { Route as RouteIcon, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import { useT } from "@spa/lib/i18n";
+import type { AdminRouteOut } from "@spa/api";
+import type { AdminBrandOut } from "@spa/api";
+import { getCityGroups } from "./city-select-content";
+import { getErrorMessage } from "@spa/lib/error-message";
 
 const makeRouteSchema = (t: ReturnType<typeof useT>) =>
   z
@@ -58,19 +58,19 @@ const makeRouteSchema = (t: ReturnType<typeof useT>) =>
       name: z
         .string()
         .trim()
-        .min(1, t('adminRoutes.nameRequired'))
-        .min(2, t('adminRoutes.nameMin'))
-        .max(255, t('adminRoutes.nameMax')),
-      startLocationId: z.string().trim().min(1, t('adminRoutes.startRequired')),
-      endLocationId: z.string().trim().min(1, t('adminRoutes.endRequired')),
+        .min(1, t("adminRoutes.nameRequired"))
+        .min(2, t("adminRoutes.nameMin"))
+        .max(255, t("adminRoutes.nameMax")),
+      startLocationId: z.string().trim().min(1, t("adminRoutes.startRequired")),
+      endLocationId: z.string().trim().min(1, t("adminRoutes.endRequired")),
     })
     .refine((d) => d.startLocationId !== d.endLocationId, {
-      message: t('adminRoutes.startEndDiffer'),
-      path: ['endLocationId'],
-    })
+      message: t("adminRoutes.startEndDiffer"),
+      path: ["endLocationId"],
+    });
 
-type RouteSchema = ReturnType<typeof makeRouteSchema>
-type RouteFormValues = z.infer<RouteSchema>
+type RouteSchema = ReturnType<typeof makeRouteSchema>;
+type RouteFormValues = z.infer<RouteSchema>;
 
 export function RouteFormDialog({
   open,
@@ -79,47 +79,47 @@ export function RouteFormDialog({
   onOpenChange,
   onSaved,
 }: {
-  open: boolean
-  route: AdminRouteOut | null
-  brand: AdminBrandOut | null
-  onOpenChange: (open: boolean) => void
-  onSaved: () => void
+  open: boolean;
+  route: AdminRouteOut | null;
+  brand: AdminBrandOut | null;
+  onOpenChange: (open: boolean) => void;
+  onSaved: () => void;
 }) {
-  const t = useT()
-  const isEdit = !!route
-  const createMutation = useMutation(adminRoutesCreateMutation())
-  const updateMutation = useMutation(adminRoutesUpdateMutation())
-  const saving = createMutation.isPending || updateMutation.isPending
-  const routeSchema = useMemo(() => makeRouteSchema(t), [t])
-  const cityGroups = useMemo(() => getCityGroups(t), [t])
+  const t = useT();
+  const isEdit = !!route;
+  const createMutation = useMutation(adminRoutesCreateMutation());
+  const updateMutation = useMutation(adminRoutesUpdateMutation());
+  const saving = createMutation.isPending || updateMutation.isPending;
+  const routeSchema = useMemo(() => makeRouteSchema(t), [t]);
+  const cityGroups = useMemo(() => getCityGroups(t), [t]);
 
   const form = useForm<z.input<RouteSchema>, unknown, z.output<RouteSchema>>({
     resolver: zodResolver(routeSchema),
     // Errors appear on submit, then follow each change: an error popping up
     // on blur shifts the layout under the pointer and swallows the click.
-    mode: 'onSubmit',
-    reValidateMode: 'onChange',
+    mode: "onSubmit",
+    reValidateMode: "onChange",
     defaultValues: {
-      name: '',
-      startLocationId: '',
-      endLocationId: '',
+      name: "",
+      startLocationId: "",
+      endLocationId: "",
     },
-  })
+  });
 
   useEffect(() => {
     if (open) {
       form.reset({
-        name: route?.name ?? '',
-        startLocationId: route?.startLocationId ?? '',
-        endLocationId: route?.endLocationId ?? '',
-      })
+        name: route?.name ?? "",
+        startLocationId: route?.startLocationId ?? "",
+        endLocationId: route?.endLocationId ?? "",
+      });
     }
-  }, [open, route, form])
+  }, [open, route, form]);
 
   const onSubmit = async (values: RouteFormValues) => {
     if (!brand) {
-      toast.error(t('routeForm.noBrand'))
-      return
+      toast.error(t("routeForm.noBrand"));
+      return;
     }
     try {
       // SDK mutation hooks require { body: <payload> } — passing the raw
@@ -131,38 +131,38 @@ export function RouteFormDialog({
         name: values.name.trim(),
         startLocationId: values.startLocationId,
         endLocationId: values.endLocationId,
-      }
+      };
       if (isEdit) {
         // PUT /api/admin/routes/{id} — the create endpoint ignores an
         // `id` body field, so posting edits there duplicated routes.
         await updateMutation.mutateAsync({
           path: { id: route!.id },
           body: payload,
-        } as unknown as Parameters<typeof updateMutation.mutateAsync>[0])
-        toast.success(t('routeForm.updated'))
+        } as unknown as Parameters<typeof updateMutation.mutateAsync>[0]);
+        toast.success(t("routeForm.updated"));
       } else {
         await createMutation.mutateAsync({ body: payload } as unknown as Parameters<
           typeof createMutation.mutateAsync
-        >[0])
-        toast.success(t('routeForm.created'))
+        >[0]);
+        toast.success(t("routeForm.created"));
       }
-      onSaved()
+      onSaved();
     } catch (e) {
-      toast.error(getErrorMessage(e, t('routeForm.saveFailed')))
+      toast.error(getErrorMessage(e, t("routeForm.saveFailed")));
     }
-  }
+  };
 
   return (
     <Dialog open={open} onOpenChange={(o) => !saving && onOpenChange(o)}>
       <DialogContent className="max-w-lg">
         <DialogHeader icon={<RouteIcon />}>
           <DialogTitle>
-            {isEdit ? t('routeForm.editTitle') : t('routeForm.createTitle')}
+            {isEdit ? t("routeForm.editTitle") : t("routeForm.createTitle")}
           </DialogTitle>
           <DialogDescription>
             {brand ? (
               <>
-                {t('routeForm.belongsTo')} <span className="font-medium">{brand.name}</span>
+                {t("routeForm.belongsTo")} <span className="font-medium">{brand.name}</span>
               </>
             ) : null}
           </DialogDescription>
@@ -177,10 +177,10 @@ export function RouteFormDialog({
               render={({ field }) => (
                 <FormItem className="grid gap-1.5">
                   <FormLabel>
-                    {t('routeForm.name')} <span className="text-destructive">*</span>
+                    {t("routeForm.name")} <span className="text-destructive">*</span>
                   </FormLabel>
                   <FormControl>
-                    <Input {...field} placeholder={t('routeForm.namePh')} />
+                    <Input {...field} placeholder={t("routeForm.namePh")} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -194,16 +194,16 @@ export function RouteFormDialog({
               render={({ field }) => (
                 <FormItem className="grid gap-1.5">
                   <FormLabel>
-                    {t('routeForm.startCity')} <span className="text-destructive">*</span>
+                    {t("routeForm.startCity")} <span className="text-destructive">*</span>
                   </FormLabel>
                   <FormControl>
                     <ComboboxField
                       value={field.value || null}
                       onValueChange={field.onChange}
                       items={cityGroups}
-                      placeholder={t('routeForm.chooseStart')}
-                      searchPlaceholder={t('routeForm.searchCity')}
-                      aria-label={t('brands.startPoint')}
+                      placeholder={t("routeForm.chooseStart")}
+                      searchPlaceholder={t("routeForm.searchCity")}
+                      aria-label={t("brands.startPoint")}
                     />
                   </FormControl>
                   <FormMessage />
@@ -218,16 +218,16 @@ export function RouteFormDialog({
               render={({ field }) => (
                 <FormItem className="grid gap-1.5">
                   <FormLabel>
-                    {t('routeForm.endCity')} <span className="text-destructive">*</span>
+                    {t("routeForm.endCity")} <span className="text-destructive">*</span>
                   </FormLabel>
                   <FormControl>
                     <ComboboxField
                       value={field.value || null}
                       onValueChange={field.onChange}
                       items={cityGroups}
-                      placeholder={t('routeForm.chooseEnd')}
-                      searchPlaceholder={t('routeForm.searchCity')}
-                      aria-label={t('brands.endPoint')}
+                      placeholder={t("routeForm.chooseEnd")}
+                      searchPlaceholder={t("routeForm.searchCity")}
+                      aria-label={t("brands.endPoint")}
                     />
                   </FormControl>
                   <FormMessage />
@@ -237,15 +237,15 @@ export function RouteFormDialog({
 
             <DialogFooter>
               <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-                {t('common.cancel')}
+                {t("common.cancel")}
               </Button>
               <Button type="submit" disabled={saving}>
                 {saving ? (
                   <>
-                    <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> {t('common.saving')}
+                    <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> {t("common.saving")}
                   </>
                 ) : (
-                  <>{isEdit ? t('common.saveChanges') : t('adminRoutes.addRoute')}</>
+                  <>{isEdit ? t("common.saveChanges") : t("adminRoutes.addRoute")}</>
                 )}
               </Button>
             </DialogFooter>
@@ -253,5 +253,5 @@ export function RouteFormDialog({
         </Form>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

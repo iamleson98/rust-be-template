@@ -4,23 +4,23 @@
  * Deep-linkable brand profile page. Replaces the old `brandDetailId` +
  * BrandDetailDialog pattern.
  */
-import { useParams, useNavigate } from '@tanstack/react-router'
-import { BrandDetailDialog } from '@spa/features/brand/brand-detail-dialog'
+import { useParams, useNavigate } from "@tanstack/react-router";
+import { BrandDetailDialog } from "@spa/features/brand/brand-detail-dialog";
 
 export function BrandPage() {
-  const { slug } = useParams({ from: '/brands/$slug' })
-  const navigate = useNavigate()
+  const { slug } = useParams({ from: "/brands/$slug" });
+  const navigate = useNavigate();
 
   return (
     <BrandDetailDialog
       slug={slug}
       onClose={() => {
-        if (typeof window !== 'undefined' && window.history.length > 1) {
-          window.history.back()
+        if (typeof window !== "undefined" && window.history.length > 1) {
+          window.history.back();
         } else {
-          navigate({ to: '/' })
+          navigate({ to: "/" });
         }
       }}
     />
-  )
+  );
 }

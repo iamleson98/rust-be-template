@@ -1,5 +1,5 @@
-import { memo } from 'react'
-import { Skeleton } from '@spa/components/ui/skeleton'
+import { memo } from "react";
+import { Skeleton } from "@spa/components/ui/skeleton";
 
 /** A trip card's shape while results load: operator, journey, fare. */
 export const TripCardSkeleton = memo(function TripCardSkeleton() {
@@ -34,5 +34,5 @@ export const TripCardSkeleton = memo(function TripCardSkeleton() {
         <Skeleton className="h-10 w-28 rounded-xl sm:mt-3 sm:w-full" />
       </div>
     </div>
-  )
-})
+  );
+});

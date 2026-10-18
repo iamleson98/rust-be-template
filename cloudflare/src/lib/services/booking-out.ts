@@ -4,8 +4,18 @@
  * + trip preview + review + boarding QR + cancellation window.
  */
 import { getDb, type Database } from "@/lib/db/client";
-import { bookings, bookingSeats, seats, reviews, tripSessions, schedules, routes, brands, busLayouts } from "@/lib/db/schema";
-import { and, eq, sql, type SQL } from "drizzle-orm";
+import {
+  bookings,
+  bookingSeats,
+  seats,
+  reviews,
+  tripSessions,
+  schedules,
+  routes,
+  brands,
+  busLayouts,
+} from "@/lib/db/schema";
+import { and, desc, eq, gte, like, lte, or, sql, type SQL } from "drizzle-orm";
 import { findCity } from "@/lib/services/trip-search";
 
 type BookingRow = typeof bookings.$inferSelect;
@@ -25,8 +35,18 @@ export interface BookingOut {
   contactName?: string | null;
   contactPhone?: string | null;
   contactEmail?: string | null;
-  pickup?: { name: string; address?: string | null; lat?: number | null; lon?: number | null } | null;
-  dropoff?: { name: string; address?: string | null; lat?: number | null; lon?: number | null } | null;
+  pickup?: {
+    name: string;
+    address?: string | null;
+    lat?: number | null;
+    lon?: number | null;
+  } | null;
+  dropoff?: {
+    name: string;
+    address?: string | null;
+    lat?: number | null;
+    lon?: number | null;
+  } | null;
   seats: Array<{
     seatId?: string;
     seatCode?: string;
@@ -85,11 +105,20 @@ const num = (v: unknown): number | null => {
 };
 
 /** Full `BookingOut` for one booking row (optionally with the boarding QR). */
-export async function bookingOut(booking: BookingRow, opts: { withQr?: boolean } = {}): Promise<BookingOut> {
+export async function bookingOut(
+  booking: BookingRow,
+  opts: { withQr?: boolean } = {},
+): Promise<BookingOut> {
   const db = await getDb();
   const tripRow = (
     await db
-      .select({ trip: tripSessions, schedule: schedules, route: routes, brand: brands, layout: busLayouts })
+      .select({
+        trip: tripSessions,
+        schedule: schedules,
+        route: routes,
+        brand: brands,
+        layout: busLayouts,
+      })
       .from(tripSessions)
       .innerJoin(schedules, eq(schedules.id, tripSessions.scheduleId))
       .innerJoin(routes, eq(routes.id, schedules.routeId))
@@ -209,12 +238,16 @@ export async function loadBooking(
   userId?: string | null,
 ): Promise<BookingRow | null> {
   const db = await getDb();
-  const scope = userId ? sql`AND ${bookings.userId} = ${userId}` : sql``;
   const row = (
     await db
       .select()
       .from(bookings)
-      .where(sql`(${bookings.id} = ${idOrCode} OR LOWER(${bookings.code}) = LOWER(${idOrCode})) ${scope}`)
+      .where(
+        and(
+          or(eq(bookings.id, idOrCode), sql`LOWER(${bookings.code}) = LOWER(${idOrCode})`),
+          userId != null ? eq(bookings.userId, userId) : undefined,
+        ),
+      )
       .limit(1)
   )[0];
   return row ?? null;
@@ -228,17 +261,23 @@ export async function loadBookings(
   filters: { status?: string; search?: string; dateFrom?: string; dateTo?: string } = {},
 ): Promise<BookingRow[]> {
   const db = await getDb();
-  const conds: SQL[] = [];
-  if (userId) conds.push(eq(bookings.userId, userId));
-  if (filters.status) conds.push(eq(bookings.status, filters.status));
-  if (filters.search) conds.push(sql`(${bookings.code} LIKE ${"%" + filters.search + "%"} OR ${bookings.contactName} LIKE ${"%" + filters.search + "%"})`);
-  if (filters.dateFrom) conds.push(sql`${bookings.createdAt} >= ${filters.dateFrom}`);
-  if (filters.dateTo) conds.push(sql`${bookings.createdAt} <= ${filters.dateTo + "T23:59:59"}`);
+  const search = filters.search?.trim();
+  const conds: Array<SQL | undefined> = [
+    userId != null ? eq(bookings.userId, userId) : undefined,
+    filters.status !== undefined ? eq(bookings.status, filters.status) : undefined,
+    search !== undefined && search.length > 0
+      ? or(like(bookings.code, `%${search}%`), like(bookings.contactName, `%${search}%`))
+      : undefined,
+    filters.dateFrom !== undefined ? gte(bookings.createdAt, filters.dateFrom) : undefined,
+    filters.dateTo !== undefined
+      ? lte(bookings.createdAt, `${filters.dateTo}T23:59:59`)
+      : undefined,
+  ];
   const rows = await db
     .select()
     .from(bookings)
-    .where(conds.length ? and(...conds) : undefined)
-    .orderBy(sql`${bookings.createdAt} DESC`)
+    .where(and(...conds))
+    .orderBy(desc(bookings.createdAt))
     .limit(limit)
     .offset(offset);
   return rows;

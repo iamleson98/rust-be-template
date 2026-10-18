@@ -3,8 +3,8 @@
  * (`AdminBrandOut`, `AdminRouteOut`, `AdminScheduleOut`, …) from D1 rows.
  * Every field name matches the openapi.json contract exactly.
  */
-import { getDb, rawAll } from "@/lib/db/client";
-import { sql } from "drizzle-orm";
+import { getDb } from "@/lib/db/client";
+import { and, desc, eq, inArray, like, or, sql } from "drizzle-orm";
 import {
   addresses,
   busLayouts,
@@ -15,12 +15,7 @@ import {
   scheduleFares,
   vehicleTypes,
   brands,
-  coupons,
-  discountCampaigns,
-  discountCampaignBrands,
-  discountTiers,
 } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
 import { findCity } from "@/lib/services/trip-search";
 import {
   deriveFromSeats,
@@ -42,15 +37,7 @@ export { parseSeatPlan, type SeatPlan };
 //  `A01…` (lower) / `B01…` (upper) on two decks.
 // ────────────────────────────────────────────────────────────────
 
-type CellKind =
-  | "seat"
-  | "bed"
-  | "cabin"
-  | "cabin_double"
-  | "driver"
-  | "door"
-  | "stairs"
-  | "wc";
+type CellKind = "seat" | "bed" | "cabin" | "cabin_double" | "driver" | "door" | "stairs" | "wc";
 
 const SELLABLE: CellKind[] = ["seat", "bed", "cabin", "cabin_double"];
 
@@ -114,7 +101,14 @@ function coach(rows: number): SeatPlan {
   const pairRow = [1, 2, 4, 5];
   const seatRows = Array.from({ length: rows }, () => pairRow);
   seatRows.push([1, 2, 3, 4, 5]);
-  return singleDeck(5, [[1, "driver"], [5, "door"]], seatRows);
+  return singleDeck(
+    5,
+    [
+      [1, "driver"],
+      [5, "door"],
+    ],
+    seatRows,
+  );
 }
 
 /** 3-lane double-decker sleeper, `perDeck` berths per deck. */
@@ -183,14 +177,33 @@ const CATALOG: Spec[] = [
     name: "Xe 4 chỗ",
     vehicleType: "standard",
     description: "Ghế phụ và hàng ghế sau 3 chỗ (4 khách + tài xế)",
-    build: () => singleDeck(3, [[1, "driver"], [3, "seat"]], [[1, 2, 3]]),
+    build: () =>
+      singleDeck(
+        3,
+        [
+          [1, "driver"],
+          [3, "seat"],
+        ],
+        [[1, 2, 3]],
+      ),
   },
   {
     id: "car_7",
     name: "Xe 7 chỗ",
     vehicleType: "minivan",
     description: "Ghế phụ, hàng 2 ba chỗ, hàng 3 hai chỗ (6 khách + tài xế)",
-    build: () => singleDeck(3, [[1, "driver"], [3, "seat"]], [[1, 2, 3], [1, 3]]),
+    build: () =>
+      singleDeck(
+        3,
+        [
+          [1, "driver"],
+          [3, "seat"],
+        ],
+        [
+          [1, 2, 3],
+          [1, 3],
+        ],
+      ),
   },
   {
     id: "limo_9",
@@ -198,7 +211,19 @@ const CATALOG: Spec[] = [
     vehicleType: "limousine",
     description: "Hai ghế cạnh tài xế, 2 hàng ghế đơn có lối đi giữa, hàng cuối 3 chỗ",
     build: () =>
-      singleDeck(3, [[1, "driver"], [2, "seat"], [3, "seat"]], [[1, 3], [1, 3], [1, 2, 3]]),
+      singleDeck(
+        3,
+        [
+          [1, "driver"],
+          [2, "seat"],
+          [3, "seat"],
+        ],
+        [
+          [1, 3],
+          [1, 3],
+          [1, 2, 3],
+        ],
+      ),
   },
   {
     id: "limo_11",
@@ -206,7 +231,20 @@ const CATALOG: Spec[] = [
     vehicleType: "limousine",
     description: "Hai ghế cạnh tài xế, 3 hàng ghế đơn có lối đi giữa, hàng cuối 3 chỗ (xe 12 chỗ)",
     build: () =>
-      singleDeck(3, [[1, "driver"], [2, "seat"], [3, "seat"]], [[1, 3], [1, 3], [1, 3], [1, 2, 3]]),
+      singleDeck(
+        3,
+        [
+          [1, "driver"],
+          [2, "seat"],
+          [3, "seat"],
+        ],
+        [
+          [1, 3],
+          [1, 3],
+          [1, 3],
+          [1, 2, 3],
+        ],
+      ),
   },
   {
     id: "minibus_15",
@@ -214,12 +252,21 @@ const CATALOG: Spec[] = [
     vehicleType: "standard",
     description: "Hai ghế cạnh tài xế, 3 hàng 2+1 có lối đi, hàng cuối 4 chỗ (15 khách + tài xế)",
     build: () =>
-      singleDeck(4, [[1, "driver"], [2, "seat"], [3, "seat"], [4, "door"]], [
-        [1, 2, 4],
-        [1, 2, 4],
-        [1, 2, 4],
-        [1, 2, 3, 4],
-      ]),
+      singleDeck(
+        4,
+        [
+          [1, "driver"],
+          [2, "seat"],
+          [3, "seat"],
+          [4, "door"],
+        ],
+        [
+          [1, 2, 4],
+          [1, 2, 4],
+          [1, 2, 4],
+          [1, 2, 3, 4],
+        ],
+      ),
   },
   {
     id: "seat_29",
@@ -368,63 +415,38 @@ export function findPreset(id: string): BusLayoutPreset | null {
 
 /** `AdminBrandOut` — brand row + route/layout counts + child fare policy. */
 export async function adminBrandList() {
-  const rows = await rawAll<{
-    id: string;
-    slug: string;
-    name: string;
-    logo_url: string | null;
-    rating: number | null;
-    status: string;
-    contact_phone: string | null;
-    contact_email: string | null;
-    created_at: string;
-    updated_at: string;
-    child_max_age: number | null;
-    child_discount_amount: number | null;
-    route_count: number;
-    layout_count: number;
-  }>(sql`
-    SELECT b.id, b.slug, b.name, b.logo_url, b.rating, b.status,
-           b.contact_phone, b.contact_email, b.created_at, b.updated_at,
-           b.child_max_age, b.child_discount_amount,
-           (SELECT COUNT(*) FROM route r WHERE r.brand_id = b.id) AS route_count,
-           (SELECT COUNT(*) FROM bus_layout bl WHERE bl.brand_id = b.id) AS layout_count
-    FROM brand b
-    ORDER BY b.created_at DESC
-  `);
-  return rows.map((b) => ({
+  const db = await getDb();
+  const rows = await db
+    .select({
+      brand: brands,
+      routeCount: sql<number>`(SELECT COUNT(*) FROM ${routes} WHERE ${routes.brandId} = ${brands.id})`,
+      layoutCount: sql<number>`(SELECT COUNT(*) FROM ${busLayouts} WHERE ${busLayouts.brandId} = ${brands.id})`,
+    })
+    .from(brands)
+    .orderBy(desc(brands.createdAt));
+  return rows.map(({ brand: b, routeCount, layoutCount }) => ({
     id: b.id,
     slug: b.slug,
     name: b.name,
-    logoUrl: b.logo_url,
+    logoUrl: b.logoUrl,
     rating: b.rating,
     status: b.status,
-    contactPhone: b.contact_phone,
-    contactEmail: b.contact_email,
-    createdAt: b.created_at,
-    updatedAt: b.updated_at,
-    routeCount: b.route_count,
-    layoutCount: b.layout_count,
+    contactPhone: b.contactPhone,
+    contactEmail: b.contactEmail,
+    createdAt: b.createdAt,
+    updatedAt: b.updatedAt,
+    routeCount,
+    layoutCount,
     childFare:
-      b.child_max_age != null && b.child_discount_amount != null
-        ? { maxAge: b.child_max_age, discountAmount: b.child_discount_amount }
+      b.childMaxAge != null && b.childDiscountAmount != null
+        ? { maxAge: b.childMaxAge, discountAmount: b.childDiscountAmount }
         : null,
   }));
 }
 
-export interface AddressRow {
-  id: string;
-  brandId: string;
-  name: string;
-  address: string | null;
-  lat: number | null;
-  lon: number | null;
-  province: string | null;
-  district: string | null;
-  ward: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
+/** The `address` table row as drizzle selects it — shared by the
+ * serializers and the routes that build these rows by hand. */
+export type AddressRow = typeof addresses.$inferSelect;
 
 export function adminAddressOut(a: AddressRow) {
   return {
@@ -442,17 +464,7 @@ export function adminAddressOut(a: AddressRow) {
   };
 }
 
-export interface PickupPointRow {
-  id: string;
-  routeId: string;
-  name: string | null;
-  address: string | null;
-  lat: number | null;
-  lon: number | null;
-  stopOrder: number;
-  kind: string | null;
-  createdAt: string;
-}
+export type PickupPointRow = typeof pickupPoints.$inferSelect;
 
 export function adminPickupPointOut(p: PickupPointRow) {
   return {
@@ -468,52 +480,59 @@ export function adminPickupPointOut(p: PickupPointRow) {
   };
 }
 
-/** `AdminRouteOut` — route row + endpoint names + schedule/pickup counts. */
-export async function adminRouteList(filters: { brandId?: string; q?: string; limit: number; offset: number }) {
-  const rows = await rawAll<{
-    id: string;
-    brand_id: string | null;
-    name: string;
-    start_location_id: string;
-    end_location_id: string;
-    status: string;
-    created_at: string;
-    updated_at: string;
-    schedule_count: number;
-    pickup_count: number;
-    total: number;
-  }>(sql`
-    SELECT r.id, r.brand_id, r.name, r.start_location_id, r.end_location_id,
-           r.status, r.created_at, r.updated_at,
-           (SELECT COUNT(*) FROM schedule s WHERE s.route_id = r.id) AS schedule_count,
-           (SELECT COUNT(*) FROM pickup_point pp WHERE pp.route_id = r.id) AS pickup_count,
-           (SELECT COUNT(*) FROM route r2 WHERE 1=1
-              ${filters.brandId ? sql`AND r2.brand_id = ${filters.brandId}` : sql``}
-              ${filters.q ? sql`AND (r2.name LIKE ${"%" + filters.q + "%"} OR r2.start_location_id LIKE ${"%" + filters.q + "%"} OR r2.end_location_id LIKE ${"%" + filters.q + "%"})` : sql``}
-           ) AS total
-    FROM route r
-    WHERE 1=1
-      ${filters.brandId ? sql`AND r.brand_id = ${filters.brandId}` : sql``}
-      ${filters.q ? sql`AND (r.name LIKE ${"%" + filters.q + "%"} OR r.start_location_id LIKE ${"%" + filters.q + "%"} OR r.end_location_id LIKE ${"%" + filters.q + "%"})` : sql``}
-    ORDER BY r.created_at DESC
-    LIMIT ${filters.limit} OFFSET ${filters.offset}
-  `);
+/** `AdminRouteOut` — route row + endpoint names + schedule/pickup counts.
+ * Page + total are two builder queries on one shared WHERE (drizzle's
+ * `and()` skips undefined conditions — no conditional SQL strings). */
+export async function adminRouteList(filters: {
+  brandId?: string;
+  q?: string;
+  limit: number;
+  offset: number;
+}) {
+  const db = await getDb();
+  const q = filters.q?.trim();
+  const where = and(
+    filters.brandId !== undefined ? eq(routes.brandId, filters.brandId) : undefined,
+    q !== undefined && q.length > 0
+      ? or(
+          like(routes.name, `%${q}%`),
+          like(routes.startLocationId, `%${q}%`),
+          like(routes.endLocationId, `%${q}%`),
+        )
+      : undefined,
+  );
+  const rows = await db
+    .select({
+      route: routes,
+      scheduleCount: sql<number>`(SELECT COUNT(*) FROM ${schedules} WHERE ${schedules.routeId} = ${routes.id})`,
+      pickupCount: sql<number>`(SELECT COUNT(*) FROM ${pickupPoints} WHERE ${pickupPoints.routeId} = ${routes.id})`,
+    })
+    .from(routes)
+    .where(where)
+    .orderBy(desc(routes.createdAt))
+    .limit(filters.limit)
+    .offset(filters.offset);
+  const totalRows = await db
+    .select({ total: sql<number>`COUNT(*)` })
+    .from(routes)
+    .where(where);
+  const total = totalRows[0]?.total ?? 0;
   return {
-    items: rows.map((r) => ({
+    items: rows.map(({ route: r, scheduleCount, pickupCount }) => ({
       id: r.id,
-      brandId: r.brand_id,
+      brandId: r.brandId,
       name: r.name,
-      startLocationId: r.start_location_id,
-      endLocationId: r.end_location_id,
-      startLocation: placePreview(r.start_location_id),
-      endLocation: placePreview(r.end_location_id),
+      startLocationId: r.startLocationId,
+      endLocationId: r.endLocationId,
+      startLocation: placePreview(r.startLocationId),
+      endLocation: placePreview(r.endLocationId),
       status: r.status,
-      createdAt: r.created_at,
-      updatedAt: r.updated_at,
-      scheduleCount: r.schedule_count,
-      pickupPointCount: r.pickup_count,
+      createdAt: r.createdAt,
+      updatedAt: r.updatedAt,
+      scheduleCount,
+      pickupPointCount: pickupCount,
     })),
-    total: rows[0]?.total ?? 0,
+    total,
   };
 }
 
@@ -538,12 +557,12 @@ export async function adminScheduleList(routeId?: string) {
   const fareRows = await db
     .select()
     .from(scheduleFares)
-    .where(sql`schedule_id IN (${sql.join(ids.map((i) => sql`${i}`), sql`, `)})`);
+    .where(inArray(scheduleFares.scheduleId, ids));
   const pointRows = await db
     .select({ point: schedulePoints, address: addresses })
     .from(schedulePoints)
     .innerJoin(addresses, eq(addresses.id, schedulePoints.addressId))
-    .where(sql`schedule_id IN (${sql.join(ids.map((i) => sql`${i}`), sql`, `)})`)
+    .where(inArray(schedulePoints.scheduleId, ids))
     .orderBy(schedulePoints.stopOrder);
   const vtRows = await db.select().from(vehicleTypes);
 
@@ -578,7 +597,7 @@ export async function adminScheduleList(routeId?: string) {
           stopOrder: p.point.stopOrder,
           kind: p.point.kind,
           arrivalTime: p.point.arrivalTime,
-          address: adminAddressOut(p.address as unknown as AddressRow),
+          address: adminAddressOut(p.address),
         })),
       createdAt: s.createdAt,
     };
@@ -587,79 +606,73 @@ export async function adminScheduleList(routeId?: string) {
 
 /** `AdminVehicleTypeOut` list. */
 export async function adminVehicleTypeList(filters: { q?: string; limit: number; offset: number }) {
-  const rows = await rawAll<{
-    id: string;
-    code: string;
-    label: string;
-    total_seats: number | null;
-    sort_order: number;
-    status: string;
-    created_at: string;
-    updated_at: string;
-    total: number;
-  }>(sql`
-    SELECT id, code, label, total_seats, sort_order, status, created_at, updated_at,
-           (SELECT COUNT(*) FROM vehicle_type v2
-             ${filters.q ? sql`WHERE v2.label LIKE ${"%" + filters.q + "%"} OR v2.code LIKE ${"%" + filters.q + "%"}` : sql``}
-           ) AS total
-    FROM vehicle_type
-    ${filters.q ? sql`WHERE label LIKE ${"%" + filters.q + "%"} OR code LIKE ${"%" + filters.q + "%"}` : sql``}
-    ORDER BY sort_order, code
-    LIMIT ${filters.limit} OFFSET ${filters.offset}
-  `);
+  const db = await getDb();
+  const q = filters.q?.trim();
+  const where =
+    q !== undefined && q.length > 0
+      ? or(like(vehicleTypes.label, `%${q}%`), like(vehicleTypes.code, `%${q}%`))
+      : undefined;
+  const rows = await db
+    .select()
+    .from(vehicleTypes)
+    .where(where)
+    .orderBy(vehicleTypes.sortOrder, vehicleTypes.code)
+    .limit(filters.limit)
+    .offset(filters.offset);
+  const totalRows = await db
+    .select({ total: sql<number>`COUNT(*)` })
+    .from(vehicleTypes)
+    .where(where);
   return {
     items: rows.map((v) => ({
       id: v.id,
       code: v.code,
       label: v.label,
-      totalSeats: v.total_seats,
-      sortOrder: v.sort_order,
+      totalSeats: v.totalSeats,
+      sortOrder: v.sortOrder,
       status: v.status,
-      createdAt: v.created_at,
-      updatedAt: v.updated_at,
+      createdAt: v.createdAt,
+      updatedAt: v.updatedAt,
     })),
-    total: rows[0]?.total ?? 0,
+    total: totalRows[0]?.total ?? 0,
   };
 }
 
 /** `AdminBusLayoutOut` list (slim — plan lives in the detail endpoint). */
-export async function adminBusLayoutList(filters: { brandId?: string; limit: number; offset: number }) {
-  const rows = await rawAll<{
-    id: string;
-    brand_id: string | null;
-    name: string | null;
-    vehicle_type: string | null;
-    total_seats: number | null;
-    layout_data: string | null;
-    created_at: string;
-    updated_at: string;
-    in_use: number;
-    total: number;
-  }>(sql`
-    SELECT bl.id, bl.brand_id, bl.name, bl.vehicle_type, bl.total_seats,
-           bl.layout_data, bl.created_at, bl.updated_at,
-           (SELECT COUNT(*) FROM schedule s WHERE s.bus_layout_id = bl.id) AS in_use,
-           (SELECT COUNT(*) FROM bus_layout b2
-             ${filters.brandId ? sql`WHERE b2.brand_id = ${filters.brandId}` : sql``}
-           ) AS total
-    FROM bus_layout bl
-    ${filters.brandId ? sql`WHERE bl.brand_id = ${filters.brandId}` : sql``}
-    ORDER BY bl.created_at DESC
-    LIMIT ${filters.limit} OFFSET ${filters.offset}
-  `);
+export async function adminBusLayoutList(filters: {
+  brandId?: string;
+  limit: number;
+  offset: number;
+}) {
+  const db = await getDb();
+  const where = filters.brandId !== undefined ? eq(busLayouts.brandId, filters.brandId) : undefined;
+  const rows = await db
+    .select({
+      layout: busLayouts,
+      inUse: sql<number>`(SELECT COUNT(*) FROM ${schedules} WHERE ${schedules.busLayoutId} = ${busLayouts.id})`,
+    })
+    .from(busLayouts)
+    .where(where)
+    .orderBy(desc(busLayouts.createdAt))
+    .limit(filters.limit)
+    .offset(filters.offset);
+  const totalRows = await db
+    .select({ total: sql<number>`COUNT(*)` })
+    .from(busLayouts)
+    .where(where);
   return {
-    items: rows.map((b) => ({
+    items: rows.map(({ layout: b, inUse }) => ({
       id: b.id,
-      brandId: b.brand_id,
+      brandId: b.brandId,
       name: b.name,
-      vehicleType: b.vehicle_type,
-      totalSeats: b.total_seats,
-      planned: !!b.layout_data,
-      inUse: b.in_use > 0,
-      createdAt: b.created_at,
-      updatedAt: b.updated_at,
+      vehicleType: b.vehicleType,
+      totalSeats: b.totalSeats,
+      planned: b.layoutData !== null,
+      inUse: inUse > 0,
+      createdAt: b.createdAt,
+      updatedAt: b.updatedAt,
     })),
-    total: rows[0]?.total ?? 0,
+    total: totalRows[0]?.total ?? 0,
   };
 }
 
@@ -692,4 +705,3 @@ export async function adminBusLayoutDetail(id: string) {
     updatedAt: row.updatedAt,
   };
 }
-

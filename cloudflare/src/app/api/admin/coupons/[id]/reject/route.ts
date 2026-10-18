@@ -46,7 +46,7 @@ export async function POST(req: Request, ctx: Params) {
                   JOIN brand br ON br.id = dcb.brand_id WHERE dcb.campaign_id = c.campaign_id) AS brand_logos
         FROM coupon c WHERE c.id = ${id} LIMIT 1
       `)
-    )[0]!;
+    )[0];
     const split = (s: unknown) => (s ? String(s).split(",") : []);
     return Response.json({
       id: out.id,

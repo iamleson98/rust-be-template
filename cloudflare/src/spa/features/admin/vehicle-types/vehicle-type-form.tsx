@@ -1,4 +1,4 @@
-'use client'
+"use client";
 
 /**
  * VehicleTypeFormDialog — create/edit a vehicle type (admin catalog).
@@ -8,15 +8,15 @@
  * brand-form structure (react-hook-form + zod + generated mutation).
  */
 
-import { adminVehicleTypesCreateMutation, adminVehicleTypesUpdateMutation } from '@spa/api'
-import { useMutation } from '@tanstack/react-query'
-import { useEffect } from 'react'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
-import { toast } from 'sonner'
+import { adminVehicleTypesCreateMutation, adminVehicleTypesUpdateMutation } from "@spa/api";
+import { useMutation } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { toast } from "sonner";
 
-import { Button } from '@spa/components/ui/button'
+import { Button } from "@spa/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -24,9 +24,9 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@spa/components/ui/dialog'
-import { Input } from '@spa/components/ui/input'
-import { Textarea } from '@spa/components/ui/textarea'
+} from "@spa/components/ui/dialog";
+import { Input } from "@spa/components/ui/input";
+import { Textarea } from "@spa/components/ui/textarea";
 import {
   Form,
   FormField,
@@ -34,13 +34,13 @@ import {
   FormLabel,
   FormControl,
   FormMessage,
-} from '@spa/components/ui/form'
-import { ComboboxField } from '@spa/components/ui/combobox'
-import { Bus, Loader2 } from 'lucide-react'
-import { slugify } from '@spa/lib/text'
-import type { AdminVehicleTypeOut } from '@spa/api'
-import { getErrorMessage } from '@spa/lib/error-message'
-import { useT } from '@spa/lib/i18n'
+} from "@spa/components/ui/form";
+import { ComboboxField } from "@spa/components/ui/combobox";
+import { Bus, Loader2 } from "lucide-react";
+import { slugify } from "@spa/lib/text";
+import type { AdminVehicleTypeOut } from "@spa/api";
+import { getErrorMessage } from "@spa/lib/error-message";
+import { useT } from "@spa/lib/i18n";
 
 /** Schema factory — messages follow the active UI language. */
 const buildVehicleTypeSchema = (t: ReturnType<typeof useT>) =>
@@ -48,38 +48,38 @@ const buildVehicleTypeSchema = (t: ReturnType<typeof useT>) =>
     code: z
       .string()
       .trim()
-      .min(1, t('adminVehicleTypes.codeRequired'))
-      .min(2, t('adminVehicleTypes.codeMin'))
-      .max(60, t('adminVehicleTypes.codeMax'))
-      .regex(/^[a-z0-9-]+$/, t('adminVehicleTypes.codeRegex')),
+      .min(1, t("adminVehicleTypes.codeRequired"))
+      .min(2, t("adminVehicleTypes.codeMin"))
+      .max(60, t("adminVehicleTypes.codeMax"))
+      .regex(/^[a-z0-9-]+$/, t("adminVehicleTypes.codeRegex")),
     label: z
       .string()
       .trim()
-      .min(1, t('adminVehicleTypes.labelRequired'))
-      .min(2, t('adminVehicleTypes.labelMin'))
+      .min(1, t("adminVehicleTypes.labelRequired"))
+      .min(2, t("adminVehicleTypes.labelMin"))
       .max(120),
     totalSeats: z.coerce
-      .number({ message: t('adminVehicleTypes.seatsNumber') })
-      .min(0, t('adminVehicleTypes.seatsMin'))
-      .max(200, t('adminVehicleTypes.seatsMax'))
+      .number({ message: t("adminVehicleTypes.seatsNumber") })
+      .min(0, t("adminVehicleTypes.seatsMin"))
+      .max(200, t("adminVehicleTypes.seatsMax"))
       .optional(),
     sortOrder: z.coerce
-      .number({ message: t('adminVehicleTypes.sortNumber') })
+      .number({ message: t("adminVehicleTypes.sortNumber") })
       .min(0)
       .max(1000),
-    status: z.enum(['active', 'disabled']),
-    description: z.string().max(1000, t('adminVehicleTypes.descMax')).optional(),
-  })
-type VehicleTypeFormValues = z.input<ReturnType<typeof buildVehicleTypeSchema>>
+    status: z.enum(["active", "disabled"]),
+    description: z.string().max(1000, t("adminVehicleTypes.descMax")).optional(),
+  });
+type VehicleTypeFormValues = z.input<ReturnType<typeof buildVehicleTypeSchema>>;
 
 const emptyDefaults: VehicleTypeFormValues = {
-  code: '',
-  label: '',
+  code: "",
+  label: "",
   totalSeats: undefined,
   sortOrder: 0,
-  status: 'active',
-  description: '',
-}
+  status: "active",
+  description: "",
+};
 
 export function VehicleTypeFormDialog({
   open,
@@ -87,28 +87,28 @@ export function VehicleTypeFormDialog({
   onOpenChange,
   onSaved,
 }: {
-  open: boolean
-  vehicleType: AdminVehicleTypeOut | null
-  onOpenChange: (open: boolean) => void
-  onSaved: () => void
+  open: boolean;
+  vehicleType: AdminVehicleTypeOut | null;
+  onOpenChange: (open: boolean) => void;
+  onSaved: () => void;
 }) {
-  const t = useT()
-  const isEdit = !!vehicleType
-  const createMutation = useMutation(adminVehicleTypesCreateMutation())
-  const updateMutation = useMutation(adminVehicleTypesUpdateMutation())
-  const saving = createMutation.isPending || updateMutation.isPending
+  const t = useT();
+  const isEdit = !!vehicleType;
+  const createMutation = useMutation(adminVehicleTypesCreateMutation());
+  const updateMutation = useMutation(adminVehicleTypesUpdateMutation());
+  const saving = createMutation.isPending || updateMutation.isPending;
 
   const form = useForm<VehicleTypeFormValues, unknown, VehicleTypeFormValues>({
     resolver: zodResolver(buildVehicleTypeSchema(t)),
     // Errors appear on submit, then follow each change: an error popping up
     // on blur shifts the layout under the pointer and swallows the click.
-    mode: 'onSubmit',
-    reValidateMode: 'onChange',
+    mode: "onSubmit",
+    reValidateMode: "onChange",
     defaultValues: emptyDefaults,
-  })
+  });
 
-  const codeValue = form.watch('code')
-  const labelValue = form.watch('label')
+  const codeValue = form.watch("code");
+  const labelValue = form.watch("label");
 
   useEffect(() => {
     if (open) {
@@ -119,23 +119,23 @@ export function VehicleTypeFormDialog({
               label: vehicleType.label,
               totalSeats: vehicleType.totalSeats ?? undefined,
               sortOrder: vehicleType.sortOrder,
-              status: (vehicleType.status as 'active' | 'disabled') ?? 'active',
-              description: vehicleType.description ?? '',
+              status: (vehicleType.status as "active" | "disabled") ?? "active",
+              description: vehicleType.description ?? "",
             }
           : emptyDefaults,
-      )
+      );
     }
-  }, [open, vehicleType, form])
+  }, [open, vehicleType, form]);
 
   // Auto-slug the code from the label while creating (only while the
   // code field is still pristine — the operator can override).
   useEffect(() => {
-    if (!open || isEdit) return
-    if (form.getFieldState('code').isDirty) return
+    if (!open || isEdit) return;
+    if (form.getFieldState("code").isDirty) return;
     if (labelValue && !codeValue) {
-      form.setValue('code', slugify(labelValue), { shouldDirty: true })
+      form.setValue("code", slugify(labelValue), { shouldDirty: true });
     }
-  }, [open, isEdit, labelValue, codeValue, form])
+  }, [open, isEdit, labelValue, codeValue, form]);
 
   const onSubmit = async (values: VehicleTypeFormValues) => {
     try {
@@ -146,34 +146,34 @@ export function VehicleTypeFormDialog({
         sortOrder: values.sortOrder ?? 0,
         status: values.status,
         description: values.description || null,
-      }
+      };
       if (isEdit) {
         await updateMutation.mutateAsync({
           path: { id: vehicleType!.id },
           body,
-        } as unknown as Parameters<typeof updateMutation.mutateAsync>[0])
-        toast.success(t('adminVehicleTypes.updated'))
+        } as unknown as Parameters<typeof updateMutation.mutateAsync>[0]);
+        toast.success(t("adminVehicleTypes.updated"));
       } else {
         // SDK mutation hooks require { body: <payload> } (see schedule form).
         await createMutation.mutateAsync({ body } as unknown as Parameters<
           typeof createMutation.mutateAsync
-        >[0])
-        toast.success(t('adminVehicleTypes.created'))
+        >[0]);
+        toast.success(t("adminVehicleTypes.created"));
       }
-      onSaved()
+      onSaved();
     } catch (e) {
-      toast.error(getErrorMessage(e, t('adminVehicleTypes.saveFailed')))
+      toast.error(getErrorMessage(e, t("adminVehicleTypes.saveFailed")));
     }
-  }
+  };
 
   return (
     <Dialog open={open} onOpenChange={(o) => !saving && onOpenChange(o)}>
       <DialogContent className="max-w-lg">
         <DialogHeader icon={<Bus />}>
           <DialogTitle>
-            {isEdit ? t('adminVehicleTypes.editTitle') : t('adminVehicleTypes.createTitle')}
+            {isEdit ? t("adminVehicleTypes.editTitle") : t("adminVehicleTypes.createTitle")}
           </DialogTitle>
-          <DialogDescription>{t('adminVehicleTypes.formDesc')}</DialogDescription>
+          <DialogDescription>{t("adminVehicleTypes.formDesc")}</DialogDescription>
         </DialogHeader>
 
         <Form {...form}>
@@ -185,12 +185,12 @@ export function VehicleTypeFormDialog({
                 render={({ field }) => (
                   <FormItem className="grid gap-1.5">
                     <FormLabel>
-                      {t('adminVehicleTypes.code')} <span className="text-destructive">*</span>
+                      {t("adminVehicleTypes.code")} <span className="text-destructive">*</span>
                     </FormLabel>
                     <FormControl>
                       <Input
                         {...field}
-                        value={field.value ?? ''}
+                        value={field.value ?? ""}
                         placeholder="limousine"
                         className="font-mono text-base md:text-sm"
                       />
@@ -205,11 +205,11 @@ export function VehicleTypeFormDialog({
                 render={({ field }) => (
                   <FormItem className="grid gap-1.5">
                     <FormLabel>
-                      {t('adminVehicleTypes.displayName')}{' '}
+                      {t("adminVehicleTypes.displayName")}{" "}
                       <span className="text-destructive">*</span>
                     </FormLabel>
                     <FormControl>
-                      <Input {...field} value={field.value ?? ''} placeholder="Limousine" />
+                      <Input {...field} value={field.value ?? ""} placeholder="Limousine" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -223,13 +223,13 @@ export function VehicleTypeFormDialog({
                 name="totalSeats"
                 render={({ field }) => (
                   <FormItem className="grid gap-1.5">
-                    <FormLabel>{t('adminVehicleTypes.seatsLabel')}</FormLabel>
+                    <FormLabel>{t("adminVehicleTypes.seatsLabel")}</FormLabel>
                     <FormControl>
                       <Input
                         type="number"
                         min="0"
                         max="200"
-                        value={field.value == null ? '' : String(field.value)}
+                        value={field.value == null ? "" : String(field.value)}
                         onChange={(e) => field.onChange(e.target.value)}
                         onBlur={field.onBlur}
                         placeholder="29"
@@ -244,13 +244,13 @@ export function VehicleTypeFormDialog({
                 name="sortOrder"
                 render={({ field }) => (
                   <FormItem className="grid gap-1.5">
-                    <FormLabel>{t('adminVehicleTypes.sortOrderLabel')}</FormLabel>
+                    <FormLabel>{t("adminVehicleTypes.sortOrderLabel")}</FormLabel>
                     <FormControl>
                       <Input
                         type="number"
                         min="0"
                         max="1000"
-                        value={field.value == null ? '0' : String(field.value)}
+                        value={field.value == null ? "0" : String(field.value)}
                         onChange={(e) => field.onChange(e.target.value)}
                         onBlur={field.onBlur}
                       />
@@ -264,17 +264,17 @@ export function VehicleTypeFormDialog({
                 name="status"
                 render={({ field }) => (
                   <FormItem className="grid gap-1.5">
-                    <FormLabel>{t('common.status')}</FormLabel>
+                    <FormLabel>{t("common.status")}</FormLabel>
                     <ComboboxField
                       value={field.value}
                       onValueChange={field.onChange}
                       items={[
-                        { value: 'active', label: t('adminVehicleTypes.active') },
-                        { value: 'disabled', label: t('adminVehicleTypes.disabled') },
+                        { value: "active", label: t("adminVehicleTypes.active") },
+                        { value: "disabled", label: t("adminVehicleTypes.disabled") },
                       ]}
-                      placeholder={t('adminVehicleTypes.chooseStatus')}
-                      searchPlaceholder={t('combobox.search')}
-                      aria-label={t('common.status')}
+                      placeholder={t("adminVehicleTypes.chooseStatus")}
+                      searchPlaceholder={t("combobox.search")}
+                      aria-label={t("common.status")}
                     />
                     <FormMessage />
                   </FormItem>
@@ -287,13 +287,13 @@ export function VehicleTypeFormDialog({
               name="description"
               render={({ field }) => (
                 <FormItem className="grid gap-1.5">
-                  <FormLabel>{t('adminVehicleTypes.description')}</FormLabel>
+                  <FormLabel>{t("adminVehicleTypes.description")}</FormLabel>
                   <FormControl>
                     <Textarea
                       {...field}
-                      value={field.value ?? ''}
+                      value={field.value ?? ""}
                       rows={2}
-                      placeholder={t('adminVehicleTypes.descPlaceholder')}
+                      placeholder={t("adminVehicleTypes.descPlaceholder")}
                     />
                   </FormControl>
                   <FormMessage />
@@ -308,15 +308,15 @@ export function VehicleTypeFormDialog({
                 onClick={() => onOpenChange(false)}
                 disabled={saving}
               >
-                {t('common.cancel')}
+                {t("common.cancel")}
               </Button>
               <Button type="submit" disabled={saving}>
                 {saving ? (
                   <>
-                    <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> {t('common.saving')}
+                    <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> {t("common.saving")}
                   </>
                 ) : (
-                  <>{isEdit ? t('common.saveChanges') : t('adminVehicleTypes.add')}</>
+                  <>{isEdit ? t("common.saveChanges") : t("adminVehicleTypes.add")}</>
                 )}
               </Button>
             </DialogFooter>
@@ -324,5 +324,5 @@ export function VehicleTypeFormDialog({
         </Form>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

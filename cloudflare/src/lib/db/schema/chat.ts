@@ -67,10 +67,7 @@ export const chatAssignments = sqliteTable(
     assignedAt: text("assigned_at").notNull().default("(datetime('now'))"),
     unassignedAt: text("unassigned_at"),
   },
-  (t) => [
-    index("idx_ca_channel").on(t.channelId),
-    index("idx_ca_employee").on(t.employeeId),
-  ],
+  (t) => [index("idx_ca_channel").on(t.channelId), index("idx_ca_employee").on(t.employeeId)],
 );
 
 export const chatChannelMembers = sqliteTable(

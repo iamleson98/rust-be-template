@@ -20,17 +20,20 @@ import {
 } from "./jwt";
 
 /** The Rust `SessionUser` DTO shape (camelCase + `type` + `hasPassword`). */
-export function sessionUserOut(u: {
-  id: string;
-  fullName: string;
-  email: string | null;
-  phone: string | null;
-  role: string;
-  avatarUrl?: string | null;
-  brandId?: string | null;
-  status?: string;
-  locale?: string | null;
-}, brandName?: string | null) {
+export function sessionUserOut(
+  u: {
+    id: string;
+    fullName: string;
+    email: string | null;
+    phone: string | null;
+    role: string;
+    avatarUrl?: string | null;
+    brandId?: string | null;
+    status?: string;
+    locale?: string | null;
+  },
+  brandName?: string | null,
+) {
   return {
     id: u.id,
     type: u.role,
@@ -162,7 +165,7 @@ export async function currentUser(req: Request): Promise<SessionUser | null> {
   if (!token) {
     const cookie = req.headers.get("cookie") ?? "";
     const m = /(?:^|;\s*)access_token=([^;]+)/.exec(cookie);
-    if (m) token = decodeURIComponent(m[1]!);
+    if (m) token = decodeURIComponent(m[1]);
   }
   if (!token) return null;
   const claims = await verifyAccessToken(token);
@@ -208,7 +211,7 @@ function requestIsHttps(req: Request): boolean {
   // Behind the preview/deploy proxies the worker sees http:// internally —
   // the original scheme only survives in x-forwarded-proto.
   const xfProto = req.headers.get("x-forwarded-proto");
-  if (xfProto) return xfProto.split(",")[0]!.trim().toLowerCase() === "https";
+  if (xfProto) return xfProto.split(",")[0].trim().toLowerCase() === "https";
   try {
     return new URL(req.url).protocol === "https:";
   } catch {

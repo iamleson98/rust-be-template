@@ -98,9 +98,15 @@ export async function userHasPermission(userId: string, perm: string): Promise<b
 
   // Fallback: no user_roles grants at all → derive from users.role (heals
   // accounts created before the RBAC rows were kept in sync).
-  const grants = await db.select({ roleId: userRoles.roleId }).from(userRoles).where(eq(userRoles.userId, userId)).limit(1);
+  const grants = await db
+    .select({ roleId: userRoles.roleId })
+    .from(userRoles)
+    .where(eq(userRoles.userId, userId))
+    .limit(1);
   if (grants.length > 0) return false;
-  const user = (await db.select({ role: users.role }).from(users).where(eq(users.id, userId)).limit(1))[0];
+  const user = (
+    await db.select({ role: users.role }).from(users).where(eq(users.id, userId)).limit(1)
+  )[0];
   if (!user) return false;
   return rolePermissionsFor(user.role).includes(perm);
 }

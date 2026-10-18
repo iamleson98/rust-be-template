@@ -1,13 +1,13 @@
-import { memo } from 'react'
-import { cn } from '@spa/lib/utils'
-import { Shimmer } from '@spa/components/ui/shimmer'
-import { RAIL } from '../section'
+import { memo } from "react";
+import { cn } from "@spa/lib/utils";
+import { Shimmer } from "@spa/components/ui/shimmer";
+import { RAIL } from "../section";
 
 /** Placeholder for the popular-routes band: heading and route cards. */
 export const PopularRoutesSkeleton = memo(function PopularRoutesSkeleton({
   count = 4,
 }: {
-  count?: number
+  count?: number;
 }) {
   return (
     <section className="page-x py-8 md:py-11" aria-hidden>
@@ -15,7 +15,7 @@ export const PopularRoutesSkeleton = memo(function PopularRoutesSkeleton({
         <Shimmer className="h-7 w-56" />
         <Shimmer className="h-4 w-40" />
       </div>
-      <div className={cn(RAIL, 'lg:grid-cols-4')}>
+      <div className={cn(RAIL, "lg:grid-cols-4")}>
         {Array.from({ length: count }).map((_, i) => (
           <div key={i} className="space-y-4 rounded-2xl bg-white p-4 ring-1 ring-slate-200/80">
             <Shimmer className="h-3.5 w-28" />
@@ -31,5 +31,5 @@ export const PopularRoutesSkeleton = memo(function PopularRoutesSkeleton({
         ))}
       </div>
     </section>
-  )
-})
+  );
+});

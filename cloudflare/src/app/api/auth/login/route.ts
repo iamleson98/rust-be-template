@@ -57,7 +57,9 @@ export async function POST(req: Request) {
       {
         user: sessionUserOut(user),
         expires_at: new Date(Date.now() + (await accessTtl()) * 1000).toISOString(),
-        ...(mobile ? { tokens: { access_token: tokens.accessToken, refresh_token: tokens.refreshToken } } : {}),
+        ...(mobile
+          ? { tokens: { access_token: tokens.accessToken, refresh_token: tokens.refreshToken } }
+          : {}),
       },
       { headers },
     );

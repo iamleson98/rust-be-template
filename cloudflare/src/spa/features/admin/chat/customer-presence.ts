@@ -1,9 +1,9 @@
-import type { ChatChannelOut } from '@spa/api'
+import type { ChatChannelOut } from "@spa/api";
 
 /** The newest `customer_presence` event seen per customer. */
-export type PresenceEvents = ReadonlyMap<string, { online: boolean; seq: number }>
+export type PresenceEvents = ReadonlyMap<string, { online: boolean; seq: number }>;
 
-type Snapshot = { seq: number; userIds: string[] }
+type Snapshot = { seq: number; userIds: string[] };
 
 /**
  * Customers online right now (signed in with the site open): the
@@ -14,14 +14,14 @@ type Snapshot = { seq: number; userIds: string[] }
  * so the higher number wins.
  */
 export function onlineUsers(snapshot: Snapshot | undefined, events: PresenceEvents) {
-  const since = snapshot?.seq ?? 0
-  const online = new Set(snapshot?.userIds)
+  const since = snapshot?.seq ?? 0;
+  const online = new Set(snapshot?.userIds);
   for (const [userId, e] of events) {
-    if (e.seq <= since) continue
-    if (e.online) online.add(userId)
-    else online.delete(userId)
+    if (e.seq <= since) continue;
+    if (e.online) online.add(userId);
+    else online.delete(userId);
   }
-  return online
+  return online;
 }
 
 /**
@@ -34,15 +34,15 @@ export function withPresenceEvent(
   event: { userId: string; online: boolean; seq: number },
   since = 0,
 ): PresenceEvents {
-  const prev = events.get(event.userId)
-  if (event.seq <= since || (prev && prev.seq >= event.seq)) return events
-  const next = new Map([...events].filter(([, e]) => e.seq > since))
-  next.set(event.userId, { online: event.online, seq: event.seq })
-  return next
+  const prev = events.get(event.userId);
+  if (event.seq <= since || (prev && prev.seq >= event.seq)) return events;
+  const next = new Map([...events].filter(([, e]) => e.seq > since));
+  next.set(event.userId, { online: event.online, seq: event.seq });
+  return next;
 }
 
-const activity = (c: ChatChannelOut) => (c.lastMessageAt ? Date.parse(c.lastMessageAt) : 0) || 0
-const newestFirst = (a: ChatChannelOut, b: ChatChannelOut) => activity(b) - activity(a)
+const activity = (c: ChatChannelOut) => (c.lastMessageAt ? Date.parse(c.lastMessageAt) : 0) || 0;
+const newestFirst = (a: ChatChannelOut, b: ChatChannelOut) => activity(b) - activity(a);
 
 /**
  * The staff list: every known channel once (the loaded pages plus the online
@@ -58,10 +58,10 @@ export function onlineFirst(
   onlineChannels: readonly ChatChannelOut[],
   online: ReadonlySet<string>,
 ) {
-  const byId = new Map(pages.map((c) => [c.id, c]))
-  for (const c of onlineChannels) if (!byId.has(c.id)) byId.set(c.id, c)
-  const all = [...byId.values()]
-  const first = all.filter((c) => online.has(c.userId)).sort(newestFirst)
-  const rest = all.filter((c) => !online.has(c.userId)).sort(newestFirst)
-  return { channels: [...first, ...rest], onlineCount: first.length }
+  const byId = new Map(pages.map((c) => [c.id, c]));
+  for (const c of onlineChannels) if (!byId.has(c.id)) byId.set(c.id, c);
+  const all = [...byId.values()];
+  const first = all.filter((c) => online.has(c.userId)).sort(newestFirst);
+  const rest = all.filter((c) => !online.has(c.userId)).sort(newestFirst);
+  return { channels: [...first, ...rest], onlineCount: first.length };
 }

@@ -136,7 +136,9 @@ export async function listRoutesDefault(limit: number, offset: number): Promise<
             startLocationId: routes.startLocationId,
             endLocationId: routes.endLocationId,
             scheduleCount: sql<number>`(SELECT COUNT(*) FROM schedule s WHERE s.route_id = ${routes.id})`,
-            priceFrom: sql<number | null>`(SELECT MIN(s.base_price_adult) FROM schedule s WHERE s.route_id = ${routes.id})`,
+            priceFrom: sql<
+              number | null
+            >`(SELECT MIN(s.base_price_adult) FROM schedule s WHERE s.route_id = ${routes.id})`,
           })
           .from(routes)
           .leftJoin(brands, eq(brands.id, routes.brandId))
@@ -328,7 +330,15 @@ export async function homeStats(): Promise<HomeStats> {
             (SELECT COUNT(*) FROM review WHERE status = 'published') AS reviews,
             (SELECT COUNT(*) FROM "user") AS users
         `);
-        const agg = rows[0] ?? { brands: 0, routes: 0, trips: 0, bookings: 0, confirmed: 0, reviews: 0, users: 0 };
+        const agg = rows[0] ?? {
+          brands: 0,
+          routes: 0,
+          trips: 0,
+          bookings: 0,
+          confirmed: 0,
+          reviews: 0,
+          users: 0,
+        };
         const stats: HomeStats = {};
         for (const [k, v] of Object.entries(agg)) stats[k] = Number(v);
         return stats;
@@ -340,7 +350,8 @@ export async function homeStats(): Promise<HomeStats> {
 // ── Invalidation hooks (call from admin write routes) ───────────
 
 /** Brand writes (and brand-affecting route writes) — brands + stats. */
-export const invalidateBrands = () => cacheInvalidatePrefix("lookups:brands:", "lookups:brand:", "lookups:stats");
+export const invalidateBrands = () =>
+  cacheInvalidatePrefix("lookups:brands:", "lookups:brand:", "lookups:stats");
 
 /** Route / schedule writes — routes list + stats. */
 export const invalidateRoutes = () => cacheInvalidatePrefix("lookups:routes:", "lookups:stats");
@@ -355,7 +366,8 @@ export const invalidatePlaces = () => cacheInvalidatePrefix("lookups:places:");
 export const invalidateCampaigns = () => cacheInvalidatePrefix("lookups:campaigns");
 
 /** Review moderation — tags + stats. */
-export const invalidateReviews = () => cacheInvalidatePrefix("lookups:review-tags:", "lookups:stats");
+export const invalidateReviews = () =>
+  cacheInvalidatePrefix("lookups:review-tags:", "lookups:stats");
 
 /** User / booking counters (stats). */
 export const invalidateStats = () => cacheInvalidatePrefix("lookups:stats");

@@ -1,11 +1,11 @@
-'use client'
+"use client";
 
-import { Button } from '@spa/components/ui/button'
-import { TabsContent } from '@spa/components/ui/tabs'
-import { EmptyState } from '@spa/components/console/panel'
-import { ArrowRight, Calendar, Loader2, Route as RouteIcon, Search } from 'lucide-react'
-import type { RouteOut } from '@spa/api'
-import { useT } from '@spa/lib/i18n'
+import { Button } from "@spa/components/ui/button";
+import { TabsContent } from "@spa/components/ui/tabs";
+import { EmptyState } from "@spa/components/console/panel";
+import { ArrowRight, Calendar, Loader2, Route as RouteIcon, Search } from "lucide-react";
+import type { RouteOut } from "@spa/api";
+import { useT } from "@spa/lib/i18n";
 
 /** The brand's routes, each with its daily departures and a search shortcut. */
 export function BrandRoutesTab({
@@ -13,17 +13,17 @@ export function BrandRoutesTab({
   routes,
   onQuickSearch,
 }: {
-  isLoading: boolean
-  routes: RouteOut[]
-  onQuickSearch: (fromName: string, toName: string) => void
+  isLoading: boolean;
+  routes: RouteOut[];
+  onQuickSearch: (fromName: string, toName: string) => void;
 }) {
-  const t = useT()
+  const t = useT();
   return (
     <TabsContent value="routes" className="m-0 p-4">
       {isLoading ? (
         <div className="flex flex-col items-center justify-center py-10 text-muted-foreground">
           <Loader2 className="mb-2 size-6 animate-spin text-primary" />
-          <p className="text-sm">{t('brandDetail.loadingRoutes')}</p>
+          <p className="text-sm">{t("brandDetail.loadingRoutes")}</p>
         </div>
       ) : routes.length === 0 ? (
         <EmptyState
@@ -31,9 +31,9 @@ export function BrandRoutesTab({
           text={
             <>
               <span className="block font-medium text-foreground">
-                {t('brandDetail.noRoutesTitle')}
+                {t("brandDetail.noRoutesTitle")}
               </span>
-              {t('brandDetail.noRoutesSubtitle')}
+              {t("brandDetail.noRoutesSubtitle")}
             </>
           }
         />
@@ -49,7 +49,7 @@ export function BrandRoutesTab({
                 </div>
                 <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
                   <Calendar className="size-3" />
-                  {t('brandDetail.tripsPerDayCount', { count: r.scheduleCount })}
+                  {t("brandDetail.tripsPerDayCount", { count: r.scheduleCount })}
                 </div>
               </div>
               <Button
@@ -57,15 +57,15 @@ export function BrandRoutesTab({
                 variant="outline"
                 className="shrink-0"
                 onClick={() => onQuickSearch(r.from.name, r.to.name)}
-                aria-label={t('nav.searchTrips')}
+                aria-label={t("nav.searchTrips")}
               >
                 <Search />
-                <span className="hidden sm:inline">{t('nav.searchTrips')}</span>
+                <span className="hidden sm:inline">{t("nav.searchTrips")}</span>
               </Button>
             </li>
           ))}
         </ul>
       )}
     </TabsContent>
-  )
+  );
 }

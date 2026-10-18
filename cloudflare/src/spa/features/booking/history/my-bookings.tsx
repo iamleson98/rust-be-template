@@ -1,4 +1,4 @@
-'use client'
+"use client";
 
 /**
  * MyBookings — the booking history of the SIGNED-IN user.
@@ -10,68 +10,68 @@
  * their tickets sign in — the account guard redirects them.
  */
 
-import { useQuery } from '@tanstack/react-query'
-import { bookingsListOptions } from '@spa/api'
-import { useUi } from '@spa/stores/ui'
-import { usePrefs } from '@spa/stores/prefs'
-import { useMemo, useState, Suspense } from 'react'
-import { useT } from '@spa/lib/i18n'
-import { useNavigate } from '@tanstack/react-router'
-import { Tabs, TabsContent } from '@spa/components/ui/tabs'
-import { ConsolePage, PageHeader } from '@spa/components/console/page'
+import { useQuery } from "@tanstack/react-query";
+import { bookingsListOptions } from "@spa/api";
+import { useUi } from "@spa/stores/ui";
+import { usePrefs } from "@spa/stores/prefs";
+import { useMemo, useState, Suspense } from "react";
+import { useT } from "@spa/lib/i18n";
+import { useNavigate } from "@tanstack/react-router";
+import { Tabs, TabsContent } from "@spa/components/ui/tabs";
+import { ConsolePage, PageHeader } from "@spa/components/console/page";
 
 import {
   BookingItem,
   isBookingUpcoming,
   isBookingPast,
   isBookingCancelled,
-} from '@spa/features/booking/history/booking-types'
-import { BookingList } from '@spa/features/booking/history/booking-list'
-import { FeedbackForm, FeedbackFormFallback } from './feedback-form-lazy'
-import { BookingsTabBar } from './bookings-tab-bar'
+} from "@spa/features/booking/history/booking-types";
+import { BookingList } from "@spa/features/booking/history/booking-list";
+import { FeedbackForm, FeedbackFormFallback } from "./feedback-form-lazy";
+import { BookingsTabBar } from "./bookings-tab-bar";
 
 /** Stable empty default — keeps useMemo deps referentially stable when data is not loaded yet. */
-const EMPTY_ITEMS: never[] = []
-type UserTab = 'upcoming' | 'past' | 'cancelled'
+const EMPTY_ITEMS: never[] = [];
+type UserTab = "upcoming" | "past" | "cancelled";
 
 export function MyBookings() {
-  const openCancel = useUi((s) => s.openCancel)
-  const currency = usePrefs((s) => s.currency)
-  const t = useT()
-  const navigate = useNavigate()
+  const openCancel = useUi((s) => s.openCancel);
+  const currency = usePrefs((s) => s.currency);
+  const t = useT();
+  const navigate = useNavigate();
 
-  const [userTab, setUserTab] = useState<UserTab>('upcoming')
+  const [userTab, setUserTab] = useState<UserTab>("upcoming");
   /** The ticket the user opened (`null`: none); until they choose, the next trip is open. */
-  const [chosenId, setChosenId] = useState<string | null | undefined>(undefined)
-  const [feedbackOpenId, setFeedbackOpenId] = useState<string | null>(null)
+  const [chosenId, setChosenId] = useState<string | null | undefined>(undefined);
+  const [feedbackOpenId, setFeedbackOpenId] = useState<string | null>(null);
 
   // One fetch of every ticket; the tabs filter it client-side.
   const {
     data: bookingsData,
     isLoading: bookingsLoading,
     refetch: refetchBookings,
-  } = useQuery(bookingsListOptions())
-  const userBookings: BookingItem[] = bookingsData?.items ?? EMPTY_ITEMS
-  const bookingsLoaded = !!bookingsData
+  } = useQuery(bookingsListOptions());
+  const userBookings: BookingItem[] = bookingsData?.items ?? EMPTY_ITEMS;
+  const bookingsLoaded = !!bookingsData;
 
   // ── Filtered lists via useMemo ─────────────────────────
-  const upcomingBookings = useMemo(() => userBookings.filter(isBookingUpcoming), [userBookings])
-  const pastBookings = useMemo(() => userBookings.filter(isBookingPast), [userBookings])
-  const expandedId = chosenId === undefined ? (upcomingBookings[0]?.id ?? null) : chosenId
-  const toggleExpand = (id: string) => setChosenId(expandedId === id ? null : id)
-  const cancelledBookings = useMemo(() => userBookings.filter(isBookingCancelled), [userBookings])
+  const upcomingBookings = useMemo(() => userBookings.filter(isBookingUpcoming), [userBookings]);
+  const pastBookings = useMemo(() => userBookings.filter(isBookingPast), [userBookings]);
+  const expandedId = chosenId === undefined ? (upcomingBookings[0]?.id ?? null) : chosenId;
+  const toggleExpand = (id: string) => setChosenId(expandedId === id ? null : id);
+  const cancelledBookings = useMemo(() => userBookings.filter(isBookingCancelled), [userBookings]);
 
   // ── Actions ────────────────────────────────────────────
   // The booking's `review` field changes once a review is sent.
   const handleFeedbackSubmitted = () => {
-    refetchBookings()
-    setFeedbackOpenId(null)
-  }
+    refetchBookings();
+    setFeedbackOpenId(null);
+  };
 
   // ── Render ─────────────────────────────────────────────
   return (
     <ConsolePage>
-      <PageHeader title={t('bookingHistory.myBookingsTitle')} />
+      <PageHeader title={t("bookingHistory.myBookingsTitle")} />
 
       <div>
         <Tabs
@@ -97,7 +97,7 @@ export function MyBookings() {
               onToggleExpand={toggleExpand}
               onCancelClick={openCancel}
               cancellingId={null}
-              onExploreOther={() => navigate({ to: '/' })}
+              onExploreOther={() => navigate({ to: "/" })}
               onReload={refetchBookings}
             />
           </TabsContent>
@@ -114,7 +114,7 @@ export function MyBookings() {
               onToggleExpand={toggleExpand}
               onCancelClick={openCancel}
               cancellingId={null}
-              onExploreOther={() => navigate({ to: '/' })}
+              onExploreOther={() => navigate({ to: "/" })}
               onReload={refetchBookings}
               onLeaveFeedback={(id) => setFeedbackOpenId(feedbackOpenId === id ? null : id)}
               feedbackOpenId={feedbackOpenId}
@@ -126,8 +126,8 @@ export function MyBookings() {
                       `find(...)!` would pass undefined into FeedbackForm
                       and crash on `booking.id`. */}
                   {(() => {
-                    const feedbackBooking = userBookings.find((b) => b.id === feedbackOpenId)
-                    if (!feedbackBooking) return null
+                    const feedbackBooking = userBookings.find((b) => b.id === feedbackOpenId);
+                    if (!feedbackBooking) return null;
                     return (
                       <FeedbackForm
                         booking={feedbackBooking}
@@ -135,7 +135,7 @@ export function MyBookings() {
                         onSubmitted={handleFeedbackSubmitted}
                         onClose={() => setFeedbackOpenId(null)}
                       />
-                    )
+                    );
                   })()}
                 </Suspense>
               )}
@@ -152,12 +152,12 @@ export function MyBookings() {
               loaded={bookingsLoaded}
               expandedId={expandedId}
               onToggleExpand={toggleExpand}
-              onExploreOther={() => navigate({ to: '/' })}
+              onExploreOther={() => navigate({ to: "/" })}
               onReload={refetchBookings}
             />
           </TabsContent>
         </Tabs>
       </div>
     </ConsolePage>
-  )
+  );
 }

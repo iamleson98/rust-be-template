@@ -1,21 +1,21 @@
-import { Suspense } from 'react'
-import { Pencil } from 'lucide-react'
-import { BusTile } from '@spa/components/bus-tile'
-import { Badge } from '@spa/components/ui/badge'
-import { Button } from '@spa/components/ui/button'
-import { Card } from '@spa/components/ui/card'
-import { Skeleton } from '@spa/components/ui/skeleton'
+import { Suspense } from "react";
+import { Pencil } from "lucide-react";
+import { BusTile } from "@spa/components/bus-tile";
+import { Badge } from "@spa/components/ui/badge";
+import { Button } from "@spa/components/ui/button";
+import { Card } from "@spa/components/ui/card";
+import { Skeleton } from "@spa/components/ui/skeleton";
 import type {
   BookingItem,
   ReviewItem,
   ReviewSummary,
-} from '@spa/features/booking/history/booking-types'
-import { formatDay } from '@spa/lib/format'
-import { useT } from '@spa/lib/i18n'
-import { cn } from '@spa/lib/utils'
-import { FeedbackForm, FormFallback } from './pending-ride-card'
-import { REVIEW_STATUS } from './review-status'
-import { StarRating } from './star-rating'
+} from "@spa/features/booking/history/booking-types";
+import { formatDay } from "@spa/lib/format";
+import { useT } from "@spa/lib/i18n";
+import { cn } from "@spa/lib/utils";
+import { FeedbackForm, FormFallback } from "./pending-ride-card";
+import { REVIEW_STATUS } from "./review-status";
+import { StarRating } from "./star-rating";
 
 /** A submitted review with its moderation status, the brand's reply, and an inline editor. */
 export function SentFeedbackCard({
@@ -25,17 +25,17 @@ export function SentFeedbackCard({
   onEdit,
   onEdited,
 }: {
-  review: ReviewItem
+  review: ReviewItem;
   /** The ride it reviews, when still known (needed to edit). */
-  booking?: BookingItem
-  editing: boolean
-  onEdit: () => void
-  onEdited: () => void
+  booking?: BookingItem;
+  editing: boolean;
+  onEdit: () => void;
+  onEdited: () => void;
 }) {
-  const t = useT()
-  const status = REVIEW_STATUS[review.status] ?? REVIEW_STATUS.pending
-  const trip = booking?.trip
-  const canEdit = !!booking && review.status !== 'approved'
+  const t = useT();
+  const status = REVIEW_STATUS[review.status] ?? REVIEW_STATUS.pending;
+  const trip = booking?.trip;
+  const canEdit = !!booking && review.status !== "approved";
 
   return (
     <Card className="overflow-hidden border-border">
@@ -45,7 +45,7 @@ export function SentFeedbackCard({
             <BusTile size="xs" tint />
             <div className="min-w-0">
               <div className="truncate font-semibold">
-                {trip?.routeName || review.title || t('accountPage.feedback.tripFallback')}
+                {trip?.routeName || review.title || t("accountPage.feedback.tripFallback")}
               </div>
               <div className="truncate text-xs text-muted-foreground">
                 {trip?.brandName} · {formatDay(trip?.departureAt || review.createdAt)}
@@ -54,7 +54,7 @@ export function SentFeedbackCard({
           </div>
           <span
             className={cn(
-              'inline-flex shrink-0 items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1',
+              "inline-flex shrink-0 items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1",
               status.cls,
             )}
           >
@@ -71,7 +71,7 @@ export function SentFeedbackCard({
               onClick={onEdit}
               className="h-7 gap-1.5 text-xs text-muted-foreground"
             >
-              <Pencil className="size-3" /> {t('common.edit')}
+              <Pencil className="size-3" /> {t("common.edit")}
             </Button>
           )}
         </div>
@@ -92,8 +92,8 @@ export function SentFeedbackCard({
         {review.reply && (
           <div className="rounded-lg rounded-tl-sm border-l-2 border-primary/50 bg-primary/5 px-3.5 py-2.5">
             <div className="text-[11px] font-semibold text-primary">
-              {t('accountPage.feedback.brandReplied', {
-                brand: trip?.brandName || t('accountPage.feedback.brandFallback'),
+              {t("accountPage.feedback.brandReplied", {
+                brand: trip?.brandName || t("accountPage.feedback.brandFallback"),
               })}
             </div>
             <p className="mt-0.5 text-sm text-foreground/80">{review.reply}</p>
@@ -114,7 +114,7 @@ export function SentFeedbackCard({
         </div>
       )}
     </Card>
-  )
+  );
 }
 
 export function SentFeedbackSkeleton() {
@@ -136,5 +136,5 @@ export function SentFeedbackSkeleton() {
         <Skeleton className="h-3.5 w-4/5" />
       </div>
     </Card>
-  )
+  );
 }

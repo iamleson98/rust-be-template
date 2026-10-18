@@ -9,7 +9,11 @@ export async function GET(req: Request) {
     const brandId = url.searchParams.get("brand_id");
     const routeId = url.searchParams.get("route_id");
     const scope = sql.raw(
-      brandId ? ` AND brand_id = '${brandId.replace(/'/g, "''")}'` : routeId ? ` AND route_id = '${routeId.replace(/'/g, "''")}'` : "",
+      brandId
+        ? ` AND brand_id = '${brandId.replace(/'/g, "''")}'`
+        : routeId
+          ? ` AND route_id = '${routeId.replace(/'/g, "''")}'`
+          : "",
     );
     const agg = (
       await rawAll<{ avg: number | null; n: number; by_rating: string }>(sql`

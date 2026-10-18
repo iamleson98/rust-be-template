@@ -1,14 +1,14 @@
-import { useState } from 'react'
-import { Clock, MessageSquareHeart, Star } from 'lucide-react'
-import { ConsolePage, PageHeader } from '@spa/components/console/page'
-import { EmptyState, Panel } from '@spa/components/console/panel'
-import { PillTab, PillTabs } from '@spa/components/console/pill-tabs'
-import { Tabs, TabsContent } from '@spa/components/ui/tabs'
-import { useT } from '@spa/lib/i18n'
-import { FeedbackPager } from './feedback-pager'
-import { PendingRideCard, PendingRideSkeleton } from './pending-ride-card'
-import { SentFeedbackCard, SentFeedbackSkeleton } from './sent-feedback-card'
-import { PAGE_SIZE, useFeedbackData } from './use-feedback-data'
+import { useState } from "react";
+import { Clock, MessageSquareHeart, Star } from "lucide-react";
+import { ConsolePage, PageHeader } from "@spa/components/console/page";
+import { EmptyState, Panel } from "@spa/components/console/panel";
+import { PillTab, PillTabs } from "@spa/components/console/pill-tabs";
+import { Tabs, TabsContent } from "@spa/components/ui/tabs";
+import { useT } from "@spa/lib/i18n";
+import { FeedbackPager } from "./feedback-pager";
+import { PendingRideCard, PendingRideSkeleton } from "./pending-ride-card";
+import { SentFeedbackCard, SentFeedbackSkeleton } from "./sent-feedback-card";
+import { PAGE_SIZE, useFeedbackData } from "./use-feedback-data";
 
 /** Nothing to show in a tab: what it means and that it is fine. */
 function EmptyCard({ icon, title, desc }: { icon: React.ReactNode; title: string; desc: string }) {
@@ -24,39 +24,39 @@ function EmptyCard({ icon, title, desc }: { icon: React.ReactNode; title: string
         }
       />
     </Panel>
-  )
+  );
 }
 
 /** `/account/feedback`: rate finished trips, and manage the reviews already sent. */
 export function AccountFeedbackContent() {
-  const t = useT()
-  const [tab, setTab] = useState<'pending' | 'sent'>('pending')
-  const [expandedId, setExpandedId] = useState<string | null>(null)
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [page, setPage] = useState(0)
-  const data = useFeedbackData(page)
+  const t = useT();
+  const [tab, setTab] = useState<"pending" | "sent">("pending");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [page, setPage] = useState(0);
+  const data = useFeedbackData(page);
 
-  const toggle = (id: string | null, current: string | null) => (id === current ? null : id)
+  const toggle = (id: string | null, current: string | null) => (id === current ? null : id);
 
   return (
     <ConsolePage>
       <PageHeader
-        title={t('accountPage.feedback.heroTitle')}
-        description={t('accountPage.feedback.heroDesc')}
+        title={t("accountPage.feedback.heroTitle")}
+        description={t("accountPage.feedback.heroDesc")}
       />
 
-      <Tabs value={tab} onValueChange={(v) => setTab(v as 'pending' | 'sent')} className="gap-4">
+      <Tabs value={tab} onValueChange={(v) => setTab(v as "pending" | "sent")} className="gap-4">
         <PillTabs>
           <PillTab
             value="pending"
             icon={<Clock />}
-            label={t('accountPage.feedback.tabPending')}
+            label={t("accountPage.feedback.tabPending")}
             count={data.pending.length}
           />
           <PillTab
             value="sent"
             icon={<Star />}
-            label={t('accountPage.feedback.tabSent')}
+            label={t("accountPage.feedback.tabSent")}
             count={data.total}
           />
         </PillTabs>
@@ -67,8 +67,8 @@ export function AccountFeedbackContent() {
           ) : data.pending.length === 0 ? (
             <EmptyCard
               icon={<Star />}
-              title={t('accountPage.feedback.allRatedTitle')}
-              desc={t('accountPage.feedback.allRatedDesc')}
+              title={t("accountPage.feedback.allRatedTitle")}
+              desc={t("accountPage.feedback.allRatedDesc")}
             />
           ) : (
             <>
@@ -79,13 +79,13 @@ export function AccountFeedbackContent() {
                   expanded={expandedId === b.id}
                   onToggle={() => setExpandedId(toggle(b.id, expandedId))}
                   onSubmitted={() => {
-                    setExpandedId(null)
-                    data.refetch()
+                    setExpandedId(null);
+                    data.refetch();
                   }}
                 />
               ))}
               <p className="px-1 text-xs text-muted-foreground">
-                {t('accountPage.feedback.pendingHint')}
+                {t("accountPage.feedback.pendingHint")}
               </p>
             </>
           )}
@@ -97,8 +97,8 @@ export function AccountFeedbackContent() {
           ) : data.reviews.length === 0 ? (
             <EmptyCard
               icon={<MessageSquareHeart />}
-              title={t('accountPage.feedback.emptySentTitle')}
-              desc={t('accountPage.feedback.emptySentDesc')}
+              title={t("accountPage.feedback.emptySentTitle")}
+              desc={t("accountPage.feedback.emptySentDesc")}
             />
           ) : (
             data.reviews.map((r) => (
@@ -109,8 +109,8 @@ export function AccountFeedbackContent() {
                 editing={editingId === r.id}
                 onEdit={() => setEditingId(toggle(r.id, editingId))}
                 onEdited={() => {
-                  setEditingId(null)
-                  data.refetch()
+                  setEditingId(null);
+                  data.refetch();
                 }}
               />
             ))
@@ -127,5 +127,5 @@ export function AccountFeedbackContent() {
         </TabsContent>
       </Tabs>
     </ConsolePage>
-  )
+  );
 }

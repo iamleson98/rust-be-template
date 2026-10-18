@@ -43,30 +43,30 @@
  * ```
  */
 
-import { tSync } from '@spa/lib/i18n'
+import { tSync } from "@spa/lib/i18n";
 
-const LS_PERMISSION_KEY = 'datxevui:notif-permission'
-const LS_ASKED_AT_KEY = 'datxevui:notif-asked-at'
+const LS_PERMISSION_KEY = "datxevui:notif-permission";
+const LS_ASKED_AT_KEY = "datxevui:notif-asked-at";
 
-type CachedPermission = 'asked' | 'granted' | 'denied' | 'unsupported' | 'default'
+type CachedPermission = "asked" | "granted" | "denied" | "unsupported" | "default";
 
 function readCached(): CachedPermission {
-  if (typeof window === 'undefined') return 'unsupported'
+  if (typeof window === "undefined") return "unsupported";
   try {
-    const v = window.localStorage.getItem(LS_PERMISSION_KEY)
-    if (v === 'asked' || v === 'granted' || v === 'denied' || v === 'unsupported') return v
-    return 'default'
+    const v = window.localStorage.getItem(LS_PERMISSION_KEY);
+    if (v === "asked" || v === "granted" || v === "denied" || v === "unsupported") return v;
+    return "default";
   } catch {
     // localStorage may be unavailable (private mode / disabled).
-    return 'default'
+    return "default";
   }
 }
 
 function writeCached(value: CachedPermission): void {
-  if (typeof window === 'undefined') return
+  if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(LS_PERMISSION_KEY, value)
-    window.localStorage.setItem(LS_ASKED_AT_KEY, new Date().toISOString())
+    window.localStorage.setItem(LS_PERMISSION_KEY, value);
+    window.localStorage.setItem(LS_ASKED_AT_KEY, new Date().toISOString());
   } catch {
     /* ignore — best-effort cache */
   }
@@ -77,7 +77,7 @@ function writeCached(value: CachedPermission): void {
  * Safari on iOS < 16.4 doesn't — we silently skip the prompt there.
  */
 function notificationsSupported(): boolean {
-  return typeof window !== 'undefined' && 'Notification' in window
+  return typeof window !== "undefined" && "Notification" in window;
 }
 
 /**
@@ -86,9 +86,9 @@ function notificationsSupported(): boolean {
  * Notifications API isn't available.
  */
 export function currentPermission(): CachedPermission {
-  if (!notificationsSupported()) return 'unsupported'
+  if (!notificationsSupported()) return "unsupported";
   // Notification.permission is one of: "default" | "granted" | "denied"
-  return Notification.permission as CachedPermission
+  return Notification.permission as CachedPermission;
 }
 
 /**
@@ -114,46 +114,46 @@ export function currentPermission(): CachedPermission {
 export async function ensureCallNotificationPermission(): Promise<CachedPermission> {
   // 1. No Notifications API → bail.
   if (!notificationsSupported()) {
-    writeCached('unsupported')
-    return 'unsupported'
+    writeCached("unsupported");
+    return "unsupported";
   }
 
   // 2. If browser permission is already granted or denied, the user
   //    has decided (browser-side). Cache it so we don't keep calling
   //    requestPermission on subsequent call-feature uses.
-  const browserPerm = currentPermission()
-  if (browserPerm === 'granted' || browserPerm === 'denied') {
-    writeCached(browserPerm)
-    return browserPerm
+  const browserPerm = currentPermission();
+  if (browserPerm === "granted" || browserPerm === "denied") {
+    writeCached(browserPerm);
+    return browserPerm;
   }
 
   // 3. Browser permission is "default" — but have we asked before?
   //    If yes, don't re-prompt (the user dismissed the previous prompt;
   //    re-prompting would be annoying). They can manually toggle the
   //    site permission in their browser settings if they change their mind.
-  const cached = readCached()
-  if (cached === 'asked' || cached === 'granted' || cached === 'denied') {
-    return 'default'
+  const cached = readCached();
+  if (cached === "asked" || cached === "granted" || cached === "denied") {
+    return "default";
   }
 
   // 4. First time — actually request the permission.
   try {
-    const result = await Notification.requestPermission()
-    if (result === 'granted') {
-      writeCached('granted')
-      return 'granted'
-    } else if (result === 'denied') {
-      writeCached('denied')
-      return 'denied'
+    const result = await Notification.requestPermission();
+    if (result === "granted") {
+      writeCached("granted");
+      return "granted";
+    } else if (result === "denied") {
+      writeCached("denied");
+      return "denied";
     }
     // result === 'default' — the user dismissed without choosing.
     // Record that we've asked so we don't keep re-prompting.
-    writeCached('asked')
-    return 'default'
+    writeCached("asked");
+    return "default";
   } catch {
     // Some browsers (older Safari) throw on requestPermission.
-    writeCached('unsupported')
-    return 'unsupported'
+    writeCached("unsupported");
+    return "unsupported";
   }
 }
 
@@ -172,33 +172,33 @@ export function showNotification(
   body: string,
   options?: { tag?: string; onClick?: () => void },
 ): boolean {
-  if (!notificationsSupported()) return false
-  if (currentPermission() !== 'granted') return false
-  if (typeof document !== 'undefined' && !document.hidden) return false
+  if (!notificationsSupported()) return false;
+  if (currentPermission() !== "granted") return false;
+  if (typeof document !== "undefined" && !document.hidden) return false;
 
   try {
     const n = new Notification(title, {
       body,
-      icon: '/icons/icon-192.png',
+      icon: "/icons/icon-192.png",
       // Badge: no 96px variant exists in public/icons/ — reuse the 192px
       // icon (the OS scales it down for the badge slot).
-      badge: '/icons/icon-192.png',
+      badge: "/icons/icon-192.png",
       tag: options?.tag,
       // silent: false — we want the OS to ring.
-    })
+    });
     if (options?.onClick) {
       n.onclick = () => {
-        window.focus()
-        options.onClick!()
-        n.close()
-      }
+        window.focus();
+        options.onClick!();
+        n.close();
+      };
     }
     // Auto-close after 8 seconds — long enough to be noticed, short
     // enough not to pile up if multiple arrive.
-    setTimeout(() => n.close(), 8000)
-    return true
+    setTimeout(() => n.close(), 8000);
+    return true;
   } catch {
-    return false
+    return false;
   }
 }
 
@@ -209,12 +209,12 @@ export function showNotification(
  */
 export function notifyChatMessage(senderName: string, body: string, channelId?: string): void {
   showNotification(`💬 ${senderName}`, body, {
-    tag: channelId ? `chat:${channelId}` : 'chat',
+    tag: channelId ? `chat:${channelId}` : "chat",
     onClick: () => {
       // Dispatch a custom event so the chat widget can open itself.
-      window.dispatchEvent(new CustomEvent('datxevui:open-chat'))
+      window.dispatchEvent(new CustomEvent("datxevui:open-chat"));
     },
-  })
+  });
 }
 
 /**
@@ -222,13 +222,13 @@ export function notifyChatMessage(senderName: string, body: string, channelId?: 
  */
 export function notifyIncomingCall(fromName: string): void {
   showNotification(
-    tSync('notifications.incomingCall', { name: fromName }),
-    tSync('notifications.tapToAnswer'),
+    tSync("notifications.incomingCall", { name: fromName }),
+    tSync("notifications.tapToAnswer"),
     {
-      tag: 'audio-call',
+      tag: "audio-call",
       onClick: () => {
-        window.dispatchEvent(new CustomEvent('datxevui:open-call'))
+        window.dispatchEvent(new CustomEvent("datxevui:open-call"));
       },
     },
-  )
+  );
 }

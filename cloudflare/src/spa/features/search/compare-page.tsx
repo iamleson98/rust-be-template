@@ -5,14 +5,14 @@
  * overlay) — previously this page rendered a permanently blank screen
  * whenever it was opened via URL/reload instead of the compare tray.
  */
-import { Link } from '@tanstack/react-router'
-import { ArrowLeft } from 'lucide-react'
-import { Button } from '@spa/components/ui/button'
-import { TripCompare } from '@spa/features/search/compare/trip-compare'
-import { useT } from '@spa/lib/i18n'
+import { Link } from "@tanstack/react-router";
+import { ArrowLeft } from "lucide-react";
+import { Button } from "@spa/components/ui/button";
+import { TripCompare } from "@spa/features/search/compare/trip-compare";
+import { useT } from "@spa/lib/i18n";
 
 export function ComparePage() {
-  const t = useT()
+  const t = useT();
   return (
     <div className="page-transition">
       <div className="container mx-auto px-4 py-8">
@@ -24,11 +24,11 @@ export function ComparePage() {
         >
           <Link to="/search">
             <ArrowLeft className="h-4 w-4" />
-            {t('common.back')}
+            {t("common.back")}
           </Link>
         </Button>
         <TripCompare inline />
       </div>
     </div>
-  )
+  );
 }

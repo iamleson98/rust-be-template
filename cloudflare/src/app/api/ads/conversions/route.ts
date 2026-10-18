@@ -30,7 +30,12 @@ export async function POST(req: Request) {
       wbraid: clickIds.wbraid ?? null,
       gbraid: clickIds.gbraid ?? null,
     });
-    return Response.json({ ok: true, stored: true, uploadAttempted: false, serverUploadEnabled: false });
+    return Response.json({
+      ok: true,
+      stored: true,
+      uploadAttempted: false,
+      serverUploadEnabled: false,
+    });
   } catch (e) {
     return handleRouteError(e);
   }

@@ -1,10 +1,10 @@
-'use client'
+"use client";
 
-import { type ComponentProps } from 'react'
-import { Checkbox as CheckboxPrimitive } from '@base-ui/react/checkbox'
-import { CheckIcon } from 'lucide-react'
+import type { ComponentProps } from "react";
+import { Checkbox as CheckboxPrimitive } from "@base-ui/react/checkbox";
+import { CheckIcon } from "lucide-react";
 
-import { cn } from '@spa/lib/utils'
+import { cn } from "@spa/lib/utils";
 
 /**
  * Radix-compat wrapper around Base UI's Checkbox.
@@ -29,12 +29,12 @@ function Checkbox({ className, ...props }: ComponentProps<typeof CheckboxPrimiti
         <span
           {...componentProps}
           data-state={
-            state.indeterminate ? 'indeterminate' : state.checked ? 'checked' : 'unchecked'
+            state.indeterminate ? "indeterminate" : state.checked ? "checked" : "unchecked"
           }
         />
       )}
       className={cn(
-        'peer border-input dark:bg-input/30 data-checked:bg-primary data-checked:text-primary-foreground dark:data-checked:bg-primary data-checked:border-primary focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive size-4 shrink-0 rounded-lg border outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50',
+        "peer border-input dark:bg-input/30 data-checked:bg-primary data-checked:text-primary-foreground dark:data-checked:bg-primary data-checked:border-primary focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive size-4 shrink-0 rounded-lg border outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50",
         className,
       )}
       {...props}
@@ -46,7 +46,7 @@ function Checkbox({ className, ...props }: ComponentProps<typeof CheckboxPrimiti
         <CheckIcon className="size-3.5" />
       </CheckboxPrimitive.Indicator>
     </CheckboxPrimitive.Root>
-  )
+  );
 }
 
-export { Checkbox }
+export { Checkbox };

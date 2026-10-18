@@ -1,4 +1,4 @@
-'use client'
+"use client";
 
 /**
  * DateTimePicker — a day and a time in one field, in the house style (no
@@ -9,30 +9,30 @@
  * the day, and "Xong" closes it.
  */
 
-import { useState } from 'react'
-import { format } from 'date-fns'
-import { enUS, vi } from 'date-fns/locale'
-import { CalendarClock } from 'lucide-react'
+import { useState } from "react";
+import { format } from "date-fns";
+import { enUS, vi } from "date-fns/locale";
+import { CalendarClock } from "lucide-react";
 
-import { Button } from '@spa/components/ui/button'
-import { Calendar } from '@spa/components/ui/calendar'
-import { parseIsoDate } from '@spa/components/ui/date-picker'
-import { LunarDayButton, LunarFooter } from '@spa/components/ui/lunar-day'
-import { Popover, PopoverContent, PopoverTrigger } from '@spa/components/ui/popover'
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@spa/components/ui/sheet'
-import { normalizeTime, TimeColumns } from '@spa/components/ui/time-picker'
-import { useIsMobile } from '@spa/hooks/use-mobile'
-import { useT } from '@spa/lib/i18n'
-import { cn } from '@spa/lib/utils'
-import { usePrefs } from '@spa/stores/prefs'
+import { Button } from "@spa/components/ui/button";
+import { Calendar } from "@spa/components/ui/calendar";
+import { parseIsoDate } from "@spa/components/ui/date-picker";
+import { LunarDayButton, LunarFooter } from "@spa/components/ui/lunar-day";
+import { Popover, PopoverContent, PopoverTrigger } from "@spa/components/ui/popover";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@spa/components/ui/sheet";
+import { normalizeTime, TimeColumns } from "@spa/components/ui/time-picker";
+import { useIsMobile } from "@spa/hooks/use-mobile";
+import { useT } from "@spa/lib/i18n";
+import { cn } from "@spa/lib/utils";
+import { usePrefs } from "@spa/stores/prefs";
 
-const DAY_FMT = 'yyyy-MM-dd'
+const DAY_FMT = "yyyy-MM-dd";
 
 /** `yyyy-MM-ddTHH:mm` → its day and time parts ('' when missing). */
 function split(value: string | null | undefined): { day: string; time: string } {
-  if (!value) return { day: '', time: '' }
-  const [day = '', time = ''] = value.split('T')
-  return { day: parseIsoDate(day) ? day.slice(0, 10) : '', time: normalizeTime(time) }
+  if (!value) return { day: "", time: "" };
+  const [day = "", time = ""] = value.split("T");
+  return { day: parseIsoDate(day) ? day.slice(0, 10) : "", time: normalizeTime(time) };
 }
 
 export function DateTimePicker({
@@ -43,40 +43,40 @@ export function DateTimePicker({
   disabled,
   className,
   triggerClassName,
-  defaultTime = '08:00',
+  defaultTime = "08:00",
   minuteStep = 5,
   lunar = false,
   id,
-  'aria-label': ariaLabel,
+  "aria-label": ariaLabel,
 }: {
   /** `yyyy-MM-ddTHH:mm`; `null`/`''` = none. */
-  value: string | null | undefined
-  onChange: (value: string) => void
-  placeholder?: string
+  value: string | null | undefined;
+  onChange: (value: string) => void;
+  placeholder?: string;
   /** Earliest selectable day (inclusive). */
-  minDate?: Date
-  disabled?: boolean
-  className?: string
-  triggerClassName?: string
+  minDate?: Date;
+  disabled?: boolean;
+  className?: string;
+  triggerClassName?: string;
   /** The time used when a day is picked before any time. */
-  defaultTime?: string
-  minuteStep?: number
+  defaultTime?: string;
+  minuteStep?: number;
   /** Lunar day under each date, as in the search form's picker. */
-  lunar?: boolean
-  id?: string
-  'aria-label'?: string
+  lunar?: boolean;
+  id?: string;
+  "aria-label"?: string;
 }) {
-  const t = useT()
-  const [open, setOpen] = useState(false)
-  const isMobile = useIsMobile()
-  const lang = usePrefs((s) => s.lang)
-  const locale = lang === 'en' ? enUS : vi
-  const { day, time } = split(value)
-  const date = parseIsoDate(day)
-  const label = placeholder ?? t('ui.pickDateTime')
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  const isMobile = useIsMobile();
+  const lang = usePrefs((s) => s.lang);
+  const locale = lang === "en" ? enUS : vi;
+  const { day, time } = split(value);
+  const date = parseIsoDate(day);
+  const label = placeholder ?? t("ui.pickDateTime");
 
   const emit = (nextDay: string, nextTime: string) =>
-    onChange(`${nextDay || format(minDate ?? new Date(), DAY_FMT)}T${nextTime || defaultTime}`)
+    onChange(`${nextDay || format(minDate ?? new Date(), DAY_FMT)}T${nextTime || defaultTime}`);
 
   const trigger = (
     <Button
@@ -87,22 +87,22 @@ export function DateTimePicker({
       aria-label={ariaLabel}
       onClick={isMobile ? () => setOpen(true) : undefined}
       className={cn(
-        'h-9 w-full justify-start font-normal tabular-nums',
-        !date && 'text-muted-foreground',
+        "h-9 w-full justify-start font-normal tabular-nums",
+        !date && "text-muted-foreground",
         triggerClassName,
       )}
     >
       <CalendarClock className="h-4 w-4 shrink-0 opacity-70" />
       <span className="truncate">
         {date
-          ? `${format(date, lang === 'en' ? 'EEE, MM/dd/yyyy' : 'EEE, dd/MM/yyyy', { locale })} · ${time || defaultTime}`
+          ? `${format(date, lang === "en" ? "EEE, MM/dd/yyyy" : "EEE, dd/MM/yyyy", { locale })} · ${time || defaultTime}`
           : label}
       </span>
     </Button>
-  )
+  );
 
   const panel = (
-    <div className={cn('flex gap-3', isMobile ? 'flex-col' : 'p-3')}>
+    <div className={cn("flex gap-3", isMobile ? "flex-col" : "p-3")}>
       <Calendar
         mode="single"
         locale={locale}
@@ -111,28 +111,28 @@ export function DateTimePicker({
         onSelect={(d) => d && emit(format(d, DAY_FMT), time)}
         disabled={minDate ? (d: Date) => d < new Date(minDate.toDateString()) : undefined}
         className={cn(
-          'p-0',
+          "p-0",
           // Lunar days need a second line: taller cells.
-          (lunar || isMobile) && '[--cell-size:--spacing(11)]',
+          (lunar || isMobile) && "[--cell-size:--spacing(11)]",
         )}
-        classNames={isMobile ? { root: 'w-full' } : undefined}
+        classNames={isMobile ? { root: "w-full" } : undefined}
         components={lunar ? { DayButton: LunarDayButton } : undefined}
         footer={lunar ? <LunarFooter date={date} /> : undefined}
       />
-      <div className={cn('flex flex-col', !isMobile && 'border-l pl-3')}>
+      <div className={cn("flex flex-col", !isMobile && "border-l pl-3")}>
         <TimeColumns
           value={time}
           minuteStep={minuteStep}
           onChange={(next) => emit(day, next)}
           // As tall as the calendar beside it; the columns scroll inside.
-          className={isMobile ? 'h-48 justify-center' : lunar ? 'h-[19rem]' : 'h-64'}
+          className={isMobile ? "h-48 justify-center" : lunar ? "h-[19rem]" : "h-64"}
         />
         <Button type="button" size="sm" className="mt-2" onClick={() => setOpen(false)}>
-          {t('ui.done')}
+          {t("ui.done")}
         </Button>
       </div>
     </div>
-  )
+  );
 
   return (
     <div className={className}>
@@ -159,5 +159,5 @@ export function DateTimePicker({
         </Popover>
       )}
     </div>
-  )
+  );
 }

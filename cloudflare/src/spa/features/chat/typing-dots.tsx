@@ -1,4 +1,4 @@
-const DELAYS_MS = [0, 150, 300]
+const DELAYS_MS = [0, 150, 300];
 
 /** Three bouncing dots in a bubble: the other side is typing. */
 export function TypingDots() {
@@ -14,5 +14,5 @@ export function TypingDots() {
         ))}
       </div>
     </div>
-  )
+  );
 }

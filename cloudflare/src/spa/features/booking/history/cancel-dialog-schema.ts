@@ -1,16 +1,16 @@
 // Extracted from the original 'cancel-dialog.tsx'.
 
-import { z } from 'zod'
-import { tSync } from '@spa/lib/i18n'
+import { z } from "zod";
+import { tSync } from "@spa/lib/i18n";
 
 export const CANCEL_REASONS = [
-  { key: 'change', labelKey: 'cancel.reason.change' },
-  { key: 'cheaper', labelKey: 'cancel.reason.cheaper' },
-  { key: 'tripCancel', labelKey: 'cancel.reason.tripCancel' },
-  { key: 'other', labelKey: 'cancel.reason.other' },
-] as const
+  { key: "change", labelKey: "cancel.reason.change" },
+  { key: "cheaper", labelKey: "cancel.reason.cheaper" },
+  { key: "tripCancel", labelKey: "cancel.reason.tripCancel" },
+  { key: "other", labelKey: "cancel.reason.other" },
+] as const;
 
-export type Step = 1 | 2 | 3
+export type Step = 1 | 2 | 3;
 
 /**
  * Zod schema for the cancel-dialog form.
@@ -27,12 +27,12 @@ export type Step = 1 | 2 | 3
  */
 
 export const cancelSchema = z.object({
-  selectedReason: z.string().min(1, { error: () => tSync('cancelSchema.reasonRequired') }),
+  selectedReason: z.string().min(1, { error: () => tSync("cancelSchema.reasonRequired") }),
   otherReason: z
     .string()
     .trim()
-    .max(500, { error: () => tSync('cancelSchema.otherReasonMax') }),
+    .max(500, { error: () => tSync("cancelSchema.otherReasonMax") }),
   agreed: z.boolean(),
-})
+});
 
-export type CancelValues = z.infer<typeof cancelSchema>
+export type CancelValues = z.infer<typeof cancelSchema>;

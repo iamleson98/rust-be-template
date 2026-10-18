@@ -11,7 +11,7 @@ export async function POST(req: Request) {
   try {
     const cookie = req.headers.get("cookie") ?? "";
     const m = /(?:^|;\s*)refresh_token=([^;]+)/.exec(cookie);
-    let presented = m ? decodeURIComponent(m[1]!) : null;
+    let presented = m ? decodeURIComponent(m[1]) : null;
     if (!presented) {
       const body = (await req.json().catch(() => ({}))) as { refreshToken?: string };
       presented = body.refreshToken ?? null;
@@ -36,7 +36,9 @@ export async function POST(req: Request) {
       {
         user: sessionUserOut(user),
         expires_at: new Date(Date.now() + (await accessTtlSecs()) * 1000).toISOString(),
-        ...(mobile ? { tokens: { access_token: tokens.accessToken, refresh_token: tokens.refreshToken } } : {}),
+        ...(mobile
+          ? { tokens: { access_token: tokens.accessToken, refresh_token: tokens.refreshToken } }
+          : {}),
       },
       { headers },
     );

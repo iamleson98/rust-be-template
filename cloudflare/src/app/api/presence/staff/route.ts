@@ -30,7 +30,9 @@ export async function GET() {
     `);
     const now = Date.now();
     const fresh = (t: string | null) =>
-      !!t && (now - new Date(t.replace(" ", "T") + (t.includes("Z") ? "" : "Z")).getTime()) / 1000 < ONLINE_WINDOW_SEC;
+      !!t &&
+      (now - new Date(t.replace(" ", "T") + (t.includes("Z") ? "" : "Z")).getTime()) / 1000 <
+        ONLINE_WINDOW_SEC;
 
     const staff = rows.map((r) => {
       const online = fresh(r.last_seen_at);

@@ -1,4 +1,4 @@
-'use client'
+"use client";
 
 /**
  * Host metric card — hostname / OS / kernel / updated-at footer of the
@@ -7,10 +7,10 @@
  * Extracted from the original 'src/features/admin/system/metric-cards.tsx'.
  */
 
-import { LoaderCircle } from 'lucide-react'
+import { LoaderCircle } from "lucide-react";
 
-import { Card, CardContent, CardHeader, CardTitle } from '@spa/components/ui/card'
-import { useT } from '@spa/lib/i18n'
+import { Card, CardContent, CardHeader, CardTitle } from "@spa/components/ui/card";
+import { useT } from "@spa/lib/i18n";
 
 // ─── Host ───────────────────────────────────────────────────────────
 
@@ -21,37 +21,37 @@ export function HostCard({
   timestamp,
   refreshing = false,
 }: {
-  hostname: string
-  osName: string
-  kernelVersion: string
+  hostname: string;
+  osName: string;
+  kernelVersion: string;
   /** ISO timestamp of the current metrics snapshot. */
-  timestamp: string
-  refreshing?: boolean
+  timestamp: string;
+  refreshing?: boolean;
 }) {
-  const t = useT()
+  const t = useT();
   return (
     <Card data-testid="metric-host-card">
       <CardHeader className="pb-2">
-        <CardTitle className="text-base">{t('adminSystem.host')}</CardTitle>
+        <CardTitle className="text-base">{t("adminSystem.host")}</CardTitle>
       </CardHeader>
       <CardContent>
         <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-4">
           <div>
-            <dt className="text-muted-foreground">{t('adminSystem.hostname')}</dt>
+            <dt className="text-muted-foreground">{t("adminSystem.hostname")}</dt>
             <dd className="font-medium">{hostname}</dd>
           </div>
           <div>
-            <dt className="text-muted-foreground">{t('adminSystem.os')}</dt>
+            <dt className="text-muted-foreground">{t("adminSystem.os")}</dt>
             <dd className="font-medium">{osName}</dd>
           </div>
           <div>
-            <dt className="text-muted-foreground">{t('adminSystem.kernel')}</dt>
+            <dt className="text-muted-foreground">{t("adminSystem.kernel")}</dt>
             <dd className="font-medium truncate" title={kernelVersion}>
               {kernelVersion}
             </dd>
           </div>
           <div>
-            <dt className="text-muted-foreground">{t('adminSystem.updated')}</dt>
+            <dt className="text-muted-foreground">{t("adminSystem.updated")}</dt>
             <dd className="font-medium tabular-nums">
               {new Date(timestamp).toLocaleTimeString()}
               {refreshing && (
@@ -65,5 +65,5 @@ export function HostCard({
         </dl>
       </CardContent>
     </Card>
-  )
+  );
 }

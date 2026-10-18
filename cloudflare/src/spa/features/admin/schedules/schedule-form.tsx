@@ -1,4 +1,4 @@
-'use client'
+"use client";
 
 /**
  * ScheduleFormDialog — create/edit a Schedule under a given Route.
@@ -32,12 +32,12 @@
  * query on success.
  */
 
-import { adminSchedulesCreateMutation, adminSchedulesUpdateMutation } from '@spa/api'
-import { useMutation } from '@tanstack/react-query'
-import { useEffect, useMemo, useState } from 'react'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
+import { adminSchedulesCreateMutation, adminSchedulesUpdateMutation } from "@spa/api";
+import { useMutation } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import {
   Dialog,
   DialogContent,
@@ -45,27 +45,27 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@spa/components/ui/dialog'
-import { Button } from '@spa/components/ui/button'
-import { Form } from '@spa/components/ui/form'
-import { Clock, Loader2 } from 'lucide-react'
-import { toast } from 'sonner'
-import { useT } from '@spa/lib/i18n'
+} from "@spa/components/ui/dialog";
+import { Button } from "@spa/components/ui/button";
+import { Form } from "@spa/components/ui/form";
+import { Clock, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import { useT } from "@spa/lib/i18n";
 import type {
   AdminAddressOut,
   AdminBusLayoutOut,
   AdminRouteOut,
   AdminScheduleOut,
   ChildFarePolicy,
-} from '@spa/api'
-import { AddressMapDialog } from '@spa/features/admin/addresses/address-map-dialog'
-import { scheduleSchema, type ScheduleFormValues } from './schedule-schema'
-import { ScheduleRouteSection } from './schedule-route-section'
-import { ScheduleBasicsFields } from './schedule-basics-fields'
-import { ScheduleDaysField } from './schedule-days-field'
-import { ScheduleAmenitiesField } from './schedule-amenities-field'
-import { ScheduleFares } from './schedule-fares'
-import { getErrorMessage } from '@spa/lib/error-message'
+} from "@spa/api";
+import { AddressMapDialog } from "@spa/features/admin/addresses/address-map-dialog";
+import { scheduleSchema, type ScheduleFormValues } from "./schedule-schema";
+import { ScheduleRouteSection } from "./schedule-route-section";
+import { ScheduleBasicsFields } from "./schedule-basics-fields";
+import { ScheduleDaysField } from "./schedule-days-field";
+import { ScheduleAmenitiesField } from "./schedule-amenities-field";
+import { ScheduleFares } from "./schedule-fares";
+import { getErrorMessage } from "@spa/lib/error-message";
 
 export function ScheduleFormDialog({
   open,
@@ -78,81 +78,81 @@ export function ScheduleFormDialog({
   onOpenChange,
   onSaved,
 }: {
-  open: boolean
-  schedule: AdminScheduleOut | null
-  route: AdminRouteOut | null
-  busLayouts: AdminBusLayoutOut[]
-  brandId?: string
-  brandName?: string
+  open: boolean;
+  schedule: AdminScheduleOut | null;
+  route: AdminRouteOut | null;
+  busLayouts: AdminBusLayoutOut[];
+  brandId?: string;
+  brandName?: string;
   /** The brand's child tickets, if it sells them. */
-  childFare?: ChildFarePolicy | null
-  onOpenChange: (open: boolean) => void
-  onSaved: () => void
+  childFare?: ChildFarePolicy | null;
+  onOpenChange: (open: boolean) => void;
+  onSaved: () => void;
 }) {
-  const t = useT()
-  const isEdit = !!schedule
-  const createMutation = useMutation(adminSchedulesCreateMutation())
-  const updateMutation = useMutation(adminSchedulesUpdateMutation())
-  const saving = createMutation.isPending || updateMutation.isPending
+  const t = useT();
+  const isEdit = !!schedule;
+  const createMutation = useMutation(adminSchedulesCreateMutation());
+  const updateMutation = useMutation(adminSchedulesUpdateMutation());
+  const saving = createMutation.isPending || updateMutation.isPending;
 
   // Addresses created inside this dialog session — merged as extras so
   // the new option appears instantly (the query invalidation refreshes
   // the canonical list in the background).
-  const [extraAddresses, setExtraAddresses] = useState<AdminAddressOut[]>([])
+  const [extraAddresses, setExtraAddresses] = useState<AdminAddressOut[]>([]);
   // Which point slot triggered the "create address" modal.
-  const [createFor, setCreateFor] = useState<'start' | 'end' | number | null>(null)
-  const [addressDialogOpen, setAddressDialogOpen] = useState(false)
+  const [createFor, setCreateFor] = useState<"start" | "end" | number | null>(null);
+  const [addressDialogOpen, setAddressDialogOpen] = useState(false);
 
   // Addresses the picker must always be able to resolve: the schedule's
   // existing points (edit mode — they embed the full address) plus ones
   // created during this dialog session.
   const knownAddresses = useMemo(() => {
-    const base = schedule?.points?.map((p) => p.address as AdminAddressOut) ?? []
-    const seen = new Set(base.map((a) => a.id))
-    return [...base, ...extraAddresses.filter((a) => !seen.has(a.id))]
-  }, [schedule, extraAddresses])
+    const base = schedule?.points?.map((p) => p.address as AdminAddressOut) ?? [];
+    const seen = new Set(base.map((a) => a.id));
+    return [...base, ...extraAddresses.filter((a) => !seen.has(a.id))];
+  }, [schedule, extraAddresses]);
 
   const form = useForm<z.input<typeof scheduleSchema>, unknown, z.output<typeof scheduleSchema>>({
     resolver: zodResolver(scheduleSchema),
     // Errors appear on submit, then follow each change: an error popping up
     // on blur shifts the layout under the pointer and swallows the click.
-    mode: 'onSubmit',
-    reValidateMode: 'onChange',
+    mode: "onSubmit",
+    reValidateMode: "onChange",
     defaultValues: {
-      departureTime: '08:00',
+      departureTime: "08:00",
       effectiveFrom: new Date().toISOString().slice(0, 10),
       effectiveTo: new Date(Date.now() + 365 * 86400000).toISOString().slice(0, 10),
       days: [true, true, true, true, true, true, true],
-      vehicleTypeId: '',
-      busLayoutId: '',
+      vehicleTypeId: "",
+      busLayoutId: "",
       basePriceAdult: 0,
       basePriceChild: 0,
       classFares: {},
       amenities: [],
-      startPointId: '',
+      startPointId: "",
       startPointTime: null,
-      endPointId: '',
+      endPointId: "",
       endPointTime: null,
       middlePoints: [],
     },
-  })
+  });
 
   useEffect(() => {
     if (open) {
-      const ds = schedule?.daysOfWeek ?? '1111111'
+      const ds = schedule?.daysOfWeek ?? "1111111";
       // Split the ordered points into start / middles / end by kind.
-      const points = schedule?.points ?? []
-      const startPoint = points.find((p) => p.kind === 'pickup')
-      const endPoint = points.find((p) => p.kind === 'drop')
-      const middles = points.filter((p) => p.kind === 'middle')
+      const points = schedule?.points ?? [];
+      const startPoint = points.find((p) => p.kind === "pickup");
+      const endPoint = points.find((p) => p.kind === "drop");
+      const middles = points.filter((p) => p.kind === "middle");
       form.reset({
-        departureTime: schedule?.departureTime ?? '08:00',
+        departureTime: schedule?.departureTime ?? "08:00",
         effectiveFrom: schedule?.effectiveFrom ?? new Date().toISOString().slice(0, 10),
         effectiveTo:
           schedule?.effectiveTo ?? new Date(Date.now() + 365 * 86400000).toISOString().slice(0, 10),
-        days: [0, 1, 2, 3, 4, 5, 6].map((i) => ds[i] === '1'),
-        vehicleTypeId: schedule?.vehicleTypeId ?? '',
-        busLayoutId: schedule?.busLayoutId ?? '',
+        days: [0, 1, 2, 3, 4, 5, 6].map((i) => ds[i] === "1"),
+        vehicleTypeId: schedule?.vehicleTypeId ?? "",
+        busLayoutId: schedule?.busLayoutId ?? "",
         basePriceAdult: schedule?.basePriceAdult ?? 0,
         basePriceChild: schedule?.basePriceChild ?? 0,
         classFares: Object.fromEntries(
@@ -161,104 +161,104 @@ export function ScheduleFormDialog({
             { priceAdult: f.priceAdult, priceChild: f.priceChild ?? 0 },
           ]),
         ),
-        amenities: schedule?.amenities ? schedule.amenities.split(',').filter(Boolean) : [],
-        startPointId: startPoint?.addressId ?? '',
+        amenities: schedule?.amenities ? schedule.amenities.split(",").filter(Boolean) : [],
+        startPointId: startPoint?.addressId ?? "",
         startPointTime: startPoint?.arrivalTime ?? null,
-        endPointId: endPoint?.addressId ?? '',
+        endPointId: endPoint?.addressId ?? "",
         endPointTime: endPoint?.arrivalTime ?? null,
         middlePoints: middles.map((p) => ({ id: p.addressId, time: p.arrivalTime ?? null })),
-      })
-      setExtraAddresses([])
-      setCreateFor(null)
+      });
+      setExtraAddresses([]);
+      setCreateFor(null);
     }
-  }, [open, schedule, form])
+  }, [open, schedule, form]);
 
-  const days = form.watch('days')
-  const busLayoutId = form.watch('busLayoutId')
-  const effectiveFrom = form.watch('effectiveFrom')
-  const amenitiesValue = form.watch('amenities')
-  const startPointId = form.watch('startPointId')
-  const endPointId = form.watch('endPointId')
-  const middlePoints = form.watch('middlePoints')
+  const days = form.watch("days");
+  const busLayoutId = form.watch("busLayoutId");
+  const effectiveFrom = form.watch("effectiveFrom");
+  const amenitiesValue = form.watch("amenities");
+  const startPointId = form.watch("startPointId");
+  const endPointId = form.watch("endPointId");
+  const middlePoints = form.watch("middlePoints");
 
   const toggleDay = (i: number) => {
     form.setValue(
-      'days',
+      "days",
       days.map((v, idx) => (idx === i ? !v : v)),
       { shouldValidate: true, shouldDirty: true },
-    )
-  }
+    );
+  };
 
   const setDays = (next: boolean[]) => {
-    form.setValue('days', next, { shouldValidate: true, shouldDirty: true })
-  }
+    form.setValue("days", next, { shouldValidate: true, shouldDirty: true });
+  };
 
   const toggleAmenity = (key: string) => {
     const next = amenitiesValue.includes(key)
       ? amenitiesValue.filter((a) => a !== key)
-      : [...amenitiesValue, key]
-    form.setValue('amenities', next, { shouldDirty: true })
-  }
+      : [...amenitiesValue, key];
+    form.setValue("amenities", next, { shouldDirty: true });
+  };
 
   // ── Middle point list operations ─────────────────────────────────
   const addMiddle = () => {
-    form.setValue('middlePoints', [...middlePoints, { id: '', time: null }], { shouldDirty: true })
-  }
+    form.setValue("middlePoints", [...middlePoints, { id: "", time: null }], { shouldDirty: true });
+  };
   const removeMiddle = (index: number) => {
     form.setValue(
-      'middlePoints',
+      "middlePoints",
       middlePoints.filter((_, i) => i !== index),
       { shouldDirty: true },
-    )
-  }
+    );
+  };
   const setMiddle = (index: number, value: string | undefined) => {
     form.setValue(
-      'middlePoints',
-      middlePoints.map((m, i) => (i === index ? { ...m, id: value ?? '' } : m)),
+      "middlePoints",
+      middlePoints.map((m, i) => (i === index ? { ...m, id: value ?? "" } : m)),
       { shouldValidate: true, shouldDirty: true },
-    )
-  }
+    );
+  };
   const setMiddleTime = (index: number, time: string | null) => {
     form.setValue(
-      'middlePoints',
+      "middlePoints",
       middlePoints.map((m, i) => (i === index ? { ...m, time } : m)),
       { shouldDirty: true },
-    )
-  }
+    );
+  };
   const moveMiddle = (index: number, delta: -1 | 1) => {
-    const target = index + delta
-    if (target < 0 || target >= middlePoints.length) return
-    const next = [...middlePoints]
-    ;[next[index], next[target]] = [next[target], next[index]]
-    form.setValue('middlePoints', next, { shouldDirty: true })
-  }
+    const target = index + delta;
+    if (target < 0 || target >= middlePoints.length) return;
+    const next = [...middlePoints];
+    [next[index], next[target]] = [next[target], next[index]];
+    form.setValue("middlePoints", next, { shouldDirty: true });
+  };
 
   // ── "Create address for this point" flow ──────────────────────────
-  const openCreateFor = (slot: 'start' | 'end' | number) => {
-    setCreateFor(slot)
-    setAddressDialogOpen(true)
-  }
+  const openCreateFor = (slot: "start" | "end" | number) => {
+    setCreateFor(slot);
+    setAddressDialogOpen(true);
+  };
 
   const handleAddressCreated = (addr: AdminAddressOut) => {
-    setExtraAddresses((prev) => [...prev, addr])
+    setExtraAddresses((prev) => [...prev, addr]);
     // Immediately adopt the new address for the slot that asked for it.
-    if (createFor === 'start') {
-      form.setValue('startPointId', addr.id, { shouldValidate: true, shouldDirty: true })
-    } else if (createFor === 'end') {
-      form.setValue('endPointId', addr.id, { shouldValidate: true, shouldDirty: true })
-    } else if (typeof createFor === 'number') {
-      setMiddle(createFor, addr.id)
+    if (createFor === "start") {
+      form.setValue("startPointId", addr.id, { shouldValidate: true, shouldDirty: true });
+    } else if (createFor === "end") {
+      form.setValue("endPointId", addr.id, { shouldValidate: true, shouldDirty: true });
+    } else if (typeof createFor === "number") {
+      setMiddle(createFor, addr.id);
     }
-    setCreateFor(null)
-  }
+    setCreateFor(null);
+  };
 
   const onSubmit = async (values: ScheduleFormValues) => {
     if (!route) {
-      toast.error(t('adminSchedules.noRouteSelected'))
-      return
+      toast.error(t("adminSchedules.noRouteSelected"));
+      return;
     }
     try {
-      const daysStr = values.days.map((v) => (v ? '1' : '0')).join('')
+      const daysStr = values.days.map((v) => (v ? "1" : "0")).join("");
       // Ordered point sequence: start → middles → end. The backend
       // derives kind (pickup/middle/drop) from array position; each
       // point carries its optional arrivalTime.
@@ -268,7 +268,7 @@ export function ScheduleFormDialog({
           .filter((m) => !!m.id)
           .map((m) => ({ addressId: m.id, arrivalTime: m.time ?? null })),
         { addressId: values.endPointId, arrivalTime: values.endPointTime ?? null },
-      ]
+      ];
       const payload: Record<string, unknown> = {
         routeId: route.id,
         departureTime: values.departureTime,
@@ -291,9 +291,9 @@ export function ScheduleFormDialog({
         // Backend stores `amenities` as `Option<String>` (comma-separated).
         // The form edits them as an array — join before sending. The
         // previous version sent the array directly → serde 422.
-        amenities: values.amenities.join(','),
+        amenities: values.amenities.join(","),
         points,
-      }
+      };
       // SDK mutation hooks require { body: <payload> } — passing the raw
       // payload makes `opts.body === undefined`, which causes the openapi-ts
       // client to delete `Content-Type: application/json` before sending,
@@ -304,26 +304,26 @@ export function ScheduleFormDialog({
         await updateMutation.mutateAsync({
           path: { id: schedule!.id },
           body: payload,
-        } as unknown as Parameters<typeof updateMutation.mutateAsync>[0])
-        toast.success(t('adminSchedules.updated'))
+        } as unknown as Parameters<typeof updateMutation.mutateAsync>[0]);
+        toast.success(t("adminSchedules.updated"));
       } else {
         await createMutation.mutateAsync({ body: payload } as unknown as Parameters<
           typeof createMutation.mutateAsync
-        >[0])
-        toast.success(t('adminSchedules.created'))
+        >[0]);
+        toast.success(t("adminSchedules.created"));
       }
-      onSaved()
+      onSaved();
     } catch (e) {
-      toast.error(getErrorMessage(e, t('adminSchedules.saveFailed')))
+      toast.error(getErrorMessage(e, t("adminSchedules.saveFailed")));
     }
-  }
+  };
 
-  const startName = knownAddresses.find((a) => a.id === startPointId)?.name
-  const endName = knownAddresses.find((a) => a.id === endPointId)?.name
+  const startName = knownAddresses.find((a) => a.id === startPointId)?.name;
+  const endName = knownAddresses.find((a) => a.id === endPointId)?.name;
 
   // The schedule's configured vehicle type (edit mode) resolves the
   // select's trigger label even before the first page lands.
-  const scheduleVehicleType = schedule?.vehicleType ?? undefined
+  const scheduleVehicleType = schedule?.vehicleType ?? undefined;
 
   return (
     <>
@@ -331,12 +331,12 @@ export function ScheduleFormDialog({
         <DialogContent className="max-w-4xl">
           <DialogHeader icon={<Clock />}>
             <DialogTitle>
-              {isEdit ? t('brands.editSchedule') : t('adminSchedules.createTitle')}
+              {isEdit ? t("brands.editSchedule") : t("adminSchedules.createTitle")}
             </DialogTitle>
             <DialogDescription>
               {route ? (
                 <>
-                  {t('adminSchedules.routePrefix')}{' '}
+                  {t("adminSchedules.routePrefix")}{" "}
                   <span className="font-medium">{route.name}</span>
                   {brandName ? <span className="text-muted-foreground"> · {brandName}</span> : null}
                 </>
@@ -348,7 +348,7 @@ export function ScheduleFormDialog({
             <form
               // A failed check always says so, even when the field is off screen.
               onSubmit={form.handleSubmit(onSubmit, () =>
-                toast.error(t('adminSchedules.checkFields')),
+                toast.error(t("adminSchedules.checkFields")),
               )}
               className="grid gap-4"
             >
@@ -395,15 +395,15 @@ export function ScheduleFormDialog({
 
               <DialogFooter>
                 <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-                  {t('common.cancel')}
+                  {t("common.cancel")}
                 </Button>
                 <Button type="submit" disabled={saving}>
                   {saving ? (
                     <>
-                      <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> {t('common.saving')}
+                      <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> {t("common.saving")}
                     </>
                   ) : (
-                    <>{isEdit ? t('common.saveChanges') : t('adminSchedules.addSchedule')}</>
+                    <>{isEdit ? t("common.saveChanges") : t("adminSchedules.addSchedule")}</>
                   )}
                 </Button>
               </DialogFooter>
@@ -421,5 +421,5 @@ export function ScheduleFormDialog({
         onCreated={handleAddressCreated}
       />
     </>
-  )
+  );
 }

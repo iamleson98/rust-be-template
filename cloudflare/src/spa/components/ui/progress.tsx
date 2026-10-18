@@ -1,16 +1,16 @@
-'use client'
+"use client";
 
-import { type ComponentProps } from 'react'
-import { Progress as ProgressPrimitive } from '@base-ui/react/progress'
+import type { ComponentProps } from "react";
+import { Progress as ProgressPrimitive } from "@base-ui/react/progress";
 
-import { cn } from '@spa/lib/utils'
+import { cn } from "@spa/lib/utils";
 
 function Progress({ className, value, ...props }: ComponentProps<typeof ProgressPrimitive.Root>) {
   return (
     <ProgressPrimitive.Root
       data-slot="progress"
       value={value ?? null}
-      className={cn('relative', className)}
+      className={cn("relative", className)}
       {...props}
     >
       <ProgressPrimitive.Track
@@ -23,7 +23,7 @@ function Progress({ className, value, ...props }: ComponentProps<typeof Progress
         />
       </ProgressPrimitive.Track>
     </ProgressPrimitive.Root>
-  )
+  );
 }
 
-export { Progress }
+export { Progress };

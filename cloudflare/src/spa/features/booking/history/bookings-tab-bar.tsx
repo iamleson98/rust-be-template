@@ -1,8 +1,8 @@
-'use client'
+"use client";
 
-import { CalendarCheck, History, X } from 'lucide-react'
-import { PillTab, PillTabs } from '@spa/components/console/pill-tabs'
-import { useT } from '@spa/lib/i18n'
+import { CalendarCheck, History, X } from "lucide-react";
+import { PillTab, PillTabs } from "@spa/components/console/pill-tabs";
+import { useT } from "@spa/lib/i18n";
 
 /** Upcoming / past / cancelled: one scrollable row, never wrapping. */
 export function BookingsTabBar({
@@ -10,26 +10,26 @@ export function BookingsTabBar({
   pastCount,
   cancelledCount,
 }: {
-  upcomingCount: number
-  pastCount: number
-  cancelledCount: number
+  upcomingCount: number;
+  pastCount: number;
+  cancelledCount: number;
 }) {
-  const t = useT()
+  const t = useT();
   return (
     <PillTabs>
       <PillTab
         value="upcoming"
         icon={<CalendarCheck />}
-        label={t('bookingHistory.upcoming')}
+        label={t("bookingHistory.upcoming")}
         count={upcomingCount}
       />
-      <PillTab value="past" icon={<History />} label={t('bookingHistory.past')} count={pastCount} />
+      <PillTab value="past" icon={<History />} label={t("bookingHistory.past")} count={pastCount} />
       <PillTab
         value="cancelled"
         icon={<X />}
-        label={t('bookingHistory.statusCancelled')}
+        label={t("bookingHistory.statusCancelled")}
         count={cancelledCount}
       />
     </PillTabs>
-  )
+  );
 }

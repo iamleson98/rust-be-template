@@ -1,19 +1,19 @@
-import { SlidersHorizontal } from 'lucide-react'
-import { useT } from '@spa/lib/i18n'
-import { FilterPanel } from './filter-panel'
-import { UrlFilters } from './filter-controls'
-import type { ResultFilters } from './use-result-filters'
+import { SlidersHorizontal } from "lucide-react";
+import { useT } from "@spa/lib/i18n";
+import { FilterPanel } from "./filter-panel";
+import { UrlFilters } from "./filter-controls";
+import type { ResultFilters } from "./use-result-filters";
 
 /** Desktop (lg+) filters beside the results, kept in view while scrolling. */
 export function FiltersSidebar({ rf }: { rf: ResultFilters }) {
-  const t = useT()
+  const t = useT();
   return (
     <aside className="hidden w-72 shrink-0 lg:block">
       <div className="sticky top-[calc(var(--header-h)+5.5rem)] rounded-2xl bg-white p-5 shadow-soft ring-1 ring-slate-200/80">
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-2 font-semibold text-slate-900">
             <SlidersHorizontal className="size-4 text-primary" />
-            {t('searchPage.filters')}
+            {t("searchPage.filters")}
             {rf.activeCount > 0 && (
               <span className="grid h-5 min-w-5 place-items-center rounded-full bg-primary px-1 text-[11px] font-bold text-primary-foreground">
                 {rf.activeCount}
@@ -25,7 +25,7 @@ export function FiltersSidebar({ rf }: { rf: ResultFilters }) {
               onClick={rf.reset}
               className="text-xs font-semibold text-primary hover:underline"
             >
-              {t('searchPage.clearAll')}
+              {t("searchPage.clearAll")}
             </button>
           )}
         </div>
@@ -35,5 +35,5 @@ export function FiltersSidebar({ rf }: { rf: ResultFilters }) {
         </div>
       </div>
     </aside>
-  )
+  );
 }

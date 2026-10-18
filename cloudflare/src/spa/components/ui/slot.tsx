@@ -22,55 +22,55 @@ import {
   Children,
   cloneElement,
   forwardRef,
-} from 'react'
+} from "react";
 
 function mergeProps(
   parentProps: Record<string, unknown>,
   childProps: Record<string, unknown>,
 ): Record<string, unknown> {
-  const merged: Record<string, unknown> = { ...parentProps }
+  const merged: Record<string, unknown> = { ...parentProps };
 
   for (const key in childProps) {
-    const parentVal = parentProps[key]
-    const childVal = childProps[key]
+    const parentVal = parentProps[key];
+    const childVal = childProps[key];
 
-    if (key === 'className' && parentVal && childVal) {
-      merged[key] = `${parentVal} ${childVal}`
+    if (key === "className" && parentVal && childVal) {
+      merged[key] = `${parentVal} ${childVal}`;
     } else if (
-      key.startsWith('on') &&
-      typeof parentVal === 'function' &&
-      typeof childVal === 'function'
+      key.startsWith("on") &&
+      typeof parentVal === "function" &&
+      typeof childVal === "function"
     ) {
       merged[key] = (...args: unknown[]) => {
-        ;(parentVal as (...a: unknown[]) => void)(...args)
-        ;(childVal as (...a: unknown[]) => void)(...args)
-      }
+        (parentVal as (...a: unknown[]) => void)(...args);
+        (childVal as (...a: unknown[]) => void)(...args);
+      };
     } else {
-      merged[key] = childVal ?? parentVal
+      merged[key] = childVal ?? parentVal;
     }
   }
 
-  return merged
+  return merged;
 }
 
 export interface SlotProps extends HTMLAttributes<HTMLElement> {
-  children?: ReactNode
+  children?: ReactNode;
 }
 
 export const Slot = forwardRef<HTMLElement, SlotProps>(({ children, ...props }, ref) => {
   // Throws on anything but exactly one element: there is nothing to merge onto.
-  const child = Children.only(children) as ReactElement<Record<string, unknown>>
-  const mergedProps = mergeProps(props, child.props)
+  const child = Children.only(children) as ReactElement<Record<string, unknown>>;
+  const mergedProps = mergeProps(props, child.props);
 
-  const childRef = child.props.ref as Ref<HTMLElement>
+  const childRef = child.props.ref as Ref<HTMLElement>;
   const composedRef: Ref<HTMLElement> = (node) => {
-    if (typeof ref === 'function') ref(node)
-    else if (ref) (ref as RefObject<HTMLElement | null>).current = node
-    if (typeof childRef === 'function') childRef(node)
-    else if (childRef) (childRef as RefObject<HTMLElement | null>).current = node
-  }
+    if (typeof ref === "function") ref(node);
+    else if (ref) (ref as RefObject<HTMLElement | null>).current = node;
+    if (typeof childRef === "function") childRef(node);
+    else if (childRef) (childRef as RefObject<HTMLElement | null>).current = node;
+  };
 
-  return cloneElement(child, { ...mergedProps, ref: composedRef })
-})
+  return cloneElement(child, { ...mergedProps, ref: composedRef });
+});
 
-Slot.displayName = 'Slot'
+Slot.displayName = "Slot";

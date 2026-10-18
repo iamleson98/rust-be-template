@@ -6,19 +6,19 @@
  * Review & payouts: what is owed to each operator for trips made with a
  * coupon, and the coupons to check and mark paid (see `docs/CAMPAIGNS.md`).
  */
-import { useState } from 'react'
-import { useMutation, useQuery } from '@tanstack/react-query'
-import { Loader2, Plus, RefreshCw, TicketPercent, Wallet } from 'lucide-react'
-import { toast } from 'sonner'
+import { useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { Loader2, Plus, RefreshCw, TicketPercent, Wallet } from "lucide-react";
+import { toast } from "sonner";
 import {
   adminCampaignsDeleteMutation,
   adminCampaignsListOptions,
   adminCampaignsUpdateMutation,
   type AdminCampaignOut,
-} from '@spa/api'
-import { ConsolePage, PageHeader } from '@spa/components/console/page'
-import { EmptyState } from '@spa/components/console/panel'
-import { PillTab, PillTabs } from '@spa/components/console/pill-tabs'
+} from "@spa/api";
+import { ConsolePage, PageHeader } from "@spa/components/console/page";
+import { EmptyState } from "@spa/components/console/panel";
+import { PillTab, PillTabs } from "@spa/components/console/pill-tabs";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,67 +28,67 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@spa/components/ui/alert-dialog'
-import { Button } from '@spa/components/ui/button'
-import { Skeleton } from '@spa/components/ui/skeleton'
-import { Tabs, TabsContent } from '@spa/components/ui/tabs'
-import { ErrorState } from '@spa/components/error-state'
-import { getErrorMessage } from '@spa/lib/error-message'
-import { useT } from '@spa/lib/i18n'
-import { CampaignCard } from './campaign-card'
-import { CampaignEditor, type EditorTarget } from './campaign-editor'
-import { inputFrom } from './form'
-import { PayoutsPanel } from './payouts-panel'
+} from "@spa/components/ui/alert-dialog";
+import { Button } from "@spa/components/ui/button";
+import { Skeleton } from "@spa/components/ui/skeleton";
+import { Tabs, TabsContent } from "@spa/components/ui/tabs";
+import { ErrorState } from "@spa/components/error-state";
+import { getErrorMessage } from "@spa/lib/error-message";
+import { useT } from "@spa/lib/i18n";
+import { CampaignCard } from "./campaign-card";
+import { CampaignEditor, type EditorTarget } from "./campaign-editor";
+import { inputFrom } from "./form";
+import { PayoutsPanel } from "./payouts-panel";
 
 /** Running first, then upcoming, paused, ended; newest window first within each. */
-const ORDER: Record<string, number> = { running: 0, upcoming: 1, paused: 2, ended: 3 }
+const ORDER: Record<string, number> = { running: 0, upcoming: 1, paused: 2, ended: 3 };
 
 export function CampaignsPage() {
-  const t = useT()
-  const [tab, setTab] = useState<'campaigns' | 'payouts'>('campaigns')
-  const [editing, setEditing] = useState<EditorTarget | null>(null)
-  const [deleting, setDeleting] = useState<AdminCampaignOut | null>(null)
-  const query = useQuery(adminCampaignsListOptions())
-  const update = useMutation(adminCampaignsUpdateMutation())
-  const remove = useMutation(adminCampaignsDeleteMutation())
+  const t = useT();
+  const [tab, setTab] = useState<"campaigns" | "payouts">("campaigns");
+  const [editing, setEditing] = useState<EditorTarget | null>(null);
+  const [deleting, setDeleting] = useState<AdminCampaignOut | null>(null);
+  const query = useQuery(adminCampaignsListOptions());
+  const update = useMutation(adminCampaignsUpdateMutation());
+  const remove = useMutation(adminCampaignsDeleteMutation());
 
   const campaigns = [...(query.data?.items ?? [])].sort(
     (a, b) => (ORDER[a.state] ?? 9) - (ORDER[b.state] ?? 9) || b.startsAt.localeCompare(a.startsAt),
-  )
-  const owed = campaigns.reduce((n, c) => n + c.totals.owedCount, 0)
+  );
+  const owed = campaigns.reduce((n, c) => n + c.totals.owedCount, 0);
 
   const open = (campaign: AdminCampaignOut | null) =>
-    setEditing({ campaign, now: Date.now(), nonce: Date.now() })
+    setEditing({ campaign, now: Date.now(), nonce: Date.now() });
 
   const togglePause = (c: AdminCampaignOut) =>
     update.mutate(
       { path: { id: c.id }, body: inputFrom(c, { paused: !c.paused }) },
       {
         onSuccess: () =>
-          toast.success(c.paused ? t('adminCampaigns.resumed') : t('adminCampaigns.paused')),
+          toast.success(c.paused ? t("adminCampaigns.resumed") : t("adminCampaigns.paused")),
         onError: (e) => toast.error(getErrorMessage(e)),
       },
-    )
+    );
 
   const confirmDelete = () => {
-    if (!deleting) return
+    if (!deleting) return;
     remove.mutate(
       { path: { id: deleting.id } },
       {
         onSuccess: () => {
-          toast.success(t('adminCampaigns.deleted'))
-          setDeleting(null)
+          toast.success(t("adminCampaigns.deleted"));
+          setDeleting(null);
         },
         onError: (e) => toast.error(getErrorMessage(e)),
       },
-    )
-  }
+    );
+  };
 
   return (
     <ConsolePage>
       <PageHeader
-        title={t('adminCampaigns.title')}
-        description={t('adminCampaigns.subtitle')}
+        title={t("adminCampaigns.title")}
+        description={t("adminCampaigns.subtitle")}
         actions={
           <>
             <Button
@@ -96,13 +96,13 @@ export function CampaignsPage() {
               size="icon"
               onClick={() => query.refetch()}
               disabled={query.isFetching}
-              aria-label={t('common.refresh')}
+              aria-label={t("common.refresh")}
             >
-              <RefreshCw className={query.isFetching ? 'animate-spin' : undefined} />
+              <RefreshCw className={query.isFetching ? "animate-spin" : undefined} />
             </Button>
             <Button onClick={() => open(null)}>
               <Plus />
-              {t('adminCampaigns.new')}
+              {t("adminCampaigns.new")}
             </Button>
           </>
         }
@@ -113,13 +113,13 @@ export function CampaignsPage() {
           <PillTab
             value="campaigns"
             icon={<TicketPercent />}
-            label={t('adminCampaigns.tabCampaigns')}
+            label={t("adminCampaigns.tabCampaigns")}
             count={campaigns.length}
           />
           <PillTab
             value="payouts"
             icon={<Wallet />}
-            label={t('adminCampaigns.tabPayouts')}
+            label={t("adminCampaigns.tabPayouts")}
             count={owed}
           />
         </PillTabs>
@@ -136,11 +136,11 @@ export function CampaignsPage() {
           ) : campaigns.length === 0 ? (
             <EmptyState
               icon={<TicketPercent />}
-              text={t('adminCampaigns.empty')}
+              text={t("adminCampaigns.empty")}
               action={
                 <Button onClick={() => open(null)}>
                   <Plus />
-                  {t('adminCampaigns.new')}
+                  {t("adminCampaigns.new")}
                 </Button>
               }
             />
@@ -173,27 +173,27 @@ export function CampaignsPage() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t('adminCampaigns.deleteTitle')}</AlertDialogTitle>
+            <AlertDialogTitle>{t("adminCampaigns.deleteTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              <span className="font-semibold text-foreground">{deleting?.name}</span> —{' '}
-              {t('adminCampaigns.deleteDesc')}
+              <span className="font-semibold text-foreground">{deleting?.name}</span> —{" "}
+              {t("adminCampaigns.deleteDesc")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={remove.isPending}>{t('common.cancel')}</AlertDialogCancel>
+            <AlertDialogCancel disabled={remove.isPending}>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               disabled={remove.isPending}
               className="bg-rose-600 hover:bg-rose-700"
               onClick={(e) => {
-                e.preventDefault()
-                confirmDelete()
+                e.preventDefault();
+                confirmDelete();
               }}
             >
-              {remove.isPending ? <Loader2 className="animate-spin" /> : t('common.delete')}
+              {remove.isPending ? <Loader2 className="animate-spin" /> : t("common.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </ConsolePage>
-  )
+  );
 }

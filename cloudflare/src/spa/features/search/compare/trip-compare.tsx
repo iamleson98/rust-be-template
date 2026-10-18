@@ -1,25 +1,25 @@
-'use client'
+"use client";
 
-import { GitCompare, Loader2, Sparkles, X } from 'lucide-react'
-import { Button } from '@spa/components/ui/button'
-import { useT } from '@spa/lib/i18n'
-import { cn } from '@spa/lib/utils'
-import { useUi } from '@spa/stores/ui'
-import { CompareTable } from './compare-table'
-import { useCompareTrips } from './use-compare-trips'
+import { GitCompare, Loader2, Sparkles, X } from "lucide-react";
+import { Button } from "@spa/components/ui/button";
+import { useT } from "@spa/lib/i18n";
+import { cn } from "@spa/lib/utils";
+import { useUi } from "@spa/stores/ui";
+import { CompareTable } from "./compare-table";
+import { useCompareTrips } from "./use-compare-trips";
 
 /** Side-by-side comparison of up to three trips, as an overlay or (`inline`) the body of `/compare`. */
 export function TripCompare({ inline = false }: { inline?: boolean }) {
-  const t = useT()
-  const compareList = useUi((s) => s.compareList)
-  const compareOpen = useUi((s) => s.compareOpen)
-  const setCompareOpen = useUi((s) => s.setCompareOpen)
-  const clearCompare = useUi((s) => s.clearCompare)
-  const { trips, loading } = useCompareTrips(compareList)
+  const t = useT();
+  const compareList = useUi((s) => s.compareList);
+  const compareOpen = useUi((s) => s.compareOpen);
+  const setCompareOpen = useUi((s) => s.setCompareOpen);
+  const clearCompare = useUi((s) => s.clearCompare);
+  const { trips, loading } = useCompareTrips(compareList);
 
   // The page is always open; the overlay follows the store.
-  if (!inline && !compareOpen) return null
-  const close = () => setCompareOpen(false)
+  if (!inline && !compareOpen) return null;
+  const close = () => setCompareOpen(false);
 
   return (
     <>
@@ -28,10 +28,10 @@ export function TripCompare({ inline = false }: { inline?: boolean }) {
       )}
       <div
         className={cn(
-          'flex flex-col overflow-hidden bg-background ring-1 ring-black/10 dark:ring-white/10',
+          "flex flex-col overflow-hidden bg-background ring-1 ring-black/10 dark:ring-white/10",
           inline
-            ? 'relative mx-auto max-h-[85dvh] w-full max-w-5xl rounded-2xl'
-            : 'fixed inset-0 z-50 sm:inset-x-4 sm:bottom-8 sm:top-8 sm:m-auto sm:max-w-5xl sm:rounded-2xl',
+            ? "relative mx-auto max-h-[85dvh] w-full max-w-5xl rounded-2xl"
+            : "fixed inset-0 z-50 sm:inset-x-4 sm:bottom-8 sm:top-8 sm:m-auto sm:max-w-5xl sm:rounded-2xl",
         )}
       >
         <div className="flex items-center justify-between border-b bg-linear-to-r from-violet-600 to-fuchsia-600 px-4 py-3 text-white sm:px-6">
@@ -40,16 +40,16 @@ export function TripCompare({ inline = false }: { inline?: boolean }) {
               <GitCompare className="h-4 w-4" />
             </div>
             <div>
-              <div className="text-sm font-semibold">{t('searchPage.compareTrips')}</div>
+              <div className="text-sm font-semibold">{t("searchPage.compareTrips")}</div>
               <div className="text-[10px] text-white/80">
-                {t('searchPage.compareSubtitle', { count: trips.length })}
+                {t("searchPage.compareSubtitle", { count: trips.length })}
               </div>
             </div>
           </div>
           <button
             onClick={close}
             className="inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-white/15"
-            aria-label={t('common.close')}
+            aria-label={t("common.close")}
           >
             <X className="h-4 w-4" />
           </button>
@@ -65,9 +65,9 @@ export function TripCompare({ inline = false }: { inline?: boolean }) {
               <div className="mb-3 inline-flex h-14 w-14 items-center justify-center rounded-full bg-muted">
                 <GitCompare className="h-7 w-7 text-muted-foreground" />
               </div>
-              <h3 className="mb-1 font-semibold">{t('searchPage.compareEmptyTitle')}</h3>
+              <h3 className="mb-1 font-semibold">{t("searchPage.compareEmptyTitle")}</h3>
               <p className="mx-auto max-w-sm text-sm text-muted-foreground">
-                {t('searchPage.compareEmptyDesc')}
+                {t("searchPage.compareEmptyDesc")}
               </p>
             </div>
           ) : (
@@ -77,14 +77,14 @@ export function TripCompare({ inline = false }: { inline?: boolean }) {
 
         <div className="flex items-center justify-between border-t bg-slate-50 px-4 py-2 sm:px-6">
           <Button variant="ghost" size="sm" onClick={clearCompare} disabled={trips.length === 0}>
-            {t('searchPage.clearAll')}
+            {t("searchPage.clearAll")}
           </Button>
           <div className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
             <Sparkles className="h-3 w-3 text-blue-500" />
-            {t('searchPage.compareFooterNote')}
+            {t("searchPage.compareFooterNote")}
           </div>
         </div>
       </div>
     </>
-  )
+  );
 }

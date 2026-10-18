@@ -1,47 +1,47 @@
-import { usePrefs } from '@spa/stores/prefs'
-import { Component, type ErrorInfo, type ReactNode } from 'react'
-import { translate, tSync } from '@spa/lib/i18n'
+import { usePrefs } from "@spa/stores/prefs";
+import { Component, type ErrorInfo, type ReactNode } from "react";
+import { translate, tSync } from "@spa/lib/i18n";
 
 interface Props {
-  children: ReactNode
+  children: ReactNode;
 }
 
 interface State {
-  hasError: boolean
-  message: string
+  hasError: boolean;
+  message: string;
   /** Incremented on each retry to force a fresh subtree mount. */
-  retryKey: number
+  retryKey: number;
 }
 
 export class ErrorBoundary extends Component<Props, State> {
-  state: State = { hasError: false, message: '', retryKey: 0 }
+  state: State = { hasError: false, message: "", retryKey: 0 };
 
   static getDerivedStateFromError(error: Error): Partial<State> {
     return {
       hasError: true,
-      message: error?.message ?? tSync('errorBoundary.unknownError'),
-    }
+      message: error?.message ?? tSync("errorBoundary.unknownError"),
+    };
   }
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
     // Surface to the console + the browser's error overlay. In production
     // this is where a Sentry/Datadog reportError() call would go.
-    console.error('[ErrorBoundary] render crashed', error, info.componentStack)
+    console.error("[ErrorBoundary] render crashed", error, info.componentStack);
   }
 
   private handleRetry = (): void => {
-    this.setState((s) => ({ hasError: false, message: '', retryKey: s.retryKey + 1 }))
-  }
+    this.setState((s) => ({ hasError: false, message: "", retryKey: s.retryKey + 1 }));
+  };
 
   private handleReload = (): void => {
-    window.location.reload()
-  }
+    window.location.reload();
+  };
 
   render(): ReactNode {
     if (this.state.hasError) {
       // Class component — hooks are unavailable, so resolve strings via
       // the store's current language (guide's non-React `translate` pattern).
-      const lang = usePrefs.getState().lang
+      const lang = usePrefs.getState().lang;
       return (
         <div
           role="alert"
@@ -66,10 +66,10 @@ export class ErrorBoundary extends Component<Props, State> {
           </div>
           <div className="space-y-1">
             <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-              {translate(lang, 'errorBoundary.title')}
+              {translate(lang, "errorBoundary.title")}
             </h2>
             <p className="max-w-md text-sm text-slate-500 dark:text-slate-400">
-              {translate(lang, 'errorBoundary.description')}
+              {translate(lang, "errorBoundary.description")}
             </p>
             {this.state.message && (
               <p className="mt-2 wrap-break-word rounded-md bg-slate-50 px-3 py-2 font-mono text-xs text-slate-400 dark:bg-slate-900/60 dark:text-slate-500">
@@ -83,21 +83,21 @@ export class ErrorBoundary extends Component<Props, State> {
               onClick={this.handleRetry}
               className="inline-flex h-11 items-center justify-center rounded-lg bg-primary px-5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline focus-visible:outline-ring"
             >
-              {translate(lang, 'common.retry')}
+              {translate(lang, "common.retry")}
             </button>
             <button
               type="button"
               onClick={this.handleReload}
               className="inline-flex h-11 items-center justify-center rounded-lg border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
             >
-              {translate(lang, 'errorBoundary.reload')}
+              {translate(lang, "errorBoundary.reload")}
             </button>
           </div>
         </div>
-      )
+      );
     }
     // key={retryKey} forces React to discard the old subtree and remount
     // cleanly on retry — the crashed state can't leak into the new tree.
-    return <div key={this.state.retryKey}>{this.props.children}</div>
+    return <div key={this.state.retryKey}>{this.props.children}</div>;
   }
 }

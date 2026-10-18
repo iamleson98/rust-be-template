@@ -1,4 +1,4 @@
-'use client'
+"use client";
 
 /**
  * Admin — vehicle types panel (`/admin/vehicle-types`).
@@ -10,12 +10,12 @@
  * DataTable, create/edit dialog and a delete confirmation.
  */
 
-import { adminVehicleTypesDeleteMutation, adminVehicleTypesListOptions } from '@spa/api'
-import { useMutation, useQuery, keepPreviousData } from '@tanstack/react-query'
-import { useMemo, useState } from 'react'
-import { createColumnHelper } from '@tanstack/react-table'
-import { Bus, Loader2, Pencil, Plus, RefreshCw, Search, Trash2 } from 'lucide-react'
-import { toast } from 'sonner'
+import { adminVehicleTypesDeleteMutation, adminVehicleTypesListOptions } from "@spa/api";
+import { useMutation, useQuery, keepPreviousData } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
+import { createColumnHelper } from "@tanstack/react-table";
+import { Bus, Loader2, Pencil, Plus, RefreshCw, Search, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 
 import {
   AlertDialog,
@@ -26,64 +26,68 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@spa/components/ui/alert-dialog'
-import { Badge } from '@spa/components/ui/badge'
-import { Button } from '@spa/components/ui/button'
-import { Input } from '@spa/components/ui/input'
+} from "@spa/components/ui/alert-dialog";
+import { Badge } from "@spa/components/ui/badge";
+import { Button } from "@spa/components/ui/button";
+import { Input } from "@spa/components/ui/input";
 
-import { ConsolePage, PageHeader } from '@spa/components/console/page'
-import { DataTable, DataTableColumnHeader, type DataTableFeatures } from '@spa/components/data-table'
-import type { AdminVehicleTypeOut } from '@spa/api'
+import { ConsolePage, PageHeader } from "@spa/components/console/page";
+import {
+  DataTable,
+  DataTableColumnHeader,
+  type DataTableFeatures,
+} from "@spa/components/data-table";
+import type { AdminVehicleTypeOut } from "@spa/api";
 
-import { VehicleTypeFormDialog } from './vehicle-type-form'
-import { getErrorMessage } from '@spa/lib/error-message'
-import { useT } from '@spa/lib/i18n'
+import { VehicleTypeFormDialog } from "./vehicle-type-form";
+import { getErrorMessage } from "@spa/lib/error-message";
+import { useT } from "@spa/lib/i18n";
 
-const PAGE_SIZE = 20
+const PAGE_SIZE = 20;
 
-const columnHelper = createColumnHelper<DataTableFeatures, AdminVehicleTypeOut>()
+const columnHelper = createColumnHelper<DataTableFeatures, AdminVehicleTypeOut>();
 
 export function VehicleTypesPanel() {
-  const t = useT()
-  const [search, setSearch] = useState('')
-  const [page, setPage] = useState(0)
-  const [dialogOpen, setDialogOpen] = useState(false)
-  const [editType, setEditType] = useState<AdminVehicleTypeOut | null>(null)
-  const [deleteTarget, setDeleteTarget] = useState<AdminVehicleTypeOut | null>(null)
+  const t = useT();
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(0);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editType, setEditType] = useState<AdminVehicleTypeOut | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<AdminVehicleTypeOut | null>(null);
 
   const query = useQuery({
     ...adminVehicleTypesListOptions({
       query: { q: search.trim() || undefined, limit: PAGE_SIZE, offset: page * PAGE_SIZE },
     }),
     placeholderData: keepPreviousData,
-  })
-  const deleteMutation = useMutation(adminVehicleTypesDeleteMutation())
+  });
+  const deleteMutation = useMutation(adminVehicleTypesDeleteMutation());
 
-  const items = (query.data?.items ?? []) as AdminVehicleTypeOut[]
-  const total = query.data?.total ?? 0
+  const items = (query.data?.items ?? []) as AdminVehicleTypeOut[];
+  const total = query.data?.total ?? 0;
 
   const onSearchChange = (v: string) => {
-    setSearch(v)
-    setPage(0) // new filter → back to the first page
-  }
+    setSearch(v);
+    setPage(0); // new filter → back to the first page
+  };
 
   const openCreate = () => {
-    setEditType(null)
-    setDialogOpen(true)
-  }
+    setEditType(null);
+    setDialogOpen(true);
+  };
 
   const confirmDelete = async () => {
-    if (!deleteTarget) return
+    if (!deleteTarget) return;
     try {
-      await deleteMutation.mutateAsync({ path: { id: deleteTarget.id } })
-      toast.success(t('adminVehicleTypes.deletedToast', { name: deleteTarget.label }))
-      setDeleteTarget(null)
+      await deleteMutation.mutateAsync({ path: { id: deleteTarget.id } });
+      toast.success(t("adminVehicleTypes.deletedToast", { name: deleteTarget.label }));
+      setDeleteTarget(null);
     } catch (e) {
-      toast.error(getErrorMessage(e, t('adminVehicleTypes.deleteFailed')))
+      toast.error(getErrorMessage(e, t("adminVehicleTypes.deleteFailed")));
     }
-  }
+  };
 
-  const busy = deleteMutation.isPending
+  const busy = deleteMutation.isPending;
 
   // Column cells only close over stable setState setters, so the defs
   // themselves are stable (sorting/visibility state is keyed by column
@@ -91,17 +95,17 @@ export function VehicleTypesPanel() {
   const columns = useMemo(
     () =>
       columnHelper.columns([
-        columnHelper.accessor('sortOrder', {
+        columnHelper.accessor("sortOrder", {
           header: ({ column }) => <DataTableColumnHeader column={column} title="#" />,
           cell: ({ getValue }) => (
             <span className="text-xs tabular-nums text-muted-foreground">{getValue()}</span>
           ),
-          sortFn: 'basic',
-          meta: { label: t('adminVehicleTypes.sortOrder'), cellClassName: 'w-14' },
+          sortFn: "basic",
+          meta: { label: t("adminVehicleTypes.sortOrder"), cellClassName: "w-14" },
         }),
-        columnHelper.accessor('label', {
+        columnHelper.accessor("label", {
           header: ({ column }) => (
-            <DataTableColumnHeader column={column} title={t('adminVehicleTypes.displayName')} />
+            <DataTableColumnHeader column={column} title={t("adminVehicleTypes.displayName")} />
           ),
           cell: ({ row }) => (
             <div className="font-medium">
@@ -116,68 +120,68 @@ export function VehicleTypesPanel() {
               ) : null}
             </div>
           ),
-          sortFn: 'text',
-          meta: { label: t('adminVehicleTypes.displayName'), cardTitle: true },
+          sortFn: "text",
+          meta: { label: t("adminVehicleTypes.displayName"), cardTitle: true },
         }),
-        columnHelper.accessor('code', {
+        columnHelper.accessor("code", {
           header: ({ column }) => (
-            <DataTableColumnHeader column={column} title={t('adminVehicleTypes.code')} />
+            <DataTableColumnHeader column={column} title={t("adminVehicleTypes.code")} />
           ),
           cell: ({ getValue }) => (
             <code className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-600 dark:bg-slate-800 dark:text-slate-300">
               {getValue()}
             </code>
           ),
-          sortFn: 'text',
-          meta: { label: t('adminVehicleTypes.code') },
+          sortFn: "text",
+          meta: { label: t("adminVehicleTypes.code") },
         }),
-        columnHelper.accessor('totalSeats', {
+        columnHelper.accessor("totalSeats", {
           header: ({ column }) => (
-            <DataTableColumnHeader column={column} title={t('adminBusLayouts.seatCount')} />
+            <DataTableColumnHeader column={column} title={t("adminBusLayouts.seatCount")} />
           ),
           cell: ({ getValue }) => (
             <span className="tabular-nums">
-              {getValue() ? t('busLayouts.seatsCount', { count: getValue() as number }) : '—'}
+              {getValue() ? t("busLayouts.seatsCount", { count: getValue() as number }) : "—"}
             </span>
           ),
-          sortFn: 'basic',
-          meta: { label: t('adminBusLayouts.seatCount') },
+          sortFn: "basic",
+          meta: { label: t("adminBusLayouts.seatCount") },
         }),
-        columnHelper.accessor('status', {
+        columnHelper.accessor("status", {
           header: ({ column }) => (
-            <DataTableColumnHeader column={column} title={t('common.status')} />
+            <DataTableColumnHeader column={column} title={t("common.status")} />
           ),
           cell: ({ getValue }) =>
-            getValue() === 'active' ? (
+            getValue() === "active" ? (
               <Badge
                 variant="outline"
                 className="text-xs border-emerald-200 text-emerald-700 dark:border-emerald-800 dark:text-emerald-300"
               >
-                {t('adminVehicleTypes.active')}
+                {t("adminVehicleTypes.active")}
               </Badge>
             ) : (
               <Badge variant="outline" className="text-xs">
-                {t('adminVehicleTypes.disabled')}
+                {t("adminVehicleTypes.disabled")}
               </Badge>
             ),
-          sortFn: 'text',
-          meta: { label: t('common.status') },
+          sortFn: "text",
+          meta: { label: t("common.status") },
         }),
         columnHelper.display({
-          id: 'actions',
-          header: t('common.actions'),
+          id: "actions",
+          header: t("common.actions"),
           cell: ({ row }) => (
             <div className="flex items-center justify-end gap-1">
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => {
-                  setEditType(row.original)
-                  setDialogOpen(true)
+                  setEditType(row.original);
+                  setDialogOpen(true);
                 }}
               >
                 <Pencil className="h-3.5 w-3.5" />
-                <span className="sr-only">{t('adminVehicleTypes.editTitle')}</span>
+                <span className="sr-only">{t("adminVehicleTypes.editTitle")}</span>
               </Button>
               <Button
                 variant="ghost"
@@ -186,23 +190,23 @@ export function VehicleTypesPanel() {
                 onClick={() => setDeleteTarget(row.original)}
               >
                 <Trash2 className="h-3.5 w-3.5" />
-                <span className="sr-only">{t('adminVehicleTypes.delete')}</span>
+                <span className="sr-only">{t("adminVehicleTypes.delete")}</span>
               </Button>
             </div>
           ),
           enableSorting: false,
           enableHiding: false,
-          meta: { align: 'right', label: t('common.actions') },
+          meta: { align: "right", label: t("common.actions") },
         }),
       ]),
     [setEditType, setDialogOpen, setDeleteTarget, t],
-  )
+  );
 
   return (
     <ConsolePage>
       <PageHeader
-        title={t('admin.vehicleTypes')}
-        description={t('adminVehicleTypes.subtitle')}
+        title={t("admin.vehicleTypes")}
+        description={t("adminVehicleTypes.subtitle")}
         actions={
           <>
             <Button
@@ -210,13 +214,13 @@ export function VehicleTypesPanel() {
               size="icon"
               onClick={() => query.refetch()}
               disabled={query.isFetching}
-              aria-label={t('common.refresh')}
+              aria-label={t("common.refresh")}
             >
-              <RefreshCw className={query.isFetching ? 'animate-spin' : undefined} />
+              <RefreshCw className={query.isFetching ? "animate-spin" : undefined} />
             </Button>
             <Button onClick={openCreate}>
               <Plus />
-              {t('adminVehicleTypes.add')}
+              {t("adminVehicleTypes.add")}
             </Button>
           </>
         }
@@ -227,7 +231,7 @@ export function VehicleTypesPanel() {
         <Input
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
-          placeholder={t('busLayouts.search')}
+          placeholder={t("busLayouts.search")}
           className="pl-9"
         />
       </div>
@@ -237,7 +241,7 @@ export function VehicleTypesPanel() {
         columns={columns}
         data={items}
         testId="vehicle-types-table"
-        rowNoun={t('adminVehicleTypes.rowNoun')}
+        rowNoun={t("adminVehicleTypes.rowNoun")}
         manualPagination
         totalRowCount={total}
         pageIndex={page}
@@ -248,10 +252,10 @@ export function VehicleTypesPanel() {
         isError={query.isError}
         onRetry={() => query.refetch()}
         emptyTitle={
-          search ? t('adminVehicleTypes.emptySearchTitle') : t('adminVehicleTypes.emptyTitle')
+          search ? t("adminVehicleTypes.emptySearchTitle") : t("adminVehicleTypes.emptyTitle")
         }
         emptyDescription={
-          search ? t('adminVehicleTypes.emptySearchDesc') : t('adminVehicleTypes.emptyDesc')
+          search ? t("adminVehicleTypes.emptySearchDesc") : t("adminVehicleTypes.emptyDesc")
         }
         emptyIcon={<Bus className="h-5 w-5" aria-hidden />}
       />
@@ -261,12 +265,12 @@ export function VehicleTypesPanel() {
         open={dialogOpen}
         vehicleType={editType}
         onOpenChange={(open) => {
-          setDialogOpen(open)
-          if (!open) setEditType(null)
+          setDialogOpen(open);
+          if (!open) setEditType(null);
         }}
         onSaved={() => {
-          setDialogOpen(false)
-          setEditType(null)
+          setDialogOpen(false);
+          setEditType(null);
         }}
       />
 
@@ -274,33 +278,33 @@ export function VehicleTypesPanel() {
       <AlertDialog
         open={!!deleteTarget}
         onOpenChange={(open) => {
-          if (!busy && !open) setDeleteTarget(null)
+          if (!busy && !open) setDeleteTarget(null);
         }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t('common.confirmDeleteTitle')}</AlertDialogTitle>
+            <AlertDialogTitle>{t("common.confirmDeleteTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              {t('adminVehicleTypes.deleteConfirmLead')}{' '}
+              {t("adminVehicleTypes.deleteConfirmLead")}{" "}
               <span className="font-semibold text-foreground">{deleteTarget?.label}</span>
-              {t('adminVehicleTypes.deleteConfirmTail')}
+              {t("adminVehicleTypes.deleteConfirmTail")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={busy}>{t('common.cancel')}</AlertDialogCancel>
+            <AlertDialogCancel disabled={busy}>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               disabled={busy}
               className="bg-rose-600 hover:bg-rose-700"
               onClick={(e) => {
-                e.preventDefault()
-                void confirmDelete()
+                e.preventDefault();
+                void confirmDelete();
               }}
             >
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : t('common.delete')}
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : t("common.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </ConsolePage>
-  )
+  );
 }

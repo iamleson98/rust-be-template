@@ -1,4 +1,4 @@
-'use client'
+"use client";
 
 /**
  * ContextMenu — Base UI implementation preserving the Radix/shadcn public API.
@@ -25,17 +25,17 @@
  * | `<ContextMenu.SubContent>`       | `<ContextMenu.Portal>` + `<ContextMenu.Positioner>` + `<ContextMenu.Popup>` |
  * | `data-state="open|closed"`       | `data-open`/`data-closed` + (shimmed) `data-state` via `render` |
  */
-import { type ComponentProps, type ReactElement } from 'react'
-import { ContextMenu as ContextMenuPrimitive } from '@base-ui/react/context-menu'
-import { CheckIcon, ChevronRightIcon, CircleIcon } from 'lucide-react'
+import type { ComponentProps, ReactElement } from "react";
+import { ContextMenu as ContextMenuPrimitive } from "@base-ui/react/context-menu";
+import { CheckIcon, ChevronRightIcon, CircleIcon } from "lucide-react";
 
-import { cn } from '@spa/lib/utils'
-import { resolveNativeButton } from './resolve-native-button'
+import { cn } from "@spa/lib/utils";
+import { resolveNativeButton } from "./resolve-native-button";
 
 function ContextMenu({
   ...props
-}: Omit<ComponentProps<typeof ContextMenuPrimitive.Root>, 'onOpenChange'> & {
-  onOpenChange?: (open: boolean) => void
+}: Omit<ComponentProps<typeof ContextMenuPrimitive.Root>, "onOpenChange"> & {
+  onOpenChange?: (open: boolean) => void;
 }) {
   return (
     <ContextMenuPrimitive.Root
@@ -43,25 +43,25 @@ function ContextMenu({
       onOpenChange={(open: boolean) => props.onOpenChange?.(open)}
       {...props}
     />
-  )
+  );
 }
 
 function ContextMenuTrigger({ ...props }: ComponentProps<typeof ContextMenuPrimitive.Trigger>) {
-  return <ContextMenuPrimitive.Trigger data-slot="context-menu-trigger" {...props} />
+  return <ContextMenuPrimitive.Trigger data-slot="context-menu-trigger" {...props} />;
 }
 
 function ContextMenuGroup({ ...props }: ComponentProps<typeof ContextMenuPrimitive.Group>) {
-  return <ContextMenuPrimitive.Group data-slot="context-menu-group" {...props} />
+  return <ContextMenuPrimitive.Group data-slot="context-menu-group" {...props} />;
 }
 
 function ContextMenuPortal({ ...props }: ComponentProps<typeof ContextMenuPrimitive.Portal>) {
-  return <ContextMenuPrimitive.Portal data-slot="context-menu-portal" {...props} />
+  return <ContextMenuPrimitive.Portal data-slot="context-menu-portal" {...props} />;
 }
 
 function ContextMenuSub({
   ...props
-}: Omit<ComponentProps<typeof ContextMenuPrimitive.SubmenuRoot>, 'onOpenChange'> & {
-  onOpenChange?: (open: boolean) => void
+}: Omit<ComponentProps<typeof ContextMenuPrimitive.SubmenuRoot>, "onOpenChange"> & {
+  onOpenChange?: (open: boolean) => void;
 }) {
   return (
     <ContextMenuPrimitive.SubmenuRoot
@@ -69,7 +69,7 @@ function ContextMenuSub({
       onOpenChange={(open: boolean) => props.onOpenChange?.(open)}
       {...props}
     />
-  )
+  );
 }
 
 function ContextMenuRadioGroup({
@@ -77,10 +77,10 @@ function ContextMenuRadioGroup({
   defaultValue,
   onValueChange,
   ...props
-}: Omit<ComponentProps<typeof ContextMenuPrimitive.RadioGroup>, 'onValueChange'> & {
-  value?: unknown
-  defaultValue?: unknown
-  onValueChange?: (value: unknown) => void
+}: Omit<ComponentProps<typeof ContextMenuPrimitive.RadioGroup>, "onValueChange"> & {
+  value?: unknown;
+  defaultValue?: unknown;
+  onValueChange?: (value: unknown) => void;
 }) {
   return (
     <ContextMenuPrimitive.RadioGroup
@@ -90,7 +90,7 @@ function ContextMenuRadioGroup({
       onValueChange={(v) => onValueChange?.(v)}
       {...props}
     />
-  )
+  );
 }
 
 function ContextMenuSubTrigger({
@@ -98,15 +98,15 @@ function ContextMenuSubTrigger({
   inset,
   children,
   ...props
-}: Omit<ComponentProps<typeof ContextMenuPrimitive.SubmenuTrigger>, 'render'> & {
-  inset?: boolean
+}: Omit<ComponentProps<typeof ContextMenuPrimitive.SubmenuTrigger>, "render"> & {
+  inset?: boolean;
 }) {
   return (
     <ContextMenuPrimitive.SubmenuTrigger
       data-slot="context-menu-sub-trigger"
       data-inset={inset}
       render={(componentProps, state) => (
-        <div {...componentProps} data-state={state.open ? 'open' : 'closed'} />
+        <div {...componentProps} data-state={state.open ? "open" : "closed"} />
       )}
       className={cn(
         "focus:bg-accent focus:text-accent-foreground data-[state=open]:bg-accent data-[state=open]:text-accent-foreground flex cursor-pointer items-center rounded-sm px-2 py-1.5 text-sm outline-hidden select-none data-inset:pl-8 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
@@ -117,20 +117,20 @@ function ContextMenuSubTrigger({
       {children}
       <ChevronRightIcon className="ml-auto" />
     </ContextMenuPrimitive.SubmenuTrigger>
-  )
+  );
 }
 
 function ContextMenuSubContent({
   className,
-  side = 'bottom',
+  side = "bottom",
   sideOffset = 0,
-  align = 'start',
+  align = "start",
   alignOffset = 0,
   ...props
-}: Omit<ComponentProps<typeof ContextMenuPrimitive.Popup>, 'render'> &
+}: Omit<ComponentProps<typeof ContextMenuPrimitive.Popup>, "render"> &
   Pick<
     ComponentProps<typeof ContextMenuPrimitive.Positioner>,
-    'side' | 'align' | 'sideOffset' | 'alignOffset'
+    "side" | "align" | "sideOffset" | "alignOffset"
   >) {
   return (
     <ContextMenuPrimitive.Portal>
@@ -145,33 +145,33 @@ function ContextMenuSubContent({
           render={(componentProps, state) => (
             <div
               {...componentProps}
-              data-state={state.open ? 'open' : 'closed'}
+              data-state={state.open ? "open" : "closed"}
               data-side={state.side}
               data-align={state.align}
             />
           )}
           className={cn(
-            'bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 min-w-32 origin-(--transform-origin) overflow-hidden rounded-md border p-1 ',
+            "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 min-w-32 origin-(--transform-origin) overflow-hidden rounded-md border p-1 ",
             className,
           )}
           {...props}
         />
       </ContextMenuPrimitive.Positioner>
     </ContextMenuPrimitive.Portal>
-  )
+  );
 }
 
 function ContextMenuContent({
   className,
-  side = 'bottom',
+  side = "bottom",
   sideOffset = 0,
-  align = 'start',
+  align = "start",
   alignOffset = 0,
   ...props
-}: Omit<ComponentProps<typeof ContextMenuPrimitive.Popup>, 'render'> &
+}: Omit<ComponentProps<typeof ContextMenuPrimitive.Popup>, "render"> &
   Pick<
     ComponentProps<typeof ContextMenuPrimitive.Positioner>,
-    'side' | 'align' | 'sideOffset' | 'alignOffset'
+    "side" | "align" | "sideOffset" | "alignOffset"
   >) {
   return (
     <ContextMenuPrimitive.Portal>
@@ -186,35 +186,35 @@ function ContextMenuContent({
           render={(componentProps, state) => (
             <div
               {...componentProps}
-              data-state={state.open ? 'open' : 'closed'}
+              data-state={state.open ? "open" : "closed"}
               data-side={state.side}
               data-align={state.align}
             />
           )}
           className={cn(
-            'bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 max-h-(--available-height) min-w-32 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-md border p-1 ',
+            "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 max-h-(--available-height) min-w-32 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-md border p-1 ",
             className,
           )}
           {...props}
         />
       </ContextMenuPrimitive.Positioner>
     </ContextMenuPrimitive.Portal>
-  )
+  );
 }
 
 function ContextMenuItem({
   className,
   inset,
-  variant = 'default',
+  variant = "default",
   asChild = false,
   ...props
-}: Omit<ComponentProps<typeof ContextMenuPrimitive.Item>, 'render'> & {
-  inset?: boolean
-  variant?: 'default' | 'destructive'
-  asChild?: boolean
+}: Omit<ComponentProps<typeof ContextMenuPrimitive.Item>, "render"> & {
+  inset?: boolean;
+  variant?: "default" | "destructive";
+  asChild?: boolean;
 }) {
   if (asChild) {
-    const { children, ...rest } = props
+    const { children, ...rest } = props;
     return (
       <ContextMenuPrimitive.Item
         data-slot="context-menu-item"
@@ -228,7 +228,7 @@ function ContextMenuItem({
         )}
         {...rest}
       />
-    )
+    );
   }
   return (
     <ContextMenuPrimitive.Item
@@ -241,7 +241,7 @@ function ContextMenuItem({
       )}
       {...props}
     />
-  )
+  );
 }
 
 function ContextMenuCheckboxItem({
@@ -250,9 +250,9 @@ function ContextMenuCheckboxItem({
   checked,
   onCheckedChange,
   ...props
-}: Omit<ComponentProps<typeof ContextMenuPrimitive.CheckboxItem>, 'render' | 'onCheckedChange'> & {
-  checked?: boolean
-  onCheckedChange?: (checked: boolean) => void
+}: Omit<ComponentProps<typeof ContextMenuPrimitive.CheckboxItem>, "render" | "onCheckedChange"> & {
+  checked?: boolean;
+  onCheckedChange?: (checked: boolean) => void;
 }) {
   return (
     <ContextMenuPrimitive.CheckboxItem
@@ -272,14 +272,14 @@ function ContextMenuCheckboxItem({
       </span>
       {children}
     </ContextMenuPrimitive.CheckboxItem>
-  )
+  );
 }
 
 function ContextMenuRadioItem({
   className,
   children,
   ...props
-}: Omit<ComponentProps<typeof ContextMenuPrimitive.RadioItem>, 'render'>) {
+}: Omit<ComponentProps<typeof ContextMenuPrimitive.RadioItem>, "render">) {
   return (
     <ContextMenuPrimitive.RadioItem
       data-slot="context-menu-radio-item"
@@ -296,7 +296,7 @@ function ContextMenuRadioItem({
       </span>
       {children}
     </ContextMenuPrimitive.RadioItem>
-  )
+  );
 }
 
 function ContextMenuLabel({
@@ -304,16 +304,16 @@ function ContextMenuLabel({
   inset,
   ...props
 }: ComponentProps<typeof ContextMenuPrimitive.GroupLabel> & {
-  inset?: boolean
+  inset?: boolean;
 }) {
   return (
     <ContextMenuPrimitive.GroupLabel
       data-slot="context-menu-label"
       data-inset={inset}
-      className={cn('text-foreground px-2 py-1.5 text-sm font-medium data-inset:pl-8', className)}
+      className={cn("text-foreground px-2 py-1.5 text-sm font-medium data-inset:pl-8", className)}
       {...props}
     />
-  )
+  );
 }
 
 function ContextMenuSeparator({
@@ -323,20 +323,20 @@ function ContextMenuSeparator({
   return (
     <ContextMenuPrimitive.Separator
       data-slot="context-menu-separator"
-      className={cn('bg-border -mx-1 my-1 h-px', className)}
+      className={cn("bg-border -mx-1 my-1 h-px", className)}
       {...props}
     />
-  )
+  );
 }
 
-function ContextMenuShortcut({ className, ...props }: ComponentProps<'span'>) {
+function ContextMenuShortcut({ className, ...props }: ComponentProps<"span">) {
   return (
     <span
       data-slot="context-menu-shortcut"
-      className={cn('text-muted-foreground ml-auto text-xs tracking-widest', className)}
+      className={cn("text-muted-foreground ml-auto text-xs tracking-widest", className)}
       {...props}
     />
-  )
+  );
 }
 
 export {
@@ -355,4 +355,4 @@ export {
   ContextMenuSubContent,
   ContextMenuSubTrigger,
   ContextMenuRadioGroup,
-}
+};

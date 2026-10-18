@@ -1,5 +1,19 @@
-import { rawAll } from "@/lib/db/client";
-import { sql } from "drizzle-orm";
+import { getDb } from "@/lib/db/client";
+import { and, asc, eq, sql } from "drizzle-orm";
+import {
+  addresses,
+  brands,
+  busLayouts,
+  pickupPoints,
+  routes,
+  scheduleFares,
+  schedulePoints,
+  schedules,
+  seatInventory,
+  seats,
+  tripSessions,
+  vehicleTypes,
+} from "@/lib/db/schema";
 import { handleRouteError, err } from "@/lib/api";
 import {
   amenityLabel,
@@ -20,124 +34,112 @@ import {
  * trip core, route, brand, endpoints, bus layout, pricing + per-class
  * fares, amenities, route pickup points, the schedule's ordered stops
  * with arrival times, and the deck/row/col seat map with live status.
+ * Every query below is a typed drizzle builder — column names are
+ * compiler-checked end to end.
  */
 export async function GET(_req: Request, ctx: { params: Promise<{ tripId: string }> }) {
   try {
     const { tripId } = await ctx.params;
-    const rows = await rawAll<Record<string, unknown>>(sql`
-      SELECT ts.id, ts.schedule_id, ts.departure_date, ts.status,
-             ts.total_seats, ts.available_seats, ts.driver_name,
-             r.id AS route_id, r.name AS route_name,
-             r.start_location_id, r.end_location_id, r.brand_id,
-             b.slug AS brand_slug, b.name AS brand_name,
-             b.logo_url AS brand_logo_url, b.rating AS brand_rating,
-             b.child_max_age AS brand_child_max_age,
-             b.child_discount_amount AS brand_child_discount_amount,
-             s.departure_time, s.amenities, s.base_price_adult, s.base_price_child,
-             s.vehicle_type_id, s.bus_layout_id,
-             vt.code AS vt_code, vt.label AS vt_label,
-             bl.name AS layout_name, bl.vehicle_type AS layout_vehicle_type,
-             bl.total_seats AS layout_total_seats
-      FROM trip_session ts
-      JOIN schedule s ON s.id = ts.schedule_id
-      JOIN route r ON r.id = s.route_id
-      LEFT JOIN brand b ON b.id = r.brand_id
-      LEFT JOIN vehicle_type vt ON vt.id = s.vehicle_type_id
-      LEFT JOIN bus_layout bl ON bl.id = s.bus_layout_id
-      WHERE ts.id = ${tripId}
-      LIMIT 1
-    `);
-    const t = rows[0] as
-      | (Record<string, unknown> & {
-          id: string;
-          schedule_id: string;
-          departure_date: string;
-          status: string;
-          total_seats: number;
-          available_seats: number;
-          driver_name: string | null;
-          route_id: string;
-          route_name: string;
-          start_location_id: string;
-          end_location_id: string;
-          brand_id: string | null;
-          brand_slug: string | null;
-          brand_name: string | null;
-          brand_logo_url: string | null;
-          brand_rating: number | null;
-          brand_child_max_age: number | null;
-          brand_child_discount_amount: number | null;
-          departure_time: string;
-          amenities: string | null;
-          base_price_adult: number;
-          base_price_child: number | null;
-          vehicle_type_id: string | null;
-          bus_layout_id: string | null;
-          vt_code: string | null;
-          vt_label: string | null;
-          layout_name: string | null;
-          layout_vehicle_type: string | null;
-          layout_total_seats: number | null;
+    const db = await getDb();
+
+    const t = (
+      await db
+        .select({
+          trip: tripSessions,
+          schedule: schedules,
+          route: routes,
+          brand: brands,
+          vtCode: vehicleTypes.code,
+          vtLabel: vehicleTypes.label,
+          layout: busLayouts,
         })
-      | undefined;
+        .from(tripSessions)
+        .innerJoin(schedules, eq(schedules.id, tripSessions.scheduleId))
+        .innerJoin(routes, eq(routes.id, schedules.routeId))
+        .leftJoin(brands, eq(brands.id, routes.brandId))
+        .leftJoin(vehicleTypes, eq(vehicleTypes.id, schedules.vehicleTypeId))
+        .leftJoin(busLayouts, eq(busLayouts.id, schedules.busLayoutId))
+        .where(eq(tripSessions.id, tripId))
+        .limit(1)
+    )[0];
     if (!t) return err(404, "not-found", "Trip not found");
 
-    // ── Seat rows + live inventory ──────────────────────────────
-    const seatRows = t.bus_layout_id
-      ? await rawAll<{
-          id: string;
-          seat_label: string;
-          seat_class: string | null;
-          row_num: number | null;
-          col_num: number | null;
-          floor: number;
-          status: string;
-          final_price: number | null;
-        }>(sql`
-          SELECT se.id, se.seat_label, se.seat_class, se.row_num, se.col_num, se.floor,
-                 COALESCE(si.status, 'available') AS status,
-                 si.final_price
-          FROM seat se
-          LEFT JOIN seat_inventory si ON si.seat_id = se.id AND si.trip_session_id = ${tripId}
-          WHERE se.bus_layout_id = ${t.bus_layout_id}
-          ORDER BY se.floor, se.row_num, se.col_num
-        `)
+    const { trip, schedule, route, brand, layout } = t;
+    const layoutId = schedule.busLayoutId;
+
+    // ── Seat rows + live inventory (LEFT JOIN, COALESCE for pre-inventory
+    //    trips that have not materialized seat_inventory yet) ─────────
+    const seatRows = layoutId
+      ? await db
+          .select({
+            id: seats.id,
+            seatLabel: seats.seatLabel,
+            seatClass: seats.seatClass,
+            rowNum: seats.rowNum,
+            colNum: seats.colNum,
+            floor: seats.floor,
+            status: sql<string>`COALESCE(${seatInventory.status}, 'available')`,
+            finalPrice: seatInventory.finalPrice,
+          })
+          .from(seats)
+          .leftJoin(
+            seatInventory,
+            and(eq(seatInventory.seatId, seats.id), eq(seatInventory.tripSessionId, tripId)),
+          )
+          .where(eq(seats.busLayoutId, layoutId))
+          .orderBy(asc(seats.floor), asc(seats.rowNum), asc(seats.colNum))
       : [];
 
     // ── Fare table (per seat class) ─────────────────────────────
-    const fareRows = await rawAll<{ seat_class: string; price_adult: number; price_child: number | null }>(sql`
-      SELECT seat_class, price_adult, price_child FROM schedule_fare
-      WHERE schedule_id = ${t.schedule_id}
-    `);
+    const fareRows = await db
+      .select({
+        seatClass: scheduleFares.seatClass,
+        priceAdult: scheduleFares.priceAdult,
+        priceChild: scheduleFares.priceChild,
+      })
+      .from(scheduleFares)
+      .where(eq(scheduleFares.scheduleId, schedule.id));
     const fareByClass = new Map(
-      fareRows.map((f) => [classOf(f.seat_class), { adult: f.price_adult, child: f.price_child }]),
+      fareRows.map((f) => [classOf(f.seatClass), { adult: f.priceAdult, child: f.priceChild }]),
     );
-    const stdFare = { adult: t.base_price_adult, child: t.base_price_child };
+    const stdFare = { adult: schedule.basePriceAdult, child: schedule.basePriceChild };
     const fareOf = (seatClass: string | null): { adult: number; child: number | null } =>
       fareByClass.get(classOf(seatClass)) ?? stdFare;
 
     const policy = childPolicyOf({
-      child_max_age: t.brand_child_max_age,
-      child_discount_amount: t.brand_child_discount_amount,
+      child_max_age: brand?.childMaxAge ?? null,
+      child_discount_amount: brand?.childDiscountAmount ?? null,
     });
 
     // ── Per-class fare summary (Rust `trip_fares`) ───────────────
+    interface SeatOut {
+      id: string;
+      code: string;
+      seatLabel: string;
+      row: number;
+      col: number;
+      deck: number;
+      seatClass: string | undefined;
+      status: string;
+      finalPrice: number;
+      /** Undefined when the brand has no child fare policy. */
+      childPrice: number | undefined;
+    }
     interface FareSummary {
       seatClass: string;
       fareAdult: number;
       fareChild: number | null;
-      priceAdult: number;
       cheapestAvailable: number | null;
       cheapest: number;
       seats: number;
       available: number;
     }
     const classFares = new Map<string, FareSummary>();
-    const decks = new Map<number, Map<number, Array<Record<string, unknown>>>>();
+    const decks = new Map<number, Map<number, SeatOut[]>>();
     for (const s of seatRows) {
-      const seatClass = classOf(s.seat_class);
-      const fare = fareOf(s.seat_class);
-      const price = s.final_price ?? fare.adult;
+      const seatClass = classOf(s.seatClass);
+      const fare = fareOf(s.seatClass);
+      const price = s.finalPrice ?? fare.adult;
       const available = s.status === "available";
       const cur =
         classFares.get(seatClass) ??
@@ -145,12 +147,11 @@ export async function GET(_req: Request, ctx: { params: Promise<{ tripId: string
           seatClass,
           fareAdult: fare.adult,
           fareChild: fare.child,
-          priceAdult: price,
           cheapestAvailable: null,
           cheapest: Number.MAX_SAFE_INTEGER,
           seats: 0,
           available: 0,
-        } as FareSummary);
+        } satisfies FareSummary);
       cur.seats++;
       cur.cheapest = Math.min(cur.cheapest, price);
       if (available) {
@@ -160,18 +161,25 @@ export async function GET(_req: Request, ctx: { params: Promise<{ tripId: string
       classFares.set(seatClass, cur);
 
       const deck = s.floor;
-      const row = s.row_num ?? 0;
-      if (!decks.has(deck)) decks.set(deck, new Map());
-      const rowsMap = decks.get(deck)!;
-      if (!rowsMap.has(row)) rowsMap.set(row, []);
-      rowsMap.get(row)!.push({
+      const row = s.rowNum ?? 0;
+      let rowsMap = decks.get(deck);
+      if (rowsMap === undefined) {
+        rowsMap = new Map();
+        decks.set(deck, rowsMap);
+      }
+      let rowSeats = rowsMap.get(row);
+      if (rowSeats === undefined) {
+        rowSeats = [];
+        rowsMap.set(row, rowSeats);
+      }
+      rowSeats.push({
         id: s.id,
-        code: s.seat_label,
-        seatLabel: s.seat_label,
+        code: s.seatLabel,
+        seatLabel: s.seatLabel,
         row,
-        col: s.col_num ?? 0,
+        col: s.colNum ?? 0,
         deck,
-        seatClass: s.seat_class ?? undefined,
+        seatClass: s.seatClass ?? undefined,
         status: s.status,
         finalPrice: price,
         childPrice: childPrice(price, { adult: fare.adult, child: fare.child }, policy),
@@ -192,114 +200,123 @@ export async function GET(_req: Request, ctx: { params: Promise<{ tripId: string
       .sort((a, b) => a.priceAdult - b.priceAdult);
 
     // ── Pickup points (route-level) + schedule points (timetable) ─
-    const pickupPoints = await rawAll<{
-      id: string;
-      name: string | null;
-      stop_order: number | null;
-      lat: number | null;
-      lon: number | null;
-      kind: string | null;
-      address: string | null;
-    }>(sql`
-      SELECT id, name, stop_order, lat, lon, kind, address
-      FROM pickup_point WHERE route_id = ${t.route_id} ORDER BY stop_order
-    `);
-    const schedulePoints = await rawAll<{
-      id: string;
-      stop_order: number;
-      kind: string;
-      arrival_time: string | null;
-      name: string;
-      address: string | null;
-      lat: number;
-      lon: number;
-    }>(sql`
-      SELECT sp.id, sp.stop_order, sp.kind, sp.arrival_time,
-             a.name AS name, a.address AS address, a.lat, a.lon
-      FROM schedule_point sp
-      JOIN address a ON a.id = sp.address_id
-      WHERE sp.schedule_id = ${t.schedule_id}
-      ORDER BY sp.stop_order
-    `);
+    const pickups = await db
+      .select({
+        id: pickupPoints.id,
+        name: pickupPoints.name,
+        stopOrder: pickupPoints.stopOrder,
+        lat: pickupPoints.lat,
+        lon: pickupPoints.lon,
+        kind: pickupPoints.kind,
+        address: pickupPoints.address,
+      })
+      .from(pickupPoints)
+      .where(eq(pickupPoints.routeId, route.id))
+      .orderBy(asc(pickupPoints.stopOrder));
+    const stops = await db
+      .select({
+        id: schedulePoints.id,
+        stopOrder: schedulePoints.stopOrder,
+        kind: schedulePoints.kind,
+        arrivalTime: schedulePoints.arrivalTime,
+        name: addresses.name,
+        address: addresses.address,
+        lat: addresses.lat,
+        lon: addresses.lon,
+      })
+      .from(schedulePoints)
+      .innerJoin(addresses, eq(addresses.id, schedulePoints.addressId))
+      .where(eq(schedulePoints.scheduleId, schedule.id))
+      .orderBy(asc(schedulePoints.stopOrder));
 
     // ── Times + bookable ─────────────────────────────────────────
-    const departureAt = computeIsoTimestamps(t.departure_date, t.departure_time) ?? undefined;
-    const lastArrival = [...schedulePoints].reverse().find((p) => p.arrival_time && p.arrival_time !== "");
-    const arrivalAt = lastArrival?.arrival_time
-      ? (computeArrivalIso(t.departure_date, t.departure_time, lastArrival.arrival_time) ?? undefined)
+    const departureAt =
+      computeIsoTimestamps(trip.departureDate, schedule.departureTime) ?? undefined;
+    const lastArrival = [...stops].reverse().find((p) => p.arrivalTime && p.arrivalTime !== "");
+    const arrivalAt = lastArrival?.arrivalTime
+      ? (computeArrivalIso(trip.departureDate, schedule.departureTime, lastArrival.arrivalTime) ??
+        undefined)
       : undefined;
     const vnNow = new Date(Date.now() + 7 * 3_600_000);
     const pad = (n: number) => String(n).padStart(2, "0");
     const nowDate = `${vnNow.getUTCFullYear()}-${pad(vnNow.getUTCMonth() + 1)}-${pad(vnNow.getUTCDate())}`;
     const nowTime = `${pad(vnNow.getUTCHours())}:${pad(vnNow.getUTCMinutes())}`;
     const bookable =
-      t.status === "scheduled" &&
-      (t.departure_date > nowDate || (t.departure_date === nowDate && t.departure_time >= nowTime));
+      trip.status === "scheduled" &&
+      (trip.departureDate > nowDate ||
+        (trip.departureDate === nowDate && schedule.departureTime >= nowTime));
 
     const catalog = await vehicleTypeCatalog();
     const [vehicleType, vehicleTypeLabel] = resolveVehicleType(
-      { vt_code: t.vt_code, vt_label: t.vt_label, layout_vehicle_type: t.layout_vehicle_type },
+      {
+        vt_code: t.vtCode,
+        vt_label: t.vtLabel,
+        layout_vehicle_type: layout?.vehicleType ?? null,
+      },
       catalog,
     );
-    const from = findCity(t.start_location_id);
-    const to = findCity(t.end_location_id);
+    const from = findCity(route.startLocationId);
+    const to = findCity(route.endLocationId);
 
     return Response.json({
       trip: {
-        id: t.id,
+        id: trip.id,
         bookable,
-        departureDate: t.departure_date,
+        departureDate: trip.departureDate,
         departureAt,
-        departureTime: t.departure_time,
+        departureTime: schedule.departureTime,
         arrivalAt,
-        status: t.status,
-        driverName: t.driver_name ?? undefined,
-        totalSeats: t.total_seats,
-        availableSeats: t.available_seats,
+        status: trip.status,
+        driverName: trip.driverName ?? undefined,
+        totalSeats: trip.totalSeats,
+        availableSeats: trip.availableSeats,
       },
-      route: { id: t.route_id, name: t.route_name },
-      brand: t.brand_id
+      route: { id: route.id, name: route.name },
+      brand: brand
         ? {
-            id: t.brand_id,
-            name: t.brand_name,
-            slug: t.brand_slug,
-            logoUrl: t.brand_logo_url,
-            rating: t.brand_rating,
+            id: brand.id,
+            name: brand.name,
+            slug: brand.slug,
+            logoUrl: brand.logoUrl,
+            rating: brand.rating,
           }
         : {},
       from: { name: from?.name, lat: from?.lat ?? 0, lon: from?.lon ?? 0 },
       to: { name: to?.name, lat: to?.lat ?? 0, lon: to?.lon ?? 0 },
       busLayout: {
-        id: t.bus_layout_id ?? undefined,
-        name: t.layout_name ?? undefined,
-        capacity: t.layout_total_seats ?? undefined,
+        id: layoutId ?? undefined,
+        name: layout?.name ?? undefined,
+        capacity: layout?.totalSeats ?? undefined,
         vehicleType,
         vehicleTypeLabel,
       },
       pricing: {
-        basePriceAdult: t.base_price_adult,
+        basePriceAdult: schedule.basePriceAdult,
         basePriceChild: standardChildPrice(
-          { base_price_adult: t.base_price_adult, base_price_child: t.base_price_child },
+          { base_price_adult: schedule.basePriceAdult, base_price_child: schedule.basePriceChild },
           policy,
         ),
         fares,
         childFare: policy ?? undefined,
       },
-      amenities: parseAmenities(t.amenities).map((key) => ({ key, label: amenityLabel(key) || key })),
-      pickupPoints: pickupPoints.map((p) => ({
+      amenities: parseAmenities(schedule.amenities).map((key) => ({
+        key,
+        label: amenityLabel(key) || key,
+      })),
+      pickupPoints: pickups.map((p) => ({
         id: p.id,
         name: p.name ?? undefined,
-        stopOrder: p.stop_order ?? undefined,
+        stopOrder: p.stopOrder ?? undefined,
         lat: p.lat ?? undefined,
         lon: p.lon ?? undefined,
         kind: p.kind ?? undefined,
         address: p.address ?? undefined,
       })),
-      schedulePoints: schedulePoints.map((p) => ({
+      schedulePoints: stops.map((p) => ({
         id: p.id,
-        stopOrder: p.stop_order,
+        stopOrder: p.stopOrder,
         kind: p.kind,
-        arrivalTime: p.arrival_time || undefined,
+        arrivalTime: p.arrivalTime || undefined,
         name: p.name,
         address: p.address ?? undefined,
         lat: p.lat,
@@ -312,7 +329,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ tripId: string
             deck,
             rows: [...rowsMap.entries()]
               .sort((a, b) => a[0] - b[0])
-              .map(([row, seats]) => ({ row, seats })),
+              .map(([row, rowSeats]) => ({ row, seats: rowSeats })),
           })),
       },
     });

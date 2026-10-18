@@ -1,14 +1,14 @@
-'use client'
+"use client";
 
-import { Button } from '@spa/components/ui/button'
-import { Users, Copy, Sparkles, ChevronRight } from 'lucide-react'
-import { useGuest } from '@spa/stores/guest'
-import { useT } from '@spa/lib/i18n'
-import { SeatSelector } from './seat-selector'
-import { PassengerSummary } from './passenger-list'
-import { PassengerFormCard } from './passenger-form-card'
-import type { BookingForm } from './use-booking-form'
-import { StepActions } from './step-actions'
+import { Button } from "@spa/components/ui/button";
+import { Users, Copy, Sparkles, ChevronRight } from "lucide-react";
+import { useGuest } from "@spa/stores/guest";
+import { useT } from "@spa/lib/i18n";
+import { SeatSelector } from "./seat-selector";
+import { PassengerSummary } from "./passenger-list";
+import { PassengerFormCard } from "./passenger-form-card";
+import type { BookingForm } from "./use-booking-form";
+import { StepActions } from "./step-actions";
 
 /** Step 1: who travels on which seat, with helpers to fill names and hand out seats. */
 export function BookingPassengerStep({
@@ -16,14 +16,14 @@ export function BookingPassengerStep({
   error,
   onContinue,
 }: {
-  booking: BookingForm
-  error: string
-  onContinue: () => void
+  booking: BookingForm;
+  error: string;
+  onContinue: () => void;
 }) {
-  const t = useT()
-  const guestName = useGuest((s) => s.guestName)
-  const { form, fields, passengers, seats, tickets } = booking
-  const severalSeats = seats.length > 1
+  const t = useT();
+  const guestName = useGuest((s) => s.guestName);
+  const { form, fields, passengers, seats, tickets } = booking;
+  const severalSeats = seats.length > 1;
   return (
     <div className="p-5 space-y-4">
       {/* Header + actions */}
@@ -31,10 +31,10 @@ export function BookingPassengerStep({
         <div>
           <h3 className="font-semibold text-sm flex items-center gap-1.5">
             <Users className="h-4 w-4 text-blue-600" />
-            {t('bookingFlow.passengerInfo')}
+            {t("bookingFlow.passengerInfo")}
           </h3>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {t('bookingFlow.passengerSeatSummary', {
+            {t("bookingFlow.passengerSeatSummary", {
               count: passengers.length,
               seats: seats.length,
             })}
@@ -45,11 +45,11 @@ export function BookingPassengerStep({
             variant="outline"
             size="sm"
             onClick={booking.copyContactName}
-            disabled={!form.getValues('contactName') && !guestName}
+            disabled={!form.getValues("contactName") && !guestName}
             className="gap-1.5 h-8 text-xs"
           >
             <Copy className="h-3.5 w-3.5" />
-            {t('bookingFlow.copyFromContact')}
+            {t("bookingFlow.copyFromContact")}
           </Button>
           {severalSeats && (
             <Button
@@ -60,7 +60,7 @@ export function BookingPassengerStep({
               className="gap-1.5 h-8 text-xs"
             >
               <Sparkles className="h-3.5 w-3.5" />
-              {t('bookingFlow.autoMatchSeats')}
+              {t("bookingFlow.autoMatchSeats")}
             </Button>
           )}
         </div>
@@ -104,9 +104,9 @@ export function BookingPassengerStep({
           disabled={!booking.canContinue}
           className="ml-auto gap-1 max-sm:h-11 max-sm:flex-1"
         >
-          {t('bookingFlow.continue')} <ChevronRight className="h-4 w-4" />
+          {t("bookingFlow.continue")} <ChevronRight className="h-4 w-4" />
         </Button>
       </StepActions>
     </div>
-  )
+  );
 }

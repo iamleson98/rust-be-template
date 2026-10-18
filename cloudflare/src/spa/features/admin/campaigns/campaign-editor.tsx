@@ -1,18 +1,18 @@
-import { useMemo, useState, type ReactNode } from 'react'
-import { useMutation, useQuery } from '@tanstack/react-query'
-import { Check, Loader2, Lock, Plus, Search, Trash2 } from 'lucide-react'
-import { toast } from 'sonner'
+import { useMemo, useState, type ReactNode } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { Check, Loader2, Lock, Plus, Search, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import {
   adminBrandsListOptions,
   adminCampaignsCreateMutation,
   adminCampaignsUpdateMutation,
   type AdminCampaignOut,
-} from '@spa/api'
-import { Segmented } from '@spa/components/console/segmented'
-import { Button } from '@spa/components/ui/button'
-import { DateTimePicker } from '@spa/components/ui/date-time-picker'
-import { Input } from '@spa/components/ui/input'
-import { Label } from '@spa/components/ui/label'
+} from "@spa/api";
+import { Segmented } from "@spa/components/console/segmented";
+import { Button } from "@spa/components/ui/button";
+import { DateTimePicker } from "@spa/components/ui/date-time-picker";
+import { Input } from "@spa/components/ui/input";
+import { Label } from "@spa/components/ui/label";
 import {
   Sheet,
   SheetContent,
@@ -20,13 +20,13 @@ import {
   SheetFooter,
   SheetHeader,
   SheetTitle,
-} from '@spa/components/ui/sheet'
-import { Textarea } from '@spa/components/ui/textarea'
-import { getErrorMessage } from '@spa/lib/error-message'
-import { formatNum, useMoney } from '@spa/lib/format'
-import { useT } from '@spa/lib/i18n'
-import { noTones } from '@spa/lib/text'
-import { cn } from '@spa/lib/utils'
+} from "@spa/components/ui/sheet";
+import { Textarea } from "@spa/components/ui/textarea";
+import { getErrorMessage } from "@spa/lib/error-message";
+import { formatNum, useMoney } from "@spa/lib/format";
+import { useT } from "@spa/lib/i18n";
+import { noTones } from "@spa/lib/text";
+import { cn } from "@spa/lib/utils";
 import {
   budgetOf,
   draftOf,
@@ -39,82 +39,82 @@ import {
   validateDraft,
   type CampaignDraft,
   type TierDraft,
-} from './form'
+} from "./form";
 
 /** What the editor opens on: a campaign to edit (or none, to create) and the moment it opened. */
-export type EditorTarget = { campaign: AdminCampaignOut | null; now: number; nonce: number }
+export type EditorTarget = { campaign: AdminCampaignOut | null; now: number; nonce: number };
 
 /** Create or edit a campaign in a side sheet, within the rules of a running one. */
 export function CampaignEditor({
   target,
   onClose,
 }: {
-  target: EditorTarget | null
-  onClose: () => void
+  target: EditorTarget | null;
+  onClose: () => void;
 }) {
-  const t = useT()
+  const t = useT();
   return (
     <Sheet open={!!target} onOpenChange={(open) => !open && onClose()}>
       <SheetContent side="right" className="w-full gap-0 sm:max-w-xl">
         <SheetHeader className="border-b">
           <SheetTitle>
-            {target?.campaign ? t('adminCampaigns.edit') : t('adminCampaigns.new')}
+            {target?.campaign ? t("adminCampaigns.edit") : t("adminCampaigns.new")}
           </SheetTitle>
-          <SheetDescription>{t('adminCampaigns.editorHint')}</SheetDescription>
+          <SheetDescription>{t("adminCampaigns.editorHint")}</SheetDescription>
         </SheetHeader>
         {target && <EditorBody key={target.nonce} target={target} onDone={onClose} />}
       </SheetContent>
     </Sheet>
-  )
+  );
 }
 
 function EditorBody({ target, onDone }: { target: EditorTarget; onDone: () => void }) {
-  const t = useT()
-  const money = useMoney()
-  const original = target.campaign ?? undefined
+  const t = useT();
+  const money = useMoney();
+  const original = target.campaign ?? undefined;
   const [draft, setDraft] = useState<CampaignDraft>(() =>
     original ? draftOf(original) : emptyDraft(target.now),
-  )
-  const [showErrors, setShowErrors] = useState(false)
-  const create = useMutation(adminCampaignsCreateMutation())
-  const update = useMutation(adminCampaignsUpdateMutation())
-  const saving = create.isPending || update.isPending
+  );
+  const [showErrors, setShowErrors] = useState(false);
+  const create = useMutation(adminCampaignsCreateMutation());
+  const update = useMutation(adminCampaignsUpdateMutation());
+  const saving = create.isPending || update.isPending;
 
-  const locked = locks(original, target.now)
-  const errors = validateDraft(draft, original, target.now)
-  const shown = showErrors ? errors : {}
-  const set = (patch: Partial<CampaignDraft>) => setDraft((d) => ({ ...d, ...patch }))
+  const locked = locks(original, target.now);
+  const errors = validateDraft(draft, original, target.now);
+  const shown = showErrors ? errors : {};
+  const set = (patch: Partial<CampaignDraft>) => setDraft((d) => ({ ...d, ...patch }));
   const setTier = (key: string, patch: Partial<TierDraft>) =>
-    set({ tiers: draft.tiers.map((tier) => (tier.key === key ? { ...tier, ...patch } : tier)) })
+    set({ tiers: draft.tiers.map((tier) => (tier.key === key ? { ...tier, ...patch } : tier)) });
 
   const save = () => {
-    setShowErrors(true)
-    if (hasErrors(errors)) return
-    const body = inputOf(draft, original)
+    setShowErrors(true);
+    if (hasErrors(errors)) return;
+    const body = inputOf(draft, original);
     const done = {
       onSuccess: () => {
-        toast.success(t('adminCampaigns.saved'))
-        onDone()
+        toast.success(t("adminCampaigns.saved"));
+        onDone();
       },
       onError: (e: unknown) => toast.error(getErrorMessage(e)),
-    }
-    if (original) update.mutate({ path: { id: original.id }, body }, done)
-    else create.mutate({ body }, done)
-  }
+    };
+    if (original) update.mutate({ path: { id: original.id }, body }, done);
+    else create.mutate({ body }, done);
+  };
 
   return (
     <>
       <div className="flex-1 space-y-6 overflow-y-auto p-4">
-        <Field label={t('adminCampaigns.fieldName')} error={shown.name && t(shown.name)}>
+        <Field label={t("adminCampaigns.fieldName")} error={shown.name && t(shown.name)}>
           <Input
             value={draft.name}
             onChange={(e) => set({ name: e.target.value })}
             maxLength={120}
-            placeholder={t('adminCampaigns.namePh')}
+            placeholder={t("adminCampaigns.namePh")}
           />
         </Field>
         <Field
-          label={t('adminCampaigns.fieldDescription')}
+          label={t("adminCampaigns.fieldDescription")}
           error={shown.description && t(shown.description)}
         >
           <Textarea
@@ -127,9 +127,9 @@ function EditorBody({ target, onDone }: { target: EditorTarget; onDone: () => vo
 
         <div className="grid gap-4 sm:grid-cols-2">
           <Field
-            label={t('adminCampaigns.fieldStart')}
+            label={t("adminCampaigns.fieldStart")}
             error={shown.startsAt && t(shown.startsAt)}
-            hint={locked.start ? t('adminCampaigns.startLocked') : undefined}
+            hint={locked.start ? t("adminCampaigns.startLocked") : undefined}
           >
             <DateTimePicker
               value={draft.startsAt}
@@ -137,10 +137,10 @@ function EditorBody({ target, onDone }: { target: EditorTarget; onDone: () => vo
               disabled={locked.start}
               triggerClassName="h-10"
               lunar
-              aria-label={t('adminCampaigns.fieldStart')}
+              aria-label={t("adminCampaigns.fieldStart")}
             />
           </Field>
-          <Field label={t('adminCampaigns.fieldEnd')} error={shown.endsAt && t(shown.endsAt)}>
+          <Field label={t("adminCampaigns.fieldEnd")} error={shown.endsAt && t(shown.endsAt)}>
             <DateTimePicker
               value={draft.endsAt}
               onChange={(endsAt) => set({ endsAt })}
@@ -148,45 +148,45 @@ function EditorBody({ target, onDone }: { target: EditorTarget; onDone: () => vo
               minuteStep={1}
               triggerClassName="h-10"
               lunar
-              aria-label={t('adminCampaigns.fieldEnd')}
+              aria-label={t("adminCampaigns.fieldEnd")}
             />
           </Field>
         </div>
 
         <Field
-          label={t('adminCampaigns.fieldValidity')}
-          hint={locked.validity ? t('adminCampaigns.validityLocked') : undefined}
+          label={t("adminCampaigns.fieldValidity")}
+          hint={locked.validity ? t("adminCampaigns.validityLocked") : undefined}
         >
           <div role="radiogroup" className="grid gap-2 sm:grid-cols-2">
-            {(['campaign', 'permanent'] as const).map((v) => (
+            {(["campaign", "permanent"] as const).map((v) => (
               <Choice
                 key={v}
                 selected={draft.couponValidity === v}
                 disabled={locked.validity}
                 onSelect={() => set({ couponValidity: v })}
                 title={t(
-                  v === 'campaign'
-                    ? 'adminCampaigns.validityCampaign'
-                    : 'adminCampaigns.validityPermanent',
+                  v === "campaign"
+                    ? "adminCampaigns.validityCampaign"
+                    : "adminCampaigns.validityPermanent",
                 )}
                 body={t(
-                  v === 'campaign'
-                    ? 'adminCampaigns.validityCampaignHint'
-                    : 'adminCampaigns.validityPermanentHint',
+                  v === "campaign"
+                    ? "adminCampaigns.validityCampaignHint"
+                    : "adminCampaigns.validityPermanentHint",
                 )}
               />
             ))}
           </div>
         </Field>
 
-        <Field label={t('adminCampaigns.fieldOperators')} error={shown.brands && t(shown.brands)}>
+        <Field label={t("adminCampaigns.fieldOperators")} error={shown.brands && t(shown.brands)}>
           <Segmented
-            label={t('adminCampaigns.fieldOperators')}
-            value={draft.allBrands ? 'all' : 'some'}
-            onChange={(v) => set({ allBrands: v === 'all' })}
+            label={t("adminCampaigns.fieldOperators")}
+            value={draft.allBrands ? "all" : "some"}
+            onChange={(v) => set({ allBrands: v === "all" })}
             options={[
-              { value: 'all', label: t('adminCampaigns.allOperators') },
-              { value: 'some', label: t('adminCampaigns.someOperators') },
+              { value: "all", label: t("adminCampaigns.allOperators") },
+              { value: "some", label: t("adminCampaigns.someOperators") },
             ]}
           />
           {!draft.allBrands && (
@@ -194,22 +194,22 @@ function EditorBody({ target, onDone }: { target: EditorTarget; onDone: () => vo
           )}
         </Field>
 
-        <Field label={t('adminCampaigns.fieldTiers')} error={shown.tiers && t(shown.tiers)}>
+        <Field label={t("adminCampaigns.fieldTiers")} error={shown.tiers && t(shown.tiers)}>
           <div className="space-y-2">
             {draft.tiers.map((tier) => {
-              const err = shown.tierRows?.[tier.key]
+              const err = shown.tierRows?.[tier.key];
               return (
                 <div key={tier.key}>
                   <div className="flex items-center gap-2">
                     <div className="relative min-w-0 flex-1">
                       <Input
                         inputMode="numeric"
-                        aria-label={t('adminCampaigns.tierAmount')}
-                        placeholder={t('adminCampaigns.tierAmount')}
-                        value={tier.amount ? formatNum(Number(tier.amount)) : ''}
+                        aria-label={t("adminCampaigns.tierAmount")}
+                        placeholder={t("adminCampaigns.tierAmount")}
+                        value={tier.amount ? formatNum(Number(tier.amount)) : ""}
                         onChange={(e) =>
                           setTier(tier.key, {
-                            amount: e.target.value.replace(/\D/g, '').slice(0, 9),
+                            amount: e.target.value.replace(/\D/g, "").slice(0, 9),
                           })
                         }
                         disabled={tier.claimed > 0}
@@ -225,11 +225,11 @@ function EditorBody({ target, onDone }: { target: EditorTarget; onDone: () => vo
                     </span>
                     <Input
                       inputMode="numeric"
-                      aria-label={t('adminCampaigns.tierSlots')}
-                      placeholder={t('adminCampaigns.tierSlots')}
-                      value={tier.slots ? formatNum(Number(tier.slots)) : ''}
+                      aria-label={t("adminCampaigns.tierSlots")}
+                      placeholder={t("adminCampaigns.tierSlots")}
+                      value={tier.slots ? formatNum(Number(tier.slots)) : ""}
                       onChange={(e) =>
-                        setTier(tier.key, { slots: e.target.value.replace(/\D/g, '').slice(0, 7) })
+                        setTier(tier.key, { slots: e.target.value.replace(/\D/g, "").slice(0, 7) })
                       }
                       className="w-28 tabular-nums sm:w-32"
                       aria-invalid={!!err}
@@ -237,11 +237,11 @@ function EditorBody({ target, onDone }: { target: EditorTarget; onDone: () => vo
                     {tier.claimed > 0 ? (
                       <span
                         className="grid size-9 shrink-0 place-items-center text-muted-foreground"
-                        title={t('adminCampaigns.tierLocked', { count: tier.claimed })}
+                        title={t("adminCampaigns.tierLocked", { count: tier.claimed })}
                       >
                         <Lock
                           className="size-4"
-                          aria-label={t('adminCampaigns.tierLocked', { count: tier.claimed })}
+                          aria-label={t("adminCampaigns.tierLocked", { count: tier.claimed })}
                         />
                       </span>
                     ) : (
@@ -253,7 +253,7 @@ function EditorBody({ target, onDone }: { target: EditorTarget; onDone: () => vo
                           set({ tiers: draft.tiers.filter((x) => x.key !== tier.key) })
                         }
                         disabled={draft.tiers.length === 1}
-                        aria-label={t('adminCampaigns.removeTier')}
+                        aria-label={t("adminCampaigns.removeTier")}
                       >
                         <Trash2 />
                       </Button>
@@ -261,7 +261,7 @@ function EditorBody({ target, onDone }: { target: EditorTarget; onDone: () => vo
                   </div>
                   {tier.claimed > 0 && !err && (
                     <p className="mt-1 text-xs text-muted-foreground">
-                      {t('adminCampaigns.tierLocked', { count: tier.claimed })}
+                      {t("adminCampaigns.tierLocked", { count: tier.claimed })}
                     </p>
                   )}
                   {err && (
@@ -270,7 +270,7 @@ function EditorBody({ target, onDone }: { target: EditorTarget; onDone: () => vo
                     </p>
                   )}
                 </div>
-              )
+              );
             })}
           </div>
           <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
@@ -281,10 +281,10 @@ function EditorBody({ target, onDone }: { target: EditorTarget; onDone: () => vo
               disabled={draft.tiers.length >= MAX_TIERS}
             >
               <Plus />
-              {t('adminCampaigns.addTier')}
+              {t("adminCampaigns.addTier")}
             </Button>
             <span className="text-xs font-medium text-muted-foreground tabular-nums">
-              {t('adminCampaigns.budgetLive', { amount: money(budgetOf(draft)) })}
+              {t("adminCampaigns.budgetLive", { amount: money(budgetOf(draft)) })}
             </span>
           </div>
         </Field>
@@ -297,22 +297,22 @@ function EditorBody({ target, onDone }: { target: EditorTarget; onDone: () => vo
           className="flex w-full items-center justify-between gap-3 rounded-xl border p-3.5 text-left hover:bg-muted/50"
         >
           <span>
-            <span className="block text-sm font-medium">{t('adminCampaigns.fieldPaused')}</span>
+            <span className="block text-sm font-medium">{t("adminCampaigns.fieldPaused")}</span>
             <span className="block text-xs text-muted-foreground">
-              {t('adminCampaigns.pausedHint')}
+              {t("adminCampaigns.pausedHint")}
             </span>
           </span>
           <span
             aria-hidden
             className={cn(
-              'flex h-5 w-9 shrink-0 items-center rounded-full p-0.5 transition-colors',
-              draft.paused ? 'bg-amber-500' : 'bg-slate-300',
+              "flex h-5 w-9 shrink-0 items-center rounded-full p-0.5 transition-colors",
+              draft.paused ? "bg-amber-500" : "bg-slate-300",
             )}
           >
             <span
               className={cn(
-                'size-4 rounded-full bg-white shadow-sm transition-transform',
-                draft.paused && 'translate-x-4',
+                "size-4 rounded-full bg-white shadow-sm transition-transform",
+                draft.paused && "translate-x-4",
               )}
             />
           </span>
@@ -321,15 +321,15 @@ function EditorBody({ target, onDone }: { target: EditorTarget; onDone: () => vo
 
       <SheetFooter className="flex-row justify-end border-t bg-background">
         <Button variant="outline" onClick={onDone} disabled={saving}>
-          {t('common.cancel')}
+          {t("common.cancel")}
         </Button>
         <Button onClick={save} disabled={saving}>
           {saving && <Loader2 className="animate-spin" />}
-          {original ? t('adminCampaigns.save') : t('adminCampaigns.create')}
+          {original ? t("adminCampaigns.save") : t("adminCampaigns.create")}
         </Button>
       </SheetFooter>
     </>
-  )
+  );
 }
 
 function Field({
@@ -338,10 +338,10 @@ function Field({
   error,
   children,
 }: {
-  label: string
-  hint?: string
-  error?: string | false
-  children: ReactNode
+  label: string;
+  hint?: string;
+  error?: string | false;
+  children: ReactNode;
 }) {
   return (
     <div className="space-y-2">
@@ -353,7 +353,7 @@ function Field({
         hint && <p className="text-xs text-muted-foreground">{hint}</p>
       )}
     </div>
-  )
+  );
 }
 
 /** A radio card: a title and one line on what it means. */
@@ -364,11 +364,11 @@ function Choice({
   title,
   body,
 }: {
-  selected: boolean
-  disabled?: boolean
-  onSelect: () => void
-  title: string
-  body: string
+  selected: boolean;
+  disabled?: boolean;
+  onSelect: () => void;
+  title: string;
+  body: string;
 }) {
   return (
     <button
@@ -378,14 +378,14 @@ function Choice({
       disabled={disabled}
       onClick={onSelect}
       className={cn(
-        'rounded-xl border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60',
-        selected ? 'border-primary bg-primary/5 ring-2 ring-primary/15' : 'hover:bg-muted/50',
+        "rounded-xl border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60",
+        selected ? "border-primary bg-primary/5 ring-2 ring-primary/15" : "hover:bg-muted/50",
       )}
     >
       <span className="block text-sm font-semibold">{title}</span>
       <span className="mt-0.5 block text-xs text-muted-foreground">{body}</span>
     </button>
-  )
+  );
 }
 
 /** Operators as a searchable checklist. */
@@ -393,18 +393,18 @@ function BrandPicker({
   selected,
   onChange,
 }: {
-  selected: string[]
-  onChange: (ids: string[]) => void
+  selected: string[];
+  onChange: (ids: string[]) => void;
 }) {
-  const t = useT()
-  const [q, setQ] = useState('')
-  const brands = useQuery(adminBrandsListOptions()).data?.items
+  const t = useT();
+  const [q, setQ] = useState("");
+  const brands = useQuery(adminBrandsListOptions()).data?.items;
   const shown = useMemo(() => {
-    const needle = noTones(q)
-    return (brands ?? []).filter((b) => !needle || noTones(b.name).includes(needle))
-  }, [brands, q])
+    const needle = noTones(q);
+    return (brands ?? []).filter((b) => !needle || noTones(b.name).includes(needle));
+  }, [brands, q]);
   const toggle = (id: string) =>
-    onChange(selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id])
+    onChange(selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id]);
 
   return (
     <div className="mt-3 rounded-xl border">
@@ -413,12 +413,12 @@ function BrandPicker({
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder={t('adminCampaigns.searchOperator')}
-          aria-label={t('adminCampaigns.searchOperator')}
+          placeholder={t("adminCampaigns.searchOperator")}
+          aria-label={t("adminCampaigns.searchOperator")}
           className="h-10 min-w-0 flex-1 bg-transparent text-sm outline-none"
         />
         <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-          {t('adminCampaigns.selectedCount', { count: selected.length })}
+          {t("adminCampaigns.selectedCount", { count: selected.length })}
         </span>
       </div>
       <div className="max-h-56 overflow-y-auto p-1">
@@ -428,7 +428,7 @@ function BrandPicker({
           </div>
         ) : (
           shown.map((b) => {
-            const on = selected.includes(b.id)
+            const on = selected.includes(b.id);
             return (
               <button
                 key={b.id}
@@ -441,18 +441,18 @@ function BrandPicker({
                 <span
                   aria-hidden
                   className={cn(
-                    'grid size-4 shrink-0 place-items-center rounded border',
-                    on ? 'border-primary bg-primary text-primary-foreground' : 'border-slate-300',
+                    "grid size-4 shrink-0 place-items-center rounded border",
+                    on ? "border-primary bg-primary text-primary-foreground" : "border-slate-300",
                   )}
                 >
                   {on && <Check className="size-3" />}
                 </span>
                 <span className="min-w-0 flex-1 truncate">{b.name}</span>
               </button>
-            )
+            );
           })
         )}
       </div>
     </div>
-  )
+  );
 }

@@ -1,5 +1,5 @@
-import { memo } from 'react'
-import { Shimmer } from '@spa/components/ui/shimmer'
+import { memo } from "react";
+import { Shimmer } from "@spa/components/ui/shimmer";
 
 export const AdminContentSkeleton = memo(function AdminContentSkeleton() {
   return (
@@ -52,5 +52,5 @@ export const AdminContentSkeleton = memo(function AdminContentSkeleton() {
         </div>
       </div>
     </div>
-  )
-})
+  );
+});

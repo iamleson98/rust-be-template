@@ -5,41 +5,41 @@
  * get a way to sign in (the summary is auth-guarded).
  */
 
-import { memo } from 'react'
-import { useNavigate } from '@tanstack/react-router'
-import { Bus, Gift, LogIn } from 'lucide-react'
-import { Button } from '@spa/components/ui/button'
+import { memo } from "react";
+import { useNavigate } from "@tanstack/react-router";
+import { Bus, Gift, LogIn } from "lucide-react";
+import { Button } from "@spa/components/ui/button";
 import {
   Sheet,
   SheetContent,
   SheetDescription,
   SheetHeader,
   SheetTitle,
-} from '@spa/components/ui/sheet'
-import { Skeleton } from '@spa/components/ui/skeleton'
-import { useT } from '@spa/lib/i18n'
-import { useSession } from '@spa/stores/session'
-import { useUi } from '@spa/stores/ui'
-import { useLoyalty } from './api'
-import { LoyaltyPointsCard } from './points-card'
-import { LoyaltyPointsHistory } from './points-history'
-import { LoyaltyTierBenefits } from './tier-benefits'
+} from "@spa/components/ui/sheet";
+import { Skeleton } from "@spa/components/ui/skeleton";
+import { useT } from "@spa/lib/i18n";
+import { useSession } from "@spa/stores/session";
+import { useUi } from "@spa/stores/ui";
+import { useLoyalty } from "./api";
+import { LoyaltyPointsCard } from "./points-card";
+import { LoyaltyPointsHistory } from "./points-history";
+import { LoyaltyTierBenefits } from "./tier-benefits";
 
 /** History rows shown here; the account page lists them all. */
-const HISTORY_PREVIEW = 5
+const HISTORY_PREVIEW = 5;
 
 export const LoyaltyWidget = memo(function LoyaltyWidget() {
-  const open = useUi((s) => s.loyaltyOpen)
-  const setOpen = useUi((s) => s.setLoyaltyOpen)
-  const user = useSession((s) => s.user)
-  const t = useT()
-  const navigate = useNavigate()
-  const { data: summary, isLoading } = useLoyalty()
+  const open = useUi((s) => s.loyaltyOpen);
+  const setOpen = useUi((s) => s.setLoyaltyOpen);
+  const user = useSession((s) => s.user);
+  const t = useT();
+  const navigate = useNavigate();
+  const { data: summary, isLoading } = useLoyalty();
 
-  const go = (to: '/login' | '/account/loyalty') => {
-    setOpen(false)
-    void navigate({ to })
-  }
+  const go = (to: "/login" | "/account/loyalty") => {
+    setOpen(false);
+    void navigate({ to });
+  };
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -49,9 +49,9 @@ export const LoyaltyWidget = memo(function LoyaltyWidget() {
             <Gift className="size-4.5" />
           </span>
           <div className="min-w-0">
-            <SheetTitle>{t('nav.loyalty')}</SheetTitle>
+            <SheetTitle>{t("nav.loyalty")}</SheetTitle>
             <SheetDescription className="text-xs">
-              {t('home.earnRateExplainerShort')}
+              {t("home.earnRateExplainerShort")}
             </SheetDescription>
           </div>
         </SheetHeader>
@@ -63,11 +63,11 @@ export const LoyaltyWidget = memo(function LoyaltyWidget() {
                 <LogIn className="size-5" />
               </span>
               <div>
-                <p className="text-sm font-semibold">{t('home.loyaltyLoginTitle')}</p>
-                <p className="mt-1 text-xs text-slate-500">{t('home.loyaltyLoginDesc')}</p>
+                <p className="text-sm font-semibold">{t("home.loyaltyLoginTitle")}</p>
+                <p className="mt-1 text-xs text-slate-500">{t("home.loyaltyLoginDesc")}</p>
               </div>
-              <Button className="h-10 rounded-xl px-5" onClick={() => go('/login')}>
-                {t('auth.login')}
+              <Button className="h-10 rounded-xl px-5" onClick={() => go("/login")}>
+                {t("auth.login")}
               </Button>
             </div>
           ) : isLoading || !summary ? (
@@ -81,17 +81,17 @@ export const LoyaltyWidget = memo(function LoyaltyWidget() {
 
               <section className="rounded-2xl bg-white p-5 shadow-soft ring-1 ring-slate-200/80">
                 <h3 className="mb-3 text-sm font-semibold">
-                  {t('home.tierBenefits', { name: summary.tier.name })}
+                  {t("home.tierBenefits", { name: summary.tier.name })}
                 </h3>
                 <LoyaltyTierBenefits tier={summary.tier} />
               </section>
 
               <section className="rounded-2xl bg-white p-5 pb-3 shadow-soft ring-1 ring-slate-200/80">
-                <h3 className="text-sm font-semibold">{t('home.pointsHistory')}</h3>
+                <h3 className="text-sm font-semibold">{t("home.pointsHistory")}</h3>
                 {summary.history.length === 0 ? (
                   <p className="mt-2 flex items-start gap-2 text-sm text-slate-500">
                     <Bus className="mt-0.5 size-4 shrink-0" aria-hidden />
-                    {t('home.historyEmpty')}
+                    {t("home.historyEmpty")}
                   </p>
                 ) : (
                   <LoyaltyPointsHistory history={summary.history.slice(0, HISTORY_PREVIEW)} />
@@ -102,9 +102,9 @@ export const LoyaltyWidget = memo(function LoyaltyWidget() {
                 <Button
                   variant="outline"
                   className="h-11 w-full rounded-xl bg-white"
-                  onClick={() => go('/account/loyalty')}
+                  onClick={() => go("/account/loyalty")}
                 >
-                  {t('home.seeAllHistory')}
+                  {t("home.seeAllHistory")}
                 </Button>
               )}
             </>
@@ -112,5 +112,5 @@ export const LoyaltyWidget = memo(function LoyaltyWidget() {
         </div>
       </SheetContent>
     </Sheet>
-  )
-})
+  );
+});

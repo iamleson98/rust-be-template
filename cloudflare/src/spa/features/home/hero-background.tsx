@@ -25,12 +25,12 @@ export function HeroBackground() {
           width={1344}
           height={768}
           onError={(e) => {
-            ;(e.target as HTMLImageElement).style.display = 'none'
+            (e.target as HTMLImageElement).style.display = "none";
           }}
         />
       </picture>
       <div className="absolute inset-0 bg-linear-to-r from-slate-950/80 via-slate-950/45 to-slate-950/10" />
       <div className="absolute inset-x-0 bottom-0 h-1/2 bg-linear-to-t from-slate-950/55 to-transparent" />
     </div>
-  )
+  );
 }

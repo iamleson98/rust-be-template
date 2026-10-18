@@ -1,4 +1,4 @@
-'use client'
+"use client";
 
 /**
  * AdminBrandManagement — the /admin/brands page: one subtree table
@@ -19,7 +19,7 @@
  * for every level.
  */
 
-import { useQuery, useMutation, keepPreviousData } from '@tanstack/react-query'
+import { useQuery, useMutation, keepPreviousData } from "@tanstack/react-query";
 import {
   adminBrandsListOptions,
   adminBrandsDeleteMutation,
@@ -27,8 +27,8 @@ import {
   adminSchedulesDeleteMutation,
   adminRoutesListOptions,
   adminBusLayoutsListOptions,
-} from '@spa/api'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+} from "@spa/api";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -38,75 +38,78 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@spa/components/ui/alert-dialog'
-import { Button } from '@spa/components/ui/button'
-import { ComboboxField } from '@spa/components/ui/combobox'
-import { Loader2, Plus, RotateCcw, Trash2 } from 'lucide-react'
-import { ConsolePage, PageHeader } from '@spa/components/console/page'
-import { FilterBar, FilterSearch } from '@spa/components/console/filter-bar'
-import { toast } from 'sonner'
-import { useT } from '@spa/lib/i18n'
-import { useDebouncedValue } from '@spa/hooks/use-debounced-value'
-import type { DeleteTarget } from '@spa/features/admin/types'
-import type { AdminBrandOut, AdminRouteOut, AdminScheduleOut } from '@spa/api'
-import { CITY_ITEMS, cityLabel } from '@spa/features/admin/routes/city-select-content'
-import { BrandFormDialog } from './brand-form'
-import { RouteFormDialog } from '@spa/features/admin/routes/route-form'
-import { ScheduleFormDialog } from '@spa/features/admin/schedules/schedule-form'
-import { RoutePickupPointsDialog } from './route-pickup-points-dialog'
-import { BrandTreeTable, type BrandTreeCallbacks } from './brand-tree-table'
+} from "@spa/components/ui/alert-dialog";
+import { Button } from "@spa/components/ui/button";
+import { ComboboxField } from "@spa/components/ui/combobox";
+import { Loader2, Plus, RotateCcw, Trash2 } from "lucide-react";
+import { ConsolePage, PageHeader } from "@spa/components/console/page";
+import { FilterBar, FilterSearch } from "@spa/components/console/filter-bar";
+import { toast } from "sonner";
+import { useT } from "@spa/lib/i18n";
+import { useDebouncedValue } from "@spa/hooks/use-debounced-value";
+import type { DeleteTarget } from "@spa/features/admin/types";
+import type { AdminBrandOut, AdminRouteOut, AdminScheduleOut } from "@spa/api";
+import { CITY_ITEMS, cityLabel } from "@spa/features/admin/routes/city-select-content";
+import { BrandFormDialog } from "./brand-form";
+import { RouteFormDialog } from "@spa/features/admin/routes/route-form";
+import { ScheduleFormDialog } from "@spa/features/admin/schedules/schedule-form";
+import { RoutePickupPointsDialog } from "./route-pickup-points-dialog";
+import { BrandTreeTable, type BrandTreeCallbacks } from "./brand-tree-table";
 import {
   matchesBrandSearch,
   SCHEDULE_SORT_LABELS,
   type ScheduleSort,
   type ScheduleSortKey,
-} from './brand-tree-helpers'
-import { getErrorMessage } from '@spa/lib/error-message'
+} from "./brand-tree-helpers";
+import { getErrorMessage } from "@spa/lib/error-message";
 
 /** Stable empty default — keeps useMemo deps referentially stable. */
-const EMPTY_ITEMS: never[] = []
+const EMPTY_ITEMS: never[] = [];
 
 export function AdminBrandManagement() {
-  const t = useT()
+  const t = useT();
   /* ── Filters ─────────────────────────────────────────────── */
-  const [brandSearch, setBrandSearch] = useState('')
-  const debouncedSearch = useDebouncedValue(brandSearch, 250)
-  const [startLocationId, setStartLocationId] = useState<string>('')
-  const [endLocationId, setEndLocationId] = useState<string>('')
-  const [scheduleSort, setScheduleSort] = useState<ScheduleSort | null>(null)
+  const [brandSearch, setBrandSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(brandSearch, 250);
+  const [startLocationId, setStartLocationId] = useState<string>("");
+  const [endLocationId, setEndLocationId] = useState<string>("");
+  const [scheduleSort, setScheduleSort] = useState<ScheduleSort | null>(null);
 
   // City filter options — flat list with an "any" reset entry first,
   // then every Vietnamese city (searchable in the combobox).
   const START_ITEMS = useMemo(
-    () => [{ value: 'any', label: t('brands.startAny') }, ...CITY_ITEMS],
+    () => [{ value: "any", label: t("brands.startAny") }, ...CITY_ITEMS],
     [t],
-  )
-  const END_ITEMS = useMemo(() => [{ value: 'any', label: t('brands.endAny') }, ...CITY_ITEMS], [t])
+  );
+  const END_ITEMS = useMemo(
+    () => [{ value: "any", label: t("brands.endAny") }, ...CITY_ITEMS],
+    [t],
+  );
 
   // Sort options — the active key carries a direction arrow in its
   // label so the trigger reflects the current asc/desc state.
   const SCHEDULE_SORT_ITEMS = useMemo(() => {
-    const keys = Object.keys(SCHEDULE_SORT_LABELS) as ScheduleSortKey[]
+    const keys = Object.keys(SCHEDULE_SORT_LABELS) as ScheduleSortKey[];
     return [
-      { value: 'none', label: t('brands.sortNone') },
+      { value: "none", label: t("brands.sortNone") },
       ...keys.map((key) => ({
         value: key,
         label:
           t(SCHEDULE_SORT_LABELS[key]) +
-          (scheduleSort?.key === key ? (scheduleSort.dir === 'desc' ? ' ↓' : ' ↑') : ''),
+          (scheduleSort?.key === key ? (scheduleSort.dir === "desc" ? " ↓" : " ↑") : ""),
       })),
-    ]
-  }, [scheduleSort, t])
+    ];
+  }, [scheduleSort, t]);
 
   /* ── Expansion state ─────────────────────────────────────── */
-  const [expandedBrands, setExpandedBrands] = useState<Set<string>>(new Set())
-  const [expandedRoutes, setExpandedRoutes] = useState<Set<string>>(new Set())
+  const [expandedBrands, setExpandedBrands] = useState<Set<string>>(new Set());
+  const [expandedRoutes, setExpandedRoutes] = useState<Set<string>>(new Set());
 
   /* ── Queries ─────────────────────────────────────────────── */
-  const brandsQuery = useQuery(adminBrandsListOptions())
-  const brands: AdminBrandOut[] = (brandsQuery.data?.items ?? EMPTY_ITEMS) as AdminBrandOut[]
+  const brandsQuery = useQuery(adminBrandsListOptions());
+  const brands: AdminBrandOut[] = (brandsQuery.data?.items ?? EMPTY_ITEMS) as AdminBrandOut[];
 
-  const locationFilterActive = !!(startLocationId || endLocationId)
+  const locationFilterActive = !!(startLocationId || endLocationId);
   // The smart filter's single cross-brand route query — only fires when
   // at least one endpoint is picked.
   const filteredRoutesQuery = useQuery({
@@ -119,18 +122,18 @@ export function AdminBrandManagement() {
     }),
     enabled: locationFilterActive,
     placeholderData: keepPreviousData,
-  })
+  });
   const filteredRoutes = useMemo(
     () =>
       locationFilterActive
         ? ((filteredRoutesQuery.data?.items ?? []) as unknown as AdminRouteOut[])
         : null,
     [locationFilterActive, filteredRoutesQuery.data],
-  )
+  );
   const matchingBrandIds = useMemo(
-    () => new Set((filteredRoutes ?? []).map((r) => r.brandId ?? '')),
+    () => new Set((filteredRoutes ?? []).map((r) => r.brandId ?? "")),
     [filteredRoutes],
-  )
+  );
 
   // Brand-level visibility: text search AND (when active) the route
   // location filter.
@@ -142,7 +145,7 @@ export function AdminBrandManagement() {
           (!locationFilterActive || matchingBrandIds.has(b.id)),
       ),
     [brands, debouncedSearch, locationFilterActive, matchingBrandIds],
-  )
+  );
 
   // Auto-expand matching brands while the location filter is active —
   // collapse to the manual state when it clears. The updater returns
@@ -153,47 +156,47 @@ export function AdminBrandManagement() {
     if (!locationFilterActive) {
       // Intentional effect-synced state (filter mode switch —
       // resetting the tree to its collapsed baseline).
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setExpandedBrands(new Set())
-      setExpandedRoutes(new Set())
-      return
+
+      setExpandedBrands(new Set());
+      setExpandedRoutes(new Set());
+      return;
     }
     // Intentional effect-synced state (filter mode switch — see the
     // disable above).
     setExpandedBrands((prev) => {
-      let changed = false
-      const next = new Set(prev)
+      let changed = false;
+      const next = new Set(prev);
       for (const id of matchingBrandIds) {
         if (!next.has(id)) {
-          next.add(id)
-          changed = true
+          next.add(id);
+          changed = true;
         }
       }
-      return changed ? next : prev
-    })
-  }, [locationFilterActive, matchingBrandIds])
+      return changed ? next : prev;
+    });
+  }, [locationFilterActive, matchingBrandIds]);
   /* ── Mutations ───────────────────────────────────────────── */
-  const deleteBrandMutation = useMutation(adminBrandsDeleteMutation())
-  const deleteRouteMutation = useMutation(adminRoutesDeleteMutation())
-  const deleteScheduleMutation = useMutation(adminSchedulesDeleteMutation())
+  const deleteBrandMutation = useMutation(adminBrandsDeleteMutation());
+  const deleteRouteMutation = useMutation(adminRoutesDeleteMutation());
+  const deleteScheduleMutation = useMutation(adminSchedulesDeleteMutation());
 
   /* ── Dialog state ────────────────────────────────────────── */
   const [brandDialog, setBrandDialog] = useState<{ open: boolean; brand: AdminBrandOut | null }>({
     open: false,
     brand: null,
-  })
+  });
   const [routeDialog, setRouteDialog] = useState<{
-    open: boolean
-    route: AdminRouteOut | null
-    brand: AdminBrandOut | null
-  }>({ open: false, route: null, brand: null })
+    open: boolean;
+    route: AdminRouteOut | null;
+    brand: AdminBrandOut | null;
+  }>({ open: false, route: null, brand: null });
   const [scheduleDialog, setScheduleDialog] = useState<{
-    open: boolean
-    schedule: AdminScheduleOut | null
-    route: AdminRouteOut | null
-    brand: AdminBrandOut | null
-  }>({ open: false, schedule: null, route: null, brand: null })
-  const [pickupRoute, setPickupRoute] = useState<AdminRouteOut | null>(null)
+    open: boolean;
+    schedule: AdminScheduleOut | null;
+    route: AdminRouteOut | null;
+    brand: AdminBrandOut | null;
+  }>({ open: false, schedule: null, route: null, brand: null });
+  const [pickupRoute, setPickupRoute] = useState<AdminRouteOut | null>(null);
 
   // Bus layouts for the schedule form — the brand of the route being
   // edited scopes the picker.
@@ -202,98 +205,98 @@ export function AdminBrandManagement() {
       query: { brandId: scheduleDialog.route?.brandId ?? routeDialog.brand?.id ?? undefined },
     }),
     placeholderData: keepPreviousData,
-  })
-  const busLayouts = (busLayoutsQuery.data?.items ?? []) as never[]
+  });
+  const busLayouts = (busLayoutsQuery.data?.items ?? []) as never[];
 
   /* ── Delete confirmation ─────────────────────────────────── */
-  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>(null)
-  const [deleting, setDeleting] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const confirmDelete = async () => {
-    if (!deleteTarget) return
-    setDeleting(true)
+    if (!deleteTarget) return;
+    setDeleting(true);
     try {
-      if (deleteTarget.kind === 'brand') {
-        await deleteBrandMutation.mutateAsync({ path: { id: deleteTarget.id } })
-      } else if (deleteTarget.kind === 'route') {
-        await deleteRouteMutation.mutateAsync({ path: { id: deleteTarget.id } })
+      if (deleteTarget.kind === "brand") {
+        await deleteBrandMutation.mutateAsync({ path: { id: deleteTarget.id } });
+      } else if (deleteTarget.kind === "route") {
+        await deleteRouteMutation.mutateAsync({ path: { id: deleteTarget.id } });
         setExpandedRoutes((prev) => {
-          const next = new Set(prev)
-          next.delete(deleteTarget.id)
-          return next
-        })
-      } else if (deleteTarget.kind === 'schedule') {
-        await deleteScheduleMutation.mutateAsync({ path: { id: deleteTarget.id } })
+          const next = new Set(prev);
+          next.delete(deleteTarget.id);
+          return next;
+        });
+      } else if (deleteTarget.kind === "schedule") {
+        await deleteScheduleMutation.mutateAsync({ path: { id: deleteTarget.id } });
       }
-      toast.success(t('adminBrands.deleted'))
-      setDeleteTarget(null)
+      toast.success(t("adminBrands.deleted"));
+      setDeleteTarget(null);
     } catch (e) {
-      toast.error(getErrorMessage(e, t('adminBrands.deleteFailed')))
+      toast.error(getErrorMessage(e, t("adminBrands.deleteFailed")));
     } finally {
-      setDeleting(false)
+      setDeleting(false);
     }
-  }
+  };
 
   /* ── Tree callbacks ──────────────────────────────────────── */
   const toggleBrand = useCallback((brandId: string) => {
     setExpandedBrands((prev) => {
-      const next = new Set(prev)
-      if (next.has(brandId)) next.delete(brandId)
-      else next.add(brandId)
-      return next
-    })
-  }, [])
+      const next = new Set(prev);
+      if (next.has(brandId)) next.delete(brandId);
+      else next.add(brandId);
+      return next;
+    });
+  }, []);
 
   const toggleRoute = useCallback((routeId: string) => {
     setExpandedRoutes((prev) => {
-      const next = new Set(prev)
-      if (next.has(routeId)) next.delete(routeId)
-      else next.add(routeId)
-      return next
-    })
-  }, [])
+      const next = new Set(prev);
+      if (next.has(routeId)) next.delete(routeId);
+      else next.add(routeId);
+      return next;
+    });
+  }, []);
 
   const callbacks: BrandTreeCallbacks = {
     onAddRoute: (brand) => setRouteDialog({ open: true, route: null, brand }),
     onEditRoute: (route, brand) => setRouteDialog({ open: true, route, brand }),
-    onDeleteRoute: (route) => setDeleteTarget({ kind: 'route', id: route.id, name: route.name }),
+    onDeleteRoute: (route) => setDeleteTarget({ kind: "route", id: route.id, name: route.name }),
     onAddSchedule: (route, brand) =>
       setScheduleDialog({ open: true, schedule: null, route, brand }),
     onEditSchedule: (schedule, route, brand) =>
       setScheduleDialog({ open: true, schedule, route, brand }),
     onDeleteSchedule: (schedule, route) =>
       setDeleteTarget({
-        kind: 'schedule',
+        kind: "schedule",
         id: schedule.id,
         name: `${schedule.departureTime} · ${route.name}`,
       }),
     onPickupPoints: (route) => setPickupRoute(route),
     onEditBrand: (brand) => setBrandDialog({ open: true, brand }),
-    onDeleteBrand: (brand) => setDeleteTarget({ kind: 'brand', id: brand.id, name: brand.name }),
-  }
+    onDeleteBrand: (brand) => setDeleteTarget({ kind: "brand", id: brand.id, name: brand.name }),
+  };
 
   const clearLocationFilter = () => {
-    setStartLocationId('')
-    setEndLocationId('')
-  }
+    setStartLocationId("");
+    setEndLocationId("");
+  };
 
   const filterSummary = locationFilterActive
-    ? t('adminBrands.filterSummary', {
+    ? t("adminBrands.filterSummary", {
         brands: visibleBrands.length,
         routes: filteredRoutes?.length ?? 0,
-        from: startLocationId ? (cityLabel(startLocationId) ?? '…') : '…',
-        to: endLocationId ? (cityLabel(endLocationId) ?? '…') : '…',
+        from: startLocationId ? (cityLabel(startLocationId) ?? "…") : "…",
+        to: endLocationId ? (cityLabel(endLocationId) ?? "…") : "…",
       })
-    : null
+    : null;
 
   return (
     <ConsolePage>
       <PageHeader
-        title={t('brands.title')}
-        description={t('brands.subtitle')}
+        title={t("brands.title")}
+        description={t("brands.subtitle")}
         actions={
           <Button onClick={() => setBrandDialog({ open: true, brand: null })}>
-            <Plus /> {t('brands.addBrand')}
+            <Plus /> {t("brands.addBrand")}
           </Button>
         }
       />
@@ -304,58 +307,58 @@ export function AdminBrandManagement() {
             <FilterSearch
               value={brandSearch}
               onChange={setBrandSearch}
-              placeholder={t('brands.searchBrand')}
+              placeholder={t("brands.searchBrand")}
             />
           }
           filters={
             <>
               <ComboboxField
-                value={startLocationId || 'any'}
-                onValueChange={(v) => setStartLocationId(v === 'any' ? '' : v)}
+                value={startLocationId || "any"}
+                onValueChange={(v) => setStartLocationId(v === "any" ? "" : v)}
                 items={START_ITEMS}
                 className="h-10 min-w-0 rounded-xl md:w-48"
-                placeholder={t('brands.startAny')}
-                searchPlaceholder={t('routeForm.searchCity')}
-                aria-label={t('brands.startPoint')}
+                placeholder={t("brands.startAny")}
+                searchPlaceholder={t("routeForm.searchCity")}
+                aria-label={t("brands.startPoint")}
                 data-testid="start-city-filter"
               />
               <ComboboxField
-                value={endLocationId || 'any'}
-                onValueChange={(v) => setEndLocationId(v === 'any' ? '' : v)}
+                value={endLocationId || "any"}
+                onValueChange={(v) => setEndLocationId(v === "any" ? "" : v)}
                 items={END_ITEMS}
                 className="h-10 min-w-0 rounded-xl md:w-48"
-                placeholder={t('brands.endAny')}
-                searchPlaceholder={t('routeForm.searchCity')}
-                aria-label={t('brands.endPoint')}
+                placeholder={t("brands.endAny")}
+                searchPlaceholder={t("routeForm.searchCity")}
+                aria-label={t("brands.endPoint")}
                 data-testid="end-city-filter"
               />
               {/* Schedule sort — applies inside every expanded route group */}
               <ComboboxField
-                value={scheduleSort?.key ?? 'none'}
+                value={scheduleSort?.key ?? "none"}
                 onValueChange={(v: string) => {
-                  if (v === 'none') {
-                    setScheduleSort(null)
-                    return
+                  if (v === "none") {
+                    setScheduleSort(null);
+                    return;
                   }
                   setScheduleSort((prev) =>
                     prev && prev.key === (v as ScheduleSortKey)
-                      ? { key: prev.key, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
-                      : { key: v as ScheduleSortKey, dir: 'asc' },
-                  )
+                      ? { key: prev.key, dir: prev.dir === "asc" ? "desc" : "asc" }
+                      : { key: v as ScheduleSortKey, dir: "asc" },
+                  );
                 }}
                 items={SCHEDULE_SORT_ITEMS}
                 className="h-10 min-w-0 rounded-xl md:w-44"
-                placeholder={t('brands.sortSchedules')}
-                searchPlaceholder={t('combobox.search')}
-                aria-label={t('brands.sortSchedules')}
+                placeholder={t("brands.sortSchedules")}
+                searchPlaceholder={t("combobox.search")}
+                aria-label={t("brands.sortSchedules")}
                 data-testid="schedule-sort"
               />
             </>
           }
           activeCount={(startLocationId ? 1 : 0) + (endLocationId ? 1 : 0) + (scheduleSort ? 1 : 0)}
           onReset={() => {
-            clearLocationFilter()
-            setScheduleSort(null)
+            clearLocationFilter();
+            setScheduleSort(null);
           }}
         />
 
@@ -364,13 +367,13 @@ export function AdminBrandManagement() {
             {filteredRoutesQuery.isLoading ? (
               <Loader2
                 className="size-4 animate-spin text-primary"
-                aria-label={t('brands.filtering')}
+                aria-label={t("brands.filtering")}
               />
             ) : (
               <span>{filterSummary}</span>
             )}
             <Button variant="ghost" size="sm" className="h-8 gap-1" onClick={clearLocationFilter}>
-              <RotateCcw className="size-3.5" /> {t('brands.clearFilter')}
+              <RotateCcw className="size-3.5" /> {t("brands.clearFilter")}
             </Button>
           </div>
         )}
@@ -428,37 +431,37 @@ export function AdminBrandManagement() {
       <AlertDialog
         open={!!deleteTarget}
         onOpenChange={(open) => {
-          if (!deleting && !open) setDeleteTarget(null)
+          if (!deleting && !open) setDeleteTarget(null);
         }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t('common.confirmDeleteTitle')}</AlertDialogTitle>
+            <AlertDialogTitle>{t("common.confirmDeleteTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              {t('adminBrands.deleteConfirmQ')}{' '}
+              {t("adminBrands.deleteConfirmQ")}{" "}
               <span className="font-semibold text-foreground">{deleteTarget?.name}</span>?
-              {deleteTarget?.kind === 'brand' && <> {t('adminBrands.deleteBrandCascade')}</>}
-              {deleteTarget?.kind === 'route' && <> {t('adminBrands.deleteRouteCascade')}</>}{' '}
-              {t('common.confirmDeleteBody')}
+              {deleteTarget?.kind === "brand" && <> {t("adminBrands.deleteBrandCascade")}</>}
+              {deleteTarget?.kind === "route" && <> {t("adminBrands.deleteRouteCascade")}</>}{" "}
+              {t("common.confirmDeleteBody")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>{t('common.cancel')}</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleting}>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => {
-                e.preventDefault()
-                confirmDelete()
+                e.preventDefault();
+                confirmDelete();
               }}
               disabled={deleting}
               className="bg-rose-600 text-white hover:bg-rose-700"
             >
               {deleting ? (
                 <>
-                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> {t('common.deleting')}
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> {t("common.deleting")}
                 </>
               ) : (
                 <>
-                  <Trash2 className="mr-1.5 h-4 w-4" /> {t('common.delete')}
+                  <Trash2 className="mr-1.5 h-4 w-4" /> {t("common.delete")}
                 </>
               )}
             </AlertDialogAction>
@@ -466,5 +469,5 @@ export function AdminBrandManagement() {
         </AlertDialogContent>
       </AlertDialog>
     </ConsolePage>
-  )
+  );
 }

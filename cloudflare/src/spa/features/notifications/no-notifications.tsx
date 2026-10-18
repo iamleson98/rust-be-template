@@ -1,8 +1,8 @@
-'use client'
+"use client";
 
-import { memo } from 'react'
-import { EmptyState } from '@spa/components/empty-state'
-import { useT } from '@spa/lib/i18n'
+import { memo } from "react";
+import { EmptyState } from "@spa/components/empty-state";
+import { useT } from "@spa/lib/i18n";
 
 /* ─── SVG Illustrations (line-art style with teal accents) ─── */
 
@@ -53,22 +53,22 @@ function BellSVG() {
         fill="none"
       />
     </svg>
-  )
+  );
 }
 
 export const NoNotifications = memo(function NoNotifications({
   className,
 }: {
-  className?: string
+  className?: string;
 }) {
-  const t = useT()
+  const t = useT();
   return (
     <EmptyState
       illustration={<BellSVG />}
-      title={t('notifications.emptyTitle')}
-      description={t('notifications.emptyDesc')}
+      title={t("notifications.emptyTitle")}
+      description={t("notifications.emptyDesc")}
       className={className}
       size="sm"
     />
-  )
-})
+  );
+});

@@ -14,7 +14,10 @@ export async function GET(req: Request) {
       return Response.json({ items: [] });
     }
     const url = new URL(req.url);
-    const limit = Math.min(Math.max(parseInt(url.searchParams.get("limit") ?? "50", 10) || 50, 1), 200);
+    const limit = Math.min(
+      Math.max(parseInt(url.searchParams.get("limit") ?? "50", 10) || 50, 1),
+      200,
+    );
     const items = await rawAll<Record<string, unknown>>(sql`
       SELECT id, channel_id, user_message_id, assistant_message_id, model,
              prompt, completion, latency_ms, handoff_to_human, created_at

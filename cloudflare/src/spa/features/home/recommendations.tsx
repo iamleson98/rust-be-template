@@ -1,29 +1,29 @@
-import { useQuery } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
-import { Clock } from 'lucide-react'
-import { recommendationsOptions } from '@spa/api'
-import { formatCurrency, formatDateVN } from '@spa/lib/format'
-import { useT } from '@spa/lib/i18n'
-import { cn } from '@spa/lib/utils'
-import { usePrefs } from '@spa/stores/prefs'
-import { HomeSection, RAIL, RailSkeleton } from './section'
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
+import { Clock } from "lucide-react";
+import { recommendationsOptions } from "@spa/api";
+import { formatCurrency, formatDateVN } from "@spa/lib/format";
+import { useT } from "@spa/lib/i18n";
+import { cn } from "@spa/lib/utils";
+import { usePrefs } from "@spa/stores/prefs";
+import { HomeSection, RAIL, RailSkeleton } from "./section";
 
 /** The next departures with seats left (`GET /api/recommendations`); each opens the trip. */
 export function Recommendations() {
-  const currency = usePrefs((s) => s.currency)
-  const t = useT()
-  const { data, isLoading } = useQuery(recommendationsOptions())
-  const items = data?.items ?? []
+  const currency = usePrefs((s) => s.currency);
+  const t = useT();
+  const { data, isLoading } = useQuery(recommendationsOptions());
+  const items = data?.items ?? [];
 
-  if (isLoading) return <RailSkeleton count={4} />
-  if (items.length === 0) return null
+  if (isLoading) return <RailSkeleton count={4} />;
+  if (items.length === 0) return null;
 
   return (
     <HomeSection
-      title={t('home.recommendationsTitle')}
-      subtitle={t('home.recommendationsSubtitle')}
+      title={t("home.recommendationsTitle")}
+      subtitle={t("home.recommendationsSubtitle")}
     >
-      <div className={cn(RAIL, 'lg:grid-cols-4')}>
+      <div className={cn(RAIL, "lg:grid-cols-4")}>
         {items.map((rec) => (
           <Link
             key={rec.tripId}
@@ -45,20 +45,20 @@ export function Recommendations() {
               <Clock className="size-3.5" />
               <span className="font-semibold text-slate-700 tabular-nums">{rec.departureTime}</span>
               <span>
-                ·{' '}
+                ·{" "}
                 {formatDateVN(rec.departureAt ?? rec.departureDate, {
-                  weekday: 'short',
-                  day: '2-digit',
-                  month: '2-digit',
+                  weekday: "short",
+                  day: "2-digit",
+                  month: "2-digit",
                 })}
               </span>
             </div>
             <div className="mt-4 flex items-end justify-between border-t border-slate-100 pt-3">
               <span className="text-xs text-slate-500">
-                {rec.availableSeats} {t('common.seatsAvailable')}
+                {rec.availableSeats} {t("common.seatsAvailable")}
               </span>
               <span className="text-right leading-tight">
-                <span className="block text-[11px] text-slate-500">{t('common.fromPrice')}</span>
+                <span className="block text-[11px] text-slate-500">{t("common.fromPrice")}</span>
                 <span className="text-base font-bold text-primary tabular-nums">
                   {formatCurrency(rec.minPrice, currency)}
                 </span>
@@ -68,5 +68,5 @@ export function Recommendations() {
         ))}
       </div>
     </HomeSection>
-  )
+  );
 }

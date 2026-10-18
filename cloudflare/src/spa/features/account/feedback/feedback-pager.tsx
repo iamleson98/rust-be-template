@@ -1,6 +1,6 @@
-import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { Button } from '@spa/components/ui/button'
-import { useT } from '@spa/lib/i18n'
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Button } from "@spa/components/ui/button";
+import { useT } from "@spa/lib/i18n";
 
 /** "1–8 of 20" with previous / next buttons (server-side pages). */
 export function FeedbackPager({
@@ -10,18 +10,18 @@ export function FeedbackPager({
   busy,
   onPage,
 }: {
-  page: number
-  pageSize: number
-  total: number
-  busy: boolean
-  onPage: (page: number) => void
+  page: number;
+  pageSize: number;
+  total: number;
+  busy: boolean;
+  onPage: (page: number) => void;
 }) {
-  const t = useT()
-  const pages = Math.max(1, Math.ceil(total / pageSize))
+  const t = useT();
+  const pages = Math.max(1, Math.ceil(total / pageSize));
   return (
     <div className="flex items-center justify-between pt-1">
       <span className="text-xs text-muted-foreground">
-        {t('accountPage.feedback.showing', {
+        {t("accountPage.feedback.showing", {
           from: page * pageSize + 1,
           to: Math.min((page + 1) * pageSize, total),
           total,
@@ -34,7 +34,7 @@ export function FeedbackPager({
           className="size-8"
           disabled={page === 0 || busy}
           onClick={() => onPage(page - 1)}
-          aria-label={t('common.prevPage')}
+          aria-label={t("common.prevPage")}
         >
           <ChevronLeft className="size-4" />
         </Button>
@@ -47,11 +47,11 @@ export function FeedbackPager({
           className="size-8"
           disabled={page >= pages - 1 || busy}
           onClick={() => onPage(page + 1)}
-          aria-label={t('common.nextPage')}
+          aria-label={t("common.nextPage")}
         >
           <ChevronRight className="size-4" />
         </Button>
       </div>
     </div>
-  )
+  );
 }

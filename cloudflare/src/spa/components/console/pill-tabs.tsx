@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react'
-import { TabsList, TabsTrigger } from '@spa/components/ui/tabs'
+import type { ReactNode } from "react";
+import { TabsList, TabsTrigger } from "@spa/components/ui/tabs";
 
 /** A row of pill tabs that scrolls sideways instead of wrapping on narrow screens. */
 export function PillTabs({ children }: { children: ReactNode }) {
@@ -7,7 +7,7 @@ export function PillTabs({ children }: { children: ReactNode }) {
     <TabsList className="-my-1 h-auto w-full justify-start gap-1 overflow-x-auto rounded-none bg-transparent px-0 py-1 scrollbar-none [&::-webkit-scrollbar]:hidden">
       {children}
     </TabsList>
-  )
+  );
 }
 
 /** One pill tab: an optional icon, the label and an optional count. */
@@ -17,10 +17,10 @@ export function PillTab({
   label,
   count,
 }: {
-  value: string
-  icon?: ReactNode
-  label: string
-  count?: number
+  value: string;
+  icon?: ReactNode;
+  label: string;
+  count?: number;
 }) {
   return (
     <TabsTrigger
@@ -35,5 +35,5 @@ export function PillTab({
         </span>
       )}
     </TabsTrigger>
-  )
+  );
 }

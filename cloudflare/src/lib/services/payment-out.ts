@@ -2,7 +2,7 @@
  * PaymentOut serializer — the SPA SDK's payment shape, incl. the VietQR
  * QR image data-URI and manual bank-transfer instructions.
  */
-import { type Database } from "@/lib/db/client";
+import type { Database } from "@/lib/db/client";
 import { getEnv } from "@/lib/db/client";
 import { buildVietQr } from "./payment";
 

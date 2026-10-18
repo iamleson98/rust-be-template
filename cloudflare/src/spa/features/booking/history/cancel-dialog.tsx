@@ -1,156 +1,156 @@
-'use client'
+"use client";
 
-import { bookingsCancelMutation } from '@spa/api'
-import { useMutation } from '@tanstack/react-query'
-import { useUi } from '@spa/stores/ui'
-import { useState } from 'react'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { useT } from '@spa/lib/i18n'
+import { bookingsCancelMutation } from "@spa/api";
+import { useMutation } from "@tanstack/react-query";
+import { useUi } from "@spa/stores/ui";
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useT } from "@spa/lib/i18n";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogDescription,
-} from '@spa/components/ui/dialog'
-import { Button } from '@spa/components/ui/button'
-import { Form } from '@spa/components/ui/form'
-import { XCircle, Loader2, ArrowRight, ArrowLeft } from 'lucide-react'
-import { toast } from 'sonner'
-import { getErrorMessage } from '@spa/lib/error-message'
-import { cancelSchema, type CancelValues, type Step } from './cancel-dialog-schema'
-import { CancelReasonStep } from './cancel-reason-step'
-import { CancelPolicyStep } from './cancel-policy-step'
-import { CancelSuccessStep } from './cancel-success-step'
+} from "@spa/components/ui/dialog";
+import { Button } from "@spa/components/ui/button";
+import { Form } from "@spa/components/ui/form";
+import { XCircle, Loader2, ArrowRight, ArrowLeft } from "lucide-react";
+import { toast } from "sonner";
+import { getErrorMessage } from "@spa/lib/error-message";
+import { cancelSchema, type CancelValues, type Step } from "./cancel-dialog-schema";
+import { CancelReasonStep } from "./cancel-reason-step";
+import { CancelPolicyStep } from "./cancel-policy-step";
+import { CancelSuccessStep } from "./cancel-success-step";
 
 export function CancelDialog() {
-  const cancelBookingId = useUi((s) => s.cancelBookingId)
-  const closeCancel = useUi((s) => s.closeCancel)
-  const t = useT()
+  const cancelBookingId = useUi((s) => s.cancelBookingId);
+  const closeCancel = useUi((s) => s.closeCancel);
+  const t = useT();
 
-  const [step, setStep] = useState<Step>(1)
+  const [step, setStep] = useState<Step>(1);
 
   const form = useForm<CancelValues>({
     resolver: zodResolver(cancelSchema),
     // Errors appear on submit, then follow each change: an error popping up
     // on blur shifts the layout under the pointer and swallows the click.
-    mode: 'onSubmit',
-    reValidateMode: 'onChange',
+    mode: "onSubmit",
+    reValidateMode: "onChange",
     defaultValues: {
-      selectedReason: '',
-      otherReason: '',
+      selectedReason: "",
+      otherReason: "",
       agreed: false,
     },
-  })
+  });
 
-  const selectedReason = form.watch('selectedReason')
-  const agreed = form.watch('agreed')
+  const selectedReason = form.watch("selectedReason");
+  const agreed = form.watch("agreed");
 
   // POST /api/bookings/:id/cancel. The mutation cache refreshes the ticket
   // lists; the response says what, if anything, is refunded.
   const cancelMutation = useMutation({
     ...bookingsCancelMutation(),
     onSuccess: () => {
-      setStep(3)
-      toast.success(t('cancel.successTitle'))
+      setStep(3);
+      toast.success(t("cancel.successTitle"));
     },
     // The server says why, e.g. the trip has already left.
-    onError: (err) => toast.error(getErrorMessage(err, t('common.error'))),
-  })
-  const loading = cancelMutation.isPending
+    onError: (err) => toast.error(getErrorMessage(err, t("common.error"))),
+  });
+  const loading = cancelMutation.isPending;
 
   const handleClose = (open: boolean) => {
     if (!open) {
-      closeCancel()
-      setStep(1)
-      cancelMutation.reset()
-      form.reset({ selectedReason: '', otherReason: '', agreed: false })
+      closeCancel();
+      setStep(1);
+      cancelMutation.reset();
+      form.reset({ selectedReason: "", otherReason: "", agreed: false });
     }
-  }
+  };
 
   const handleNext = async () => {
     if (step === 1) {
       // Validate step-1 fields
-      const okReason = await form.trigger('selectedReason')
-      if (!okReason) return
-      const values = form.getValues()
-      if (values.selectedReason === 'other') {
-        const trimmed = values.otherReason.trim()
+      const okReason = await form.trigger("selectedReason");
+      if (!okReason) return;
+      const values = form.getValues();
+      if (values.selectedReason === "other") {
+        const trimmed = values.otherReason.trim();
         if (trimmed.length < 10) {
-          form.setError('otherReason', {
-            type: 'manual',
-            message: t('bookingHistory.otherReasonMin'),
-          })
-          return
+          form.setError("otherReason", {
+            type: "manual",
+            message: t("bookingHistory.otherReasonMin"),
+          });
+          return;
         }
       }
-      form.clearErrors('otherReason')
-      setStep(2)
-      return
+      form.clearErrors("otherReason");
+      setStep(2);
+      return;
     }
     if (step === 2) {
       // Validate agreed
-      const okAgreed = await form.trigger('agreed')
-      if (!okAgreed || !form.getValues('agreed')) {
+      const okAgreed = await form.trigger("agreed");
+      if (!okAgreed || !form.getValues("agreed")) {
         if (!form.formState.errors.agreed) {
-          form.setError('agreed', {
-            type: 'manual',
-            message: t('bookingHistory.agreeRequired'),
-          })
+          form.setError("agreed", {
+            type: "manual",
+            message: t("bookingHistory.agreeRequired"),
+          });
         }
-        return
+        return;
       }
-      if (!cancelBookingId) return
+      if (!cancelBookingId) return;
       // Submit cancellation via mutation. The mutation auto-invalidates
       // the bookings query on success (see `onSuccess` above).
-      const values = form.getValues()
+      const values = form.getValues();
       cancelMutation.mutate({
         path: { id: cancelBookingId },
         body: {
           reason:
-            values.selectedReason === 'other' ? values.otherReason.trim() : values.selectedReason,
+            values.selectedReason === "other" ? values.otherReason.trim() : values.selectedReason,
         },
-      })
+      });
     }
-  }
+  };
 
   const handleBack = () => {
-    if (step === 2) setStep(1)
-  }
+    if (step === 2) setStep(1);
+  };
 
   // Soft "can proceed" check for button disabled state — mirrors the
   // original UX (button disabled until each step's local condition is met).
   const canProceed = () => {
     if (step === 1) {
-      if (!selectedReason) return false
-      if (selectedReason === 'other') {
-        const other = form.getValues('otherReason')
-        return other.trim().length >= 10
+      if (!selectedReason) return false;
+      if (selectedReason === "other") {
+        const other = form.getValues("otherReason");
+        return other.trim().length >= 10;
       }
-      return true
+      return true;
     }
-    if (step === 2) return agreed
-    return false
-  }
+    if (step === 2) return agreed;
+    return false;
+  };
 
   return (
     <Dialog open={!!cancelBookingId} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader icon={<XCircle />} tone="danger">
-          <DialogTitle>{t('cancel.title')}</DialogTitle>
+          <DialogTitle>{t("cancel.title")}</DialogTitle>
           <DialogDescription>
-            {step === 1 && t('cancel.reason')}
-            {step === 2 && t('cancel.refundPolicy')}
-            {step === 3 && t('cancel.successTitle')}
+            {step === 1 && t("cancel.reason")}
+            {step === 2 && t("cancel.refundPolicy")}
+            {step === 3 && t("cancel.successTitle")}
           </DialogDescription>
         </DialogHeader>
 
         <Form {...form}>
           <form
             onSubmit={(e) => {
-              e.preventDefault()
-              handleNext()
+              e.preventDefault();
+              handleNext();
             }}
           >
             <div className="min-h-50 relative overflow-hidden">
@@ -172,7 +172,7 @@ export function CancelDialog() {
                 {step > 1 ? (
                   <Button type="button" variant="ghost" onClick={handleBack} className="gap-1.5">
                     <ArrowLeft className="h-4 w-4" />
-                    {t('common.back')}
+                    {t("common.back")}
                   </Button>
                 ) : (
                   <div />
@@ -180,23 +180,23 @@ export function CancelDialog() {
                 <Button
                   type="submit"
                   disabled={!canProceed() || loading}
-                  variant={step === 2 ? 'destructive' : 'default'}
+                  variant={step === 2 ? "destructive" : "default"}
                   className="gap-1.5"
                 >
                   {loading ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      {t('common.loading')}
+                      {t("common.loading")}
                     </>
                   ) : step === 1 ? (
                     <>
-                      {t('common.next')}
+                      {t("common.next")}
                       <ArrowRight className="h-4 w-4" />
                     </>
                   ) : (
                     <>
                       <XCircle className="h-4 w-4" />
-                      {t('cancel.title')}
+                      {t("cancel.title")}
                     </>
                   )}
                 </Button>
@@ -206,7 +206,7 @@ export function CancelDialog() {
             {step === 3 && (
               <div className="flex justify-center pt-2">
                 <Button type="button" onClick={() => handleClose(false)}>
-                  {t('common.close')}
+                  {t("common.close")}
                 </Button>
               </div>
             )}
@@ -214,5 +214,5 @@ export function CancelDialog() {
         </Form>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

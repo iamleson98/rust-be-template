@@ -1,27 +1,27 @@
-import { Card, CardContent } from '@spa/components/ui/card'
-import { Button } from '@spa/components/ui/button'
-import { Badge } from '@spa/components/ui/badge'
-import { Sparkles, Star, Quote, Pencil } from 'lucide-react'
-import { useT } from '@spa/lib/i18n'
-import { ReviewSummary, REVIEW_TAG_LABELS } from '@spa/features/booking/history/booking-types'
+import { Card, CardContent } from "@spa/components/ui/card";
+import { Button } from "@spa/components/ui/button";
+import { Badge } from "@spa/components/ui/badge";
+import { Sparkles, Star, Quote, Pencil } from "lucide-react";
+import { useT } from "@spa/lib/i18n";
+import { ReviewSummary, REVIEW_TAG_LABELS } from "@spa/features/booking/history/booking-types";
 
 export function ExistingReviewCard({
   existingReview,
   setEditMode,
   onClose,
 }: {
-  existingReview: ReviewSummary | null | undefined
-  setEditMode: (editMode: boolean) => void
-  onClose?: () => void
+  existingReview: ReviewSummary | null | undefined;
+  setEditMode: (editMode: boolean) => void;
+  onClose?: () => void;
 }) {
-  const t = useT()
+  const t = useT();
   return (
     <Card className="overflow-hidden py-0">
       <CardContent className="p-4 md:p-5 space-y-3">
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-700">
             <Sparkles className="h-3.5 w-3.5" />
-            {t('feedbackForm.yourReviewTitle')}
+            {t("feedbackForm.yourReviewTitle")}
           </div>
           <Button
             variant="outline"
@@ -30,7 +30,7 @@ export function ExistingReviewCard({
             onClick={() => setEditMode(true)}
           >
             <Pencil className="h-3 w-3" />
-            {t('feedbackForm.edit')}
+            {t("feedbackForm.edit")}
           </Button>
         </div>
 
@@ -40,8 +40,8 @@ export function ExistingReviewCard({
               key={s}
               className={`h-4 w-4 ${
                 s <= (existingReview?.rating ?? 0)
-                  ? 'fill-amber-400 text-amber-400'
-                  : 'fill-slate-100 text-slate-200'
+                  ? "fill-amber-400 text-amber-400"
+                  : "fill-slate-100 text-slate-200"
               }`}
             />
           ))}
@@ -68,7 +68,7 @@ export function ExistingReviewCard({
         {existingReview && existingReview.tags.length > 0 && (
           <div className="flex items-center gap-1.5 flex-wrap">
             {existingReview.tags.map((tag, i) => {
-              const meta = REVIEW_TAG_LABELS[tag]
+              const meta = REVIEW_TAG_LABELS[tag];
               return (
                 <Badge
                   key={`${tag}-${i}`}
@@ -81,10 +81,10 @@ export function ExistingReviewCard({
                       {t(meta.labelKey)}
                     </>
                   ) : (
-                    tag.replace(/_/g, ' ')
+                    tag.replace(/_/g, " ")
                   )}
                 </Badge>
-              )
+              );
             })}
           </div>
         )}
@@ -101,7 +101,7 @@ export function ExistingReviewCard({
               >
                 <img
                   src={src}
-                  alt={t('reviews.photoAlt', { index: i + 1 })}
+                  alt={t("reviews.photoAlt", { index: i + 1 })}
                   className="w-full h-full object-cover"
                   loading="lazy"
                   decoding="async"
@@ -113,13 +113,13 @@ export function ExistingReviewCard({
 
         <div className="flex items-center justify-between pt-2 border-t border-dashed border-slate-200">
           <Button variant="ghost" size="sm" className="text-xs h-7" onClick={onClose}>
-            {t('common.close')}
+            {t("common.close")}
           </Button>
           <span className="text-[11px] text-muted-foreground">
-            {t('feedbackForm.thanksForSharing')}
+            {t("feedbackForm.thanksForSharing")}
           </span>
         </div>
       </CardContent>
     </Card>
-  )
+  );
 }

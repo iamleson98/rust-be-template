@@ -1,5 +1,9 @@
 import { DurableObject } from "cloudflare:workers";
-import { iceServersFor, PUBLIC_ICE_SERVERS, type IceServerConfig } from "./src/lib/services/turn-credentials";
+import {
+  iceServersFor,
+  PUBLIC_ICE_SERVERS,
+  type IceServerConfig,
+} from "./src/lib/services/turn-credentials";
 
 /**
  * CallHub — the WebRTC signalling relay behind `/ws-call` (port of the
@@ -90,8 +94,9 @@ export class CallHub extends DurableObject {
       const { payload } = await jwtVerify(token, secret, { algorithms: ["HS256"] });
       const userId = String(payload.sub ?? "");
       if (!userId) return null;
-      const row = (await (this.env as CloudflareEnv).DB
-        .prepare(`SELECT id, full_name, role, status FROM "user" WHERE id = ? LIMIT 1`)
+      const row = (await (this.env as CloudflareEnv).DB.prepare(
+        `SELECT id, full_name, role, status FROM "user" WHERE id = ? LIMIT 1`,
+      )
         .bind(userId)
         .first<{ id: string; full_name: string; role: string; status: string }>()) as {
         id: string;

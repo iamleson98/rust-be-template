@@ -1,21 +1,21 @@
-'use client'
+"use client";
 
-import type { Control } from 'react-hook-form'
-import { Input } from '@spa/components/ui/input'
-import { Badge } from '@spa/components/ui/badge'
-import { ComboboxField } from '@spa/components/ui/combobox'
-import { FormField, FormControl, FormItem, FormMessage } from '@spa/components/ui/form'
-import { SEAT_CLASS_LABELS } from '@spa/lib/labels'
-import { useMoney } from '@spa/lib/format'
-import { useT } from '@spa/lib/i18n'
-import { User, Armchair } from 'lucide-react'
-import type { PassengerType } from '../fares'
+import type { Control } from "react-hook-form";
+import { Input } from "@spa/components/ui/input";
+import { Badge } from "@spa/components/ui/badge";
+import { ComboboxField } from "@spa/components/ui/combobox";
+import { FormField, FormControl, FormItem, FormMessage } from "@spa/components/ui/form";
+import { SEAT_CLASS_LABELS } from "@spa/lib/labels";
+import { useMoney } from "@spa/lib/format";
+import { useT } from "@spa/lib/i18n";
+import { User, Armchair } from "lucide-react";
+import type { PassengerType } from "../fares";
 import {
   type BookingValues,
   type PassengerFormValue,
   type SelectedSeat,
   PASSENGER_TYPE_META,
-} from './booking-form'
+} from "./booking-form";
 
 /**
  * One passenger: name, age, gender and the seat they take (seats taken by others
@@ -29,17 +29,17 @@ export function PassengerFormCard({
   type,
   price,
 }: {
-  index: number
-  passengers: PassengerFormValue[]
-  seats: SelectedSeat[]
-  control: Control<BookingValues>
-  type: PassengerType
+  index: number;
+  passengers: PassengerFormValue[];
+  seats: SelectedSeat[];
+  control: Control<BookingValues>;
+  type: PassengerType;
   /** Absent until the passenger has a seat. */
-  price: number | undefined
+  price: number | undefined;
 }) {
-  const t = useT()
-  const money = useMoney()
-  const typeMeta = PASSENGER_TYPE_META[type]
+  const t = useT();
+  const money = useMoney();
+  const typeMeta = PASSENGER_TYPE_META[type];
   return (
     <div
       className={`rounded-xl border-2 bg-linear-to-br ${typeMeta.gradient} ${typeMeta.border} p-3 space-y-2.5`}
@@ -53,7 +53,7 @@ export function PassengerFormCard({
             {i + 1}
           </div>
           <span className="text-xs font-medium text-slate-700 shrink-0 hidden sm:inline">
-            {t('booking.passenger', { n: i + 1 })}
+            {t("booking.passenger", { n: i + 1 })}
           </span>
           <Badge className={`${typeMeta.pill} border-0 text-[10px] gap-1 shrink-0`}>
             {typeMeta.icon}
@@ -72,16 +72,16 @@ export function PassengerFormCard({
           render={({ field }) => (
             <FormItem className="col-span-2 space-y-1 sm:col-span-1">
               <span className="text-[10px] font-medium uppercase tracking-wide text-slate-500">
-                {t('booking.passengerName')}
+                {t("booking.passengerName")}
               </span>
               <div className="relative">
                 <User className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <FormControl>
                   <Input
                     {...field}
-                    placeholder={t('bookingFlow.passengerNamePh')}
+                    placeholder={t("bookingFlow.passengerNamePh")}
                     className="pl-8 bg-white"
-                    aria-label={t('booking.passengerName')}
+                    aria-label={t("booking.passengerName")}
                   />
                 </FormControl>
               </div>
@@ -95,7 +95,7 @@ export function PassengerFormCard({
           render={({ field }) => (
             <FormItem className="space-y-1">
               <span className="text-[10px] font-medium uppercase tracking-wide text-slate-500">
-                {t('booking.passengerAge')}
+                {t("booking.passengerAge")}
               </span>
               <FormControl>
                 <Input
@@ -107,9 +107,9 @@ export function PassengerFormCard({
                   onBlur={field.onBlur}
                   name={field.name}
                   ref={field.ref}
-                  placeholder={t('booking.passengerAge')}
+                  placeholder={t("booking.passengerAge")}
                   className="bg-white"
-                  aria-label={t('booking.passengerAge')}
+                  aria-label={t("booking.passengerAge")}
                 />
               </FormControl>
               <FormMessage className="text-[11px]" />
@@ -122,21 +122,21 @@ export function PassengerFormCard({
           render={({ field }) => (
             <FormItem className="space-y-1">
               <span className="text-[10px] font-medium uppercase tracking-wide text-slate-500">
-                {t('bookingFlow.genderLabel')}
+                {t("bookingFlow.genderLabel")}
               </span>
               <FormControl>
                 <ComboboxField
                   value={field.value}
                   onValueChange={field.onChange}
                   items={[
-                    { value: 'male', label: t('bookingFlow.genderMale') },
-                    { value: 'female', label: t('bookingFlow.genderFemale') },
-                    { value: 'other', label: t('bookingFlow.genderOther') },
+                    { value: "male", label: t("bookingFlow.genderMale") },
+                    { value: "female", label: t("bookingFlow.genderFemale") },
+                    { value: "other", label: t("bookingFlow.genderOther") },
                   ]}
                   className="bg-white"
-                  placeholder={t('bookingFlow.genderLabel')}
-                  searchPlaceholder={t('combobox.search')}
-                  aria-label={t('bookingFlow.genderLabel')}
+                  placeholder={t("bookingFlow.genderLabel")}
+                  searchPlaceholder={t("combobox.search")}
+                  aria-label={t("bookingFlow.genderLabel")}
                 />
               </FormControl>
               <FormMessage className="text-[11px]" />
@@ -157,22 +157,22 @@ export function PassengerFormCard({
                   value={field.value}
                   onValueChange={field.onChange}
                   items={seats.map((s) => {
-                    const assignedTo = passengers.find((pp, j) => pp.seatId === s.id && j !== i)
-                    const assignedToIdx = assignedTo ? passengers.indexOf(assignedTo) + 1 : null
+                    const assignedTo = passengers.find((pp, j) => pp.seatId === s.id && j !== i);
+                    const assignedToIdx = assignedTo ? passengers.indexOf(assignedTo) + 1 : null;
                     return {
                       value: s.id,
                       label: `${s.code} • ${t(SEAT_CLASS_LABELS[s.class] ?? s.class)}${
                         assignedTo
-                          ? ` • ${t('bookingFlow.seatTakenBy', { index: assignedToIdx ?? 0 })}`
-                          : ''
+                          ? ` • ${t("bookingFlow.seatTakenBy", { index: assignedToIdx ?? 0 })}`
+                          : ""
                       }`,
                       disabled: !!assignedTo,
-                    }
+                    };
                   })}
                   className="bg-white"
-                  placeholder={t('bookingFlow.chooseSeatPh')}
-                  searchPlaceholder={t('bookingFlow.searchSeatPh')}
-                  aria-label={t('bookingFlow.passengerSeatAria')}
+                  placeholder={t("bookingFlow.chooseSeatPh")}
+                  searchPlaceholder={t("bookingFlow.searchSeatPh")}
+                  aria-label={t("bookingFlow.passengerSeatAria")}
                 />
               </FormControl>
               <FormMessage className="text-[11px]" />
@@ -181,5 +181,5 @@ export function PassengerFormCard({
         />
       </div>
     </div>
-  )
+  );
 }

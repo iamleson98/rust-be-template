@@ -1,9 +1,9 @@
-'use client'
+"use client";
 
-import { memo } from 'react'
-import { Button } from '@spa/components/ui/button'
-import { EmptyState } from '@spa/components/empty-state'
-import { useT } from '@spa/lib/i18n'
+import { memo } from "react";
+import { Button } from "@spa/components/ui/button";
+import { EmptyState } from "@spa/components/empty-state";
+import { useT } from "@spa/lib/i18n";
 
 /* ─── SVG Illustrations (line-art style with teal accents) ─── */
 
@@ -42,30 +42,30 @@ function StarSVG() {
         strokeLinecap="round"
       />
     </svg>
-  )
+  );
 }
 
 export const NoReviewsYet = memo(function NoReviewsYet({
   onWrite,
   className,
 }: {
-  onWrite?: () => void
-  className?: string
+  onWrite?: () => void;
+  className?: string;
 }) {
-  const t = useT()
+  const t = useT();
   return (
     <EmptyState
       illustration={<StarSVG />}
-      title={t('reviews.emptyTitle')}
-      description={t('reviews.emptyDescription')}
+      title={t("reviews.emptyTitle")}
+      description={t("reviews.emptyDescription")}
       className={className}
       size="sm"
     >
       {onWrite && (
         <Button size="sm" className="gap-1.5" onClick={onWrite}>
-          {t('reviews.writeFirstReview')}
+          {t("reviews.writeFirstReview")}
         </Button>
       )}
     </EmptyState>
-  )
-})
+  );
+});

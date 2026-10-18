@@ -1,4 +1,4 @@
-'use client'
+"use client";
 
 /**
  * PlaceAutocomplete — the From/To field of the search widget.
@@ -24,54 +24,54 @@
  * list as one flat sequence, cities first.
  */
 
-import { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react'
-import { usePlaceSearch } from '@spa/features/map/api'
-import type { PlaceSearchHit } from '@spa/api'
-import { MapPin, Loader2, MapIcon, Building2, Navigation2 } from 'lucide-react'
-import { Input } from '@spa/components/ui/input'
+import { useState, useEffect, useRef, useMemo, lazy, Suspense } from "react";
+import { usePlaceSearch } from "@spa/features/map/api";
+import type { PlaceSearchHit } from "@spa/api";
+import { MapPin, Loader2, MapIcon, Building2, Navigation2 } from "lucide-react";
+import { Input } from "@spa/components/ui/input";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from '@spa/components/ui/dialog'
-import { cn } from '@spa/lib/utils'
-import { useT } from '@spa/lib/i18n'
-import { toast } from 'sonner'
-import { VIETNAMESE_CITIES, type VietnameseCity } from '@spa/lib/vietnamese-cities'
-import { noTones } from '@spa/lib/text'
+} from "@spa/components/ui/dialog";
+import { cn } from "@spa/lib/utils";
+import { useT } from "@spa/lib/i18n";
+import { toast } from "sonner";
+import { VIETNAMESE_CITIES, type VietnameseCity } from "@spa/lib/vietnamese-cities";
+import { noTones } from "@spa/lib/text";
 
 // Leaflet touches `window` at import time, so we must load the MapPicker
 // client-side only.
 const MapPicker = lazy(() =>
-  import('@spa/features/map/leaflet-map').then((m) => ({ default: m.MapPicker })),
-)
+  import("@spa/features/map/leaflet-map").then((m) => ({ default: m.MapPicker })),
+);
 const MapPickerFallback = (
   <div className="flex items-center justify-center h-[70vh] text-muted-foreground">
     <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
   </div>
-)
+);
 
 type PickedPlace = {
-  name: string
-  lat: number
-  lon: number
-  type?: string
-  province?: string | null
-}
+  name: string;
+  lat: number;
+  lon: number;
+  type?: string;
+  province?: string | null;
+};
 
 type Props = {
-  value: string
-  onChange: (val: string) => void
+  value: string;
+  onChange: (val: string) => void;
   /** RHF blur handler — forwarded to the inner Input so the field counts as
    *  touched (the Slot passes it down but this component must hand it to
    *  the <Input> itself). */
-  onBlur?: () => void
+  onBlur?: () => void;
   /** RHF error state — forwarded so the Input renders its red
    *  aria-invalid border (the Slot injects it on this component; without
    *  explicit forwarding it lands nowhere). */
-  'aria-invalid'?: boolean
+  "aria-invalid"?: boolean;
   /**
    * Fired on every deliberate value choice — city pick, place pick,
    * map confirm, or free typing — with the current name and (for
@@ -81,49 +81,49 @@ type Props = {
    * coordinates from another).
    */
   onPick?: (pick: {
-    name: string
-    lat: number | null
-    lon: number | null
+    name: string;
+    lat: number | null;
+    lon: number | null;
     /** City-level name for search fallback (the place's province, or the
      *  city itself for city picks) — used when only ONE end is precise. */
-    city: string
-  }) => void
-  placeholder?: string
-  icon?: React.ReactNode
+    city: string;
+  }) => void;
+  placeholder?: string;
+  icon?: React.ReactNode;
   /** Pin color to use on the map picker dialog. */
-  pinColor?: 'blue' | 'red'
-  className?: string
-}
+  pinColor?: "blue" | "red";
+  className?: string;
+};
 
 /** One selectable row — either a city (optionally matched via one of
  *  its popular aliases like "Đà Lạt" → Lâm Đồng) or a precise place hit. */
 type CityRow = {
-  kind: 'city'
-  id: string
-  name: string
+  kind: "city";
+  id: string;
+  name: string;
   /** The label to render — the official province name, or the alias the
    *  user's query matched ("Đà Lạt") with the province as a hint. */
-  label: string
+  label: string;
   /** Province hint shown under the label when an alias matched. */
-  sub?: string
-  region: string
-}
+  sub?: string;
+  region: string;
+};
 type PlaceRow = {
-  kind: 'place'
-  id: string
-  name: string
-  sub: string
-  city: string
-  lat: number
-  lon: number
-}
-type Row = CityRow | PlaceRow
+  kind: "place";
+  id: string;
+  name: string;
+  sub: string;
+  city: string;
+  lat: number;
+  lon: number;
+};
+type Row = CityRow | PlaceRow;
 
 const REGION_LABEL_KEYS: Record<string, string> = {
-  north: 'searchPage.regionNorth',
-  central: 'searchPage.regionCentral',
-  south: 'searchPage.regionSouth',
-}
+  north: "searchPage.regionNorth",
+  central: "searchPage.regionCentral",
+  south: "searchPage.regionSouth",
+};
 
 export function PlaceAutocomplete({
   value,
@@ -132,46 +132,46 @@ export function PlaceAutocomplete({
   onPick,
   placeholder,
   icon,
-  pinColor = 'blue',
+  pinColor = "blue",
   className,
-  'aria-invalid': ariaInvalid,
+  "aria-invalid": ariaInvalid,
 }: Props) {
-  const t = useT()
-  const [query, setQuery] = useState(value)
-  const [open, setOpen] = useState(false)
+  const t = useT();
+  const [query, setQuery] = useState(value);
+  const [open, setOpen] = useState(false);
   // Debounced query — fed into usePlaceSearch so we don't fire a request
   // on every keystroke. The hook itself does caching + deduplication.
-  const [debouncedQuery, setDebouncedQuery] = useState('')
-  const [highlight, setHighlight] = useState(0)
-  const [mapOpen, setMapOpen] = useState(false)
-  const containerRef = useRef<HTMLDivElement>(null)
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [highlight, setHighlight] = useState(0);
+  const [mapOpen, setMapOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => {
     // Intentional effect-synced state (dialog reset-on-open /
     // server-data snapshot / DOM-availability gate).
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setQuery(value)
-  }, [value])
+
+    setQuery(value);
+  }, [value]);
 
   const { data: placesData, isLoading: loading } = usePlaceSearch(debouncedQuery, {
     enabled: open && debouncedQuery.trim().length >= 2,
-  })
-  const placeItems: PlaceSearchHit[] = placesData?.items ?? []
+  });
+  const placeItems: PlaceSearchHit[] = placesData?.items ?? [];
 
   // NOTE: declared BEFORE the memos below that reference it (a const arrow
   // called from a useMemo factory runs at first render — declaring it later
   // is a temporal-dead-zone ReferenceError that crashes the whole tree).
   const typeLabel = (type: string) => {
     const map: Record<string, string> = {
-      city: t('searchPage.placeCity'),
-      town: t('searchPage.placeTown'),
-      village: t('searchPage.placeVillage'),
-      bus_station: t('searchPage.placeBusStation'),
-      bus_stop: t('searchPage.placeBusStop'),
-    }
-    return map[type] ?? type.replace(/_/g, ' ')
-  }
+      city: t("searchPage.placeCity"),
+      town: t("searchPage.placeTown"),
+      village: t("searchPage.placeVillage"),
+      bus_station: t("searchPage.placeBusStation"),
+      bus_stop: t("searchPage.placeBusStop"),
+    };
+    return map[type] ?? type.replace(/_/g, " ");
+  };
 
   // ── City rows: the hardcoded province list, filtered locally.
   // Matching covers the official name AND the popular city aliases
@@ -180,28 +180,28 @@ export function PlaceAutocomplete({
   // province as the hint — the picked VALUE stays the official name so
   // the backend's slug resolver sees a known province. ──
   const cityRows: CityRow[] = useMemo(() => {
-    const nq = noTones(query)
+    const nq = noTones(query);
     const matchCity = (c: VietnameseCity): string | null => {
-      if (nq && noTones(c.name).includes(nq)) return c.name
+      if (nq && noTones(c.name).includes(nq)) return c.name;
       if (nq && c.aliases?.some((a) => noTones(a).includes(nq))) {
-        return c.aliases.find((a) => noTones(a).includes(nq))!
+        return c.aliases.find((a) => noTones(a).includes(nq))!;
       }
-      return null
-    }
+      return null;
+    };
     const source = nq
       ? VIETNAMESE_CITIES.map((c) => ({ c, m: matchCity(c) })).filter(
           (x): x is { c: VietnameseCity; m: string } => x.m !== null,
         )
-      : VIETNAMESE_CITIES.map((c) => ({ c, m: c.name }))
+      : VIETNAMESE_CITIES.map((c) => ({ c, m: c.name }));
     return source.slice(0, nq ? 8 : 12).map(({ c, m }) => ({
-      kind: 'city' as const,
+      kind: "city" as const,
       id: `city-${c.id}`,
       name: c.name,
       label: m,
       sub: m !== c.name ? c.name : undefined,
       region: c.region,
-    }))
-  }, [query])
+    }));
+  }, [query]);
 
   // ── Place rows: precise hits from the Tantivy index ──
   const placeRows: PlaceRow[] = useMemo(
@@ -210,89 +210,89 @@ export function PlaceAutocomplete({
         .filter((p) => p.lat != null && p.lon != null)
         .slice(0, 5)
         .map((p) => ({
-          kind: 'place' as const,
+          kind: "place" as const,
           id: `place-${p.id ?? `${p.lat},${p.lon}`}`,
           name: p.name,
-          sub: [p.province, p.type ? typeLabel(p.type) : null].filter(Boolean).join(' • '),
+          sub: [p.province, p.type ? typeLabel(p.type) : null].filter(Boolean).join(" • "),
           city: p.province ?? p.name,
           lat: p.lat as number,
           lon: p.lon as number,
         })),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- typeLabel is a pure translator closure
     [placeItems, t],
-  )
+  );
 
-  const rows: Row[] = useMemo(() => [...cityRows, ...placeRows], [cityRows, placeRows])
+  const rows: Row[] = useMemo(() => [...cityRows, ...placeRows], [cityRows, placeRows]);
 
   // Keep `highlight` within bounds as the row list changes.
   useEffect(() => {
     // Intentional effect-synced state (dialog reset-on-open /
     // server-data snapshot / DOM-availability gate).
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setHighlight(0)
-  }, [debouncedQuery])
+
+    setHighlight(0);
+  }, [debouncedQuery]);
 
   const onInput = (val: string) => {
-    setQuery(val)
-    onChange(val)
+    setQuery(val);
+    onChange(val);
     // Typing free text invalidates any previously picked coordinates —
     // the value is now just a name string until a row is picked again.
-    onPick?.({ name: val, lat: null, lon: null, city: val })
-    setOpen(true)
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => setDebouncedQuery(val), 180)
-  }
+    onPick?.({ name: val, lat: null, lon: null, city: val });
+    setOpen(true);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => setDebouncedQuery(val), 180);
+  };
 
   const pick = (row: Row) => {
-    setQuery(row.name)
-    onChange(row.name)
-    if (row.kind === 'city') {
+    setQuery(row.name);
+    onChange(row.name);
+    if (row.kind === "city") {
       // City-to-city search — no coordinates needed (the backend
       // resolves the city name to its slug).
-      onPick?.({ name: row.name, lat: null, lon: null, city: row.name })
+      onPick?.({ name: row.name, lat: null, lon: null, city: row.name });
     } else {
-      onPick?.({ name: row.name, lat: row.lat, lon: row.lon, city: row.city })
+      onPick?.({ name: row.name, lat: row.lat, lon: row.lon, city: row.city });
     }
-    setOpen(false)
-  }
+    setOpen(false);
+  };
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false)
+        setOpen(false);
       }
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [])
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
   // Clean up the debounce timer on unmount.
   useEffect(() => {
     return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current)
-    }
-  }, [])
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
 
   const handleMapConfirm = (place: PickedPlace) => {
-    setQuery(place.name)
-    onChange(place.name)
+    setQuery(place.name);
+    onChange(place.name);
     // Map picks are EXACT coordinates — feed the geo search.
     onPick?.({
       name: place.name,
       lat: place.lat,
       lon: place.lon,
       city: place.province ?? place.name,
-    })
-    setMapOpen(false)
-    toast.success(t('searchPage.placeSelected', { name: place.name }))
-  }
+    });
+    setMapOpen(false);
+    toast.success(t("searchPage.placeSelected", { name: place.name }));
+  };
 
-  const cityCount = cityRows.length
-  const hasCitySection = cityCount > 0
-  const hasPlaceSection = placeRows.length > 0 || loading
+  const cityCount = cityRows.length;
+  const hasCitySection = cityCount > 0;
+  const hasPlaceSection = placeRows.length > 0 || loading;
 
   return (
-    <div ref={containerRef} className={cn('relative', className)}>
+    <div ref={containerRef} className={cn("relative", className)}>
       <div className="relative">
         {icon && (
           <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 z-10 text-muted-foreground flex items-center">
@@ -305,28 +305,28 @@ export function PlaceAutocomplete({
           onBlur={onBlur}
           aria-invalid={ariaInvalid || undefined}
           onFocus={() => {
-            setOpen(true)
+            setOpen(true);
             // If the user has already typed something, immediately debounce-
             // flush so the dropdown opens with results.
             if (query.trim().length >= 2) {
-              if (debounceRef.current) clearTimeout(debounceRef.current)
-              setDebouncedQuery(query)
+              if (debounceRef.current) clearTimeout(debounceRef.current);
+              setDebouncedQuery(query);
             }
           }}
           onKeyDown={(e) => {
-            if (!open || rows.length === 0) return
-            if (e.key === 'ArrowDown') {
-              e.preventDefault()
-              setHighlight((h) => Math.min(h + 1, rows.length - 1))
-            } else if (e.key === 'ArrowUp') {
-              e.preventDefault()
-              setHighlight((h) => Math.max(h - 1, 0))
-            } else if (e.key === 'Enter') {
-              e.preventDefault()
-              const row = rows[highlight]
-              if (row) pick(row)
-            } else if (e.key === 'Escape') {
-              setOpen(false)
+            if (!open || rows.length === 0) return;
+            if (e.key === "ArrowDown") {
+              e.preventDefault();
+              setHighlight((h) => Math.min(h + 1, rows.length - 1));
+            } else if (e.key === "ArrowUp") {
+              e.preventDefault();
+              setHighlight((h) => Math.max(h - 1, 0));
+            } else if (e.key === "Enter") {
+              e.preventDefault();
+              const row = rows[highlight];
+              if (row) pick(row);
+            } else if (e.key === "Escape") {
+              setOpen(false);
             }
           }}
           placeholder={placeholder}
@@ -334,14 +334,14 @@ export function PlaceAutocomplete({
           aria-expanded={open}
           aria-autocomplete="list"
           autoComplete="off"
-          className={cn(icon ? 'pl-10' : '', 'bg-white/95 backdrop-blur pr-11')}
+          className={cn(icon ? "pl-10" : "", "bg-white/95 backdrop-blur pr-11")}
         />
         {/* "Pick on map" button — sits inside the input on the right */}
         <button
           type="button"
           onClick={() => setMapOpen(true)}
-          title={t('searchPage.pickOnMap')}
-          aria-label={t('searchPage.pickOnMap')}
+          title={t("searchPage.pickOnMap")}
+          aria-label={t("searchPage.pickOnMap")}
           className="absolute right-2.5 top-1/2 -translate-y-1/2 h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-blue-600 hover:bg-blue-50 transition-colors"
         >
           <MapIcon className="h-4 w-4" />
@@ -356,7 +356,7 @@ export function PlaceAutocomplete({
           <ul className="max-h-80 overflow-y-auto py-1">
             {hasCitySection && (
               <li className="px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                {t('searchPage.citySection')}
+                {t("searchPage.citySection")}
               </li>
             )}
             {cityRows.map((row, i) => (
@@ -366,8 +366,8 @@ export function PlaceAutocomplete({
                   onMouseEnter={() => setHighlight(i)}
                   onClick={() => pick(row)}
                   className={cn(
-                    'flex w-full items-center gap-3 px-3 py-2 text-left text-sm transition-colors',
-                    i === highlight ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/60',
+                    "flex w-full items-center gap-3 px-3 py-2 text-left text-sm transition-colors",
+                    i === highlight ? "bg-accent text-accent-foreground" : "hover:bg-accent/60",
                   )}
                 >
                   <Building2 className="h-4 w-4 shrink-0 text-blue-600" />
@@ -386,17 +386,17 @@ export function PlaceAutocomplete({
 
             {hasPlaceSection && (
               <li className="px-3 pt-2.5 pb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground border-t mt-1">
-                {t('searchPage.placeSection')}
+                {t("searchPage.placeSection")}
               </li>
             )}
             {loading && placeRows.length === 0 && (
               <li className="px-3 py-2.5 flex items-center gap-2 text-xs text-muted-foreground">
                 <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-600" />
-                {t('searchPage.searchingPlaces')}
+                {t("searchPage.searchingPlaces")}
               </li>
             )}
             {placeRows.map((row, i) => {
-              const idx = cityCount + i
+              const idx = cityCount + i;
               return (
                 <li key={row.id}>
                   <button
@@ -404,8 +404,8 @@ export function PlaceAutocomplete({
                     onMouseEnter={() => setHighlight(idx)}
                     onClick={() => pick(row)}
                     className={cn(
-                      'flex w-full items-center gap-3 px-3 py-2 text-left text-sm transition-colors',
-                      idx === highlight ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/60',
+                      "flex w-full items-center gap-3 px-3 py-2 text-left text-sm transition-colors",
+                      idx === highlight ? "bg-accent text-accent-foreground" : "hover:bg-accent/60",
                     )}
                   >
                     <MapPin className="h-4 w-4 shrink-0 text-blue-600" />
@@ -416,7 +416,7 @@ export function PlaceAutocomplete({
                     <Navigation2 className="h-3 w-3 shrink-0 text-muted-foreground/60" />
                   </button>
                 </li>
-              )
+              );
             })}
           </ul>
           <button
@@ -425,7 +425,7 @@ export function PlaceAutocomplete({
             className="flex w-full items-center gap-2 border-t px-3 py-2.5 text-left text-xs font-medium text-blue-600 hover:bg-blue-50 transition-colors"
           >
             <MapIcon className="h-4 w-4" />
-            {t('searchPage.pickLocationOnMap')}
+            {t("searchPage.pickLocationOnMap")}
           </button>
         </div>
       )}
@@ -438,14 +438,14 @@ export function PlaceAutocomplete({
               <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
               <span
                 className="h-1.5 w-1.5 rounded-full bg-blue-500"
-                style={{ animationDelay: '0.18s' }}
+                style={{ animationDelay: "0.18s" }}
               />
               <span
                 className="h-1.5 w-1.5 rounded-full bg-blue-500"
-                style={{ animationDelay: '0.36s' }}
+                style={{ animationDelay: "0.36s" }}
               />
             </span>
-            <span>{t('searchPage.searchingPlaces')}</span>
+            <span>{t("searchPage.searchingPlaces")}</span>
           </div>
         </div>
       )}
@@ -455,13 +455,13 @@ export function PlaceAutocomplete({
         <DialogContent className="max-w-3xl max-h-[92dvh] p-0 gap-0 overflow-hidden flex flex-col">
           <DialogHeader
             icon={<MapPin />}
-            tone={pinColor === 'red' ? 'danger' : 'primary'}
+            tone={pinColor === "red" ? "danger" : "primary"}
             className="shrink-0 border-b px-5 py-4 pr-14"
           >
-            <DialogTitle>{t('searchPage.pickLocationOnMap')}</DialogTitle>
+            <DialogTitle>{t("searchPage.pickLocationOnMap")}</DialogTitle>
             {/* Description (also satisfies aria-describedby) */}
             <DialogDescription className="sr-only">
-              {t('searchPage.pickLocationOnMapDesc')}
+              {t("searchPage.pickLocationOnMapDesc")}
             </DialogDescription>
           </DialogHeader>
           <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
@@ -476,5 +476,5 @@ export function PlaceAutocomplete({
         </DialogContent>
       </Dialog>
     </div>
-  )
+  );
 }

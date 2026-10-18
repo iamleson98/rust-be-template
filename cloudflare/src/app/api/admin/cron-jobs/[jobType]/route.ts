@@ -67,7 +67,7 @@ export async function PATCH(req: Request, ctx: Params) {
 
     const row = (
       await db.select().from(scheduledJobs).where(eq(scheduledJobs.jobType, jobType)).limit(1)
-    )[0]!;
+    )[0];
     const lastRun = (
       await db
         .select({

@@ -1,43 +1,43 @@
-import { ArrowLeft, Headset, Phone, WifiOff, X } from 'lucide-react'
-import { useT } from '@spa/lib/i18n'
+import { ArrowLeft, Headset, Phone, WifiOff, X } from "lucide-react";
+import { useT } from "@spa/lib/i18n";
 
 type Props = {
-  title: string
-  connected: boolean
+  title: string;
+  connected: boolean;
   /** Staff member handling the conversation, once assigned. */
-  assigneeName?: string | null
+  assigneeName?: string | null;
   /** No staff online: the assistant answers. */
-  botActive?: boolean
+  botActive?: boolean;
   /** The call surface replaces the conversation; the back button leaves it. */
-  inCall?: boolean
-  onCall?: () => void
-  onBack: () => void
-  onClose: () => void
-}
+  inCall?: boolean;
+  onCall?: () => void;
+  onBack: () => void;
+  onClose: () => void;
+};
 
 function Status({
   connected,
   assigneeName,
   botActive,
-}: Pick<Props, 'connected' | 'assigneeName' | 'botActive'>) {
-  const t = useT()
+}: Pick<Props, "connected" | "assigneeName" | "botActive">) {
+  const t = useT();
   if (!connected) {
     return (
       <>
-        <WifiOff className="h-3 w-3" /> {t('chatWidget.connecting')}
+        <WifiOff className="h-3 w-3" /> {t("chatWidget.connecting")}
       </>
-    )
+    );
   }
-  const bot = !assigneeName && botActive
+  const bot = !assigneeName && botActive;
   return (
     <>
       {assigneeName ? (
-        <span className="truncate">{t('chatWidget.assigneeHelping', { name: assigneeName })}</span>
+        <span className="truncate">{t("chatWidget.assigneeHelping", { name: assigneeName })}</span>
       ) : (
-        <span>{bot ? t('chatWidget.aiHelping') : t('chatWidget.staffOnline')}</span>
+        <span>{bot ? t("chatWidget.aiHelping") : t("chatWidget.staffOnline")}</span>
       )}
     </>
-  )
+  );
 }
 
 /** Title bar of the support panel: back, who is helping and whether they are online, call, close. */
@@ -51,15 +51,15 @@ export function ChatHeader({
   onBack,
   onClose,
 }: Props) {
-  const t = useT()
+  const t = useT();
   return (
     <div className="flex shrink-0 items-center gap-1 border-b bg-background px-2 pt-[env(safe-area-inset-top)] sm:px-3">
       {/* Phones: back closes the chat (or leaves the call), like any chat app. */}
       <button
         type="button"
         onClick={inCall ? onBack : onClose}
-        className={`grid size-10 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-muted ${inCall ? '' : 'sm:hidden'}`}
-        aria-label={inCall ? t('common.back') : t('common.close')}
+        className={`grid size-10 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-muted ${inCall ? "" : "sm:hidden"}`}
+        aria-label={inCall ? t("common.back") : t("common.close")}
       >
         <ArrowLeft className="size-5" />
       </button>
@@ -82,8 +82,8 @@ export function ChatHeader({
           type="button"
           onClick={onCall}
           className="grid size-10 shrink-0 place-items-center rounded-full text-primary hover:bg-primary/10"
-          aria-label={t('chatWidget.callSupport')}
-          title={t('chatWidget.callSupport')}
+          aria-label={t("chatWidget.callSupport")}
+          title={t("chatWidget.callSupport")}
         >
           <Phone className="size-5" />
         </button>
@@ -92,10 +92,10 @@ export function ChatHeader({
         type="button"
         onClick={onClose}
         className="hidden size-10 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-muted sm:grid"
-        aria-label={t('common.close')}
+        aria-label={t("common.close")}
       >
         <X className="size-5" />
       </button>
     </div>
-  )
+  );
 }

@@ -29,7 +29,11 @@ export async function PUT(req: Request, ctx: Params) {
     if (e instanceof InUseError) {
       return err(409, "conflict", e.message);
     }
-    if (e instanceof Error && "statusCode" in e && (e as { statusCode?: number }).statusCode === 400) {
+    if (
+      e instanceof Error &&
+      "statusCode" in e &&
+      (e as { statusCode?: number }).statusCode === 400
+    ) {
       return err(400, "validation", e.message);
     }
     return handleRouteError(e);

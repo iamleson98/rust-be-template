@@ -1,41 +1,41 @@
-import { useEffect, useEffectEvent, useState } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import type { UseFormReturn } from 'react-hook-form'
-import { toast } from 'sonner'
+import { useEffect, useEffectEvent, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import type { UseFormReturn } from "react-hook-form";
+import { toast } from "sonner";
 import {
   bookingsHoldMutation,
   bookingsPlaceMutation,
   cancelPaymentMutation,
   createPaymentMutation,
   type BookingHoldResponse,
-} from '@spa/api'
-import { invalidateResources } from '@spa/api/query-client'
-import { couponErrorText } from '@spa/features/campaigns/api'
-import { trackConversion } from '@spa/lib/analytics'
-import { getErrorMessage } from '@spa/lib/error-message'
-import { useMoney } from '@spa/lib/format'
-import { useT } from '@spa/lib/i18n'
-import type { PaymentProvider } from '@spa/lib/payment'
-import { normalizePhone } from '@spa/lib/text'
-import { useBookingFlow, type BookingContext } from '@spa/stores/booking-flow'
-import { useGuest } from '@spa/stores/guest'
-import { usePayment } from '../api'
-import type { BookingValues } from './booking-form'
-import type { PaymentMethodKey } from './payment-method'
+} from "@spa/api";
+import { invalidateResources } from "@spa/api/query-client";
+import { couponErrorText } from "@spa/features/campaigns/api";
+import { trackConversion } from "@spa/lib/analytics";
+import { getErrorMessage } from "@spa/lib/error-message";
+import { useMoney } from "@spa/lib/format";
+import { useT } from "@spa/lib/i18n";
+import type { PaymentProvider } from "@spa/lib/payment";
+import { normalizePhone } from "@spa/lib/text";
+import { useBookingFlow, type BookingContext } from "@spa/stores/booking-flow";
+import { useGuest } from "@spa/stores/guest";
+import { usePayment } from "../api";
+import type { BookingValues } from "./booking-form";
+import type { PaymentMethodKey } from "./payment-method";
 
 /** Online methods and the provider the payment API expects for each. */
 const PROVIDER: Partial<Record<PaymentMethodKey, PaymentProvider>> = {
-  momo: 'momo',
-  vnpay: 'vnpay',
-  bank: 'vietqr',
-}
+  momo: "momo",
+  vnpay: "vnpay",
+  bank: "vietqr",
+};
 
 /** API error kinds the customer can act on, and what to tell them. */
 const KNOWN_FAILURES: Record<string, string> = {
-  conflict: 'bookingFlow.seatsTaken',
-  gone: 'bookingFlow.holdExpired',
-  unauthorized: 'bookingFlow.signInAgain',
-}
+  conflict: "bookingFlow.seatsTaken",
+  gone: "bookingFlow.holdExpired",
+  unauthorized: "bookingFlow.signInAgain",
+};
 
 /**
  * Runs `work`; a failure becomes an Error whose message is what the customer should
@@ -44,23 +44,23 @@ const KNOWN_FAILURES: Record<string, string> = {
  */
 async function orFail<T>(work: Promise<T>, fallback: string, t: ReturnType<typeof useT>) {
   try {
-    return await work
+    return await work;
   } catch (error) {
-    const coupon = couponErrorText(error, t)
-    if (coupon) throw new Error(coupon)
-    const kind = (error as { error?: unknown } | null)?.error
-    const known = typeof kind === 'string' ? KNOWN_FAILURES[kind] : undefined
-    throw new Error(known ? t(known) : fallback)
+    const coupon = couponErrorText(error, t);
+    if (coupon) throw new Error(coupon);
+    const kind = (error as { error?: unknown } | null)?.error;
+    const known = typeof kind === "string" ? KNOWN_FAILURES[kind] : undefined;
+    throw new Error(known ? t(known) : fallback);
   }
 }
 
 type Options = {
-  form: UseFormReturn<BookingValues>
-  context: BookingContext | null
-  method: PaymentMethodKey
+  form: UseFormReturn<BookingValues>;
+  context: BookingContext | null;
+  method: PaymentMethodKey;
   /** The customer's coupon, when they apply it. */
-  couponId: string | undefined
-}
+  couponId: string | undefined;
+};
 
 /**
  * Turns the filled-in form into a booking. The seats are held first, then
@@ -69,64 +69,64 @@ type Options = {
  *    provider's webhook confirms it (confirming up front would block later attempts).
  */
 export function useCheckout({ form, context, method, couponId }: Options) {
-  const t = useT()
-  const money = useMoney()
-  const queryClient = useQueryClient()
-  const step = useBookingFlow((s) => s.step)
-  const setStep = useBookingFlow((s) => s.setStep)
-  const setLastBooking = useBookingFlow((s) => s.setLastBooking)
-  const setGuestName = useGuest((s) => s.setGuestName)
-  const setGuestPhone = useGuest((s) => s.setGuestPhone)
+  const t = useT();
+  const money = useMoney();
+  const queryClient = useQueryClient();
+  const step = useBookingFlow((s) => s.step);
+  const setStep = useBookingFlow((s) => s.setStep);
+  const setLastBooking = useBookingFlow((s) => s.setLastBooking);
+  const setGuestName = useGuest((s) => s.setGuestName);
+  const setGuestPhone = useGuest((s) => s.setGuestPhone);
 
-  const [error, setError] = useState('')
-  const [submitting, setSubmitting] = useState(false)
-  const [hold, setHold] = useState<BookingHoldResponse | null>(null)
-  const [paymentId, setPaymentId] = useState<string | null>(null)
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [hold, setHold] = useState<BookingHoldResponse | null>(null);
+  const [paymentId, setPaymentId] = useState<string | null>(null);
 
-  const holdSeats = useMutation(bookingsHoldMutation())
-  const place = useMutation(bookingsPlaceMutation())
-  const createPayment = useMutation(createPaymentMutation())
-  const cancelPayment = useMutation(cancelPaymentMutation())
-  const payment = usePayment(paymentId ?? undefined, step === 'pay').data
+  const holdSeats = useMutation(bookingsHoldMutation());
+  const place = useMutation(bookingsPlaceMutation());
+  const createPayment = useMutation(createPaymentMutation());
+  const cancelPayment = useMutation(cancelPaymentMutation());
+  const payment = usePayment(paymentId ?? undefined, step === "pay").data;
 
   /** The booking is final: remember the customer, report the conversion, refresh what it changed. */
   const complete = (held: BookingHoldResponse, awaitingCall: boolean) => {
-    if (useBookingFlow.getState().step === 'success') return
-    const { contactName, contactPhone } = form.getValues()
-    setLastBooking({ id: held.bookingId, code: held.code, total: held.total, awaitingCall })
-    setGuestPhone(normalizePhone(contactPhone))
-    if (contactName) setGuestName(contactName)
-    setStep('success')
-    trackConversion('booking', { value: held.total, currency: 'VND', transactionId: held.code })
-    toast.success(t('booking.success'), {
-      description: t('bookingFlow.successToastDesc', { code: held.code, total: money(held.total) }),
+    if (useBookingFlow.getState().step === "success") return;
+    const { contactName, contactPhone } = form.getValues();
+    setLastBooking({ id: held.bookingId, code: held.code, total: held.total, awaitingCall });
+    setGuestPhone(normalizePhone(contactPhone));
+    if (contactName) setGuestName(contactName);
+    setStep("success");
+    trackConversion("booking", { value: held.total, currency: "VND", transactionId: held.code });
+    toast.success(t("booking.success"), {
+      description: t("bookingFlow.successToastDesc", { code: held.code, total: money(held.total) }),
       duration: 5000,
-    })
+    });
     // The booked seats must show as taken, and points and booking lists are stale.
-    void invalidateResources(queryClient, 'bookings', 'trips', 'loyalty')
-    toast.success(t('bookingFlow.loyaltyEarned'), {
-      description: t('bookingFlow.loyaltyEarnedDesc'),
+    void invalidateResources(queryClient, "bookings", "trips", "loyalty");
+    toast.success(t("bookingFlow.loyaltyEarned"), {
+      description: t("bookingFlow.loyaltyEarnedDesc"),
       duration: 4000,
-    })
-  }
+    });
+  };
 
   const startPayment = async (held: BookingHoldResponse) => {
     const { payment: created } = await orFail(
       createPayment.mutateAsync({
-        body: { bookingId: held.bookingId, provider: PROVIDER[method] ?? 'vnpay' },
+        body: { bookingId: held.bookingId, provider: PROVIDER[method] ?? "vnpay" },
       }),
-      t('payment.createFailed'),
+      t("payment.createFailed"),
       t,
-    )
-    if (!created?.id) throw new Error(t('payment.createFailed'))
-    setPaymentId(created.id)
-    setStep('pay')
-  }
+    );
+    if (!created?.id) throw new Error(t("payment.createFailed"));
+    setPaymentId(created.id);
+    setStep("pay");
+  };
 
   const submit = async (values: BookingValues) => {
-    if (!context) return
-    setError('')
-    setSubmitting(true)
+    if (!context) return;
+    setError("");
+    setSubmitting(true);
     try {
       const held = await orFail(
         holdSeats.mutateAsync({
@@ -147,71 +147,71 @@ export function useCheckout({ form, context, method, couponId }: Options) {
             couponId,
           },
         }),
-        t('bookingFlow.holdFailed'),
+        t("bookingFlow.holdFailed"),
         t,
-      )
-      if (!held.bookingId) throw new Error(t('bookingFlow.holdFailed'))
-      setHold(held)
-      if (method === 'cod') {
+      );
+      if (!held.bookingId) throw new Error(t("bookingFlow.holdFailed"));
+      setHold(held);
+      if (method === "cod") {
         // Pay on board: the operator phones the customer to confirm.
-        await orFail(place.mutateAsync({ path: { id: held.bookingId } }), t('payment.failed'), t)
-        complete(held, true)
+        await orFail(place.mutateAsync({ path: { id: held.bookingId } }), t("payment.failed"), t);
+        complete(held, true);
       } else {
-        await startPayment(held)
+        await startPayment(held);
       }
     } catch (e) {
-      setError((e as Error).message)
+      setError((e as Error).message);
       // The coupon may have changed under us (expired, used elsewhere): show its real state.
-      if (couponId) void invalidateResources(queryClient, 'coupons')
+      if (couponId) void invalidateResources(queryClient, "coupons");
     } finally {
-      setSubmitting(false)
+      setSubmitting(false);
     }
-  }
+  };
 
   /** A fresh payment for the still-pending booking, e.g. after a failed attempt. */
   const retryPayment = async () => {
-    if (!hold) return
-    setSubmitting(true)
+    if (!hold) return;
+    setSubmitting(true);
     try {
-      await startPayment(hold)
-      setError('')
+      await startPayment(hold);
+      setError("");
     } catch (e) {
-      setError((e as Error).message)
-      setStep('payment')
+      setError((e as Error).message);
+      setStep("payment");
     } finally {
-      setSubmitting(false)
+      setSubmitting(false);
     }
-  }
+  };
 
   /** Drops the pending payment and returns to the method picker. */
   const cancel = () => {
-    if (!paymentId) return
+    if (!paymentId) return;
     cancelPayment.mutate(
       { path: { id: paymentId }, body: {} },
       {
         onSuccess: () => {
-          toast.success(t('bookingFlow.paymentCancelled'))
-          setPaymentId(null)
-          setStep('payment')
+          toast.success(t("bookingFlow.paymentCancelled"));
+          setPaymentId(null);
+          setStep("payment");
         },
         onError: (e) =>
-          toast.error(t('bookingFlow.cancelFailed'), { description: getErrorMessage(e) }),
+          toast.error(t("bookingFlow.cancelFailed"), { description: getErrorMessage(e) }),
       },
-    )
-  }
+    );
+  };
 
   // The provider's webhook confirms the booking; the poll sees the payment complete.
   const onPaid = useEffectEvent((paid: NonNullable<typeof payment>, held: BookingHoldResponse) => {
-    trackConversion('purchase', {
+    trackConversion("purchase", {
       value: paid.amount,
       currency: paid.currency,
       transactionId: held.code,
-    })
-    complete(held, false)
-  })
+    });
+    complete(held, false);
+  });
   useEffect(() => {
-    if (step === 'pay' && payment?.status === 'completed' && hold) onPaid(payment, hold)
-  }, [step, payment, hold])
+    if (step === "pay" && payment?.status === "completed" && hold) onPaid(payment, hold);
+  }, [step, payment, hold]);
 
   return {
     error,
@@ -224,9 +224,9 @@ export function useCheckout({ form, context, method, couponId }: Options) {
     cancelPayment: cancel,
     cancelling: cancelPayment.isPending,
     reset: () => {
-      setError('')
-      setHold(null)
-      setPaymentId(null)
+      setError("");
+      setHold(null);
+      setPaymentId(null);
     },
-  }
+  };
 }

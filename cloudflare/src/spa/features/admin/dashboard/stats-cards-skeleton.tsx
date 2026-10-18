@@ -1,7 +1,7 @@
-'use client'
+"use client";
 
-import { memo } from 'react'
-import { Shimmer } from '@spa/components/ui/shimmer'
+import { memo } from "react";
+import { Shimmer } from "@spa/components/ui/shimmer";
 
 /* ═══════════════════════════════════════════════════════════════════
  * Admin panel loading skeletons — every admin page's data-loading
@@ -20,12 +20,12 @@ import { Shimmer } from '@spa/components/ui/shimmer'
 export const AdminStatsCardsSkeleton = memo(function AdminStatsCardsSkeleton({
   count = 4,
 }: {
-  count?: number
+  count?: number;
 }) {
   return (
     <div
       className={
-        count <= 3 ? 'grid gap-4 md:grid-cols-3' : 'grid gap-3 sm:grid-cols-2 lg:grid-cols-4'
+        count <= 3 ? "grid gap-4 md:grid-cols-3" : "grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
       }
       aria-hidden
       data-testid="admin-stats-skeleton"
@@ -43,5 +43,5 @@ export const AdminStatsCardsSkeleton = memo(function AdminStatsCardsSkeleton({
         </div>
       ))}
     </div>
-  )
-})
+  );
+});

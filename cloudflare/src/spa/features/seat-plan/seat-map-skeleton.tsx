@@ -1,7 +1,7 @@
-'use client'
+"use client";
 
-import { memo } from 'react'
-import { Shimmer } from '@spa/components/ui/shimmer'
+import { memo } from "react";
+import { Shimmer } from "@spa/components/ui/shimmer";
 
 /* ─── Seat Map Skeleton — ticket picker seat grid ───
  * Mirrors the seat selection step: a grid of seat squares + the
@@ -31,5 +31,5 @@ export const SeatMapSkeleton = memo(function SeatMapSkeleton() {
         <Shimmer className="h-6 w-20" />
       </div>
     </div>
-  )
-})
+  );
+});

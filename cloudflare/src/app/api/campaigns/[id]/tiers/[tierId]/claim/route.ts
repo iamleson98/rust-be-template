@@ -58,11 +58,7 @@ export async function POST(req: Request, ctx: Params) {
         .limit(1)
     )[0];
     if (!campaign) return err(404, "not-found", "campaign not found");
-    if (
-      campaign.paused ||
-      now < new Date(campaign.startsAt) ||
-      now > new Date(campaign.endsAt)
-    ) {
+    if (campaign.paused || now < new Date(campaign.startsAt) || now > new Date(campaign.endsAt)) {
       return err(400, "not-running", "campaign is not running");
     }
 
@@ -175,7 +171,7 @@ export async function POST(req: Request, ctx: Params) {
                   JOIN brand br ON br.id = dcb.brand_id WHERE dcb.campaign_id = c.campaign_id) AS brand_logos
         FROM coupon c WHERE c.id = ${couponId} LIMIT 1
       `)
-    )[0]!;
+    )[0];
     const split = (s: unknown) => (s ? String(s).split(",") : []);
     // A claim shrinks every tier's remaining slots — drop the cached campaign list.
     await invalidateCampaigns();

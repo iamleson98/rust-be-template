@@ -4,9 +4,9 @@
  */
 interface Window {
   /** Google Analytics 4 gtag() — injected by the GA4 bootstrap script. */
-  gtag?: (...args: unknown[]) => void
+  gtag?: (...args: unknown[]) => void;
   /** Firebug presence probe (console-protection). */
-  firebug?: { isEnabled: boolean }
+  firebug?: { isEnabled: boolean };
   /** Safari's legacy prefixed AudioContext (sound-effects). */
-  webkitAudioContext?: typeof AudioContext
+  webkitAudioContext?: typeof AudioContext;
 }

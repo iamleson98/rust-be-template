@@ -13,25 +13,25 @@ export type Database = ReturnType<typeof drizzle<typeof schema>>;
  */
 export async function getDb(): Promise<Database> {
   const { env } = await getCloudflareContext({ async: true });
-  return drizzle(env.DB as D1Database, { schema });
+  return drizzle(env.DB, { schema });
 }
 
 /** Raw D1 binding for FTS5 queries + batch statements. */
 export async function getD1(): Promise<D1Database> {
   const { env } = await getCloudflareContext({ async: true });
-  return env.DB as D1Database;
+  return env.DB;
 }
 
 /** R2 bucket binding for media storage. */
 export async function getR2(): Promise<R2Bucket> {
   const { env } = await getCloudflareContext({ async: true });
-  return env.UPLOADS as R2Bucket;
+  return env.UPLOADS;
 }
 
 /** Typed accessor for CloudflareEnv vars/secrets. */
 export async function getEnv(): Promise<CloudflareEnv> {
   const { env } = await getCloudflareContext({ async: true });
-  return env as CloudflareEnv;
+  return env;
 }
 
 // ── Raw SQL helpers ────────────────────────────────────────────
@@ -77,19 +77,21 @@ export type AtomicStatement = SQL | BatchBuilder;
  * `db.insert(...).values(...)` builders with conditional raw UPDATEs
  * (the seat-claim pattern) while staying atomic.
  */
-export async function atomicBatch<T = Record<string, unknown>>(queries: AtomicStatement[]): Promise<D1Result<T>[]> {
+export async function atomicBatch<T = Record<string, unknown>>(
+  queries: AtomicStatement[],
+): Promise<D1Result<T>[]> {
   const db = await getDb();
   const d1 = await getD1();
-  const dialect = (db as unknown as { dialect: { sqlToQuery: (q: SQL) => { sql: string; params: unknown[] } } }).dialect;
+  const dialect = (
+    db as unknown as { dialect: { sqlToQuery: (q: SQL) => { sql: string; params: unknown[] } } }
+  ).dialect;
   const stmts = queries.map((q) => {
     const built =
-      q instanceof SQL
-        ? dialect.sqlToQuery(q)
-        : (q as unknown as Preparable)._prepare().getQuery();
+      q instanceof SQL ? dialect.sqlToQuery(q) : (q as unknown as Preparable)._prepare().getQuery();
     const stmt = d1.prepare(built.sql);
-    return built.params.length > 0 ? stmt.bind(...(built.params as unknown[])) : stmt;
+    return built.params.length > 0 ? stmt.bind(...built.params) : stmt;
   });
-  return d1.batch(stmts) as Promise<D1Result<T>[]>;
+  return d1.batch(stmts);
 }
 
 /**

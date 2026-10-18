@@ -26,7 +26,15 @@ export async function GET(req: Request) {
              SUM(CASE WHEN collected_at IS NOT NULL THEN 1 ELSE 0 END) AS collected
       FROM payment
     `);
-    const r = rows[0] ?? { total: 0, pending: 0, completed: 0, failed: 0, cancelled: 0, refunded: 0, collected: 0 };
+    const r = rows[0] ?? {
+      total: 0,
+      pending: 0,
+      completed: 0,
+      failed: 0,
+      cancelled: 0,
+      refunded: 0,
+      collected: 0,
+    };
     return Response.json({
       total: Number(r.total),
       pending: Number(r.pending),

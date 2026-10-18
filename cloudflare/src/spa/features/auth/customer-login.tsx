@@ -1,14 +1,14 @@
-import { useMemo } from 'react'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { useT } from '@spa/lib/i18n'
-import { useMutation } from '@tanstack/react-query'
-import { toast } from 'sonner'
-import { authLoginMutation } from '@spa/api'
-import { useSession } from '@spa/stores/session'
-import { Button } from '@spa/components/ui/button'
-import { Input } from '@spa/components/ui/input'
-import { PasswordInput } from '@spa/components/ui/password-input'
+import { useMemo } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useT } from "@spa/lib/i18n";
+import { useMutation } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { authLoginMutation } from "@spa/api";
+import { useSession } from "@spa/stores/session";
+import { Button } from "@spa/components/ui/button";
+import { Input } from "@spa/components/ui/input";
+import { PasswordInput } from "@spa/components/ui/password-input";
 import {
   Form,
   FormField,
@@ -16,41 +16,41 @@ import {
   FormLabel,
   FormControl,
   FormMessage,
-} from '@spa/components/ui/form'
-import { ShieldCheck, Loader2, ChevronRight, Mail, Sparkles, TrendingUp } from 'lucide-react'
-import { makeCustomerSchema, type CustomerFormValues } from './_shared'
-import { SocialAuthButtons } from './social-buttons'
+} from "@spa/components/ui/form";
+import { ShieldCheck, Loader2, ChevronRight, Mail, Sparkles, TrendingUp } from "lucide-react";
+import { makeCustomerSchema, type CustomerFormValues } from "./_shared";
+import { SocialAuthButtons } from "./social-buttons";
 
 export function CustomerLogin() {
-  const t = useT()
-  const customerSchema = useMemo(() => makeCustomerSchema(t), [t])
+  const t = useT();
+  const customerSchema = useMemo(() => makeCustomerSchema(t), [t]);
 
   const form = useForm<CustomerFormValues>({
     resolver: zodResolver(customerSchema),
     // Errors appear on submit, then follow each change: an error popping up
     // on blur shifts the layout under the pointer and swallows the click.
-    mode: 'onSubmit',
-    reValidateMode: 'onChange',
-    defaultValues: { email: '', password: '' },
-  })
+    mode: "onSubmit",
+    reValidateMode: "onChange",
+    defaultValues: { email: "", password: "" },
+  });
 
-  const setUser = useSession((s) => s.setUser)
+  const setUser = useSession((s) => s.setUser);
 
   const loginMut = useMutation({
     ...authLoginMutation(),
     // The login page takes the new session where it needs to go.
     onSuccess: ({ user }) => {
-      setUser(user)
-      toast.success(t('authPage.loginWelcome', { name: user.name }))
+      setUser(user);
+      toast.success(t("authPage.loginWelcome", { name: user.name }));
     },
-    onError: () => toast.error(t('authPage.loginFailedCheck')),
-  })
+    onError: () => toast.error(t("authPage.loginFailedCheck")),
+  });
 
   const onSubmit = (values: CustomerFormValues) => {
     loginMut.mutate({
       body: { email: values.email, password: values.password },
-    })
-  }
+    });
+  };
 
   return (
     <Form {...form}>
@@ -61,7 +61,7 @@ export function CustomerLogin() {
           render={({ field }) => (
             <FormItem className="space-y-1.5">
               <FormLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                {t('auth.email')} <span className="text-destructive">*</span>
+                {t("auth.email")} <span className="text-destructive">*</span>
               </FormLabel>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
@@ -85,7 +85,7 @@ export function CustomerLogin() {
           render={({ field }) => (
             <FormItem className="space-y-1.5">
               <FormLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                {t('auth.password')} <span className="text-destructive">*</span>
+                {t("auth.password")} <span className="text-destructive">*</span>
               </FormLabel>
               <FormControl>
                 <PasswordInput
@@ -106,7 +106,7 @@ export function CustomerLogin() {
           ) : (
             <ShieldCheck className="h-4 w-4" />
           )}
-          {t('auth.login')}
+          {t("auth.login")}
           <ChevronRight className="h-4 w-4" />
         </Button>
 
@@ -115,24 +115,24 @@ export function CustomerLogin() {
 
         <div className="pt-4 border-t border-slate-100 space-y-2">
           <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-            {t('authPage.benefitsTitle')}
+            {t("authPage.benefitsTitle")}
           </div>
           <div className="space-y-1.5 text-xs text-slate-600">
             <div className="flex items-center gap-2">
               <Sparkles className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-              {t('authPage.benefitSync')}
+              {t("authPage.benefitSync")}
             </div>
             <div className="flex items-center gap-2">
               <TrendingUp className="h-3.5 w-3.5 text-blue-500 shrink-0" />
-              {t('authPage.benefitPoints')}
+              {t("authPage.benefitPoints")}
             </div>
             <div className="flex items-center gap-2">
               <ShieldCheck className="h-3.5 w-3.5 text-blue-500 shrink-0" />
-              {t('authPage.benefitReviews')}
+              {t("authPage.benefitReviews")}
             </div>
           </div>
         </div>
       </form>
     </Form>
-  )
+  );
 }

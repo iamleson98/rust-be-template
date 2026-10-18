@@ -1,54 +1,54 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Link } from '@tanstack/react-router'
-import { Bus, CalendarClock, ChevronRight, Clock, Ticket } from 'lucide-react'
-import { Button } from '@spa/components/ui/button'
-import { Skeleton } from '@spa/components/ui/skeleton'
+import { useEffect, useMemo, useState } from "react";
+import { Link } from "@tanstack/react-router";
+import { Bus, CalendarClock, ChevronRight, Clock, Ticket } from "lucide-react";
+import { Button } from "@spa/components/ui/button";
+import { Skeleton } from "@spa/components/ui/skeleton";
 import {
   effectiveDeparture,
   isBookingUpcoming,
   STAGE_CONFIG,
   ticketStage,
   type BookingItem,
-} from '@spa/features/booking/history/booking-types'
-import { formatDateVN, formatDayTime, formatTimeVN } from '@spa/lib/format'
-import { useT } from '@spa/lib/i18n'
-import { cn } from '@spa/lib/utils'
-import { BusTile } from '@spa/components/bus-tile'
+} from "@spa/features/booking/history/booking-types";
+import { formatDateVN, formatDayTime, formatTimeVN } from "@spa/lib/format";
+import { useT } from "@spa/lib/i18n";
+import { cn } from "@spa/lib/utils";
+import { BusTile } from "@spa/components/bus-tile";
 
-type Translate = ReturnType<typeof useT>
+type Translate = ReturnType<typeof useT>;
 
 function untilLabel(ms: number, t: Translate): string {
-  const minutes = Math.floor(Math.max(0, ms - Date.now()) / 60_000)
-  if (minutes < 1) return t('accountPage.console.departingNow')
-  if (minutes < 60) return t('accountPage.console.inMinutes', { count: minutes })
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return t('accountPage.console.inHours', { hours, minutes: minutes % 60 })
-  return t('accountPage.console.inDays', { count: Math.floor(hours / 24) })
+  const minutes = Math.floor(Math.max(0, ms - Date.now()) / 60_000);
+  if (minutes < 1) return t("accountPage.console.departingNow");
+  if (minutes < 60) return t("accountPage.console.inMinutes", { count: minutes });
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return t("accountPage.console.inHours", { hours, minutes: minutes % 60 });
+  return t("accountPage.console.inDays", { count: Math.floor(hours / 24) });
 }
 
 /** Within the next day. (Kept out of the render body: `Date.now()` is impure.) */
-const isUrgent = (departureMs: number) => departureMs - Date.now() < 24 * 3600_000
+const isUrgent = (departureMs: number) => departureMs - Date.now() < 24 * 3600_000;
 
 /** "Departs in …", re-rendered on its own every 30 s so nothing else on the page updates. */
 function DepartureChip({ departureMs }: { departureMs: number }) {
-  const t = useT()
-  const [, tick] = useState(0)
+  const t = useT();
+  const [, tick] = useState(0);
   useEffect(() => {
-    const id = setInterval(() => tick((n) => n + 1), 30_000)
-    return () => clearInterval(id)
-  }, [])
-  const urgent = isUrgent(departureMs)
+    const id = setInterval(() => tick((n) => n + 1), 30_000);
+    return () => clearInterval(id);
+  }, []);
+  const urgent = isUrgent(departureMs);
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-semibold tabular-nums',
-        urgent ? 'bg-primary text-primary-foreground' : 'bg-primary/10 text-primary',
+        "inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-semibold tabular-nums",
+        urgent ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary",
       )}
     >
       <Clock className="size-3" aria-hidden />
       {untilLabel(departureMs, t)}
     </span>
-  )
+  );
 }
 
 /**
@@ -59,10 +59,10 @@ export function ActiveTicketsCard({
   bookings,
   loading,
 }: {
-  bookings: BookingItem[]
-  loading: boolean
+  bookings: BookingItem[];
+  loading: boolean;
 }) {
-  const t = useT()
+  const t = useT();
   const upcoming = useMemo(
     () =>
       bookings
@@ -70,21 +70,21 @@ export function ActiveTicketsCard({
         .sort((a, b) => effectiveDeparture(a) - effectiveDeparture(b))
         .slice(0, 3),
     [bookings],
-  )
-  const [next, ...later] = upcoming
+  );
+  const [next, ...later] = upcoming;
 
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between">
         <h2 className="text-base font-semibold text-slate-900">
-          {t('accountPage.console.activeTickets')}
+          {t("accountPage.console.activeTickets")}
         </h2>
         {upcoming.length > 0 && (
           <Link
             to="/account/trips"
             className="inline-flex items-center gap-0.5 text-sm font-semibold text-primary hover:underline"
           >
-            {t('accountPage.console.viewAllTickets')}
+            {t("accountPage.console.viewAllTickets")}
             <ChevronRight className="size-4" />
           </Link>
         )}
@@ -97,9 +97,9 @@ export function ActiveTicketsCard({
           <span className="grid size-12 place-items-center rounded-full bg-primary/10 text-primary">
             <CalendarClock className="size-6" />
           </span>
-          <p className="mt-3 text-sm text-slate-500">{t('accountPage.console.noActiveTickets')}</p>
+          <p className="mt-3 text-sm text-slate-500">{t("accountPage.console.noActiveTickets")}</p>
           <Button asChild className="mt-4 rounded-xl">
-            <Link to="/search">{t('home.bookATrip')}</Link>
+            <Link to="/search">{t("home.bookATrip")}</Link>
           </Button>
         </div>
       ) : (
@@ -115,7 +115,7 @@ export function ActiveTicketsCard({
               <BusTile size="md" />
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-semibold text-slate-900">
-                  {b.trip?.routeName ?? t('accountPage.feedback.tripFallback')}
+                  {b.trip?.routeName ?? t("accountPage.feedback.tripFallback")}
                 </div>
                 <div className="text-xs text-slate-500">
                   {formatDayTime(b.trip?.departureAt ?? b.trip?.departureDate)} · {b.code}
@@ -127,14 +127,14 @@ export function ActiveTicketsCard({
         </>
       )}
     </section>
-  )
+  );
 }
 
 /** The nearest trip, laid out like a boarding pass. */
 function NextTrip({ booking: b }: { booking: BookingItem }) {
-  const t = useT()
-  const departureMs = effectiveDeparture(b)
-  const status = STAGE_CONFIG[ticketStage(b)]
+  const t = useT();
+  const departureMs = effectiveDeparture(b);
+  const status = STAGE_CONFIG[ticketStage(b)];
   return (
     <Link
       to="/account/trips/$code"
@@ -143,7 +143,7 @@ function NextTrip({ booking: b }: { booking: BookingItem }) {
     >
       <div className="flex items-center justify-between gap-2 px-5 pt-4">
         {departureMs > 0 && <DepartureChip departureMs={departureMs} />}
-        <span className={cn('rounded-full px-2.5 py-1 text-[11px] font-semibold', status.cls)}>
+        <span className={cn("rounded-full px-2.5 py-1 text-[11px] font-semibold", status.cls)}>
           {t(status.labelKey)}
         </span>
       </div>
@@ -162,12 +162,12 @@ function NextTrip({ booking: b }: { booking: BookingItem }) {
         <div className="min-w-0 text-right">
           <div className="text-sm font-semibold text-slate-900">
             {formatDateVN(b.trip?.departureAt ?? b.trip?.departureDate, {
-              weekday: 'short',
-              day: '2-digit',
-              month: '2-digit',
+              weekday: "short",
+              day: "2-digit",
+              month: "2-digit",
             })}
           </div>
-          <div className="truncate text-sm text-slate-500">{b.trip?.toName ?? ''}</div>
+          <div className="truncate text-sm text-slate-500">{b.trip?.toName ?? ""}</div>
         </div>
       </div>
       <div className="relative border-t border-dashed border-slate-200" aria-hidden>
@@ -181,10 +181,10 @@ function NextTrip({ booking: b }: { booking: BookingItem }) {
           {b.seats
             .map((s) => s.seatCode)
             .filter(Boolean)
-            .join(', ')}
+            .join(", ")}
         </span>
         <code className="ml-auto shrink-0 font-mono font-semibold text-slate-700">{b.code}</code>
       </div>
     </Link>
-  )
+  );
 }

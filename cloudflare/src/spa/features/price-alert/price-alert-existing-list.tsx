@@ -1,4 +1,4 @@
-'use client'
+"use client";
 
 /**
  * PriceAlertExistingList — the "Cảnh báo đã tạo" list inside the
@@ -10,25 +10,25 @@
  * with its original name.
  */
 
-import type { PriceAlertOut as ExistingAlert } from '@spa/api'
-import { Label } from '@spa/components/ui/label'
-import { Badge } from '@spa/components/ui/badge'
-import { Trash2 } from 'lucide-react'
-import { useT } from '@spa/lib/i18n'
-import { formatVND } from '@spa/lib/format'
+import type { PriceAlertOut as ExistingAlert } from "@spa/api";
+import { Label } from "@spa/components/ui/label";
+import { Badge } from "@spa/components/ui/badge";
+import { Trash2 } from "lucide-react";
+import { useT } from "@spa/lib/i18n";
+import { formatVND } from "@spa/lib/format";
 
 export function PriceAlertExistingList({
   existingAlerts,
   handleDeleteAlert,
 }: {
-  existingAlerts: ExistingAlert[]
-  handleDeleteAlert: (id: string) => void
+  existingAlerts: ExistingAlert[];
+  handleDeleteAlert: (id: string) => void;
 }) {
-  const t = useT()
+  const t = useT();
   return (
     <div className="space-y-1.5 pt-2 border-t">
       <Label className="text-sm font-medium text-slate-900">
-        {t('priceAlert.existingCount', { count: existingAlerts.length })}
+        {t("priceAlert.existingCount", { count: existingAlerts.length })}
       </Label>
       <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
         {existingAlerts.map((a) => (
@@ -39,14 +39,14 @@ export function PriceAlertExistingList({
             <Badge
               variant="outline"
               className={`text-[10px] ${
-                a.status === 'active'
-                  ? 'bg-blue-50 text-blue-700 border-blue-200'
-                  : 'bg-amber-50 text-amber-700 border-amber-200'
+                a.status === "active"
+                  ? "bg-blue-50 text-blue-700 border-blue-200"
+                  : "bg-amber-50 text-amber-700 border-amber-200"
               }`}
             >
-              {a.status === 'active'
-                ? t('priceAlert.statusActive')
-                : t('priceAlert.statusTriggered')}
+              {a.status === "active"
+                ? t("priceAlert.statusActive")
+                : t("priceAlert.statusTriggered")}
             </Badge>
             <div className="text-xs flex-1 min-w-0 truncate">
               <span className="font-medium">
@@ -58,7 +58,7 @@ export function PriceAlertExistingList({
               type="button"
               onClick={() => handleDeleteAlert(a.id)}
               className="text-rose-500 hover:text-rose-700 p-1 rounded"
-              aria-label={t('common.delete')}
+              aria-label={t("common.delete")}
             >
               <Trash2 className="h-3.5 w-3.5" />
             </button>
@@ -66,5 +66,5 @@ export function PriceAlertExistingList({
         ))}
       </div>
     </div>
-  )
+  );
 }

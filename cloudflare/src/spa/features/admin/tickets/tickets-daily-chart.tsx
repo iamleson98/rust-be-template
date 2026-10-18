@@ -1,15 +1,15 @@
-import { useMemo } from 'react'
-import { TrendingUp } from 'lucide-react'
-import type { AdminBookingDayBucket } from '@spa/api'
-import { Panel } from '@spa/components/console/panel'
-import { dayBars, periodDays } from '@spa/features/admin/dashboard/helpers'
-import { useT } from '@spa/lib/i18n'
-import { formatVND } from './tickets-helpers'
+import { useMemo } from "react";
+import { TrendingUp } from "lucide-react";
+import type { AdminBookingDayBucket } from "@spa/api";
+import { Panel } from "@spa/components/console/panel";
+import { dayBars, periodDays } from "@spa/features/admin/dashboard/helpers";
+import { useT } from "@spa/lib/i18n";
+import { formatVND } from "./tickets-helpers";
 
 /** More days than this are summed into wider bars, so each stays tappable on a phone. */
-const MAX_BARS = 31
+const MAX_BARS = 31;
 
-const dayMonth = (day: string) => `${day.slice(8, 10)}/${day.slice(5, 7)}`
+const dayMonth = (day: string) => `${day.slice(8, 10)}/${day.slice(5, 7)}`;
 
 /**
  * Tickets per day over the selected period. The server only reports days
@@ -22,35 +22,35 @@ export function TicketsDailyChart({
   dateFrom,
   dateTo,
 }: {
-  byDay: AdminBookingDayBucket[]
-  dateFrom?: string
-  dateTo?: string
+  byDay: AdminBookingDayBucket[];
+  dateFrom?: string;
+  dateTo?: string;
 }) {
-  const t = useT()
+  const t = useT();
   const bars = useMemo(() => {
-    const reported = byDay.map((d) => d.date).sort()
-    const from = dateFrom ?? reported[0]
-    const to = dateTo ?? reported.at(-1)
-    if (!from || !to || from > to) return []
-    const days = periodDays({ dateFrom: from, dateTo: to })
-    const counts = dayBars(days, new Map(byDay.map((d) => [d.date, d.count])), MAX_BARS, dayMonth)
+    const reported = byDay.map((d) => d.date).sort();
+    const from = dateFrom ?? reported[0];
+    const to = dateTo ?? reported.at(-1);
+    if (!from || !to || from > to) return [];
+    const days = periodDays({ dateFrom: from, dateTo: to });
+    const counts = dayBars(days, new Map(byDay.map((d) => [d.date, d.count])), MAX_BARS, dayMonth);
     const revenue = dayBars(
       days,
       new Map(byDay.map((d) => [d.date, d.revenue])),
       MAX_BARS,
       dayMonth,
-    )
-    return counts.map((bar, i) => ({ ...bar, revenue: revenue[i].value }))
-  }, [byDay, dateFrom, dateTo])
+    );
+    return counts.map((bar, i) => ({ ...bar, revenue: revenue[i].value }));
+  }, [byDay, dateFrom, dateTo]);
 
-  const max = Math.max(1, ...bars.map((b) => b.value))
+  const max = Math.max(1, ...bars.map((b) => b.value));
 
   return (
-    <Panel title={t('adminTickets.dailyStatsTitle')} icon={<TrendingUp />}>
-      <p className="mb-2 text-xs text-muted-foreground">{t('adminTickets.ticketsPerDay')}</p>
+    <Panel title={t("adminTickets.dailyStatsTitle")} icon={<TrendingUp />}>
+      <p className="mb-2 text-xs text-muted-foreground">{t("adminTickets.ticketsPerDay")}</p>
       {bars.length === 0 ? (
         <p className="py-8 text-center text-sm text-muted-foreground">
-          {t('adminTickets.noDailyStats')}
+          {t("adminTickets.noDailyStats")}
         </p>
       ) : (
         <>
@@ -58,7 +58,7 @@ export function TicketsDailyChart({
             {bars.map((bar) => (
               <div
                 key={bar.date}
-                title={t('adminTickets.dayTooltip', {
+                title={t("adminTickets.dayTooltip", {
                   date: bar.label,
                   count: bar.value,
                   revenue: formatVND(bar.revenue),
@@ -75,5 +75,5 @@ export function TicketsDailyChart({
         </>
       )}
     </Panel>
-  )
+  );
 }

@@ -10,7 +10,14 @@
  * Seat state machine: available → held → booked (→ available on release).
  * Booking statuses: pending → confirmed | cancelled.
  */
-import { getDb, getD1, rawAll, rawRun, atomicBatch, sqlIn, type AtomicStatement, type Database } from "@/lib/db/client";
+import {
+  getDb,
+  rawAll,
+  atomicBatch,
+  sqlIn,
+  type AtomicStatement,
+  type Database,
+} from "@/lib/db/client";
 import {
   bookings,
   bookingSeats,
@@ -18,15 +25,14 @@ import {
   coupons,
   payments,
   routes,
+  scheduleFares,
   schedules,
   seatInventory,
   seats,
   tripSessions,
-  busLayouts,
-  discountTiers,
-  discountCampaigns,
 } from "@/lib/db/schema";
-import { and, eq, inArray, sql, type SQL } from "drizzle-orm";
+import { and, eq, gt, inArray, isNotNull, isNull, lt, ne, notExists, or, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/sqlite-core";
 import { ApiError } from "@/lib/auth/rbac";
 import { brandPrefix, genBookingCode, holdTtlMinutes, refundPercent } from "@/lib/format";
 import { withRetry } from "@/lib/db/retry";
@@ -69,11 +75,7 @@ async function loadTripContext(tripId: string): Promise<TripContext> {
   return ctx;
 }
 
-function seatFare(
-  seatClass: string | null,
-  fares: Map<string, number>,
-  baseAdult: number,
-): number {
+function seatFare(seatClass: string | null, fares: Map<string, number>, baseAdult: number): number {
   if (seatClass && fares.has(seatClass)) return fares.get(seatClass)!;
   return baseAdult;
 }
@@ -90,7 +92,11 @@ function childPrice(
 }
 
 /** Materialize seat_inventory rows for a trip from its bus layout (idempotent). */
-async function ensureTripInventory(db: Database, tripId: string, scheduleId: string): Promise<void> {
+async function ensureTripInventory(
+  db: Database,
+  tripId: string,
+  scheduleId: string,
+): Promise<void> {
   const tripRow = await db
     .select({ busLayoutId: schedules.busLayoutId, baseAdult: schedules.basePriceAdult })
     .from(schedules)
@@ -98,11 +104,12 @@ async function ensureTripInventory(db: Database, tripId: string, scheduleId: str
     .limit(1);
   const layoutId = tripRow[0]?.busLayoutId;
   if (!layoutId) return;
-  const fareRows = await rawAll<{ seat_class: string; price_adult: number }>(
-    sql`SELECT seat_class, price_adult FROM schedule_fare WHERE schedule_id = ${scheduleId}`,
-  );
+  const fareRows = await db
+    .select({ seatClass: scheduleFares.seatClass, priceAdult: scheduleFares.priceAdult })
+    .from(scheduleFares)
+    .where(eq(scheduleFares.scheduleId, scheduleId));
   const fares = new Map<string, number>();
-  for (const f of fareRows) fares.set(f.seat_class, Number(f.price_adult));
+  for (const f of fareRows) fares.set(f.seatClass, Number(f.priceAdult));
 
   const seatRows = await db
     .select({ id: seats.id, seatClass: seats.seatClass })
@@ -119,16 +126,28 @@ async function ensureTripInventory(db: Database, tripId: string, scheduleId: str
   const missing = seatRows.filter((s) => !existingSet.has(s.id));
   if (missing.length === 0) return;
 
-  const stmts = missing.map((s) =>
-    sql`
-      INSERT OR IGNORE INTO seat_inventory (id, trip_session_id, seat_id, status, base_price, final_price, currency)
-      VALUES (${crypto.randomUUID()}, ${tripId}, ${s.id}, 'available', ${seatFare(s.seatClass, fares, base)}, ${seatFare(s.seatClass, fares, base)}, 'VND')
-    `,
-  );
+  const stmts = missing.map((s) => {
+    const fare = seatFare(s.seatClass, fares, base);
+    return db
+      .insert(seatInventory)
+      .values({
+        id: crypto.randomUUID(),
+        tripSessionId: tripId,
+        seatId: s.id,
+        status: "available",
+        basePrice: fare,
+        finalPrice: fare,
+        currency: "VND",
+      })
+      .onConflictDoNothing({ target: [seatInventory.tripSessionId, seatInventory.seatId] });
+  });
   await atomicBatch(stmts);
 }
 
-/** All-or-nothing seat claim. Returns true when every seat was claimed. */
+/** All-or-nothing seat claim. Returns true when every seat was claimed.
+ * The NOT EXISTS self-join makes the whole set claimable or nothing —
+ * expressed with the builder + a table alias so column names stay
+ * compiler-checked. */
 async function claimSeats(
   db: Database,
   tripId: string,
@@ -136,38 +155,65 @@ async function claimSeats(
   bookingId: string,
   heldUntil: string,
 ): Promise<boolean> {
-  const inList = sqlIn(seatIds);
-  const result = await db.run(sql`
-    UPDATE seat_inventory
-    SET status = 'held',
-        held_by_booking_id = ${bookingId},
-        held_until = ${heldUntil},
-        updated_at = ${new Date().toISOString()}
-    WHERE trip_session_id = ${tripId}
-      AND seat_id IN (${inList})
-      AND NOT EXISTS (
-        SELECT 1 FROM seat_inventory si2
-        WHERE si2.trip_session_id = ${tripId}
-          AND si2.seat_id IN (${inList})
-          AND si2.status != 'available'
-      )
-  `);
+  const si2 = alias(seatInventory, "si2");
+  const result = await db
+    .update(seatInventory)
+    .set({
+      status: "held",
+      heldByBookingId: bookingId,
+      heldUntil,
+      updatedAt: new Date().toISOString(),
+    })
+    .where(
+      and(
+        eq(seatInventory.tripSessionId, tripId),
+        inArray(seatInventory.seatId, seatIds),
+        notExists(
+          db
+            .select({ one: sql`1` })
+            .from(si2)
+            .where(
+              and(
+                eq(si2.tripSessionId, tripId),
+                inArray(si2.seatId, seatIds),
+                ne(si2.status, "available"),
+              ),
+            ),
+        ),
+      ),
+    )
+    .run();
   return result.meta.changes === seatIds.length;
 }
 
 async function releaseSeats(db: Database, bookingId: string): Promise<void> {
-  await db.run(sql`
-    UPDATE seat_inventory
-    SET status = 'available', held_by_booking_id = NULL, held_until = NULL,
-        updated_at = ${new Date().toISOString()}
-    WHERE held_by_booking_id = ${bookingId} AND status = 'held'
-  `);
+  await db
+    .update(seatInventory)
+    .set({
+      status: "available",
+      heldByBookingId: null,
+      heldUntil: null,
+      updatedAt: new Date().toISOString(),
+    })
+    .where(and(eq(seatInventory.heldByBookingId, bookingId), eq(seatInventory.status, "held")))
+    .run();
 }
 
 export interface BookingResult {
   booking: typeof bookings.$inferSelect;
-  seats: { seatLabel: string; seatClass: string | null; passengerName: string | null; price: number }[];
-  trip: { id: string; departureDate: string; departureTime: string; routeName: string; brandName: string | null };
+  seats: {
+    seatLabel: string;
+    seatClass: string | null;
+    passengerName: string | null;
+    price: number;
+  }[];
+  trip: {
+    id: string;
+    departureDate: string;
+    departureTime: string;
+    routeName: string;
+    brandName: string | null;
+  };
   couponId?: string | null;
 }
 
@@ -186,17 +232,22 @@ export async function createBooking(userId: string, req: HoldRequest): Promise<B
   if (Date.now() >= dep) throw new ApiError(409, "conflict", "Trip already departed");
   const daysOut = (dep - Date.now()) / 86_400_000;
   if (daysOut > SELL_WINDOW_DAYS)
-    throw new ApiError(400, "validation", `Only trips within ${SELL_WINDOW_DAYS} days are bookable`);
+    throw new ApiError(
+      400,
+      "validation",
+      `Only trips within ${SELL_WINDOW_DAYS} days are bookable`,
+    );
 
   // 1. Ensure seat inventory exists.
   await ensureTripInventory(db, trip.id, schedule.id);
 
   // 2. Price the seats.
-  const fareRows = await rawAll<{ seat_class: string; price_adult: number }>(
-    sql`SELECT seat_class, price_adult FROM schedule_fare WHERE schedule_id = ${schedule.id}`,
-  );
+  const fareRows = await db
+    .select({ seatClass: scheduleFares.seatClass, priceAdult: scheduleFares.priceAdult })
+    .from(scheduleFares)
+    .where(eq(scheduleFares.scheduleId, schedule.id));
   const fares = new Map<string, number>();
-  for (const f of fareRows) fares.set(f.seat_class, Number(f.price_adult));
+  for (const f of fareRows) fares.set(f.seatClass, Number(f.priceAdult));
 
   const seatRows = await db
     .select({ id: seats.id, label: seats.seatLabel, seatClass: seats.seatClass })
@@ -218,9 +269,11 @@ export async function createBooking(userId: string, req: HoldRequest): Promise<B
 
   const priced = req.seatIds.map((seatId, i) => {
     const seat = seatMap.get(seatId)!;
-    const p = req.passengers[i]!;
+    const p = req.passengers[i];
     const adultFare = seatFare(seat.seatClass, fares, schedule.basePriceAdult);
-    const isChild = p.type === "child" || (p.age != null && brand?.childMaxAge != null && p.age <= brand.childMaxAge);
+    const isChild =
+      p.type === "child" ||
+      (p.age != null && brand?.childMaxAge != null && p.age <= brand.childMaxAge);
     const price = isChild ? childPrice(adultFare, brand, schedule) : adultFare;
     return {
       seatId,
@@ -238,9 +291,8 @@ export async function createBooking(userId: string, req: HoldRequest): Promise<B
   let discount = 0;
   let couponRow: typeof coupons.$inferSelect | null = null;
   if (req.couponId) {
-    couponRow = (
-      await db.select().from(coupons).where(eq(coupons.id, req.couponId)).limit(1)
-    )[0] ?? null;
+    couponRow =
+      (await db.select().from(coupons).where(eq(coupons.id, req.couponId)).limit(1))[0] ?? null;
     if (!couponRow || couponRow.userId !== userId || couponRow.status !== "held")
       throw new ApiError(400, "validation", "coupon not held by you");
     // Rust `still_valid`: the window must still be open at use time.
@@ -299,25 +351,38 @@ export async function createBooking(userId: string, req: HoldRequest): Promise<B
           createdAt: now,
         }),
       ),
-      sql`
-        UPDATE trip_session SET available_seats = MAX(available_seats - ${priced.length}, 0),
-             updated_at = ${now}
-        WHERE id = ${trip.id}
-      `,
+      db
+        .update(tripSessions)
+        .set({
+          availableSeats: sql`MAX(${tripSessions.availableSeats} - ${priced.length}, 0)`,
+          updatedAt: now,
+        })
+        .where(eq(tripSessions.id, trip.id)),
     ];
     await atomicBatch(stmts);
     // Rust order: the booking exists, THEN the coupon is put on it. A
     // conditional no-op (raced: used elsewhere / expired / given up)
     // undoes the whole hold — no ghost pending row, no blocked seats.
     if (couponRow) {
-      const reserved = await rawRun(sql`
-        UPDATE coupon SET status = 'reserved', booking_id = ${bookingId},
-               brand_id = ${brand?.id ?? null}, reserved_at = ${now}, updated_at = ${now}
-        WHERE id = ${couponRow.id} AND status = 'held'
-          AND active_holder = ${userId}
-          AND (valid_until IS NULL OR valid_until > ${now})
-      `);
-      if ((reserved.meta.changes ?? 0) === 0) {
+      const reserved = await db
+        .update(coupons)
+        .set({
+          status: "reserved",
+          bookingId,
+          brandId: brand?.id ?? null,
+          reservedAt: now,
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(coupons.id, couponRow.id),
+            eq(coupons.status, "held"),
+            eq(coupons.activeHolder, userId),
+            or(isNull(coupons.validUntil), gt(coupons.validUntil, now)),
+          ),
+        )
+        .run();
+      if (reserved.meta.changes === 0) {
         await releaseSeats(db, bookingId);
         await db.delete(bookings).where(eq(bookings.id, bookingId));
         throw new ApiError(409, "conflict", "coupon-unavailable");
@@ -329,7 +394,9 @@ export async function createBooking(userId: string, req: HoldRequest): Promise<B
     throw e;
   }
 
-  const bookingRow = (await db.select().from(bookings).where(eq(bookings.id, bookingId)).limit(1))[0]!;
+  const bookingRow = (
+    await db.select().from(bookings).where(eq(bookings.id, bookingId)).limit(1)
+  )[0];
   return {
     booking: bookingRow,
     seats: priced.map((p) => ({
@@ -357,21 +424,35 @@ export async function getBookingForUser(
   const row = (
     await withRetry(() =>
       db
-        .select({ booking: bookings, trip: tripSessions, schedule: schedules, route: routes, brand: brands })
+        .select({
+          booking: bookings,
+          trip: tripSessions,
+          schedule: schedules,
+          route: routes,
+          brand: brands,
+        })
         .from(bookings)
         .innerJoin(tripSessions, eq(tripSessions.id, bookings.tripSessionId))
         .innerJoin(schedules, eq(schedules.id, tripSessions.scheduleId))
         .innerJoin(routes, eq(routes.id, schedules.routeId))
         .leftJoin(brands, eq(brands.id, routes.brandId))
         .where(
-          sql`(${bookings.id} = ${codeOrId} OR LOWER(${bookings.code}) = LOWER(${codeOrId})) AND ${bookings.userId} = ${userId}`,
+          and(
+            or(eq(bookings.id, codeOrId), sql`LOWER(${bookings.code}) = LOWER(${codeOrId})`),
+            eq(bookings.userId, userId),
+          ),
         )
         .limit(1),
     )
   )[0];
   if (!row) return null;
   const seatRows = await db
-    .select({ label: seats.seatLabel, seatClass: seats.seatClass, name: bookingSeats.passengerName, price: bookingSeats.price })
+    .select({
+      label: seats.seatLabel,
+      seatClass: seats.seatClass,
+      name: bookingSeats.passengerName,
+      price: bookingSeats.price,
+    })
     .from(bookingSeats)
     .innerJoin(seats, eq(seats.id, bookingSeats.seatId))
     .where(eq(bookingSeats.bookingId, row.booking.id));
@@ -393,7 +474,10 @@ export async function getBookingForUser(
   };
 }
 
-export async function cancelBooking(userId: string, codeOrId: string): Promise<{
+export async function cancelBooking(
+  userId: string,
+  codeOrId: string,
+): Promise<{
   status: string;
   refundPercent: number;
   refundAmount: number;
@@ -419,30 +503,74 @@ export async function cancelBooking(userId: string, codeOrId: string): Promise<{
   const now = new Date().toISOString();
 
   const stmts: AtomicStatement[] = [
-    sql`UPDATE booking SET status = 'cancelled', updated_at = ${now} WHERE id = ${b.id}`,
-    sql`
-      UPDATE seat_inventory SET status = 'available', held_by_booking_id = NULL, held_until = NULL, updated_at = ${now}
-      WHERE trip_session_id = ${b.tripSessionId}
-        AND seat_id IN (SELECT seat_id FROM booking_seat WHERE booking_id = ${b.id})
-    `,
-    sql`
-      UPDATE trip_session SET available_seats = available_seats + ${found.seats.length}, updated_at = ${now}
-      WHERE id = ${b.tripSessionId}
-    `,
-    sql`UPDATE payment SET status = 'cancelled', updated_at = ${now} WHERE booking_id = ${b.id} AND status = 'pending'`,
-    sql`UPDATE payment SET status = 'refunded', updated_at = ${now} WHERE booking_id = ${b.id} AND status = 'completed' AND ${refundAmount} > 0`,
+    db.update(bookings).set({ status: "cancelled", updatedAt: now }).where(eq(bookings.id, b.id)),
+    db
+      .update(seatInventory)
+      .set({
+        status: "available",
+        heldByBookingId: null,
+        heldUntil: null,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(seatInventory.tripSessionId, b.tripSessionId),
+          inArray(
+            seatInventory.seatId,
+            db
+              .select({ seatId: bookingSeats.seatId })
+              .from(bookingSeats)
+              .where(eq(bookingSeats.bookingId, b.id)),
+          ),
+        ),
+      ),
+    db
+      .update(tripSessions)
+      .set({
+        availableSeats: sql`${tripSessions.availableSeats} + ${found.seats.length}`,
+        updatedAt: now,
+      })
+      .where(eq(tripSessions.id, b.tripSessionId)),
+    db
+      .update(payments)
+      .set({ status: "cancelled", updatedAt: now })
+      .where(and(eq(payments.bookingId, b.id), eq(payments.status, "pending"))),
+    // refundAmount is a known number here — decide in TypeScript, not SQL.
+    ...(refundAmount > 0
+      ? [
+          db
+            .update(payments)
+            .set({ status: "refunded", updatedAt: now })
+            .where(and(eq(payments.bookingId, b.id), eq(payments.status, "completed"))),
+        ]
+      : []),
   ];
   if (b.campaignAppliedId) {
     // Rust `return_booking_coupon`: the coupon goes back to its owner
     // while still valid, else it expires (freeing the owner to claim
     // again).
     stmts.push(
-      sql`UPDATE coupon SET status = 'held', active_holder = ${b.userId}, booking_id = NULL,
-                 brand_id = NULL, reserved_at = NULL, updated_at = ${now}
-            WHERE id = ${b.campaignAppliedId} AND status = 'reserved'
-              AND (valid_until IS NULL OR valid_until > ${now})`,
-      sql`UPDATE coupon SET status = 'expired', active_holder = NULL, updated_at = ${now}
-            WHERE id = ${b.campaignAppliedId} AND status = 'reserved'`,
+      db
+        .update(coupons)
+        .set({
+          status: "held",
+          activeHolder: b.userId,
+          bookingId: null,
+          brandId: null,
+          reservedAt: null,
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(coupons.id, b.campaignAppliedId),
+            eq(coupons.status, "reserved"),
+            or(isNull(coupons.validUntil), gt(coupons.validUntil, now)),
+          ),
+        ),
+      db
+        .update(coupons)
+        .set({ status: "expired", activeHolder: null, updatedAt: now })
+        .where(and(eq(coupons.id, b.campaignAppliedId), eq(coupons.status, "reserved"))),
     );
   }
   await atomicBatch(stmts);
@@ -450,7 +578,10 @@ export async function cancelBooking(userId: string, codeOrId: string): Promise<{
 }
 
 /** Pay-on-board: hold seats until departure instead of a short TTL. */
-export async function placeBookingOnBoard(userId: string, codeOrId: string): Promise<{ expiresAt: string }> {
+export async function placeBookingOnBoard(
+  userId: string,
+  codeOrId: string,
+): Promise<{ expiresAt: string }> {
   const db = await getDb();
   const found = await getBookingForUser(userId, codeOrId);
   if (!found) throw new ApiError(404, "not-found", "Booking not found");
@@ -459,8 +590,16 @@ export async function placeBookingOnBoard(userId: string, codeOrId: string): Pro
   const untilDeparture = `${found.trip.departureDate}T${found.trip.departureTime}:00Z`;
   const now = new Date().toISOString();
   await atomicBatch([
-    sql`UPDATE booking SET expires_at = ${untilDeparture}, updated_at = ${now} WHERE id = ${found.booking.id}`,
-    sql`UPDATE seat_inventory SET held_until = ${untilDeparture}, updated_at = ${now} WHERE held_by_booking_id = ${found.booking.id} AND status = 'held'`,
+    db
+      .update(bookings)
+      .set({ expiresAt: untilDeparture, updatedAt: now })
+      .where(eq(bookings.id, found.booking.id)),
+    db
+      .update(seatInventory)
+      .set({ heldUntil: untilDeparture, updatedAt: now })
+      .where(
+        and(eq(seatInventory.heldByBookingId, found.booking.id), eq(seatInventory.status, "held")),
+      ),
   ]);
   return { expiresAt: untilDeparture };
 }
@@ -469,19 +608,22 @@ export async function placeBookingOnBoard(userId: string, codeOrId: string): Pro
  * The trip is being paid for — its coupon becomes payable to the operator
  * (`reserved → redeemed`, Rust `redeem_booking_coupon`) and the owner may
  * claim again. */
-export async function completeBookingPayment(db: Database, bookingId: string): Promise<void> {
+export async function completeBookingPayment(bookingId: string): Promise<void> {
+  const db = await getDb();
   const now = new Date().toISOString();
   await atomicBatch([
-    sql`UPDATE booking SET status = 'confirmed', updated_at = ${now} WHERE id = ${bookingId} AND status = 'pending'`,
-    sql`
-      UPDATE seat_inventory SET status = 'booked', held_until = NULL, updated_at = ${now}
-      WHERE held_by_booking_id = ${bookingId} AND status = 'held'
-    `,
-    sql`
-      UPDATE coupon SET status = 'redeemed', active_holder = NULL, redeemed_at = ${now},
-             updated_at = ${now}
-      WHERE booking_id = ${bookingId} AND status = 'reserved'
-    `,
+    db
+      .update(bookings)
+      .set({ status: "confirmed", updatedAt: now })
+      .where(and(eq(bookings.id, bookingId), eq(bookings.status, "pending"))),
+    db
+      .update(seatInventory)
+      .set({ status: "booked", heldUntil: null, updatedAt: now })
+      .where(and(eq(seatInventory.heldByBookingId, bookingId), eq(seatInventory.status, "held"))),
+    db
+      .update(coupons)
+      .set({ status: "redeemed", activeHolder: null, redeemedAt: now, updatedAt: now })
+      .where(and(eq(coupons.bookingId, bookingId), eq(coupons.status, "reserved"))),
   ]);
 }
 
@@ -489,32 +631,74 @@ export async function completeBookingPayment(db: Database, bookingId: string): P
 export async function sweepExpiredHolds(): Promise<{ cancelled: number }> {
   const db = await getDb();
   const now = new Date().toISOString();
-  const expired = await rawAll<{ id: string; trip_session_id: string }>(
-    sql`SELECT id, trip_session_id FROM booking WHERE status = 'pending' AND expires_at IS NOT NULL AND expires_at < ${now}`,
-  );
+  const expired = await db
+    .select({ id: bookings.id })
+    .from(bookings)
+    .where(
+      and(
+        eq(bookings.status, "pending"),
+        isNotNull(bookings.expiresAt),
+        lt(bookings.expiresAt, now),
+      ),
+    );
   if (expired.length === 0) return { cancelled: 0 };
-  const idList = sqlIn(expired.map((e) => e.id));
+  const ids = expired.map((e) => e.id);
   await atomicBatch([
-    sql`UPDATE booking SET status = 'cancelled', updated_at = ${now} WHERE id IN (${idList}) AND status = 'pending'`,
-    sql`
-      UPDATE seat_inventory SET status = 'available', held_by_booking_id = NULL, held_until = NULL, updated_at = ${now}
-      WHERE held_by_booking_id IN (${idList}) AND status = 'held'
-    `,
-    sql`
-      UPDATE trip_session SET available_seats = available_seats + (
-        SELECT COUNT(*) FROM booking_seat bs JOIN booking b ON b.id = bs.booking_id
-        WHERE b.id IN (${idList})
-      ), updated_at = ${now}
-      WHERE id IN (SELECT DISTINCT trip_session_id FROM booking WHERE id IN (${idList}))
-    `,
+    db
+      .update(bookings)
+      .set({ status: "cancelled", updatedAt: now })
+      .where(and(inArray(bookings.id, ids), eq(bookings.status, "pending"))),
+    db
+      .update(seatInventory)
+      .set({
+        status: "available",
+        heldByBookingId: null,
+        heldUntil: null,
+        updatedAt: now,
+      })
+      .where(and(inArray(seatInventory.heldByBookingId, ids), eq(seatInventory.status, "held"))),
+    db
+      .update(tripSessions)
+      .set({
+        // Give the freed seats back: + (seats on the cancelled bookings).
+        availableSeats: sql`${tripSessions.availableSeats} + (
+          SELECT COUNT(*) FROM ${bookingSeats} bs JOIN ${bookings} b ON b.id = bs.booking_id
+          WHERE b.id IN (${sqlIn(ids)})
+        )`,
+        updatedAt: now,
+      })
+      .where(
+        inArray(
+          tripSessions.id,
+          db
+            .selectDistinct({ id: bookings.tripSessionId })
+            .from(bookings)
+            .where(inArray(bookings.id, ids)),
+        ),
+      ),
     // Their coupons go back to the owners while still valid, else expire
     // (Rust `release_booking` → `return_booking_coupon`).
-    sql`UPDATE coupon SET status = 'held', active_holder = (SELECT user_id FROM booking WHERE id = coupon.booking_id),
-               booking_id = NULL, brand_id = NULL, reserved_at = NULL, updated_at = ${now}
-        WHERE status = 'reserved' AND booking_id IN (${idList})
-          AND (valid_until IS NULL OR valid_until > ${now})`,
-    sql`UPDATE coupon SET status = 'expired', active_holder = NULL, updated_at = ${now}
-        WHERE status = 'reserved' AND booking_id IN (${idList})`,
+    db
+      .update(coupons)
+      .set({
+        status: "held",
+        activeHolder: sql`(SELECT user_id FROM ${bookings} WHERE id = ${coupons.bookingId})`,
+        bookingId: null,
+        brandId: null,
+        reservedAt: null,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(coupons.status, "reserved"),
+          inArray(coupons.bookingId, ids),
+          or(isNull(coupons.validUntil), gt(coupons.validUntil, now)),
+        ),
+      ),
+    db
+      .update(coupons)
+      .set({ status: "expired", activeHolder: null, updatedAt: now })
+      .where(and(eq(coupons.status, "reserved"), inArray(coupons.bookingId, ids))),
   ]);
   return { cancelled: expired.length };
 }
@@ -525,7 +709,9 @@ export async function warmTrips(): Promise<{ created: number; pruned: number }> 
   const today = new Date().toISOString().slice(0, 10);
   const horizon = new Date(Date.now() + SELL_WINDOW_DAYS * 86_400_000).toISOString().slice(0, 10);
 
-  // Candidate schedule×date combos missing a trip_session.
+  // Candidate schedule×date combos missing a trip_session. Recursive CTE
+  // + json_each day-of-week matching — the documented raw-SQL exception
+  // (see client.ts SQL POLICY).
   const candidates = await rawAll<{ schedule_id: string; date: string }>(sql`
       WITH RECURSIVE cnt(x) AS (
         SELECT 0 UNION ALL SELECT x + 1 FROM cnt WHERE x < ${SELL_WINDOW_DAYS - 1}
@@ -550,31 +736,49 @@ export async function warmTrips(): Promise<{ created: number; pruned: number }> 
 
   let created = 0;
   for (const c of candidates.slice(0, 200)) {
-    const seatCountRows = await rawAll<{ n: number }>(sql`
-        SELECT COUNT(*) AS n FROM seat se
-        JOIN schedule s ON s.bus_layout_id = se.bus_layout_id
-        WHERE s.id = ${c.schedule_id}
-      `);
+    const seatCountRows = await db
+      .select({ n: sql<number>`COUNT(*)` })
+      .from(seats)
+      .innerJoin(schedules, eq(schedules.busLayoutId, seats.busLayoutId))
+      .where(eq(schedules.id, c.schedule_id));
     const seatCount = Number(seatCountRows[0]?.n ?? 0);
-    await db.run(sql`
-      INSERT INTO trip_session (id, schedule_id, departure_date, status, total_seats, available_seats, created_at, updated_at)
-      VALUES (${crypto.randomUUID()}, ${c.schedule_id}, ${c.date}, 'scheduled', ${seatCount}, ${seatCount},
-              ${new Date().toISOString()}, ${new Date().toISOString()})
-      ON CONFLICT(schedule_id, departure_date) DO NOTHING
-    `);
+    const nowTs = new Date().toISOString();
+    await db
+      .insert(tripSessions)
+      .values({
+        id: crypto.randomUUID(),
+        scheduleId: c.schedule_id,
+        departureDate: c.date,
+        status: "scheduled",
+        totalSeats: seatCount,
+        availableSeats: seatCount,
+        createdAt: nowTs,
+        updatedAt: nowTs,
+      })
+      .onConflictDoNothing({ target: [tripSessions.scheduleId, tripSessions.departureDate] });
     created++;
     // Materialize inventory lazily on first hold (ensureTripInventory).
   }
 
   // Prune departed trips' unsold inventory.
   const pruned = await db
-    .run(sql`
-      DELETE FROM seat_inventory
-      WHERE trip_session_id IN (
-        SELECT ts.id FROM trip_session ts JOIN schedule s ON s.id = ts.schedule_id
-        WHERE ts.departure_date < ${today} AND ts.status = 'scheduled'
-      ) AND status = 'available'
-    `)
+    .delete(seatInventory)
+    .where(
+      and(
+        eq(seatInventory.status, "available"),
+        inArray(
+          seatInventory.tripSessionId,
+          db
+            .select({ id: tripSessions.id })
+            .from(tripSessions)
+            .innerJoin(schedules, eq(schedules.id, tripSessions.scheduleId))
+            .where(
+              and(lt(tripSessions.departureDate, today), eq(tripSessions.status, "scheduled")),
+            ),
+        ),
+      ),
+    )
+    .run()
     .then((r) => r.meta.changes);
 
   return { created, pruned };

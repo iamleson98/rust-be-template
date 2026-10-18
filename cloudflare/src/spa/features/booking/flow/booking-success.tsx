@@ -1,22 +1,22 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { Button } from '@spa/components/ui/button'
-import { ArrowLeftRight, CheckCircle2, Copy, Ticket } from 'lucide-react'
-import type { TripDetail } from '@spa/api'
-import { formatDateTimeVN, formatDateVN, useMoney } from '@spa/lib/format'
-import { useT } from '@spa/lib/i18n'
-import { useNavigate } from '@tanstack/react-router'
-import { buildSearchInput, vnDate } from '@spa/lib/search-params'
-import { forgetReturnLeg, pendingReturnLeg } from '@spa/features/search/return-leg'
-import type { SelectedSeat } from './booking-form'
+import { useState } from "react";
+import { Button } from "@spa/components/ui/button";
+import { ArrowLeftRight, CheckCircle2, Copy, Ticket } from "lucide-react";
+import type { TripDetail } from "@spa/api";
+import { formatDateTimeVN, formatDateVN, useMoney } from "@spa/lib/format";
+import { useT } from "@spa/lib/i18n";
+import { useNavigate } from "@tanstack/react-router";
+import { buildSearchInput, vnDate } from "@spa/lib/search-params";
+import { forgetReturnLeg, pendingReturnLeg } from "@spa/features/search/return-leg";
+import type { SelectedSeat } from "./booking-form";
 
 export type LastBooking = {
-  code: string
-  total: number
+  code: string;
+  total: number;
   /** Pay on board: the operator still has to phone to confirm. */
-  awaitingCall: boolean
-}
+  awaitingCall: boolean;
+};
 
 /**
  * The end of the checkout: one ticket card with the booking code (copyable)
@@ -28,19 +28,19 @@ export function BookingSuccess({
   seats: selectedSeats,
   onClose,
 }: {
-  trip: TripDetail | undefined
-  booking: LastBooking
-  seats: SelectedSeat[]
-  onClose: () => void
+  trip: TripDetail | undefined;
+  booking: LastBooking;
+  seats: SelectedSeat[];
+  onClose: () => void;
 }) {
-  const t = useT()
-  const money = useMoney()
-  const [copied, setCopied] = useState(false)
-  const navigate = useNavigate()
+  const t = useT();
+  const money = useMoney();
+  const [copied, setCopied] = useState(false);
+  const navigate = useNavigate();
   // The outbound leg of a round trip: the way back is still to book.
   const [roundTrip] = useState(() =>
     trip?.trip.departureAt ? pendingReturnLeg(vnDate(0, new Date(trip.trip.departureAt))) : null,
-  )
+  );
 
   return (
     <div className="p-5">
@@ -63,7 +63,7 @@ export function BookingSuccess({
               style={{
                 strokeDasharray: 200,
                 strokeDashoffset: 200,
-                animation: 'checkmark-circle 400ms ease-out forwards',
+                animation: "checkmark-circle 400ms ease-out forwards",
               }}
             />
             <path
@@ -76,16 +76,16 @@ export function BookingSuccess({
               style={{
                 strokeDasharray: 100,
                 strokeDashoffset: 100,
-                animation: 'checkmark-draw 300ms ease-out 200ms forwards',
+                animation: "checkmark-draw 300ms ease-out 200ms forwards",
               }}
             />
           </svg>
         </div>
         <h3 className="text-xl font-bold text-slate-900">
-          {lastBooking.awaitingCall ? t('bookingFlow.placedTitle') : t('booking.success')}
+          {lastBooking.awaitingCall ? t("bookingFlow.placedTitle") : t("booking.success")}
         </h3>
         <p className="text-sm text-muted-foreground mt-1">
-          {lastBooking.awaitingCall ? t('bookingFlow.placedDesc') : t('bookingFlow.successDesc')}
+          {lastBooking.awaitingCall ? t("bookingFlow.placedDesc") : t("bookingFlow.successDesc")}
         </p>
       </div>
 
@@ -94,24 +94,24 @@ export function BookingSuccess({
       <div className="mx-auto max-w-md overflow-hidden rounded-2xl bg-white shadow-soft ring-1 ring-slate-200/80">
         <div className="flex items-center justify-between gap-3 bg-primary px-5 py-4 text-primary-foreground">
           <div className="min-w-0">
-            <div className="text-xs opacity-80">{t('booking.code')}</div>
+            <div className="text-xs opacity-80">{t("booking.code")}</div>
             <code className="font-mono text-xl font-bold tracking-wider">{lastBooking.code}</code>
           </div>
           <button
             onClick={() => {
               // Clipboard API is undefined on non-secure contexts (http:// LAN deploys).
               try {
-                void navigator.clipboard?.writeText(lastBooking.code)
+                void navigator.clipboard?.writeText(lastBooking.code);
               } catch {
                 /* non-fatal — the code is on screen */
               }
-              setCopied(true)
-              setTimeout(() => setCopied(false), 1500)
+              setCopied(true);
+              setTimeout(() => setCopied(false), 1500);
             }}
             className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-xs font-semibold transition-colors hover:bg-white/25"
           >
             {copied ? <CheckCircle2 className="size-3.5" /> : <Copy className="size-3.5" />}
-            {t('bookingFlow.copyTicketCode')}
+            {t("bookingFlow.copyTicketCode")}
           </button>
         </div>
         <div className="relative border-t border-dashed border-slate-200" aria-hidden>
@@ -121,25 +121,25 @@ export function BookingSuccess({
         <dl className="space-y-2.5 px-5 py-4 text-sm">
           {trip && (
             <>
-              <Row label={t('bookingFlow.routeLabel')}>
+              <Row label={t("bookingFlow.routeLabel")}>
                 {trip.from.name} → {trip.to.name}
               </Row>
-              <Row label={t('booking.departure')}>{formatDateTimeVN(trip.trip.departureAt)}</Row>
-              <Row label={t('bookingFlow.brandLabel')}>{trip.brand.name}</Row>
+              <Row label={t("booking.departure")}>{formatDateTimeVN(trip.trip.departureAt)}</Row>
+              <Row label={t("bookingFlow.brandLabel")}>{trip.brand.name}</Row>
             </>
           )}
-          <Row label={t('bookingFlow.seatsLabel')}>
-            <span className="font-mono">{selectedSeats.map((s) => s.code).join(', ')}</span>
+          <Row label={t("bookingFlow.seatsLabel")}>
+            <span className="font-mono">{selectedSeats.map((s) => s.code).join(", ")}</span>
           </Row>
           <div className="flex items-baseline justify-between gap-4 border-t border-slate-100 pt-3">
-            <dt className="font-semibold text-slate-900">{t('bookingFlow.totalDue')}</dt>
+            <dt className="font-semibold text-slate-900">{t("bookingFlow.totalDue")}</dt>
             <dd className="text-lg font-extrabold text-slate-900 tabular-nums">
               {money(lastBooking.total)}
             </dd>
           </div>
         </dl>
         <p className="border-t border-slate-100 bg-slate-50 px-5 py-2.5 text-center text-xs text-slate-500">
-          {t('bookingFlow.ticketStubQrNote')}
+          {t("bookingFlow.ticketStubQrNote")}
         </p>
       </div>
 
@@ -150,14 +150,14 @@ export function BookingSuccess({
           </span>
           <div className="min-w-0 flex-1">
             <div className="text-sm font-semibold text-slate-900">
-              {t('bookingFlow.returnLegTitle')}
+              {t("bookingFlow.returnLegTitle")}
             </div>
             <div className="truncate text-xs text-slate-600">
-              {roundTrip.to} → {roundTrip.from} ·{' '}
+              {roundTrip.to} → {roundTrip.from} ·{" "}
               {formatDateVN(roundTrip.returnDate, {
-                weekday: 'short',
-                day: '2-digit',
-                month: '2-digit',
+                weekday: "short",
+                day: "2-digit",
+                month: "2-digit",
               })}
             </div>
           </div>
@@ -165,39 +165,42 @@ export function BookingSuccess({
             size="sm"
             className="h-9 shrink-0 rounded-xl"
             onClick={() => {
-              forgetReturnLeg()
-              onClose()
-              navigate({ to: '/search', search: buildSearchInput({ ...roundTrip, leg: 'return' }) })
+              forgetReturnLeg();
+              onClose();
+              navigate({
+                to: "/search",
+                search: buildSearchInput({ ...roundTrip, leg: "return" }),
+              });
             }}
           >
-            {t('bookingFlow.returnLegAction')}
+            {t("bookingFlow.returnLegAction")}
           </Button>
         </div>
       )}
 
       <div className="mx-auto mt-5 flex max-w-md gap-2">
         <Button variant="outline" className="h-11 flex-1 gap-1 rounded-xl" onClick={onClose}>
-          {t('bookingFlow.bookAnother')}
+          {t("bookingFlow.bookAnother")}
         </Button>
         <Button
           className="h-11 flex-1 gap-1 rounded-xl"
           onClick={() => {
-            const code = lastBooking?.code
-            onClose()
+            const code = lastBooking?.code;
+            onClose();
             if (code) {
-              navigate({ to: '/account/trips/$code', params: { code } })
+              navigate({ to: "/account/trips/$code", params: { code } });
             } else {
-              navigate({ to: '/account/trips' })
+              navigate({ to: "/account/trips" });
             }
-            window.scrollTo({ top: 0, behavior: 'smooth' })
+            window.scrollTo({ top: 0, behavior: "smooth" });
           }}
         >
           <Ticket className="h-4 w-4" />
-          {t('bookingFlow.viewMyTickets')}
+          {t("bookingFlow.viewMyTickets")}
         </Button>
       </div>
     </div>
-  )
+  );
 }
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
@@ -206,5 +209,5 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
       <dt className="shrink-0 text-slate-500">{label}</dt>
       <dd className="text-right font-medium text-slate-900">{children}</dd>
     </div>
-  )
+  );
 }

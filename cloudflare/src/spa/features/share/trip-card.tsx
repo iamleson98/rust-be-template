@@ -1,4 +1,4 @@
-'use client'
+"use client";
 
 /**
  * ShareTripCard — what is being shared, as the recipient will see it: the
@@ -6,25 +6,25 @@
  * then the short link.
  */
 
-import { formatCurrency, formatDateVN, formatTimeVN } from '@spa/lib/format'
-import { useT } from '@spa/lib/i18n'
-import { ArrowRight, Star } from 'lucide-react'
-import type { ShareTrip } from '@spa/stores/ui'
+import { formatCurrency, formatDateVN, formatTimeVN } from "@spa/lib/format";
+import { useT } from "@spa/lib/i18n";
+import { ArrowRight, Star } from "lucide-react";
+import type { ShareTrip } from "@spa/stores/ui";
 
 export function ShareTripCard({
   shareTripData: trip,
   shareInfo,
   currency,
 }: {
-  shareTripData: ShareTrip
-  shareInfo: { code: string; url: string }
-  currency: 'VND' | 'USD'
+  shareTripData: ShareTrip;
+  shareInfo: { code: string; url: string };
+  currency: "VND" | "USD";
 }) {
-  const t = useT()
-  const time = trip.departureTime || (trip.departureAt ? formatTimeVN(trip.departureAt) : '')
+  const t = useT();
+  const time = trip.departureTime || (trip.departureAt ? formatTimeVN(trip.departureAt) : "");
   const day = trip.departureAt
-    ? formatDateVN(trip.departureAt, { weekday: 'short', day: '2-digit', month: '2-digit' })
-    : ''
+    ? formatDateVN(trip.departureAt, { weekday: "short", day: "2-digit", month: "2-digit" })
+    : "";
   return (
     <div className="overflow-hidden rounded-2xl bg-white ring-1 ring-slate-200">
       <div className="p-4">
@@ -45,12 +45,12 @@ export function ShareTripCard({
           <span className="min-w-0 truncate">{trip.toName}</span>
         </div>
         <p className="mt-1 text-sm text-slate-500">
-          {[time, day, trip.vehicleTypeLabel || t('trips.defaultVehicleType')]
+          {[time, day, trip.vehicleTypeLabel || t("trips.defaultVehicleType")]
             .filter(Boolean)
-            .join(' · ')}
+            .join(" · ")}
         </p>
         <div className="mt-3 flex items-baseline gap-1.5">
-          <span className="text-xs text-slate-500">{t('common.fromPrice')}</span>
+          <span className="text-xs text-slate-500">{t("common.fromPrice")}</span>
           <span className="text-xl font-bold text-primary tabular-nums">
             {formatCurrency(trip.minPrice, currency)}
           </span>
@@ -61,5 +61,5 @@ export function ShareTripCard({
         <span className="min-w-0 truncate">{shareInfo.url}</span>
       </div>
     </div>
-  )
+  );
 }

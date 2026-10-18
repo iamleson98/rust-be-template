@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { coversBrand, useMyCoupons } from '@spa/features/campaigns/api'
+import { useState } from "react";
+import { coversBrand, useMyCoupons } from "@spa/features/campaigns/api";
 
 /**
  * The customer's coupon at checkout. It applies by itself when it is unused
@@ -8,11 +8,11 @@ import { coversBrand, useMyCoupons } from '@spa/features/campaigns/api'
  * it the same way).
  */
 export function useCheckoutCoupon(brandId: string | null | undefined, subtotal: number) {
-  const coupon = useMyCoupons().data?.active ?? null
-  const [optedOut, setOptedOut] = useState(false)
-  const usable = !!coupon && coupon.status === 'held' && coversBrand(coupon, brandId)
-  const applied = usable && !optedOut
-  const worth = coupon ? Math.min(coupon.amount, Math.max(0, subtotal)) : 0
+  const coupon = useMyCoupons().data?.active ?? null;
+  const [optedOut, setOptedOut] = useState(false);
+  const usable = !!coupon && coupon.status === "held" && coversBrand(coupon, brandId);
+  const applied = usable && !optedOut;
+  const worth = coupon ? Math.min(coupon.amount, Math.max(0, subtotal)) : 0;
   return {
     coupon,
     /** Unused and valid for this operator. */
@@ -24,7 +24,7 @@ export function useCheckoutCoupon(brandId: string | null | undefined, subtotal: 
     discount: applied ? worth : 0,
     /** What the booking hold sends. */
     couponId: applied ? coupon.id : undefined,
-  }
+  };
 }
 
-export type CheckoutCoupon = ReturnType<typeof useCheckoutCoupon>
+export type CheckoutCoupon = ReturnType<typeof useCheckoutCoupon>;

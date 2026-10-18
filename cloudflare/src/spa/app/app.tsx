@@ -14,9 +14,9 @@
  * Transient UI dialog state (chat, booking flow, auth, share, etc.)
  * is owned by the Zustand store (see `src/lib/store.ts`).
  */
-import { RouterProvider } from '@tanstack/react-router'
-import { Toaster } from 'sonner'
-import { router } from '../router'
+import { RouterProvider } from "@tanstack/react-router";
+import { Toaster } from "sonner";
+import { router } from "../router";
 
 export default function App() {
   return (
@@ -26,5 +26,5 @@ export default function App() {
           cover the logo / account actions. */}
       <Toaster position="top-right" offset="72px" richColors closeButton />
     </>
-  )
+  );
 }

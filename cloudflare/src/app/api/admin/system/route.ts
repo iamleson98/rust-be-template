@@ -26,11 +26,15 @@ function humanUptime(secs: number): string {
 export async function GET(req: Request) {
   try {
     const staff = await requireStaff(req);
-    if (!isAdmin(staff)) return Response.json({ error: { code: "forbidden", message: "Admin access required" } }, { status: 403 });
+    if (!isAdmin(staff))
+      return Response.json(
+        { error: { code: "forbidden", message: "Admin access required" } },
+        { status: 403 },
+      );
     const env = await getEnv();
     const seconds = Math.floor((Date.now() - BOOT) / 1000);
 
-    let sizeMb = 0;
+    const sizeMb = 0;
     try {
       const est = await rawAll<{ bytes: number }>(sql`
         SELECT (SELECT COUNT(*) FROM sqlite_master) AS bytes

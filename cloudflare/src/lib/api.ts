@@ -40,12 +40,26 @@ export function clientIp(req: Request): string {
   const cf = (req as Request & { cf?: { connectingIp?: string } }).cf;
   if (cf?.connectingIp) return cf.connectingIp;
   const xff = req.headers.get("x-forwarded-for");
-  if (xff) return xff.split(",").map((s) => s.trim()).filter(Boolean).pop() ?? "unknown";
+  if (xff)
+    return (
+      xff
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .pop() ?? "unknown"
+    );
   return "unknown";
 }
 
-export function parsePagination(url: URL, defLimit = 20, maxLimit = 100): { limit: number; offset: number } {
-  const limit = Math.min(Math.max(parseInt(url.searchParams.get("limit") ?? `${defLimit}`, 10) || defLimit, 1), maxLimit);
+export function parsePagination(
+  url: URL,
+  defLimit = 20,
+  maxLimit = 100,
+): { limit: number; offset: number } {
+  const limit = Math.min(
+    Math.max(parseInt(url.searchParams.get("limit") ?? `${defLimit}`, 10) || defLimit, 1),
+    maxLimit,
+  );
   const offset = Math.max(parseInt(url.searchParams.get("offset") ?? "0", 10) || 0, 0);
   return { limit, offset };
 }

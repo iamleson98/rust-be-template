@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react'
-import { cn } from '@spa/lib/utils'
+import type { ReactNode } from "react";
+import { cn } from "@spa/lib/utils";
 
 /**
  * A section of a console page: the site's card (white on the canvas, a
@@ -14,17 +14,17 @@ export function Panel({
   bodyClassName,
   children,
 }: {
-  title?: ReactNode
-  icon?: ReactNode
-  action?: ReactNode
-  className?: string
-  bodyClassName?: string
-  children: ReactNode
+  title?: ReactNode;
+  icon?: ReactNode;
+  action?: ReactNode;
+  className?: string;
+  bodyClassName?: string;
+  children: ReactNode;
 }) {
   return (
     <section
       className={cn(
-        'rounded-2xl bg-card text-card-foreground shadow-soft ring-1 ring-slate-200/80 dark:ring-white/10',
+        "rounded-2xl bg-card text-card-foreground shadow-soft ring-1 ring-slate-200/80 dark:ring-white/10",
         className,
       )}
     >
@@ -39,25 +39,25 @@ export function Panel({
           {action && <div className="ml-auto flex shrink-0 items-center gap-2">{action}</div>}
         </div>
       )}
-      <div className={cn('p-4', (title || action) && 'pt-2', bodyClassName)}>{children}</div>
+      <div className={cn("p-4", (title || action) && "pt-2", bodyClassName)}>{children}</div>
     </section>
-  )
+  );
 }
 
 /** A small count next to a panel title. */
-export function CountPill({ n, tone = 'neutral' }: { n: number; tone?: 'neutral' | 'amber' }) {
+export function CountPill({ n, tone = "neutral" }: { n: number; tone?: "neutral" | "amber" }) {
   return (
     <span
       className={cn(
-        'inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold tabular-nums',
-        tone === 'amber'
-          ? 'bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300'
-          : 'bg-muted text-muted-foreground',
+        "inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold tabular-nums",
+        tone === "amber"
+          ? "bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300"
+          : "bg-muted text-muted-foreground",
       )}
     >
       {n}
     </span>
-  )
+  );
 }
 
 /** Nothing here yet: an icon, one line, and an optional way forward. */
@@ -67,18 +67,18 @@ export function EmptyState({
   action,
   className,
 }: {
-  icon: ReactNode
-  text: ReactNode
-  action?: ReactNode
-  className?: string
+  icon: ReactNode;
+  text: ReactNode;
+  action?: ReactNode;
+  className?: string;
 }) {
   return (
-    <div className={cn('flex flex-col items-center gap-2 py-8 text-center', className)}>
+    <div className={cn("flex flex-col items-center gap-2 py-8 text-center", className)}>
       <div className="grid size-10 place-items-center rounded-full bg-muted text-muted-foreground [&_svg]:size-5">
         {icon}
       </div>
       <p className="max-w-xs text-sm text-muted-foreground">{text}</p>
       {action}
     </div>
-  )
+  );
 }

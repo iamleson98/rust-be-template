@@ -5,7 +5,7 @@
  * filters, deterministic sort and offset paging. Card shape = the
  * flat `TripResult` DTO the SPA SDK expects.
  */
-import { rawAll } from "@/lib/db/client";
+import { rawAll, sqlIn } from "@/lib/db/client";
 import { sql, type SQL } from "drizzle-orm";
 import { VIETNAMESE_CITIES } from "@/lib/cities";
 import { CITY_COORDS } from "@/lib/city-coords";
@@ -30,8 +30,8 @@ const HOUR_BANDS: Array<[string, number, number]> = [
 export function minutesOf(hhmm: string): number | null {
   const m = /^(\d{1,2}):(\d{2})/.exec(hhmm.trim());
   if (!m) return null;
-  const h = parseInt(m[1]!, 10);
-  const min = parseInt(m[2]!, 10);
+  const h = parseInt(m[1], 10);
+  const min = parseInt(m[2], 10);
   if (h < 0 || h > 23 || min < 0 || min > 59) return null;
   return h * 60 + min;
 }
@@ -42,7 +42,7 @@ export function computeIsoTimestamps(
   departureTime: string | null,
 ): string | null {
   if (!departureDate) return null;
-  const date = departureDate.split("T")[0]!;
+  const date = departureDate.split("T")[0];
   const time = departureTime && departureTime !== "" ? departureTime : departureDate.split("T")[1];
   if (!time) return null;
   return `${date}T${time}:00`;
@@ -62,7 +62,7 @@ export function computeArrivalIso(
   const arr = minutes(arrivalHhmm);
   const dep = minutes(departureHhmm) ?? Number.MIN_SAFE_INTEGER;
   if (arr == null) return null;
-  const dateOnly = departureDate.split("T")[0]!;
+  const dateOnly = departureDate.split("T")[0];
   const [y, mo, d] = dateOnly.split("-").map((n) => parseInt(n, 10));
   if (!y || !mo || !d) return null;
   const ms = Date.UTC(y, mo - 1, d) + (arr <= dep ? 86_400_000 : 0);
@@ -75,25 +75,37 @@ export function computeArrivalIso(
 /** Amenity key → Vietnamese label. */
 export function amenityLabel(key: string): string {
   switch (key) {
-    case "wifi": return "WiFi";
-    case "ac": return "Điều hòa";
-    case "water": return "Nước uống";
-    case "charging": return "Cắm sạc";
-    case "blanket": return "Chăn mền";
-    default: return "";
+    case "wifi":
+      return "WiFi";
+    case "ac":
+      return "Điều hòa";
+    case "water":
+      return "Nước uống";
+    case "charging":
+      return "Cắm sạc";
+    case "blanket":
+      return "Chăn mền";
+    default:
+      return "";
   }
 }
 
 /** Static vehicle-type label map (Rust `vehicle_type_label`). */
 export function vehicleTypeLabelOf(vt: string): string {
   switch (vt) {
-    case "limousine": return "Limousine";
-    case "sleeper": return "Giường nằm";
+    case "limousine":
+      return "Limousine";
+    case "sleeper":
+      return "Giường nằm";
     case "semi_sleeper":
-    case "semi-sleeper": return "Giường nằm đơn";
-    case "minivan": return "Minivan";
-    case "standard": return "Ghế ngồi";
-    default: return "Ghế ngồi";
+    case "semi-sleeper":
+      return "Giường nằm đơn";
+    case "minivan":
+      return "Minivan";
+    case "standard":
+      return "Ghế ngồi";
+    default:
+      return "Ghế ngồi";
   }
 }
 
@@ -103,19 +115,33 @@ export function parseAmenities(raw: string | null): string[] {
   try {
     const v = JSON.parse(raw);
     if (Array.isArray(v)) return v.map(String).filter(Boolean);
-  } catch { /* csv fallback */ }
-  return raw.split(",").map((s) => s.trim()).filter(Boolean);
+  } catch {
+    /* csv fallback */
+  }
+  return raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
 }
 
 /** The brand's child-ticket policy; `null` when it sells none. */
-export interface ChildPolicy { maxAge: number; discountAmount: number }
-export function childPolicyOf(b: { child_max_age?: number | null; child_discount_amount?: number | null } | null | undefined): ChildPolicy | null {
+export interface ChildPolicy {
+  maxAge: number;
+  discountAmount: number;
+}
+export function childPolicyOf(
+  b: { child_max_age?: number | null; child_discount_amount?: number | null } | null | undefined,
+): ChildPolicy | null {
   if (!b || b.child_max_age == null) return null;
   return { maxAge: b.child_max_age, discountAmount: b.child_discount_amount ?? 0 };
 }
 
 /** What a child pays for a seat sold to adults at `adult` (Rust `fares::child_price`). */
-export function childPrice(adult: number, fare: { adult: number; child: number | null }, policy: ChildPolicy | null): number | undefined {
+export function childPrice(
+  adult: number,
+  fare: { adult: number; child: number | null },
+  policy: ChildPolicy | null,
+): number | undefined {
   if (!policy) return undefined;
   const price = fare.child ?? adult - policy.discountAmount;
   return Math.max(0, Math.min(price, adult));
@@ -126,7 +152,13 @@ export function standardChildPrice(
   schedule: { base_price_adult: number; base_price_child: number | null },
   policy: ChildPolicy | null,
 ): number {
-  return childPrice(schedule.base_price_adult, { adult: schedule.base_price_adult, child: schedule.base_price_child }, policy) ?? 0;
+  return (
+    childPrice(
+      schedule.base_price_adult,
+      { adult: schedule.base_price_adult, child: schedule.base_price_child },
+      policy,
+    ) ?? 0
+  );
 }
 
 /** Normalize a seat class: trimmed, lowercase; "standard" default. */
@@ -223,7 +255,11 @@ interface CandidateRow {
 
 /** Normalized (diacritic-stripped, lowercased) text for city matching. */
 const norm = (s: string) =>
-  s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+  s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
 
 /** City slugs matching a query: exact slug, or name/alias (diacritic-insensitive). */
 export function matchCitySlugs(q: string): string[] {
@@ -244,10 +280,16 @@ export function findCity(slug: string): { name: string; lat: number; lon: number
 }
 
 /** Build one result card from a candidate row (Rust `build`). */
-export function buildCard(r: CandidateRow, catalog: Array<{ code: string; label: string }>): TripResultCard {
+export function buildCard(
+  r: CandidateRow,
+  catalog: Array<{ code: string; label: string }>,
+): TripResultCard {
   const from = findCity(r.start_location_id);
   const to = findCity(r.end_location_id);
-  const policy = childPolicyOf({ child_max_age: r.brand_child_max_age, child_discount_amount: r.brand_child_discount_amount });
+  const policy = childPolicyOf({
+    child_max_age: r.brand_child_max_age,
+    child_discount_amount: r.brand_child_discount_amount,
+  });
   // Prices: the seats still for sale where the trip was opened; the fare
   // table's class range otherwise; the base price as the last resort.
   const [minPrice, maxPrice] =
@@ -334,11 +376,16 @@ export interface SearchOptions {
 }
 
 function csvList(v: string | null | undefined): string[] {
-  return (v ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  return (v ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
 }
 
 /** Parse the camelCase query string exactly like the Rust `SearchTripsQuery`. */
-export function parseSearchOptions(url: URL): { from: string; to: string; opts: SearchOptions } | { error: string } {
+export function parseSearchOptions(
+  url: URL,
+): { from: string; to: string; opts: SearchOptions } | { error: string } {
   const q = url.searchParams;
   const from = q.get("from") ?? "";
   const to = q.get("to") ?? "";
@@ -352,7 +399,8 @@ export function parseSearchOptions(url: URL): { from: string; to: string; opts: 
     if (!hit) return null;
     return [hit[1], hit[2]] as [number, number];
   });
-  if (hours.some((h) => h == null)) return { error: `hours: unknown band (use 0-6, 6-12, 12-18, 18-24)` };
+  if (hours.some((h) => h == null))
+    return { error: `hours: unknown band (use 0-6, 6-12, 12-18, 18-24)` };
 
   const num = (k: string) => {
     const v = q.get(k);
@@ -362,7 +410,13 @@ export function parseSearchOptions(url: URL): { from: string; to: string; opts: 
   };
   const sortRaw = (q.get("sort") ?? "").trim();
   const sort: SearchOptions["sort"] =
-    sortRaw === "price" ? "price" : sortRaw === "rating" ? "rating" : sortRaw === "distance" ? "distance" : "departure";
+    sortRaw === "price"
+      ? "price"
+      : sortRaw === "rating"
+        ? "rating"
+        : sortRaw === "distance"
+          ? "distance"
+          : "departure";
 
   const departAfterRaw = q.get("departAfter");
   let departAfter: number | null | undefined = null;
@@ -398,10 +452,18 @@ export function parseSearchOptions(url: URL): { from: string; to: string; opts: 
 
 // ── The candidate SQL (one query) ──────────────────────────────
 
-/** Shared SELECT/WHERE for city searches. `fromSlugs`/`toSlugs` are city ids. */
-function candidateQuery(date: string, fromSlugs: string[], toSlugs: string[], minSeats: number): SQL {
-  const fromIn = fromSlugs.map((s) => sql`${s}`).reduce((a, b) => sql`${a}, ${b}`);
-  const toIn = toSlugs.map((s) => sql`${s}`).reduce((a, b) => sql`${a}, ${b}`);
+/** Shared SELECT/WHERE for city searches. `fromSlugs`/`toSlugs` are city
+ * ids. Raw on purpose (client.ts SQL POLICY §2): 7 correlated subqueries
+ * per trip + json_each day-of-week matching have no ergonomic builder
+ * equivalent; every dynamic value still binds as a parameter via sqlIn. */
+function candidateQuery(
+  date: string,
+  fromSlugs: string[],
+  toSlugs: string[],
+  minSeats: number,
+): SQL {
+  const fromIn = sqlIn(fromSlugs);
+  const toIn = sqlIn(toSlugs);
   return sql`
     SELECT ts.id, ts.schedule_id, ts.departure_date, ts.status,
            ts.total_seats, ts.available_seats,
@@ -449,7 +511,11 @@ function candidateQuery(date: string, fromSlugs: string[], toSlugs: string[], mi
 
 // ── Facets ─────────────────────────────────────────────────────
 
-export interface FacetCount { key: string; label: string; count: number }
+export interface FacetCount {
+  key: string;
+  label: string;
+  count: number;
+}
 
 function facetCounts(pairs: Array<[string, string]>): FacetCount[] {
   const byKey = new Map<string, FacetCount>();
@@ -459,9 +525,7 @@ function facetCounts(pairs: Array<[string, string]>): FacetCount[] {
     cur.count++;
     byKey.set(key, cur);
   }
-  return [...byKey.values()].sort(
-    (a, b) => b.count - a.count || a.label.localeCompare(b.label),
-  );
+  return [...byKey.values()].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
 }
 
 function buildFacets(built: Array<{ card: TripResultCard; boardsAt: number }>) {
@@ -505,7 +569,9 @@ export async function searchTrips(from: string, to: string, opts: SearchOptions)
   const empty = pagedEmpty(opts);
   if (!fromSlugs.length || !toSlugs.length) return empty;
 
-  const rows = await rawAll<CandidateRow>(candidateQuery(opts.date, fromSlugs, toSlugs, opts.minSeats));
+  const rows = await rawAll<CandidateRow>(
+    candidateQuery(opts.date, fromSlugs, toSlugs, opts.minSeats),
+  );
   // Still on sale: not yet departed (Vietnam local date/time).
   const now = Date.now() + 7 * 3_600_000; // UTC+7 wall clock
   const vnNow = new Date(now);
@@ -552,7 +618,8 @@ export async function searchTrips(from: string, to: string, opts: SearchOptions)
     a.boardsAt - b.boardsAt || a.card.tripId.localeCompare(b.card.tripId);
   matches.sort((a, b) => {
     if (opts.sort === "price") return a.card.minPrice - b.card.minPrice || tail(a, b);
-    if (opts.sort === "rating") return (b.card.brandRating ?? -1) - (a.card.brandRating ?? -1) || tail(a, b);
+    if (opts.sort === "rating")
+      return (b.card.brandRating ?? -1) - (a.card.brandRating ?? -1) || tail(a, b);
     return tail(a, b);
   });
 

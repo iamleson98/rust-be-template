@@ -1,7 +1,7 @@
 import { getDb } from "@/lib/db/client";
 import { invalidateRoutes } from "@/lib/services/lookups";
 import { schedules, schedulePoints, scheduleFares } from "@/lib/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { handleRouteError, requireStaff, readJson, err } from "@/lib/api";
 import { requirePermission } from "@/lib/auth/rbac";
 import { adminScheduleList } from "@/lib/services/admin-out";
@@ -78,7 +78,11 @@ export async function POST(req: Request) {
 
 type Db = Awaited<ReturnType<typeof getDb>>;
 
-async function writePoints(db: Db, scheduleId: string, points: Array<{ addressId?: string | null; arrivalTime?: string | null }>) {
+async function writePoints(
+  db: Db,
+  scheduleId: string,
+  points: Array<{ addressId?: string | null; arrivalTime?: string | null }>,
+) {
   await db.delete(schedulePoints).where(eq(schedulePoints.scheduleId, scheduleId));
   const rows = points
     .map((p, i) => ({
@@ -98,7 +102,11 @@ async function writePoints(db: Db, scheduleId: string, points: Array<{ addressId
   }
 }
 
-async function writeFares(db: Db, scheduleId: string, fares: Array<{ seatClass: string; priceAdult: number; priceChild?: number | null }>) {
+async function writeFares(
+  db: Db,
+  scheduleId: string,
+  fares: Array<{ seatClass: string; priceAdult: number; priceChild?: number | null }>,
+) {
   await db.delete(scheduleFares).where(eq(scheduleFares.scheduleId, scheduleId));
   const rows = fares
     .filter((f) => f.seatClass && f.seatClass !== "standard")

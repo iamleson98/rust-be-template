@@ -1,47 +1,47 @@
-import { MutationCache, QueryClient, type Query } from '@tanstack/react-query'
+import { MutationCache, QueryClient, type Query } from "@tanstack/react-query";
 
-declare module '@tanstack/react-query' {
+declare module "@tanstack/react-query" {
   interface Register {
     mutationMeta: {
       /** Resource the mutation belongs to (set by the SDK generator). */
-      resource?: string
+      resource?: string;
       /** Extra resources to refresh on top of `resource`. */
-      invalidates?: string[]
-    }
+      invalidates?: string[];
+    };
   }
 }
 
 /** Resources that also hold stale data after a mutation on the key resource. */
 const ALSO_REFRESH: Record<string, string[]> = {
   // Seats return to the pool; points derive from bookings; a booking takes or returns the coupon.
-  bookings: ['trips', 'loyalty', 'coupons'],
-  payments: ['bookings'], // payment state drives booking state
-  adminPayments: ['payments', 'bookings', 'adminBookings'],
+  bookings: ["trips", "loyalty", "coupons"],
+  payments: ["bookings"], // payment state drives booking state
+  adminPayments: ["payments", "bookings", "adminBookings"],
   // A staff cancel frees seats; completing a trip makes its coupon payable.
-  adminBookings: ['bookings', 'trips', 'adminCoupons', 'adminCampaigns'],
-  campaigns: ['coupons'], // a claim hands the customer a coupon
-  coupons: ['campaigns'], // giving one up returns its slot
-  adminCampaigns: ['campaigns', 'adminCoupons'],
-  adminCoupons: ['adminCampaigns'], // payouts move the campaign totals
-  adminReviews: ['reviews'],
+  adminBookings: ["bookings", "trips", "adminCoupons", "adminCampaigns"],
+  campaigns: ["coupons"], // a claim hands the customer a coupon
+  coupons: ["campaigns"], // giving one up returns its slot
+  adminCampaigns: ["campaigns", "adminCoupons"],
+  adminCoupons: ["adminCampaigns"], // payouts move the campaign totals
+  adminReviews: ["reviews"],
   // The brands page nests routes under brands and schedules under routes,
   // each row showing counts: a change below refreshes every level above it
   // (and the public catalog the home page and search read).
-  adminBrands: ['brands'],
-  adminRoutes: ['adminBrands', 'routes', 'brands'],
-  adminSchedules: ['adminRoutes', 'adminBrands', 'routes', 'trips', 'search'],
-  adminPickupPoints: ['adminRoutes', 'adminSchedules'],
-  users: ['auth'], // a role change alters the session user
-}
+  adminBrands: ["brands"],
+  adminRoutes: ["adminBrands", "routes", "brands"],
+  adminSchedules: ["adminRoutes", "adminBrands", "routes", "trips", "search"],
+  adminPickupPoints: ["adminRoutes", "adminSchedules"],
+  users: ["auth"], // a role change alters the session user
+};
 
 const resourcesOf = (query: Query) =>
-  (query.queryKey[0] as { tags?: string[] } | undefined)?.tags ?? []
+  (query.queryKey[0] as { tags?: string[] } | undefined)?.tags ?? [];
 
 /** Mark every cached query tagged with one of `resources` stale (active ones refetch). */
 export const invalidateResources = (queryClient: QueryClient, ...resources: string[]) =>
   queryClient.invalidateQueries({
     predicate: (query) => resourcesOf(query).some((r) => resources.includes(r)),
-  })
+  });
 
 export function createQueryClient() {
   const queryClient: QueryClient = new QueryClient({
@@ -49,12 +49,12 @@ export function createQueryClient() {
     // call sites never repeat `invalidateQueries` (see openapi-ts.config.ts).
     mutationCache: new MutationCache({
       onSuccess: (_data, _vars, _ctx, { meta }) => {
-        const { resource, invalidates = [] } = meta ?? {}
+        const { resource, invalidates = [] } = meta ?? {};
         const stale = [
           ...(resource ? [resource, ...(ALSO_REFRESH[resource] ?? [])] : []),
           ...invalidates,
-        ]
-        if (stale.length) void invalidateResources(queryClient, ...stale)
+        ];
+        if (stale.length) void invalidateResources(queryClient, ...stale);
       },
     }),
     defaultOptions: {
@@ -62,7 +62,7 @@ export function createQueryClient() {
         staleTime: 5 * 60 * 1000,
         gcTime: 30 * 60 * 1000,
         refetchOnWindowFocus: false, // no reload flicker on alt-tab
-        refetchOnMount: 'always',
+        refetchOnMount: "always",
         refetchOnReconnect: true,
         // 429s back off exponentially (3 tries); anything else retries once.
         retry: (failureCount, error) =>
@@ -74,6 +74,6 @@ export function createQueryClient() {
       },
       mutations: { retry: 0 },
     },
-  })
-  return queryClient
+  });
+  return queryClient;
 }

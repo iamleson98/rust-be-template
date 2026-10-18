@@ -1,8 +1,8 @@
 // Extracted from the original 'search-widget.tsx'.
 
-import { z } from 'zod'
-import { requiredText } from '@spa/lib/forms'
-import { tSync } from '@spa/lib/i18n'
+import { z } from "zod";
+import { requiredText } from "@spa/lib/forms";
+import { tSync } from "@spa/lib/i18n";
 
 // Error messages use Zod's functional `{ error: () => ... }` form so the
 // string is resolved (in the store's current language) at validation
@@ -22,9 +22,9 @@ import { tSync } from '@spa/lib/i18n'
  */
 export const searchSchema = z
   .object({
-    from: requiredText('search.from'),
-    to: requiredText('search.to'),
-    date: requiredText('search.date'),
+    from: requiredText("search.from"),
+    to: requiredText("search.to"),
+    date: requiredText("search.date"),
     /** Optional "leaving after" time, `HH:MM` or ''. */
     time: z.string(),
     roundTrip: z.boolean(),
@@ -32,9 +32,9 @@ export const searchSchema = z
     adults: z
       .number()
       .int()
-      .min(1, { error: () => tSync('searchSchema.adultsMin') }),
+      .min(1, { error: () => tSync("searchSchema.adultsMin") }),
     children: z.number().int().min(0),
-    sort: z.enum(['departure', 'price', 'rating', 'distance']),
+    sort: z.enum(["departure", "price", "rating", "distance"]),
     vehicleTypes: z.array(z.string()),
     // Smart-search coordinates (optional): set when the user picks a
     // precise place (autocomplete hit or map click) instead of a city.
@@ -49,13 +49,13 @@ export const searchSchema = z
     fromCity: z.string().optional(),
     toCity: z.string().optional(),
   })
-  .refine((d) => !d.roundTrip || d.returnDate !== '', {
-    error: () => tSync('searchSchema.returnDateRequired'),
-    path: ['returnDate'],
+  .refine((d) => !d.roundTrip || d.returnDate !== "", {
+    error: () => tSync("searchSchema.returnDateRequired"),
+    path: ["returnDate"],
   })
   .refine((d) => !d.roundTrip || d.returnDate >= d.date, {
-    error: () => tSync('searchSchema.returnDateAfter'),
-    path: ['returnDate'],
-  })
+    error: () => tSync("searchSchema.returnDateAfter"),
+    path: ["returnDate"],
+  });
 
-export type SearchFormValues = z.infer<typeof searchSchema>
+export type SearchFormValues = z.infer<typeof searchSchema>;

@@ -1,39 +1,39 @@
-import { memo } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
-import { ChevronRight, Route, Star } from 'lucide-react'
-import { brandsOptions } from '@spa/api'
-import { ErrorState } from '@spa/components/error-state'
-import { HomeSection, RAIL, RailSkeleton } from '@spa/features/home/section'
-import { useT } from '@spa/lib/i18n'
-import { cn } from '@spa/lib/utils'
+import { memo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
+import { ChevronRight, Route, Star } from "lucide-react";
+import { brandsOptions } from "@spa/api";
+import { ErrorState } from "@spa/components/error-state";
+import { HomeSection, RAIL, RailSkeleton } from "@spa/features/home/section";
+import { useT } from "@spa/lib/i18n";
+import { cn } from "@spa/lib/utils";
 
 const initials = (name: string) => {
-  const parts = name.trim().split(/\s+/)
-  return (parts.length >= 2 ? parts[0][0] + parts[1][0] : name.slice(0, 2)).toUpperCase()
-}
+  const parts = name.trim().split(/\s+/);
+  return (parts.length >= 2 ? parts[0][0] + parts[1][0] : name.slice(0, 2)).toUpperCase();
+};
 
 /** The operators on the platform, each card opening its page (routes, reviews). */
 export const BrandShowcase = memo(function BrandShowcase() {
-  const { data, isLoading, isError, refetch } = useQuery(brandsOptions())
-  const t = useT()
-  const brands = data?.items ?? []
+  const { data, isLoading, isError, refetch } = useQuery(brandsOptions());
+  const t = useT();
+  const brands = data?.items ?? [];
 
-  if (isLoading) return <RailSkeleton count={4} />
+  if (isLoading) return <RailSkeleton count={4} />;
   if (isError)
     return (
       <div className="page-x py-10">
-        <ErrorState description={t('brandDetail.loadBrandsError')} onRetry={() => refetch()} />
+        <ErrorState description={t("brandDetail.loadBrandsError")} onRetry={() => refetch()} />
       </div>
-    )
-  if (brands.length === 0) return null
+    );
+  if (brands.length === 0) return null;
 
   return (
     <HomeSection
-      title={t('brandDetail.partnersTitle')}
-      subtitle={t('brandDetail.partnersSubtitle')}
+      title={t("brandDetail.partnersTitle")}
+      subtitle={t("brandDetail.partnersSubtitle")}
     >
-      <div className={cn(RAIL, 'lg:grid-cols-4')}>
+      <div className={cn(RAIL, "lg:grid-cols-4")}>
         {brands.map((brand) => (
           <Link
             key={brand.id}
@@ -63,12 +63,12 @@ export const BrandShowcase = memo(function BrandShowcase() {
                     {brand.rating.toFixed(1)}
                   </span>
                 ) : (
-                  <span>{t('brandDetail.noReviewsYet')}</span>
+                  <span>{t("brandDetail.noReviewsYet")}</span>
                 )}
                 <span aria-hidden>·</span>
                 <span className="inline-flex items-center gap-1">
                   <Route className="size-3" />
-                  {t('brands.routesCount', { count: brand.routeCount })}
+                  {t("brands.routesCount", { count: brand.routeCount })}
                 </span>
               </span>
             </span>
@@ -77,5 +77,5 @@ export const BrandShowcase = memo(function BrandShowcase() {
         ))}
       </div>
     </HomeSection>
-  )
-})
+  );
+});

@@ -1,6 +1,6 @@
-@import 'tailwindcss';
-@import 'tw-animate-css';
-@import 'shadcn/tailwind.css';
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -40,7 +40,7 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: 'Geist Variable', sans-serif;
+  --font-sans: "Geist Variable", sans-serif;
   --font-mono: var(--font-geist-mono);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -225,26 +225,26 @@
    * onClick that isn't a form input.
    */
   button,
-  [role='button'],
+  [role="button"],
   a[href],
   summary,
   label[for],
-  [data-slot='trigger'],
-  [data-slot='accordion-trigger'],
+  [data-slot="trigger"],
+  [data-slot="accordion-trigger"],
   select,
-  [role='tab'],
-  [role='menuitem'],
-  [role='option'],
-  [role='combobox'],
-  [role='treeitem'],
-  [role='link'] {
+  [role="tab"],
+  [role="menuitem"],
+  [role="option"],
+  [role="combobox"],
+  [role="treeitem"],
+  [role="link"] {
     cursor: pointer;
   }
 
   /* Buttons that are disabled shouldn't show pointer. */
   button:disabled,
-  [role='button'][aria-disabled='true'],
-  [data-disabled='true'] {
+  [role="button"][aria-disabled="true"],
+  [data-disabled="true"] {
     cursor: not-allowed;
   }
 
@@ -302,7 +302,7 @@
   overflow: hidden;
 }
 .shimmer::after {
-  content: '';
+  content: "";
   position: absolute;
   inset: 0;
   transform: translateX(-100%);
@@ -430,9 +430,9 @@
   header,
   footer,
   nav,
-  [data-slot='fab'],
-  [data-slot='dialog-close'],
-  [aria-label*='chat' i] {
+  [data-slot="fab"],
+  [data-slot="dialog-close"],
+  [aria-label*="chat" i] {
     display: none !important;
   }
   main {

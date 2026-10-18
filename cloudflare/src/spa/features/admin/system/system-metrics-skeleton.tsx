@@ -1,7 +1,7 @@
-'use client'
+"use client";
 
-import { memo } from 'react'
-import { Shimmer } from '@spa/components/ui/shimmer'
+import { memo } from "react";
+import { Shimmer } from "@spa/components/ui/shimmer";
 
 /* ─── Admin System Metrics Skeleton ───
  * Mirrors the /admin/system "Server Metrics" section's loaded layout:
@@ -53,5 +53,5 @@ export const SystemMetricsSkeleton = memo(function SystemMetricsSkeleton() {
         </div>
       </div>
     </div>
-  )
-})
+  );
+});

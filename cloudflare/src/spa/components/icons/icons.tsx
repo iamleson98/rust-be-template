@@ -1,4 +1,4 @@
-import { memo } from 'react'
+import { memo } from "react";
 
 export const SteeringWheel = memo(function SteeringWheel({ className }: { className?: string }) {
   return (
@@ -15,8 +15,8 @@ export const SteeringWheel = memo(function SteeringWheel({ className }: { classN
       <circle cx="12" cy="12" r="2.5" />
       <path d="M12 14.5v6.5M9.5 11.5 4 9M14.5 11.5 20 9" />
     </svg>
-  )
-})
+  );
+});
 
 export const Driver = memo(function Driver({ className }: { className?: string }) {
   return (
@@ -32,8 +32,8 @@ export const Driver = memo(function Driver({ className }: { className?: string }
       <circle cx="12" cy="7" r="4" />
       <path d="M5.5 21a6.5 6.5 0 0 1 13 0" />
     </svg>
-  )
-})
+  );
+});
 
 export const Stairs = memo(function Stairs({ className }: { className?: string }) {
   return (
@@ -48,5 +48,5 @@ export const Stairs = memo(function Stairs({ className }: { className?: string }
     >
       <path d="M3 20h5v-5h5v-5h5V5h3" />
     </svg>
-  )
-})
+  );
+});

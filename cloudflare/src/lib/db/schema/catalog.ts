@@ -190,10 +190,7 @@ export const schedulePoints = sqliteTable(
     createdAt: text("created_at").notNull().default("(datetime('now'))"),
     arrivalTime: text("arrival_time"),
   },
-  (t) => [
-    index("idx_sp_schedule").on(t.scheduleId),
-    index("idx_sp_address").on(t.addressId),
-  ],
+  (t) => [index("idx_sp_schedule").on(t.scheduleId), index("idx_sp_address").on(t.addressId)],
 );
 
 export const scheduleFares = sqliteTable(

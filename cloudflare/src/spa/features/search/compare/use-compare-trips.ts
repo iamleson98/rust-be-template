@@ -3,10 +3,10 @@ import {
   useQueryClient,
   type InfiniteData,
   type QueryClient,
-} from '@tanstack/react-query'
-import { tripDetail, type TripDetail, type TripResult, type TripSearchResponse } from '@spa/api'
+} from "@tanstack/react-query";
+import { tripDetail, type TripDetail, type TripResult, type TripSearchResponse } from "@spa/api";
 
-type CachedSearch = TripSearchResponse | InfiniteData<TripSearchResponse>
+type CachedSearch = TripSearchResponse | InfiniteData<TripSearchResponse>;
 
 /**
  * A row any search on this page already fetched (both search endpoints are
@@ -15,13 +15,13 @@ type CachedSearch = TripSearchResponse | InfiniteData<TripSearchResponse>
  */
 export function fromSearchCache(queryClient: QueryClient, tripId: string): TripResult | undefined {
   const searches = queryClient.getQueriesData<CachedSearch>({
-    predicate: (q) => (q.queryKey[0] as { tags?: string[] }).tags?.includes('search') ?? false,
-  })
+    predicate: (q) => (q.queryKey[0] as { tags?: string[] }).tags?.includes("search") ?? false,
+  });
   for (const [, cached] of searches) {
-    const pages = cached && 'pages' in cached ? cached.pages : [cached]
+    const pages = cached && "pages" in cached ? cached.pages : [cached];
     for (const page of pages) {
-      const hit = page?.items.find((r) => r.tripId === tripId)
-      if (hit) return hit
+      const hit = page?.items.find((r) => r.tripId === tripId);
+      if (hit) return hit;
     }
   }
 }
@@ -34,9 +34,9 @@ function detailToResult(d: TripDetail): TripResult {
     arrivalAt: d.trip.arrivalAt ?? undefined,
     availableSeats: d.trip.availableSeats,
     brandId: d.brand.id ?? undefined,
-    brandName: d.brand.name ?? '',
+    brandName: d.brand.name ?? "",
     brandRating: d.brand.rating ?? undefined,
-    brandSlug: d.brand.slug ?? '',
+    brandSlug: d.brand.slug ?? "",
     busLayoutId: d.busLayout.id,
     capacity: d.busLayout.capacity ?? undefined,
     departureAt: d.trip.departureAt ?? undefined,
@@ -56,16 +56,16 @@ function detailToResult(d: TripDetail): TripResult {
     toLon: d.to.lon,
     toName: d.to.name,
     totalSeats: d.trip.totalSeats,
-    vehicleType: d.busLayout.vehicleType ?? 'standard',
-  } as unknown as TripResult
+    vehicleType: d.busLayout.vehicleType ?? "standard",
+  } as unknown as TripResult;
 }
 
 /** Rows for the compared trips: from the search cache when possible, else the trip detail (so a reload still works). */
 export function useCompareTrips(tripIds: string[]) {
-  const queryClient = useQueryClient()
+  const queryClient = useQueryClient();
   return useQueries({
     queries: tripIds.map((id) => ({
-      queryKey: ['compare-trip', id],
+      queryKey: ["compare-trip", id],
       staleTime: Number.POSITIVE_INFINITY,
       retry: false,
       queryFn: async () =>
@@ -76,5 +76,5 @@ export function useCompareTrips(tripIds: string[]) {
       trips: results.flatMap((r) => (r.data ? [r.data] : [])),
       loading: results.some((r) => r.isPending),
     }),
-  })
+  });
 }

@@ -1,4 +1,4 @@
-'use client'
+"use client";
 
 /**
  * The basic-fields section of ScheduleFormDialog — departure time,
@@ -13,16 +13,16 @@
  * Extracted from the original 'src/features/admin/schedules/schedule-form.tsx'.
  */
 
-import { DatePicker } from '@spa/components/ui/date-picker'
-import { InfiniteSelect } from '@spa/components/ui/infinite-select'
-import { TimePicker } from '@spa/components/ui/time-picker'
-import { ComboboxField, type ComboboxFieldGroup } from '@spa/components/ui/combobox'
-import { FormField, FormItem, FormLabel, FormControl, FormMessage } from '@spa/components/ui/form'
-import { fetchVehicleTypesPage } from '@spa/features/admin/vehicle-types/api'
-import { useT } from '@spa/lib/i18n'
-import type { AdminBusLayoutOut, AdminVehicleTypeOut } from '@spa/api'
-import { vehicleCodeLabel } from '@spa/features/admin/brands/brand-tree-helpers'
-import { NO_LAYOUT, type ScheduleFormInstance } from './schedule-schema'
+import { DatePicker } from "@spa/components/ui/date-picker";
+import { InfiniteSelect } from "@spa/components/ui/infinite-select";
+import { TimePicker } from "@spa/components/ui/time-picker";
+import { ComboboxField, type ComboboxFieldGroup } from "@spa/components/ui/combobox";
+import { FormField, FormItem, FormLabel, FormControl, FormMessage } from "@spa/components/ui/form";
+import { fetchVehicleTypesPage } from "@spa/features/admin/vehicle-types/api";
+import { useT } from "@spa/lib/i18n";
+import type { AdminBusLayoutOut, AdminVehicleTypeOut } from "@spa/api";
+import { vehicleCodeLabel } from "@spa/features/admin/brands/brand-tree-helpers";
+import { NO_LAYOUT, type ScheduleFormInstance } from "./schedule-schema";
 
 /** Combobox group ordering — the catalog's sort order. */
 const CLASS_ORDER: Record<string, number> = {
@@ -31,7 +31,7 @@ const CLASS_ORDER: Record<string, number> = {
   semi_sleeper: 3,
   minivan: 4,
   standard: 5,
-}
+};
 
 export function ScheduleBasicsFields({
   form,
@@ -39,41 +39,41 @@ export function ScheduleBasicsFields({
   effectiveFrom,
   scheduleVehicleType,
 }: {
-  form: ScheduleFormInstance
-  busLayouts: AdminBusLayoutOut[]
-  effectiveFrom: string
-  scheduleVehicleType: AdminVehicleTypeOut | undefined
+  form: ScheduleFormInstance;
+  busLayouts: AdminBusLayoutOut[];
+  effectiveFrom: string;
+  scheduleVehicleType: AdminVehicleTypeOut | undefined;
 }) {
-  const t = useT()
+  const t = useT();
   // The vehicle picker: global canonical catalog + brand customs, one
   // group per vehicle class so "which bus" reads at a glance.
   const layoutGroups: ComboboxFieldGroup[] = (() => {
-    const byClass = new Map<string, AdminBusLayoutOut[]>()
+    const byClass = new Map<string, AdminBusLayoutOut[]>();
     for (const layout of busLayouts) {
-      const key = layout.vehicleType ?? 'custom'
-      const list = byClass.get(key) ?? []
-      list.push(layout)
-      byClass.set(key, list)
+      const key = layout.vehicleType ?? "custom";
+      const list = byClass.get(key) ?? [];
+      list.push(layout);
+      byClass.set(key, list);
     }
     const classes = [...byClass.keys()].sort(
       (a, b) => (CLASS_ORDER[a] ?? 9) - (CLASS_ORDER[b] ?? 9) || a.localeCompare(b),
-    )
+    );
     return classes.map((cls) => ({
-      label: cls === 'custom' ? t('adminSchedules.customLayoutGroup') : vehicleCodeLabel(cls),
+      label: cls === "custom" ? t("adminSchedules.customLayoutGroup") : vehicleCodeLabel(cls),
       items: (byClass.get(cls) ?? [])
         .slice()
         .sort((a, b) => (b.totalSeats ?? 0) - (a.totalSeats ?? 0))
         .map((l) => ({
           value: l.id,
           label: l.totalSeats
-            ? `${l.name ?? t('adminSchedules.layoutFallback')} · ${t('busLayouts.seatsCount', { count: l.totalSeats })}`
-            : (l.name ?? t('adminSchedules.layoutFallback')),
+            ? `${l.name ?? t("adminSchedules.layoutFallback")} · ${t("busLayouts.seatsCount", { count: l.totalSeats })}`
+            : (l.name ?? t("adminSchedules.layoutFallback")),
         })),
-    }))
-  })()
+    }));
+  })();
 
-  const busLayoutId = form.watch('busLayoutId')
-  const noLayout = !busLayoutId || busLayoutId === NO_LAYOUT
+  const busLayoutId = form.watch("busLayoutId");
+  const noLayout = !busLayoutId || busLayoutId === NO_LAYOUT;
 
   return (
     <>
@@ -84,10 +84,10 @@ export function ScheduleBasicsFields({
           render={({ field }) => (
             <FormItem className="grid gap-1.5">
               <FormLabel>
-                {t('brands.sortDeparture')} <span className="text-destructive">*</span>
+                {t("brands.sortDeparture")} <span className="text-destructive">*</span>
               </FormLabel>
               <FormControl>
-                <TimePicker value={field.value} onChange={(v) => field.onChange(v ?? '')} />
+                <TimePicker value={field.value} onChange={(v) => field.onChange(v ?? "")} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -98,26 +98,26 @@ export function ScheduleBasicsFields({
           name="busLayoutId"
           render={({ field }) => (
             <FormItem className="grid gap-1.5">
-              <FormLabel>{t('adminSchedules.vehicleLayout')}</FormLabel>
+              <FormLabel>{t("adminSchedules.vehicleLayout")}</FormLabel>
               <FormControl>
                 <ComboboxField
                   value={field.value || NO_LAYOUT}
-                  onValueChange={(v) => field.onChange(v === NO_LAYOUT ? '' : v)}
+                  onValueChange={(v) => field.onChange(v === NO_LAYOUT ? "" : v)}
                   items={[
                     {
-                      label: t('adminSchedules.noLayoutGroup'),
-                      items: [{ value: NO_LAYOUT, label: t('adminSchedules.noLayoutOption') }],
+                      label: t("adminSchedules.noLayoutGroup"),
+                      items: [{ value: NO_LAYOUT, label: t("adminSchedules.noLayoutOption") }],
                     },
                     ...layoutGroups,
                   ]}
-                  placeholder={t('adminSchedules.chooseSeatLayout')}
-                  searchPlaceholder={t('adminSchedules.searchSeatLayout')}
+                  placeholder={t("adminSchedules.chooseSeatLayout")}
+                  searchPlaceholder={t("adminSchedules.searchSeatLayout")}
                   emptyText={
                     busLayouts.length === 0
-                      ? t('adminSchedules.noLayoutsYet')
-                      : t('combobox.noMatch')
+                      ? t("adminSchedules.noLayoutsYet")
+                      : t("combobox.noMatch")
                   }
-                  aria-label={t('adminSchedules.vehicleLayout')}
+                  aria-label={t("adminSchedules.vehicleLayout")}
                 />
               </FormControl>
               <FormMessage />
@@ -134,7 +134,7 @@ export function ScheduleBasicsFields({
             render={({ field }) => (
               <FormItem className="grid gap-1.5">
                 <FormLabel>
-                  {t('adminSchedules.vehicleTypeManual')}{' '}
+                  {t("adminSchedules.vehicleTypeManual")}{" "}
                   <span className="text-destructive">*</span>
                 </FormLabel>
                 <FormControl>
@@ -142,12 +142,12 @@ export function ScheduleBasicsFields({
                     scope="vehicle-types"
                     fetchPage={fetchVehicleTypesPage}
                     value={field.value || null}
-                    onValueChange={(v) => field.onChange(v ?? '')}
+                    onValueChange={(v) => field.onChange(v ?? "")}
                     itemValue={(vt) => vt.id}
                     itemLabel={(vt) => vt.label}
                     extraItems={scheduleVehicleType ? [scheduleVehicleType] : []}
-                    placeholder={t('adminSchedules.chooseVehicleType')}
-                    searchPlaceholder={t('adminSchedules.searchVehicleType')}
+                    placeholder={t("adminSchedules.chooseVehicleType")}
+                    searchPlaceholder={t("adminSchedules.searchVehicleType")}
                   />
                 </FormControl>
                 <FormMessage />
@@ -155,7 +155,7 @@ export function ScheduleBasicsFields({
             )}
           />
           <p className="self-end text-xs text-muted-foreground pb-2">
-            {t('adminSchedules.vehicleLayoutHint')}
+            {t("adminSchedules.vehicleLayoutHint")}
           </p>
         </div>
       )}
@@ -167,13 +167,13 @@ export function ScheduleBasicsFields({
           render={({ field }) => (
             <FormItem className="grid gap-1.5">
               <FormLabel>
-                {t('adminSchedules.effectiveFrom')} <span className="text-destructive">*</span>
+                {t("adminSchedules.effectiveFrom")} <span className="text-destructive">*</span>
               </FormLabel>
               <FormControl>
                 <DatePicker
                   value={field.value}
-                  onChange={(v) => field.onChange(v ?? '')}
-                  placeholder={t('adminSchedules.chooseStartDate')}
+                  onChange={(v) => field.onChange(v ?? "")}
+                  placeholder={t("adminSchedules.chooseStartDate")}
                   clearable={false}
                 />
               </FormControl>
@@ -187,13 +187,13 @@ export function ScheduleBasicsFields({
           render={({ field }) => (
             <FormItem className="grid gap-1.5">
               <FormLabel>
-                {t('adminSchedules.effectiveTo')} <span className="text-destructive">*</span>
+                {t("adminSchedules.effectiveTo")} <span className="text-destructive">*</span>
               </FormLabel>
               <FormControl>
                 <DatePicker
                   value={field.value}
-                  onChange={(v) => field.onChange(v ?? '')}
-                  placeholder={t('adminSchedules.chooseEndDate')}
+                  onChange={(v) => field.onChange(v ?? "")}
+                  placeholder={t("adminSchedules.chooseEndDate")}
                   minDate={effectiveFrom || undefined}
                   clearable={false}
                 />
@@ -204,5 +204,5 @@ export function ScheduleBasicsFields({
         />
       </div>
     </>
-  )
+  );
 }

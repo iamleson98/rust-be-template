@@ -1,4 +1,4 @@
-'use client'
+"use client";
 
 /**
  * InfiniteSelect / InfiniteMultiSelect — searchable selects that page
@@ -41,9 +41,9 @@
  *   the last-resort fallback.
  */
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { useInfiniteQuery, keepPreviousData } from '@tanstack/react-query'
-import { Loader2, SearchIcon } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useInfiniteQuery, keepPreviousData } from "@tanstack/react-query";
+import { Loader2, SearchIcon } from "lucide-react";
 
 import {
   Combobox,
@@ -52,18 +52,18 @@ import {
   ComboboxItem,
   ComboboxList,
   ComboboxTrigger,
-} from '@spa/components/ui/combobox'
-import { useDebouncedValue } from '@spa/hooks/use-debounced-value'
-import { useT } from '@spa/lib/i18n'
-import { cn } from '@spa/lib/utils'
+} from "@spa/components/ui/combobox";
+import { useDebouncedValue } from "@spa/hooks/use-debounced-value";
+import { useT } from "@spa/lib/i18n";
+import { cn } from "@spa/lib/utils";
 
 /** One page of the paginated list the component consumes. */
 export interface InfinitePage<T> {
-  items: T[]
+  items: T[];
   /** Total rows matching the current filter (server-side count). */
-  total: number
+  total: number;
   /** Whether a next page exists (offset + items.length < total). */
-  hasMore: boolean
+  hasMore: boolean;
 }
 
 /**
@@ -77,22 +77,22 @@ export type InfiniteFetchPage<T> = (
   page: number,
   search: string,
   signal?: AbortSignal,
-) => Promise<InfinitePage<T>>
+) => Promise<InfinitePage<T>>;
 
 /** Shape a `{ items, total }` list response into an `InfinitePage` for the page at `offset`. */
 export function toInfinitePage<T>(
   body: { items?: T[]; total?: number } | undefined,
   offset: number,
 ): InfinitePage<T> {
-  const items = body?.items ?? []
-  const total = body?.total ?? 0
-  return { items, total, hasMore: offset + items.length < total }
+  const items = body?.items ?? [];
+  const total = body?.total ?? 0;
+  return { items, total, hasMore: offset + items.length < total };
 }
 
 /** Distance (px) before the list bottom that pre-triggers a page load. */
-const LOAD_MORE_MARGIN = 200
+const LOAD_MORE_MARGIN = 200;
 
-type Size = 'sm' | 'default'
+type Size = "sm" | "default";
 
 // ────────────────────────────────────────────────────────────────
 //  Shared internals
@@ -101,7 +101,7 @@ type Size = 'sm' | 'default'
 /** Shared infinite-query wiring for both select flavors. */
 function useInfiniteOptions<T>(scope: string, fetchPage: InfiniteFetchPage<T>, search: string) {
   return useInfiniteQuery({
-    queryKey: ['infinite-select', scope, search],
+    queryKey: ["infinite-select", scope, search],
     // Forward TanStack Query's signal so superseded searches are
     // aborted at the HTTP level (see InfiniteFetchPage).
     queryFn: ({ pageParam, signal }) => fetchPage(pageParam as number, search, signal),
@@ -110,7 +110,7 @@ function useInfiniteOptions<T>(scope: string, fetchPage: InfiniteFetchPage<T>, s
       lastPage.hasMore ? allPages.length : undefined,
     placeholderData: keepPreviousData,
     staleTime: 30 * 1000,
-  })
+  });
 }
 
 /** Merge extras in front of the fetched pages (deduped by itemValue). */
@@ -120,12 +120,12 @@ function useMergedItems<T>(
   itemValue: (item: T) => string,
 ): T[] {
   return useMemo(() => {
-    const fetched = pages?.flatMap((p) => p.items) ?? []
-    if (!extraItems?.length) return fetched
-    const seen = new Set(fetched.map(itemValue))
-    const extras = extraItems.filter((e) => !seen.has(itemValue(e)))
-    return [...extras, ...fetched]
-  }, [pages, extraItems, itemValue])
+    const fetched = pages?.flatMap((p) => p.items) ?? [];
+    if (!extraItems?.length) return fetched;
+    const seen = new Set(fetched.map(itemValue));
+    const extras = extraItems.filter((e) => !seen.has(itemValue(e)));
+    return [...extras, ...fetched];
+  }, [pages, extraItems, itemValue]);
 }
 
 /**
@@ -145,72 +145,72 @@ function useLoadMoreSentinel(
   isFetchingNextPage: boolean,
   fetchNextPage: () => void,
 ) {
-  const [listEl, setListEl] = useState<HTMLDivElement | null>(null)
-  const [sentinelEl, setSentinelEl] = useState<HTMLDivElement | null>(null)
-  const fetchRef = useRef(fetchNextPage)
+  const [listEl, setListEl] = useState<HTMLDivElement | null>(null);
+  const [sentinelEl, setSentinelEl] = useState<HTMLDivElement | null>(null);
+  const fetchRef = useRef(fetchNextPage);
   // Keep the ref pointing at the LATEST callback without writing during
   // render (unsafe under concurrent rendering — a discarded render would
   // leave a stale ref). Effects run after commit, so async consumers
   // (IntersectionObserver) always see the committed value.
   useEffect(() => {
-    fetchRef.current = fetchNextPage
-  })
+    fetchRef.current = fetchNextPage;
+  });
 
   useEffect(() => {
-    if (!enabled || !listEl || !sentinelEl) return
+    if (!enabled || !listEl || !sentinelEl) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries.some((e) => e.isIntersecting) && hasNextPage && !isFetchingNextPage) {
-          fetchRef.current()
+          fetchRef.current();
         }
       },
       // Watch from inside the scrolling list; start loading a bit
       // before the user actually hits the bottom.
       { root: listEl, rootMargin: `${LOAD_MORE_MARGIN}px` },
-    )
-    observer.observe(sentinelEl)
-    return () => observer.disconnect()
-  }, [enabled, listEl, sentinelEl, hasNextPage, isFetchingNextPage])
+    );
+    observer.observe(sentinelEl);
+    return () => observer.disconnect();
+  }, [enabled, listEl, sentinelEl, hasNextPage, isFetchingNextPage]);
 
-  return { listRef: setListEl, sentinelRef: setSentinelEl }
+  return { listRef: setListEl, sentinelRef: setSentinelEl };
 }
 
 const listSurface = (className?: string) =>
-  cn('max-h-72 overflow-y-auto overscroll-contain p-1', className)
+  cn("max-h-72 overflow-y-auto overscroll-contain p-1", className);
 
 function ListFooter({
   isLoading,
   isFetchingNextPage,
   hasItems,
 }: {
-  isLoading: boolean
-  isFetchingNextPage: boolean
-  hasItems: boolean
+  isLoading: boolean;
+  isFetchingNextPage: boolean;
+  hasItems: boolean;
 }) {
-  const t = useT()
+  const t = useT();
   if (isLoading) {
     return (
       <div className="flex items-center justify-center gap-2 py-6 text-xs text-muted-foreground">
-        <Loader2 className="h-3.5 w-3.5 animate-spin" /> {t('ui.loading')}
+        <Loader2 className="h-3.5 w-3.5 animate-spin" /> {t("ui.loading")}
       </div>
-    )
+    );
   }
   if (isFetchingNextPage) {
     return (
       <div className="flex items-center justify-center gap-2 py-2 text-xs text-muted-foreground">
-        <Loader2 className="h-3.5 w-3.5 animate-spin" /> {t('ui.loadingMore')}
+        <Loader2 className="h-3.5 w-3.5 animate-spin" /> {t("ui.loadingMore")}
       </div>
-    )
+    );
   }
   if (!hasItems) {
     return (
-      <div className="py-6 text-center text-sm text-muted-foreground">{t('combobox.noMatch')}</div>
-    )
+      <div className="py-6 text-center text-sm text-muted-foreground">{t("combobox.noMatch")}</div>
+    );
   }
   // All loaded — no footer; the list simply ends, matching the plain
   // Select / Combobox behaviour.
-  return null
+  return null;
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -219,26 +219,26 @@ function ListFooter({
 
 export interface InfiniteSelectProps<T> {
   /** Stable identity for the TanStack Query cache key. */
-  scope: string
-  fetchPage: InfiniteFetchPage<T>
-  value: string | null | undefined
-  onValueChange: (value: string | null) => void
-  itemValue: (item: T) => string
-  itemLabel: (item: T) => string
+  scope: string;
+  fetchPage: InfiniteFetchPage<T>;
+  value: string | null | undefined;
+  onValueChange: (value: string | null) => void;
+  itemValue: (item: T) => string;
+  itemLabel: (item: T) => string;
   /** Trigger rendering of the selected item (default: `itemLabel`). */
-  renderValue?: (item: T | undefined, rawValue: string | null) => ReactNode
+  renderValue?: (item: T | undefined, rawValue: string | null) => ReactNode;
   /** Row rendering (default: `itemLabel`). */
-  renderItem?: (item: T, selected: boolean) => ReactNode
+  renderItem?: (item: T, selected: boolean) => ReactNode;
   /** Items always available (selected-on-edit / just-created). */
-  extraItems?: T[]
-  placeholder?: string
-  searchPlaceholder?: string
+  extraItems?: T[];
+  placeholder?: string;
+  searchPlaceholder?: string;
   /** Hide the search input (small fixed lists). Default: shown. */
-  searchable?: boolean
-  disabled?: boolean
-  size?: Size
-  className?: string
-  id?: string
+  searchable?: boolean;
+  disabled?: boolean;
+  size?: Size;
+  className?: string;
+  id?: string;
 }
 
 export function InfiniteSelect<T>({
@@ -255,52 +255,52 @@ export function InfiniteSelect<T>({
   searchPlaceholder,
   searchable = true,
   disabled,
-  size = 'default',
+  size = "default",
   className,
   id,
 }: InfiniteSelectProps<T>) {
-  const t = useT()
-  const [search, setSearch] = useState('')
-  const debouncedSearch = useDebouncedValue(search, 250)
-  const effectivePlaceholder = placeholder ?? t('ui.choose')
-  const effectiveSearchPlaceholder = searchPlaceholder ?? t('ui.search')
+  const t = useT();
+  const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search, 250);
+  const effectivePlaceholder = placeholder ?? t("ui.choose");
+  const effectiveSearchPlaceholder = searchPlaceholder ?? t("ui.search");
 
-  const query = useInfiniteOptions(scope, fetchPage, debouncedSearch)
-  const items = useMergedItems(query.data?.pages, extraItems, itemValue)
+  const query = useInfiniteOptions(scope, fetchPage, debouncedSearch);
+  const items = useMergedItems(query.data?.pages, extraItems, itemValue);
 
   const selected = useMemo(
     () => items.find((i) => itemValue(i) === value),
     [items, value, itemValue],
-  )
+  );
 
   const { listRef, sentinelRef } = useLoadMoreSentinel(
     true,
     !!query.hasNextPage,
     query.isFetchingNextPage,
     () => void query.fetchNextPage(),
-  )
+  );
 
   const triggerLabel = renderValue
     ? renderValue(selected, value ?? null)
     : selected
       ? itemLabel(selected)
-      : (value ?? effectivePlaceholder)
+      : (value ?? effectivePlaceholder);
 
   return (
     <Combobox
-      value={value ?? ''}
+      value={value ?? ""}
       onValueChange={(v) => onValueChange(v || null)}
       onInputValueChange={(v) => setSearch(v)}
     >
       <ComboboxTrigger
         id={id}
         disabled={disabled}
-        className={cn('w-full', size === 'sm' && 'h-8', className)}
+        className={cn("w-full", size === "sm" && "h-8", className)}
       >
         <span
           className={cn(
-            'flex min-w-0 flex-1 items-center gap-2 text-left',
-            !selected && !value && 'text-muted-foreground',
+            "flex min-w-0 flex-1 items-center gap-2 text-left",
+            !selected && !value && "text-muted-foreground",
           )}
         >
           <span className="truncate">{triggerLabel}</span>
@@ -315,7 +315,7 @@ export function InfiniteSelect<T>({
         ) : null}
         <ComboboxList ref={listRef} className={listSurface()}>
           {items.map((item) => {
-            const v = itemValue(item)
+            const v = itemValue(item);
             return (
               <ComboboxItem key={v} value={v}>
                 {renderItem ? (
@@ -324,7 +324,7 @@ export function InfiniteSelect<T>({
                   <span className="truncate">{itemLabel(item)}</span>
                 )}
               </ComboboxItem>
-            )
+            );
           })}
           <ListFooter
             isLoading={query.isLoading}
@@ -336,7 +336,7 @@ export function InfiniteSelect<T>({
         </ComboboxList>
       </ComboboxContent>
     </Combobox>
-  )
+  );
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -345,25 +345,25 @@ export function InfiniteSelect<T>({
 
 export interface InfiniteMultiSelectProps<T> {
   /** Stable identity for the TanStack Query cache key. */
-  scope: string
-  fetchPage: InfiniteFetchPage<T>
-  values: string[]
-  onValuesChange: (values: string[]) => void
-  itemValue: (item: T) => string
-  itemLabel: (item: T) => string
-  renderItem?: (item: T, selected: boolean) => ReactNode
+  scope: string;
+  fetchPage: InfiniteFetchPage<T>;
+  values: string[];
+  onValuesChange: (values: string[]) => void;
+  itemValue: (item: T) => string;
+  itemLabel: (item: T) => string;
+  renderItem?: (item: T, selected: boolean) => ReactNode;
   /** Items always available (selected-on-edit / just-created). */
-  extraItems?: T[]
-  placeholder?: string
-  searchPlaceholder?: string
+  extraItems?: T[];
+  placeholder?: string;
+  searchPlaceholder?: string;
   /** Hide the search input (small fixed lists). Default: shown. */
-  searchable?: boolean
-  disabled?: boolean
-  size?: Size
-  className?: string
+  searchable?: boolean;
+  disabled?: boolean;
+  size?: Size;
+  className?: string;
   /** Max badges rendered in the trigger before "+N". Default 2. */
-  maxBadges?: number
-  id?: string
+  maxBadges?: number;
+  id?: string;
 }
 
 /**
@@ -390,36 +390,36 @@ export function InfiniteMultiSelect<T>({
   searchPlaceholder,
   searchable = true,
   disabled,
-  size = 'default',
+  size = "default",
   className,
   maxBadges = 2,
   id,
 }: InfiniteMultiSelectProps<T>) {
-  const t = useT()
-  const [search, setSearch] = useState('')
-  const debouncedSearch = useDebouncedValue(search, 250)
-  const effectivePlaceholder = placeholder ?? t('ui.choose')
-  const effectiveSearchPlaceholder = searchPlaceholder ?? t('ui.search')
+  const t = useT();
+  const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search, 250);
+  const effectivePlaceholder = placeholder ?? t("ui.choose");
+  const effectiveSearchPlaceholder = searchPlaceholder ?? t("ui.search");
 
-  const query = useInfiniteOptions(scope, fetchPage, debouncedSearch)
-  const items = useMergedItems(query.data?.pages, extraItems, itemValue)
+  const query = useInfiniteOptions(scope, fetchPage, debouncedSearch);
+  const items = useMergedItems(query.data?.pages, extraItems, itemValue);
 
   const labelByValue = useMemo(() => {
-    const m = new Map<string, string>()
-    for (const item of items) m.set(itemValue(item), itemLabel(item))
-    return m
-  }, [items, itemValue, itemLabel])
+    const m = new Map<string, string>();
+    for (const item of items) m.set(itemValue(item), itemLabel(item));
+    return m;
+  }, [items, itemValue, itemLabel]);
 
   const { listRef, sentinelRef } = useLoadMoreSentinel(
     true,
     !!query.hasNextPage,
     query.isFetchingNextPage,
     () => void query.fetchNextPage(),
-  )
+  );
 
-  const selectedValues = useMemo(() => new Set(values), [values])
-  const badges = values.slice(0, maxBadges)
-  const overflow = values.length - badges.length
+  const selectedValues = useMemo(() => new Set(values), [values]);
+  const badges = values.slice(0, maxBadges);
+  const overflow = values.length - badges.length;
 
   return (
     <Combobox<string, true>
@@ -431,7 +431,7 @@ export function InfiniteMultiSelect<T>({
       <ComboboxTrigger
         id={id}
         disabled={disabled}
-        className={cn('w-full', size === 'sm' && 'h-8', className)}
+        className={cn("w-full", size === "sm" && "h-8", className)}
       >
         {values.length === 0 ? (
           <span className="flex-1 truncate text-left text-muted-foreground">
@@ -462,7 +462,7 @@ export function InfiniteMultiSelect<T>({
         ) : null}
         <ComboboxList ref={listRef} className={listSurface()}>
           {items.map((item) => {
-            const v = itemValue(item)
+            const v = itemValue(item);
             return (
               <ComboboxItem key={v} value={v}>
                 {renderItem ? (
@@ -471,7 +471,7 @@ export function InfiniteMultiSelect<T>({
                   <span className="truncate">{itemLabel(item)}</span>
                 )}
               </ComboboxItem>
-            )
+            );
           })}
           <ListFooter
             isLoading={query.isLoading}
@@ -483,5 +483,5 @@ export function InfiniteMultiSelect<T>({
         </ComboboxList>
       </ComboboxContent>
     </Combobox>
-  )
+  );
 }

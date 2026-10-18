@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react'
-import { useMutation, useQuery } from '@tanstack/react-query'
-import { toast } from 'sonner'
+import { useMemo, useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
 import {
   chatMarkReadMutation,
   chatStatsOptions,
@@ -9,70 +9,70 @@ import {
   postMessageMutation,
   releaseChannelMutation,
   type ChatChannelOut,
-} from '@spa/api'
-import { useChatChannelsInfinite, useChatMessagesInfinite } from '@spa/features/chat/api'
-import { useTypingBroadcast } from '@spa/features/chat/use-typing-broadcast'
-import { getErrorMessage } from '@spa/lib/error-message'
-import { tSync } from '@spa/lib/i18n'
-import { onlineFirst } from './customer-presence'
-import { useAdminChatSocket } from './use-admin-chat-socket'
+} from "@spa/api";
+import { useChatChannelsInfinite, useChatMessagesInfinite } from "@spa/features/chat/api";
+import { useTypingBroadcast } from "@spa/features/chat/use-typing-broadcast";
+import { getErrorMessage } from "@spa/lib/error-message";
+import { tSync } from "@spa/lib/i18n";
+import { onlineFirst } from "./customer-presence";
+import { useAdminChatSocket } from "./use-admin-chat-socket";
 
-const PAGE_SIZE = 30
+const PAGE_SIZE = 30;
 
 /** Everything the staff chat workspace shows and does: queue, open conversation, live state. */
 export function useAdminChat() {
-  const [active, setActive] = useState<ChatChannelOut | null>(null)
-  const [mineOnly, setMineOnly] = useState(false)
-  const [replyText, setReplyText] = useState('')
+  const [active, setActive] = useState<ChatChannelOut | null>(null);
+  const [mineOnly, setMineOnly] = useState(false);
+  const [replyText, setReplyText] = useState("");
 
-  const queue = useChatChannelsInfinite(PAGE_SIZE)
-  const stats = useQuery({ ...chatStatsOptions(), refetchInterval: 15_000 })
-  const thread = useChatMessagesInfinite(active?.id)
-  const loadedIds = useMemo(() => new Set(queue.channels.map((c) => c.id)), [queue.channels])
-  const live = useAdminChatSocket(active?.id, loadedIds)
-  const typing = useTypingBroadcast(active?.id, live.sendTyping)
+  const queue = useChatChannelsInfinite(PAGE_SIZE);
+  const stats = useQuery({ ...chatStatsOptions(), refetchInterval: 15_000 });
+  const thread = useChatMessagesInfinite(active?.id);
+  const loadedIds = useMemo(() => new Set(queue.channels.map((c) => c.id)), [queue.channels]);
+  const live = useAdminChatSocket(active?.id, loadedIds);
+  const typing = useTypingBroadcast(active?.id, live.sendTyping);
 
-  const { mutate: markRead } = useMutation(chatMarkReadMutation())
+  const { mutate: markRead } = useMutation(chatMarkReadMutation());
   const claim = useMutation({
     ...claimChannelMutation(),
-    onSuccess: () => toast.success(tSync('adminChat.claimed')),
-    onError: (e) => toast.error(getErrorMessage(e, tSync('adminChat.claimFailed'))),
-  })
+    onSuccess: () => toast.success(tSync("adminChat.claimed")),
+    onError: (e) => toast.error(getErrorMessage(e, tSync("adminChat.claimFailed"))),
+  });
   const release = useMutation({
     ...releaseChannelMutation(),
-    onSuccess: () => toast.success(tSync('adminChat.released')),
-    onError: (e) => toast.error(getErrorMessage(e, tSync('adminChat.releaseFailed'))),
-  })
+    onSuccess: () => toast.success(tSync("adminChat.released")),
+    onError: (e) => toast.error(getErrorMessage(e, tSync("adminChat.releaseFailed"))),
+  });
   const close = useMutation({
     ...closeChannelMutation(),
     onSuccess: () => {
-      toast.success(tSync('adminChat.channelClosed'))
-      setActive(null)
+      toast.success(tSync("adminChat.channelClosed"));
+      setActive(null);
     },
-    onError: (e) => toast.error(getErrorMessage(e, tSync('adminChat.closeFailed'))),
-  })
+    onError: (e) => toast.error(getErrorMessage(e, tSync("adminChat.closeFailed"))),
+  });
   const reply = useMutation({
     ...postMessageMutation(),
-    onSuccess: () => setReplyText(''),
-    onError: () => toast.error(tSync('chat.sendFailed')),
-  })
+    onSuccess: () => setReplyText(""),
+    onError: () => toast.error(tSync("chat.sendFailed")),
+  });
   // A ticket card follows a booking that already exists, so a failed post is not worth a toast.
-  const { mutate: postTicketCard } = useMutation(postMessageMutation())
+  const { mutate: postTicketCard } = useMutation(postMessageMutation());
 
   // Online customers first. "Mine" keeps the channels assigned to this staff
   // member plus the unassigned queue; closed ones stay for context.
   const listed = useMemo(() => {
-    const mine = (c: ChatChannelOut) => c.assignedToMe || (!c.assignedTo && c.status !== 'closed')
-    const all = onlineFirst(queue.channels, live.onlineChannels, live.onlineUserIds)
-    if (!mineOnly) return { ...all, total: all.channels.length }
-    const channels = all.channels.filter(mine)
+    const mine = (c: ChatChannelOut) => c.assignedToMe || (!c.assignedTo && c.status !== "closed");
+    const all = onlineFirst(queue.channels, live.onlineChannels, live.onlineUserIds);
+    if (!mineOnly) return { ...all, total: all.channels.length };
+    const channels = all.channels.filter(mine);
     return {
       channels,
       onlineCount: channels.filter((c) => live.onlineUserIds.has(c.userId)).length,
       total: all.channels.length,
-    }
-  }, [queue.channels, live.onlineChannels, live.onlineUserIds, mineOnly])
-  const id = active?.id
+    };
+  }, [queue.channels, live.onlineChannels, live.onlineUserIds, mineOnly]);
+  const id = active?.id;
 
   return {
     queue: {
@@ -93,15 +93,15 @@ export function useAdminChat() {
     stats: stats.data,
     active,
     open: (channel: ChatChannelOut) => {
-      setActive(channel)
-      markRead({ path: { id: channel.id } })
+      setActive(channel);
+      markRead({ path: { id: channel.id } });
     },
     /** Back to the queue (phones show one pane at a time). */
     back: () => setActive(null),
     // Blocking is a stub: it only tells the staff member and leaves the conversation.
     block: () => {
-      toast.success(tSync('chat.blocked'), { description: tSync('chat.blockedDesc') })
-      setActive(null)
+      toast.success(tSync("chat.blocked"), { description: tSync("chat.blockedDesc") });
+      setActive(null);
     },
     claim: () => id && claim.mutate({ path: { id } }),
     release: () => id && release.mutate({ path: { id } }),
@@ -118,28 +118,28 @@ export function useAdminChat() {
       replyText,
       sending: reply.isPending,
       setReplyText: (text: string) => {
-        setReplyText(text)
-        typing.ping()
+        setReplyText(text);
+        typing.ping();
       },
       sendReply: () => {
-        const content = replyText.trim()
-        if (!content || !id) return
-        typing.stop()
-        reply.mutate({ path: { id }, body: { content, kind: 'text' } })
+        const content = replyText.trim();
+        if (!content || !id) return;
+        typing.stop();
+        reply.mutate({ path: { id }, body: { content, kind: "text" } });
       },
       sendTicketCard: (payload: { bookingCode: string }) => {
-        if (!id) return
+        if (!id) return;
         postTicketCard({
           path: { id },
           body: {
-            content: tSync('adminChat.ticketCardNote', { code: payload.bookingCode }),
-            kind: 'ticket',
+            content: tSync("adminChat.ticketCardNote", { code: payload.bookingCode }),
+            kind: "ticket",
             attachments: JSON.stringify(payload),
           },
-        })
+        });
       },
     },
-  }
+  };
 }
 
-export type AdminChat = ReturnType<typeof useAdminChat>
+export type AdminChat = ReturnType<typeof useAdminChat>;

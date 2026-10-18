@@ -1,18 +1,18 @@
-import { memo } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { BadgeCheck, Star } from 'lucide-react'
-import { reviewsListOptions } from '@spa/api'
-import { formatDay } from '@spa/lib/format'
-import { useT } from '@spa/lib/i18n'
-import { cn } from '@spa/lib/utils'
-import { HomeSection, RAIL, RailSkeleton } from './section'
+import { memo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { BadgeCheck, Star } from "lucide-react";
+import { reviewsListOptions } from "@spa/api";
+import { formatDay } from "@spa/lib/format";
+import { useT } from "@spa/lib/i18n";
+import { cn } from "@spa/lib/utils";
+import { HomeSection, RAIL, RailSkeleton } from "./section";
 
 const initials = (name: string) => {
-  const parts = name.trim().split(/\s+/)
+  const parts = name.trim().split(/\s+/);
   return (
-    parts.length >= 2 ? parts.at(-2)![0] + parts.at(-1)![0] : (parts[0]?.[0] ?? '?')
-  ).toUpperCase()
-}
+    parts.length >= 2 ? parts.at(-2)![0] + parts.at(-1)![0] : (parts[0]?.[0] ?? "?")
+  ).toUpperCase();
+};
 
 /**
  * The latest real reviews (`GET /api/reviews`); nothing at all while there
@@ -20,18 +20,18 @@ const initials = (name: string) => {
  * server accepts those only from the traveller who completed that trip.
  */
 export const Testimonials = memo(function Testimonials() {
-  const t = useT()
-  const { data, isLoading } = useQuery(reviewsListOptions({ query: { limit: 6 } }))
-  const items = data?.items ?? []
+  const t = useT();
+  const { data, isLoading } = useQuery(reviewsListOptions({ query: { limit: 6 } }));
+  const items = data?.items ?? [];
 
-  if (isLoading) return <RailSkeleton count={3} cols="lg:grid-cols-3" />
-  if (items.length === 0) return null
+  if (isLoading) return <RailSkeleton count={3} cols="lg:grid-cols-3" />;
+  if (items.length === 0) return null;
 
   return (
-    <HomeSection title={t('home.testimonialsTitle')} subtitle={t('home.testimonialsSubtitle')}>
-      <div className={cn(RAIL, 'lg:grid-cols-3')}>
+    <HomeSection title={t("home.testimonialsTitle")} subtitle={t("home.testimonialsSubtitle")}>
+      <div className={cn(RAIL, "lg:grid-cols-3")}>
         {items.map((item) => {
-          const author = item.authorName ?? t('home.anonymousReviewer')
+          const author = item.authorName ?? t("home.anonymousReviewer");
           return (
             <figure
               key={item.id}
@@ -43,10 +43,10 @@ export const Testimonials = memo(function Testimonials() {
                     <Star
                       key={i}
                       className={cn(
-                        'size-4',
+                        "size-4",
                         i < item.rating
-                          ? 'fill-amber-400 text-amber-400'
-                          : 'fill-slate-200 text-slate-200',
+                          ? "fill-amber-400 text-amber-400"
+                          : "fill-slate-200 text-slate-200",
                       )}
                     />
                   ))}
@@ -54,7 +54,7 @@ export const Testimonials = memo(function Testimonials() {
                 {item.bookingId && (
                   <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
                     <BadgeCheck className="size-3.5" aria-hidden />
-                    {t('trust.verifiedTrip')}
+                    {t("trust.verifiedTrip")}
                   </span>
                 )}
               </div>
@@ -78,9 +78,9 @@ export const Testimonials = memo(function Testimonials() {
                 </span>
               </figcaption>
             </figure>
-          )
+          );
         })}
       </div>
     </HomeSection>
-  )
-})
+  );
+});

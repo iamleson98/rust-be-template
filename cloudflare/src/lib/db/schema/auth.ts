@@ -167,10 +167,7 @@ export const userRoles = sqliteTable(
       .references(() => roles.id, { onDelete: "cascade" }),
     assignedAt: text("assigned_at").notNull().default("(datetime('now'))"),
   },
-  (t) => [
-    index("idx_user_roles_user").on(t.userId),
-    index("idx_user_roles_role").on(t.roleId),
-  ],
+  (t) => [index("idx_user_roles_user").on(t.userId), index("idx_user_roles_role").on(t.roleId)],
 );
 
 export const rolePermissions = sqliteTable(

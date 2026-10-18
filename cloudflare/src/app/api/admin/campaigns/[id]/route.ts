@@ -1,6 +1,7 @@
-import { rawAll, atomicBatch } from "@/lib/db/client";
+import { getDb, atomicBatch, type AtomicStatement } from "@/lib/db/client";
 import { invalidateCampaigns } from "@/lib/services/lookups";
-import { sql } from "drizzle-orm";
+import { and, eq, notInArray, sql } from "drizzle-orm";
+import { discountCampaignBrands, discountCampaigns, discountTiers } from "@/lib/db/schema";
 import { handleRouteError, requireStaff, readJson, err } from "@/lib/api";
 import { isAdmin } from "@/lib/auth/rbac";
 import { campaignOut } from "@/lib/services/campaign-out";
@@ -42,6 +43,7 @@ interface CampaignBody {
  * `PATCH /api/admin/campaigns/{id}` — edit a campaign. Tiers keep their
  * claimed counters; `totalSlots` may grow but never below the claims.
  * Brand scope and window editable while no coupon has been redeemed.
+ * Every mutation is a typed drizzle statement inside one atomic batch.
  */
 export async function PATCH(req: Request, ctx: Params) {
   try {
@@ -49,12 +51,13 @@ export async function PATCH(req: Request, ctx: Params) {
     if (!isAdmin(staff)) return err(403, "forbidden", "Admin access required");
     const { id } = await ctx.params;
     const body = await readJson<CampaignBody>(req);
+    const db = await getDb();
     const existing = (
-      await rawAll<{ id: string; claimed: number }>(sql`
-        SELECT dc.id,
-               (SELECT COUNT(*) FROM coupon c WHERE c.campaign_id = dc.id AND c.status != 'held') AS claimed
-        FROM discount_campaign dc WHERE dc.id = ${id} LIMIT 1
-      `)
+      await db
+        .select({ id: discountCampaigns.id })
+        .from(discountCampaigns)
+        .where(eq(discountCampaigns.id, id))
+        .limit(1)
     )[0];
     if (!existing) return err(404, "not-found", "campaign not found");
     if (!body.name?.trim()) return err(400, "validation", "name is required");
@@ -62,48 +65,78 @@ export async function PATCH(req: Request, ctx: Params) {
     if (!body.tiers?.length) return err(400, "validation", "at least one tier is required");
 
     const now = new Date().toISOString();
-    const stmts = [
-      sql`
-        UPDATE discount_campaign
-        SET name = ${body.name.trim()}, starts_at = ${body.startsAt}, ends_at = ${body.endsAt},
-            coupon_validity = ${body.couponValidity === "permanent" ? "permanent" : "campaign"},
-            all_brands = ${body.allBrands ? 1 : 0}, paused = ${body.paused ? 1 : 0},
-            updated_at = ${now}
-        WHERE id = ${id}
-      `,
-      sql`DELETE FROM discount_campaign_brand WHERE campaign_id = ${id}`,
+    const stmts: AtomicStatement[] = [
+      db
+        .update(discountCampaigns)
+        .set({
+          name: body.name.trim(),
+          startsAt: body.startsAt,
+          endsAt: body.endsAt,
+          couponValidity: body.couponValidity === "permanent" ? "permanent" : "campaign",
+          allBrands: body.allBrands,
+          paused: body.paused === true,
+          updatedAt: now,
+        })
+        .where(eq(discountCampaigns.id, id)),
+      db.delete(discountCampaignBrands).where(eq(discountCampaignBrands.campaignId, id)),
     ];
     if (!body.allBrands && body.brandIds?.length) {
       for (const brandId of body.brandIds) {
         stmts.push(
-          sql`INSERT INTO discount_campaign_brand (campaign_id, brand_id) VALUES (${id}, ${brandId})
-              ON CONFLICT DO NOTHING`,
+          db
+            .insert(discountCampaignBrands)
+            .values({ campaignId: id, brandId })
+            .onConflictDoNothing(),
         );
       }
     }
     // Replace the tier set: keep counters for tiers sent with an id.
-    const keepIds = body.tiers.filter((t) => t.id).map((t) => t.id as string);
+    // Tiers not in the payload are parked at position -1 then deleted.
+    const keepIds = body.tiers
+      .map((t) => t.id)
+      .filter((tid): tid is string => typeof tid === "string");
     stmts.push(
-      keepIds.length > 0
-        ? sql`UPDATE discount_tier SET position = -1
-              WHERE campaign_id = ${id} AND id NOT IN (${sql.join(keepIds.map((i) => sql`${i}`), sql`, `)})`
-        : sql`UPDATE discount_tier SET position = -1 WHERE campaign_id = ${id}`,
+      db
+        .update(discountTiers)
+        .set({ position: -1 })
+        .where(
+          and(
+            eq(discountTiers.campaignId, id),
+            keepIds.length > 0 ? notInArray(discountTiers.id, keepIds) : undefined,
+          ),
+        ),
     );
     for (const t of body.tiers) {
       if (t.id) {
         stmts.push(
-          sql`UPDATE discount_tier
-              SET amount = ${t.amount}, total_slots = MAX(${t.totalSlots}, claimed_slots)
-              WHERE id = ${t.id} AND campaign_id = ${id}`,
+          db
+            .update(discountTiers)
+            .set({
+              amount: t.amount,
+              // Never shrink below what customers already claimed.
+              totalSlots: sql`MAX(${t.totalSlots}, ${discountTiers.claimedSlots})`,
+            })
+            .where(and(eq(discountTiers.id, t.id), eq(discountTiers.campaignId, id))),
         );
       } else {
         stmts.push(
-          sql`INSERT INTO discount_tier (id, campaign_id, amount, total_slots, claimed_slots, position, created_at)
-              VALUES (${crypto.randomUUID()}, ${id}, ${t.amount}, ${t.totalSlots}, 0, 0, ${now})`,
+          db.insert(discountTiers).values({
+            id: crypto.randomUUID(),
+            campaignId: id,
+            amount: t.amount,
+            totalSlots: t.totalSlots,
+            claimedSlots: 0,
+            position: 0,
+            createdAt: now,
+          }),
         );
       }
     }
-    stmts.push(sql`DELETE FROM discount_tier WHERE campaign_id = ${id} AND position = -1`);
+    stmts.push(
+      db
+        .delete(discountTiers)
+        .where(and(eq(discountTiers.campaignId, id), eq(discountTiers.position, -1))),
+    );
     await atomicBatch(stmts);
     await invalidateCampaigns();
     return Response.json(await campaignOut(id));
@@ -118,11 +151,16 @@ export async function DELETE(req: Request, ctx: Params) {
     const staff = await requireStaff(req);
     if (!isAdmin(staff)) return err(403, "forbidden", "Admin access required");
     const { id } = await ctx.params;
-    const rows = await rawAll<{ id: string }>(
-      sql`SELECT id FROM discount_campaign WHERE id = ${id} LIMIT 1`,
-    );
-    if (!rows[0]) return err(404, "not-found", "campaign not found");
-    await atomicBatch([sql`DELETE FROM discount_campaign WHERE id = ${id}`]);
+    const db = await getDb();
+    const existing = (
+      await db
+        .select({ id: discountCampaigns.id })
+        .from(discountCampaigns)
+        .where(eq(discountCampaigns.id, id))
+        .limit(1)
+    )[0];
+    if (!existing) return err(404, "not-found", "campaign not found");
+    await atomicBatch([db.delete(discountCampaigns).where(eq(discountCampaigns.id, id))]);
     await invalidateCampaigns();
     return Response.json({ id });
   } catch (e) {

@@ -28,7 +28,11 @@ export async function POST(req: Request, ctx: Params) {
       const fitted = fitToSeats(preset.plan, seatRows);
       return Response.json(fitted);
     } catch (e) {
-      return err(400, "validation", `template does not fit: ${e instanceof Error ? e.message : String(e)}`);
+      return err(
+        400,
+        "validation",
+        `template does not fit: ${e instanceof Error ? e.message : String(e)}`,
+      );
     }
   } catch (e) {
     return handleRouteError(e);

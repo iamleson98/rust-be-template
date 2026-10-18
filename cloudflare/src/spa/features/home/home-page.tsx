@@ -9,31 +9,31 @@
  * shell bundle so it paints immediately; the rest stream in as chunks
  * download.
  */
-import { lazy, Suspense } from 'react'
-import { Hero } from '@spa/features/home/hero'
-import { TrustCommitments } from '@spa/features/home/trust-commitments'
-import { IslandFallback } from '../../components/island-fallback'
+import { lazy, Suspense } from "react";
+import { Hero } from "@spa/features/home/hero";
+import { TrustCommitments } from "@spa/features/home/trust-commitments";
+import { IslandFallback } from "../../components/island-fallback";
 
 const CampaignSpotlight = lazy(() =>
-  import('@spa/features/campaigns/campaign-spotlight').then((m) => ({
+  import("@spa/features/campaigns/campaign-spotlight").then((m) => ({
     default: m.CampaignSpotlight,
   })),
-)
+);
 const RecentlyViewed = lazy(() =>
-  import('@spa/features/home/recently-viewed').then((m) => ({ default: m.RecentlyViewed })),
-)
+  import("@spa/features/home/recently-viewed").then((m) => ({ default: m.RecentlyViewed })),
+);
 const PopularRoutes = lazy(() =>
-  import('@spa/features/home/popular-routes').then((m) => ({ default: m.PopularRoutes })),
-)
+  import("@spa/features/home/popular-routes").then((m) => ({ default: m.PopularRoutes })),
+);
 const BrandShowcase = lazy(() =>
-  import('@spa/features/brand/brand-showcase').then((m) => ({ default: m.BrandShowcase })),
-)
+  import("@spa/features/brand/brand-showcase").then((m) => ({ default: m.BrandShowcase })),
+);
 const Testimonials = lazy(() =>
-  import('@spa/features/home/testimonials').then((m) => ({ default: m.Testimonials })),
-)
+  import("@spa/features/home/testimonials").then((m) => ({ default: m.Testimonials })),
+);
 const Recommendations = lazy(() =>
-  import('@spa/features/home/recommendations').then((m) => ({ default: m.Recommendations })),
-)
+  import("@spa/features/home/recommendations").then((m) => ({ default: m.Recommendations })),
+);
 
 export function HomePage() {
   return (
@@ -61,5 +61,5 @@ export function HomePage() {
         <Recommendations />
       </Suspense>
     </div>
-  )
+  );
 }

@@ -38,7 +38,7 @@ export async function POST(req: Request) {
     const db = await getDb();
     const id = crypto.randomUUID();
     await db.insert(posts).values({ id, authorId: staff.id, title, body: content });
-    const row = (await db.select().from(posts).where(eq(posts.id, id)).limit(1))[0]!;
+    const row = (await db.select().from(posts).where(eq(posts.id, id)).limit(1))[0];
     return Response.json(postOut(row), { status: 201 });
   } catch (e) {
     return handleRouteError(e);

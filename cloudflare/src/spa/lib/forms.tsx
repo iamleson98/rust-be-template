@@ -12,8 +12,8 @@
  * (already styled with `text-destructive` in components/ui/form.tsx).
  */
 
-import { z } from 'zod'
-import { tSync } from '@spa/lib/i18n'
+import { z } from "zod";
+import { tSync } from "@spa/lib/i18n";
 
 /* Error messages use Zod's functional `{ error: () => … }` form so they
  * resolve the CURRENT app language at validation time (same pattern as
@@ -27,14 +27,14 @@ import { tSync } from '@spa/lib/i18n'
 export const phoneSchema = z
   .string()
   .trim()
-  .regex(/^0\d{8,10}$/, { error: () => tSync('validation.phone') })
+  .regex(/^0\d{8,10}$/, { error: () => tSync("validation.phone") });
 
 /** Email — zod email() with a friendly Vietnamese message. */
 export const emailSchema = z
   .string()
   .trim()
-  .min(1, { error: () => tSync('validation.emailRequired') })
-  .email({ error: () => tSync('validation.email') })
+  .min(1, { error: () => tSync("validation.emailRequired") })
+  .email({ error: () => tSync("validation.email") });
 
 /**
  * Passenger / customer full name — at least 2 chars, max 255 (matches
@@ -47,8 +47,8 @@ export const emailSchema = z
 export const fullNameSchema = z
   .string()
   .trim()
-  .min(2, { error: () => tSync('validation.nameMin') })
-  .max(255, { error: () => tSync('validation.nameMax') })
+  .min(2, { error: () => tSync("validation.nameMin") })
+  .max(255, { error: () => tSync("validation.nameMax") });
 
 /** Non-empty trimmed string with a custom label in the error message. */
 export const requiredText = (labelKey?: string) =>
@@ -58,22 +58,22 @@ export const requiredText = (labelKey?: string) =>
     .min(1, {
       error: () =>
         labelKey === undefined
-          ? tSync('validation.required')
-          : tSync('validation.requiredLabel', { label: tSync(labelKey) }),
-    })
+          ? tSync("validation.required")
+          : tSync("validation.requiredLabel", { label: tSync(labelKey) }),
+    });
 
 /** Positive integer ≥ min. */
 export const positiveInt = (min = 1) =>
   z.coerce
     .number()
     .int()
-    .min(min, { error: () => tSync('validation.minNumber', { min }) })
+    .min(min, { error: () => tSync("validation.minNumber", { min }) });
 
 /** Optional string that defaults to empty when omitted. */
 export const optionalText = (max = 500) =>
   z
     .string()
     .trim()
-    .max(max, { error: () => tSync('validation.maxChars', { max }) })
+    .max(max, { error: () => tSync("validation.maxChars", { max }) })
     .optional()
-    .or(z.literal(''))
+    .or(z.literal(""));

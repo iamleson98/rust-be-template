@@ -1,6 +1,6 @@
-'use client'
+"use client";
 
-import { Separator } from '@spa/components/ui/separator'
+import { Separator } from "@spa/components/ui/separator";
 import {
   AlertCircle,
   Calendar,
@@ -12,13 +12,13 @@ import {
   PhoneCall,
   User,
   XCircle,
-} from 'lucide-react'
-import { formatDateTimeVN, formatCurrency, type Currency } from '@spa/lib/format'
-import { useT } from '@spa/lib/i18n'
-import { PAYMENT_LABELS, ticketStage, type BookingItem } from './booking-types'
-import { InfoTile, PriceRow, TimelineItem } from './booking-card-parts'
-import { BookingCardActions } from './booking-card-actions'
-import { TicketPassengers, TicketStops } from './ticket-parts'
+} from "lucide-react";
+import { formatDateTimeVN, formatCurrency, type Currency } from "@spa/lib/format";
+import { useT } from "@spa/lib/i18n";
+import { PAYMENT_LABELS, ticketStage, type BookingItem } from "./booking-types";
+import { InfoTile, PriceRow, TimelineItem } from "./booking-card-parts";
+import { BookingCardActions } from "./booking-card-actions";
+import { TicketPassengers, TicketStops } from "./ticket-parts";
 
 /** The expandable part of a ticket card: stops, passengers, contact, price and history. */
 export function BookingCardDetails({
@@ -35,21 +35,21 @@ export function BookingCardDetails({
   extraActions,
   onExploreOther,
 }: {
-  b: BookingItem
-  currency: Currency
-  isExpanded: boolean
-  onToggleExpand: () => void
-  cancelling?: boolean
-  onCancelClick?: () => void
-  canReview: boolean
-  onLeaveFeedback?: () => void
-  feedbackOpen?: boolean
-  hasReview?: boolean
-  extraActions?: React.ReactNode
-  onExploreOther?: () => void
+  b: BookingItem;
+  currency: Currency;
+  isExpanded: boolean;
+  onToggleExpand: () => void;
+  cancelling?: boolean;
+  onCancelClick?: () => void;
+  canReview: boolean;
+  onLeaveFeedback?: () => void;
+  feedbackOpen?: boolean;
+  hasReview?: boolean;
+  extraActions?: React.ReactNode;
+  onExploreOther?: () => void;
 }) {
-  const t = useT()
-  const stage = ticketStage(b)
+  const t = useT();
+  const stage = ticketStage(b);
   return (
     <div className="border-t bg-muted/30">
       <button
@@ -59,10 +59,10 @@ export function BookingCardDetails({
       >
         <span className="inline-flex items-center gap-1.5">
           <FileText className="h-3.5 w-3.5" />
-          {t('bookingHistory.bookingDetails')}
+          {t("bookingHistory.bookingDetails")}
         </span>
         <ChevronDown
-          className={`h-3.5 w-3.5 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+          className={`h-3.5 w-3.5 transition-transform ${isExpanded ? "rotate-180" : ""}`}
         />
       </button>
       {isExpanded && (
@@ -72,7 +72,7 @@ export function BookingCardDetails({
           <div>
             <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
               <User className="h-3.5 w-3.5" />
-              {t('bookingHistory.passengersAndSeats', { count: b.seats.length })}
+              {t("bookingHistory.passengersAndSeats", { count: b.seats.length })}
             </div>
             <TicketPassengers seats={b.seats} />
           </div>
@@ -82,18 +82,18 @@ export function BookingCardDetails({
           <div className="grid grid-cols-1 gap-3 text-sm md:grid-cols-3">
             <InfoTile
               icon={<User className="h-3.5 w-3.5 text-muted-foreground" />}
-              label={t('bookingHistory.contactPerson')}
-              value={b.contactName ?? '—'}
+              label={t("bookingHistory.contactPerson")}
+              value={b.contactName ?? "—"}
             />
             <InfoTile
               icon={<Phone className="h-3.5 w-3.5 text-muted-foreground" />}
-              label={t('bookingHistory.phone')}
-              value={b.contactPhone ?? '—'}
+              label={t("bookingHistory.phone")}
+              value={b.contactPhone ?? "—"}
             />
             <InfoTile
               icon={<Mail className="h-3.5 w-3.5 text-muted-foreground" />}
-              label={t('booking.contactEmail')}
-              value={b.contactEmail ?? '—'}
+              label={t("booking.contactEmail")}
+              value={b.contactEmail ?? "—"}
             />
           </div>
 
@@ -102,28 +102,28 @@ export function BookingCardDetails({
           <div>
             <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
               <CreditCard className="h-3.5 w-3.5" />
-              {t('bookingHistory.priceDetails')}
+              {t("bookingHistory.priceDetails")}
             </div>
             <div className="space-y-1.5 rounded-lg border bg-card p-3 text-sm">
               <PriceRow
-                label={t('bookingHistory.subtotalSeats', { count: b.seats.length })}
+                label={t("bookingHistory.subtotalSeats", { count: b.seats.length })}
                 value={formatCurrency(b.subtotal, currency)}
               />
               {b.discount > 0 && (
                 <PriceRow
-                  label={t('bookingHistory.discount')}
+                  label={t("bookingHistory.discount")}
                   value={`- ${formatCurrency(b.discount, currency)}`}
                   valueClass="text-emerald-600 font-semibold"
                 />
               )}
               {b.paymentMethod && (
                 <PriceRow
-                  label={t('payment.method')}
+                  label={t("payment.method")}
                   value={t(PAYMENT_LABELS[b.paymentMethod] ?? b.paymentMethod)}
                 />
               )}
               <div className="mt-1.5 flex items-center justify-between border-t pt-1.5">
-                <span className="font-semibold">{t('bookingHistory.grandTotal')}</span>
+                <span className="font-semibold">{t("bookingHistory.grandTotal")}</span>
                 <span className="text-lg font-semibold tabular-nums">
                   {formatCurrency(b.total, currency)}
                 </span>
@@ -136,35 +136,35 @@ export function BookingCardDetails({
           <div>
             <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
               <Calendar className="h-3.5 w-3.5" />
-              {t('common.status')}
+              {t("common.status")}
             </div>
             <div className="space-y-2">
               <TimelineItem
                 icon={<FileText className="h-3.5 w-3.5" />}
-                label={t('bookingHistory.timelineBooked')}
+                label={t("bookingHistory.timelineBooked")}
                 time={b.createdAt}
                 active
               />
-              {stage === 'awaiting' && (
+              {stage === "awaiting" && (
                 <TimelineItem
                   icon={<PhoneCall className="h-3.5 w-3.5" />}
-                  label={t('bookingHistory.timelineAwaiting')}
+                  label={t("bookingHistory.timelineAwaiting")}
                   time={b.updatedAt}
                 />
               )}
-              {stage === 'cancelled' && (
+              {stage === "cancelled" && (
                 <TimelineItem
                   icon={<XCircle className="h-3.5 w-3.5" />}
-                  label={t('bookingHistory.statusCancelled')}
+                  label={t("bookingHistory.statusCancelled")}
                   time={b.updatedAt}
                   active
                   destructive
                 />
               )}
-              {stage === 'paying' && b.expiresAt && (
+              {stage === "paying" && b.expiresAt && (
                 <TimelineItem
                   icon={<AlertCircle className="h-3.5 w-3.5" />}
-                  label={t('bookingHistory.holdExpiresAt', {
+                  label={t("bookingHistory.holdExpiresAt", {
                     time: formatDateTimeVN(b.expiresAt),
                   })}
                   time={b.expiresAt}
@@ -177,8 +177,8 @@ export function BookingCardDetails({
             bookingId={b.id}
             bookingCode={b.code}
             total={b.total}
-            payable={stage === 'paying'}
-            hasQr={stage !== 'cancelled' && stage !== 'completed'}
+            payable={stage === "paying"}
+            hasQr={stage !== "cancelled" && stage !== "completed"}
             canCancel={b.canCancel}
             cancelling={cancelling}
             onCancelClick={onCancelClick}
@@ -192,5 +192,5 @@ export function BookingCardDetails({
         </div>
       )}
     </div>
-  )
+  );
 }

@@ -11,9 +11,9 @@
  *
  * All runs are recorded in job_run for the admin dashboard.
  */
-import { getDb, rawAll } from "@/lib/db/client";
-import { jobRuns, scheduledJobs, coupons, seatInventory } from "@/lib/db/schema";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { getDb } from "@/lib/db/client";
+import { jobRuns, scheduledJobs, coupons, seatInventory, tripSessions } from "@/lib/db/schema";
+import { and, desc, eq, inArray, isNotNull, lt, lte, sql } from "drizzle-orm";
 import { sweepExpiredHolds, warmTrips } from "./booking";
 import { reindexPlaces } from "./place-search";
 import { invalidatePlaces } from "./lookups";
@@ -39,9 +39,7 @@ async function recordRun(jobType: string, status: string, detail?: string, error
     finishedAt: now,
   });
   // Retention prune (30 days) piggybacks on every write path.
-  await db.run(
-    sql`DELETE FROM job_run WHERE created_at < datetime('now', '-30 days')`,
-  );
+  await db.delete(jobRuns).where(lt(jobRuns.createdAt, sql`datetime('now', '-30 days')`));
 }
 
 async function runJob(jobType: string, fn: () => Promise<string>): Promise<JobOutcome> {
@@ -116,9 +114,11 @@ async function executeJobBody(jobType: string): Promise<string> {
         .where(
           and(
             eq(coupons.status, "held"),
-            sql`${coupons.validUntil} IS NOT NULL AND ${coupons.validUntil} <= ${nowIso}`,
+            isNotNull(coupons.validUntil),
+            lte(coupons.validUntil, nowIso),
           ),
-        );
+        )
+        .run();
       return JSON.stringify({ expired: r.meta.changes });
     }
     case "fts.reindex": {
@@ -127,7 +127,10 @@ async function executeJobBody(jobType: string): Promise<string> {
       return JSON.stringify(r);
     }
     case "jobs.retention": {
-      const r = await db.run(sql`DELETE FROM job_run WHERE created_at < datetime('now', '-30 days')`);
+      const r = await db
+        .delete(jobRuns)
+        .where(lt(jobRuns.createdAt, sql`datetime('now', '-30 days')`))
+        .run();
       return JSON.stringify({ pruned: r.meta.changes });
     }
     case "trips.prune": {
@@ -137,7 +140,13 @@ async function executeJobBody(jobType: string): Promise<string> {
         .where(
           and(
             eq(seatInventory.status, "available"),
-            sql`${seatInventory.tripSessionId} IN (SELECT ts.id FROM trip_session ts WHERE ts.departure_date < ${today})`,
+            inArray(
+              seatInventory.tripSessionId,
+              db
+                .select({ id: tripSessions.id })
+                .from(tripSessions)
+                .where(lt(tripSessions.departureDate, today)),
+            ),
           ),
         );
       return JSON.stringify({ pruned: r.meta.changes });
@@ -177,9 +186,7 @@ export async function tick(): Promise<{ ran: JobOutcome[] }> {
   const lastWarm = lastWarmRows[0]?.finishedAt ?? null;
   const sixHours = 6 * 3600_000;
   if (!lastWarm || Date.now() - new Date(lastWarm).getTime() >= sixHours) {
-    scheduled.push(
-      await runJob("trips.warm", async () => JSON.stringify(await warmTrips())),
-    );
+    scheduled.push(await runJob("trips.warm", async () => JSON.stringify(await warmTrips())));
   }
   return { ran: [...frequent, ...scheduled] };
 }
@@ -219,9 +226,7 @@ async function latestRun(jobType: string): Promise<CronJobRunOut | null> {
 /** Admin: manual trigger (POST /api/admin/cron-jobs/{jobType}/trigger). */
 export async function triggerJob(jobType: string): Promise<JobOutcome> {
   if (jobType === "holds.sweep") {
-    return runJob("holds.sweep", async () =>
-      JSON.stringify(await sweepExpiredHolds()),
-    );
+    return runJob("holds.sweep", async () => JSON.stringify(await sweepExpiredHolds()));
   }
   if (jobType === "trips.warm") {
     return runJob("trips.warm", async () => JSON.stringify(await warmTrips()));

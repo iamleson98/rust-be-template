@@ -21,6 +21,8 @@
  * only when a direct path fails).
  */
 
+import { z } from "zod";
+
 export interface IceServerConfig {
   urls: string[];
   username?: string;
@@ -33,7 +35,22 @@ export interface TurnEnv {
   TURN_TTL_SECONDS?: string;
 }
 
+type ConfiguredTurnEnv = TurnEnv & { TURN_KEY_ID: string; TURN_KEY_API_TOKEN: string };
+
 const TURN_API_BASE = "https://rtc.live.cloudflare.com/v1/turn/keys";
+
+/** The TURN keys API response — validated, never trusted blindly. */
+const TurnApiResponse = z.object({
+  iceServers: z
+    .array(
+      z.object({
+        urls: z.union([z.string(), z.array(z.string())]),
+        username: z.string().optional(),
+        credential: z.string().optional(),
+      }),
+    )
+    .min(1),
+});
 
 /** Refresh when less than half the TTL remains. */
 function refreshAfter(issuedAt: number, ttlSeconds: number): number {
@@ -53,8 +70,21 @@ export const PUBLIC_ICE_SERVERS: IceServerConfig[] = [
   { urls: ["stun:stun.cloudflare.com:3478"] },
 ];
 
-export function turnConfigured(env: TurnEnv): boolean {
-  return !!(env.TURN_KEY_ID && env.TURN_KEY_API_TOKEN);
+export function turnConfigured(env: TurnEnv): env is ConfiguredTurnEnv {
+  return (
+    typeof env.TURN_KEY_ID === "string" &&
+    env.TURN_KEY_ID.length > 0 &&
+    typeof env.TURN_KEY_API_TOKEN === "string" &&
+    env.TURN_KEY_API_TOKEN.length > 0
+  );
+}
+
+/** Parse the configured TTL: absent/invalid → default; clamped to [600, 86400]. */
+function resolveTtl(raw: string | undefined): number {
+  const DEFAULT_TTL_SECONDS = 86400;
+  const parsed = raw === undefined ? Number.NaN : Number(raw);
+  const requested = Number.isFinite(parsed) ? parsed : DEFAULT_TTL_SECONDS;
+  return Math.min(Math.max(requested, 600), 86400);
 }
 
 /**
@@ -68,8 +98,9 @@ export async function fetchTurnIceServers(
   force = false,
 ): Promise<IceServerConfig[] | null> {
   if (!turnConfigured(env)) return null;
-  const keyId = env.TURN_KEY_ID!;
-  const ttl = Math.min(Math.max(Number(env.TURN_TTL_SECONDS ?? 86400), 600), 86400);
+  const keyId = env.TURN_KEY_ID;
+  const token = env.TURN_KEY_API_TOKEN;
+  const ttl = resolveTtl(env.TURN_TTL_SECONDS);
 
   const hit = cache.get(keyId);
   if (!force && hit && hit.refreshAt > Date.now()) return hit.servers;
@@ -78,15 +109,15 @@ export async function fetchTurnIceServers(
     const res = await fetchImpl(`${TURN_API_BASE}/${keyId}/credentials/generate-ice-servers`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${env.TURN_KEY_API_TOKEN}`,
+        Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ ttl }),
     });
     if (!res.ok) throw new Error(`TURN API ${res.status}`);
-    const body = (await res.json()) as { iceServers?: IceServerConfig[] };
-    if (!body.iceServers?.length) throw new Error("TURN API returned no iceServers");
-    const servers = body.iceServers.map((s) => ({
+    const parsed = TurnApiResponse.safeParse(await res.json());
+    if (!parsed.success) throw new Error("TURN API returned no usable iceServers");
+    const servers: IceServerConfig[] = parsed.data.iceServers.map((s) => ({
       urls: Array.isArray(s.urls) ? s.urls : [s.urls],
       username: s.username,
       credential: s.credential,

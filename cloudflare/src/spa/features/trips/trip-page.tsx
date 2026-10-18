@@ -9,24 +9,24 @@
  * route params. Closing the dialog navigates back to the previous page
  * (browser history).
  */
-import { useParams, useNavigate } from '@tanstack/react-router'
-import { TripDetailDialog } from '@spa/features/trips/trip-detail-dialog'
+import { useParams, useNavigate } from "@tanstack/react-router";
+import { TripDetailDialog } from "@spa/features/trips/trip-detail-dialog";
 
 export function TripPage() {
-  const { tripId } = useParams({ from: '/trips/$tripId' })
-  const navigate = useNavigate()
+  const { tripId } = useParams({ from: "/trips/$tripId" });
+  const navigate = useNavigate();
 
   return (
     <TripDetailDialog
       tripId={tripId}
       onClose={() => {
         // If there's history, go back; otherwise go home.
-        if (typeof window !== 'undefined' && window.history.length > 1) {
-          window.history.back()
+        if (typeof window !== "undefined" && window.history.length > 1) {
+          window.history.back();
         } else {
-          navigate({ to: '/' })
+          navigate({ to: "/" });
         }
       }}
     />
-  )
+  );
 }

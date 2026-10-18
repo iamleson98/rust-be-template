@@ -1,4 +1,4 @@
-'use client'
+"use client";
 
 /**
  * CPU metric card — React port of pdf-tts's `admin/metrics` CPU card
@@ -7,12 +7,12 @@
  * Extracted from the original 'src/features/admin/system/metric-cards.tsx'.
  */
 
-import { Cpu } from 'lucide-react'
+import { Cpu } from "lucide-react";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@spa/components/ui/card'
-import { Progress } from '@spa/components/ui/progress'
-import { barTone } from './metric-helpers'
-import { useT } from '@spa/lib/i18n'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@spa/components/ui/card";
+import { Progress } from "@spa/components/ui/progress";
+import { barTone } from "./metric-helpers";
+import { useT } from "@spa/lib/i18n";
 
 // ─── CPU ───────────────────────────────────────────────────────────
 
@@ -22,12 +22,12 @@ export function CpuCard({
   physicalCores,
   perCoreUsagePercent,
 }: {
-  cpuUsagePercent: number
-  logicalCores: number
-  physicalCores: number
-  perCoreUsagePercent: number[]
+  cpuUsagePercent: number;
+  logicalCores: number;
+  physicalCores: number;
+  perCoreUsagePercent: number[];
 }) {
-  const t = useT()
+  const t = useT();
   return (
     <Card data-testid="metric-cpu-card">
       <CardHeader className="pb-2">
@@ -36,13 +36,13 @@ export function CpuCard({
           CPU
         </CardTitle>
         <CardDescription>
-          {t('adminSystem.cores', { logical: logicalCores, physical: physicalCores })}
+          {t("adminSystem.cores", { logical: logicalCores, physical: physicalCores })}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">
         <div className="flex items-baseline justify-between">
           <span className="text-3xl font-semibold tabular-nums">{cpuUsagePercent.toFixed(1)}%</span>
-          <span className="text-xs text-muted-foreground">{t('adminSystem.allCores')}</span>
+          <span className="text-xs text-muted-foreground">{t("adminSystem.allCores")}</span>
         </div>
         <Progress value={cpuUsagePercent} className="h-2" />
         {perCoreUsagePercent.length > 1 && (
@@ -51,7 +51,7 @@ export function CpuCard({
               <div key={i} className="flex flex-col items-center gap-0.5">
                 <div
                   className="h-8 w-full overflow-hidden rounded-sm bg-muted"
-                  title={t('adminSystem.coreUsage', { n: i, pct: core.toFixed(0) })}
+                  title={t("adminSystem.coreUsage", { n: i, pct: core.toFixed(0) })}
                 >
                   {/* Fill grows from the bottom like pdf-tts's mini bars. */}
                   <div
@@ -66,5 +66,5 @@ export function CpuCard({
         )}
       </CardContent>
     </Card>
-  )
+  );
 }

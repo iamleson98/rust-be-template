@@ -81,7 +81,7 @@ export function validateSeatPlan(plan: SeatPlan): string | null {
   const labels = new Set<string>();
   let sellable = 0;
   for (let i = 0; i < plan.decks.length; i++) {
-    const deck = plan.decks[i]!;
+    const deck = plan.decks[i];
     const n = i + 1;
     if (!(deck.rows >= 1 && deck.rows <= MAX_ROWS) || !(deck.cols >= 1 && deck.cols <= MAX_COLS)) {
       return `deck ${n}: grid must be 1–${MAX_ROWS} rows × 1–${MAX_COLS} columns`;
@@ -92,10 +92,7 @@ export function validateSeatPlan(plan: SeatPlan): string | null {
     const positions = new Set<string>();
     let drivers = 0;
     for (const cell of deck.cells) {
-      if (
-        !(cell.row >= 1 && cell.row <= deck.rows) ||
-        !(cell.col >= 1 && cell.col <= deck.cols)
-      ) {
+      if (!(cell.row >= 1 && cell.row <= deck.rows) || !(cell.col >= 1 && cell.col <= deck.cols)) {
         return `deck ${n}: cell (${cell.row}, ${cell.col}) is outside the ${deck.rows}×${deck.cols} grid`;
       }
       const key = `${cell.row},${cell.col}`;
@@ -133,7 +130,7 @@ export function trustedPlan(layoutData: string | null, seatRows: SeatRow[]): Sea
   }
   for (let i = 0; i < plan.decks.length; i++) {
     const floor = i + 1;
-    for (const cell of plan.decks[i]!.cells) {
+    for (const cell of plan.decks[i].cells) {
       if (!isSellable(cell.kind)) continue;
       const label = cell.label?.trim().toLowerCase();
       if (!label) return null;
@@ -236,11 +233,7 @@ export class InUseError extends Error {
 }
 
 /** Map `plan` onto the layout's `existing` seats (id/label preserving). */
-export function syncSeatRows(
-  existing: SeatRow[],
-  plan: SeatPlan,
-  inUse: boolean,
-): SeatSync {
+export function syncSeatRows(existing: SeatRow[], plan: SeatPlan, inUse: boolean): SeatSync {
   const byId = new Map(existing.map((s) => [s.id, s]));
   const byLabel = new Map(existing.map((s) => [s.seatLabel.trim().toLowerCase(), s]));
   const taken = new Set<string>();
@@ -294,10 +287,10 @@ function naturalKey(label: string): [string, number, string] {
   const trimmed = label.trim().toLowerCase();
   const digits = "0123456789";
   let i = 0;
-  while (i < trimmed.length && !digits.includes(trimmed[i]!)) i++;
+  while (i < trimmed.length && !digits.includes(trimmed[i])) i++;
   const letters = trimmed.slice(0, i);
   let j = i;
-  while (j < trimmed.length && digits.includes(trimmed[j]!)) j++;
+  while (j < trimmed.length && digits.includes(trimmed[j])) j++;
   const num = Number.parseInt(trimmed.slice(i, j) || "0", 10);
   return [letters, num, trimmed.slice(j)];
 }
@@ -318,7 +311,7 @@ function groupByDeck(seatRows: SeatRow[], wanted: number[]): SeatRow[][] | null 
   ];
   for (const deckOf of strategies) {
     const groups: SeatRow[][] = Array.from({ length: wanted.length }, () => []);
-    for (const s of sorted) groups[deckOf(s)]!.push(s);
+    for (const s of sorted) groups[deckOf(s)].push(s);
     if (groups.every((g, i) => g.length === wanted[i])) return groups;
   }
   return null;
@@ -332,9 +325,7 @@ function groupByDeck(seatRows: SeatRow[], wanted: number[]): SeatRow[][] | null 
  * exactly these seats. PREVIEW ONLY — nothing is saved.
  */
 export function fitToSeats(template: SeatPlan, seatRows: SeatRow[]): SeatPlan {
-  const wanted = template.decks.map(
-    (d) => d.cells.filter((c) => isSellable(c.kind)).length,
-  );
+  const wanted = template.decks.map((d) => d.cells.filter((c) => isSellable(c.kind)).length);
   const total = wanted.reduce((a, b) => a + b, 0);
   if (total !== seatRows.length) {
     throw new Error(`template holds ${total} seats but the layout has ${seatRows.length}`);
@@ -346,7 +337,7 @@ export function fitToSeats(template: SeatPlan, seatRows: SeatRow[]): SeatPlan {
     const cells = deck.cells.filter((c) => isSellable(c.kind));
     cells.sort((a, b) => a.row - b.row || a.col - b.col);
     cells.forEach((cell, j) => {
-      const seat = groups[i]![j]!;
+      const seat = groups[i][j];
       cell.label = seat.seatLabel;
       cell.seatId = seat.id;
       if (seat.seatClass != null) cell.seatClass = seat.seatClass;

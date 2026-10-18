@@ -1,9 +1,9 @@
-'use client'
+"use client";
 
-import { memo } from 'react'
-import { Button } from '@spa/components/ui/button'
-import { EmptyState } from '@spa/components/empty-state'
-import { useT } from '@spa/lib/i18n'
+import { memo } from "react";
+import { Button } from "@spa/components/ui/button";
+import { EmptyState } from "@spa/components/empty-state";
+import { useT } from "@spa/lib/i18n";
 
 /* ─── SVG Illustrations (line-art style with teal accents) ─── */
 
@@ -53,7 +53,7 @@ function MagnifyingGlassSVG() {
       <circle cx="100" cy="40" r="2.5" fill="oklch(0.596 0.12 220 / 0.4)" />
       <circle cx="30" cy="100" r="2" fill="oklch(0.596 0.12 220 / 0.4)" />
     </svg>
-  )
+  );
 }
 
 export const NoResultsFound = memo(function NoResultsFound({
@@ -61,28 +61,28 @@ export const NoResultsFound = memo(function NoResultsFound({
   onExplore,
   className,
 }: {
-  onReset?: () => void
-  onExplore?: () => void
-  className?: string
+  onReset?: () => void;
+  onExplore?: () => void;
+  className?: string;
 }) {
-  const t = useT()
+  const t = useT();
   return (
     <EmptyState
       illustration={<MagnifyingGlassSVG />}
-      title={t('searchPage.noTripsFound')}
-      description={t('searchPage.noTripsDesc')}
+      title={t("searchPage.noTripsFound")}
+      description={t("searchPage.noTripsDesc")}
       className={className}
     >
       {onReset && (
         <Button variant="outline" size="sm" className="gap-1.5" onClick={onReset}>
-          {t('searchPage.clearFilters')}
+          {t("searchPage.clearFilters")}
         </Button>
       )}
       {onExplore && (
         <Button size="sm" className="gap-1.5" onClick={onExplore}>
-          {t('searchPage.explorePopular')}
+          {t("searchPage.explorePopular")}
         </Button>
       )}
     </EmptyState>
-  )
-})
+  );
+});

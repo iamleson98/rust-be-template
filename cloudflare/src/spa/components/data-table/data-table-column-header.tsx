@@ -1,18 +1,18 @@
-import { ArrowDown, ArrowUp, ChevronsUpDown } from 'lucide-react'
-import type { Column, RowData } from '@tanstack/react-table'
+import { ArrowDown, ArrowUp, ChevronsUpDown } from "lucide-react";
+import type { Column, RowData } from "@tanstack/react-table";
 
-import { Button } from '@spa/components/ui/button'
+import { Button } from "@spa/components/ui/button";
 
-import { useT } from '@spa/lib/i18n'
-import { cn } from '@spa/lib/utils'
-import type { DataTableFeatures } from './data-table-features'
+import { useT } from "@spa/lib/i18n";
+import { cn } from "@spa/lib/utils";
+import type { DataTableFeatures } from "./data-table-features";
 
 interface DataTableColumnHeaderProps<
   TData extends RowData,
   TValue,
 > extends React.HTMLAttributes<HTMLDivElement> {
-  column: Column<DataTableFeatures, TData, TValue>
-  title: string
+  column: Column<DataTableFeatures, TData, TValue>;
+  title: string;
 }
 
 export function DataTableColumnHeader<TData extends RowData, TValue>({
@@ -20,33 +20,33 @@ export function DataTableColumnHeader<TData extends RowData, TValue>({
   title,
   className,
 }: DataTableColumnHeaderProps<TData, TValue>) {
-  const t = useT()
+  const t = useT();
   if (!column.getCanSort()) {
-    return <span className={cn('text-inherit', className)}>{title}</span>
+    return <span className={cn("text-inherit", className)}>{title}</span>;
   }
 
-  const sorted = column.getIsSorted()
-  const SortIcon = sorted === 'asc' ? ArrowUp : sorted === 'desc' ? ArrowDown : ChevronsUpDown
+  const sorted = column.getIsSorted();
+  const SortIcon = sorted === "asc" ? ArrowUp : sorted === "desc" ? ArrowDown : ChevronsUpDown;
 
   return (
     <Button
       variant="ghost"
       size="sm"
       className={cn(
-        '-ml-2.5 h-7 gap-1.5 px-2 text-[11px] font-semibold uppercase tracking-wider text-current',
+        "-ml-2.5 h-7 gap-1.5 px-2 text-[11px] font-semibold uppercase tracking-wider text-current",
         className,
       )}
-      onClick={() => column.toggleSorting(sorted === 'asc')}
-      aria-label={t('dataTable.sortBy', { title })}
+      onClick={() => column.toggleSorting(sorted === "asc")}
+      aria-label={t("dataTable.sortBy", { title })}
     >
       {title}
       <SortIcon
         className={cn(
-          'size-3.5 shrink-0 transition-all duration-200',
-          sorted ? 'text-primary' : 'text-muted-foreground/40',
+          "size-3.5 shrink-0 transition-all duration-200",
+          sorted ? "text-primary" : "text-muted-foreground/40",
         )}
         aria-hidden
       />
     </Button>
-  )
+  );
 }

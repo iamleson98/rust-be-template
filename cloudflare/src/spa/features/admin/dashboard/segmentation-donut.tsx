@@ -7,7 +7,7 @@
  */
 
 export type DonutSegment = {
-  label: string
-  count: number
-  color: string
-}
+  label: string;
+  count: number;
+  color: string;
+};

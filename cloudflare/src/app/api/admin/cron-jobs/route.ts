@@ -1,5 +1,5 @@
 import { getDb, rawAll } from "@/lib/db/client";
-import { asc, eq, sql } from "drizzle-orm";
+import { asc, sql } from "drizzle-orm";
 import { jobRuns, scheduledJobs } from "@/lib/db/schema";
 import { handleRouteError, requireStaff } from "@/lib/api";
 import { requirePermission } from "@/lib/auth/rbac";

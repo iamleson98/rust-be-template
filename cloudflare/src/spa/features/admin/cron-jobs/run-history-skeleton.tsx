@@ -1,7 +1,7 @@
-'use client'
+"use client";
 
-import { memo } from 'react'
-import { Shimmer } from '@spa/components/ui/shimmer'
+import { memo } from "react";
+import { Shimmer } from "@spa/components/ui/shimmer";
 
 /* ─── Run History Skeleton — history card rows ───
  * Mirrors the "Lịch sử chạy" card: header title + 5 compact rows
@@ -10,7 +10,7 @@ import { Shimmer } from '@spa/components/ui/shimmer'
 export const RunHistorySkeleton = memo(function RunHistorySkeleton({
   rows = 5,
 }: {
-  rows?: number
+  rows?: number;
 }) {
   return (
     <div className="p-4 space-y-2.5" aria-hidden data-testid="run-history-skeleton">
@@ -25,5 +25,5 @@ export const RunHistorySkeleton = memo(function RunHistorySkeleton({
         </div>
       ))}
     </div>
-  )
-})
+  );
+});

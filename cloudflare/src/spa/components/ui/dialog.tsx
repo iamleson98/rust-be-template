@@ -1,10 +1,10 @@
-'use client'
+"use client";
 
-import { type ComponentProps, type ReactElement, type ReactNode, isValidElement } from 'react'
-import { Dialog as DialogPrimitive } from '@base-ui/react/dialog'
-import { XIcon } from 'lucide-react'
+import { type ComponentProps, type ReactElement, type ReactNode, isValidElement } from "react";
+import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
+import { XIcon } from "lucide-react";
 
-import { cn } from '@spa/lib/utils'
+import { cn } from "@spa/lib/utils";
 import {
   MODAL_CENTERED,
   MODAL_CLOSE,
@@ -18,8 +18,8 @@ import {
   MODAL_VIEWPORT,
   MODAL_VIEWPORT_FULLSCREEN_ON_PHONE,
   MODAL_VIEWPORT_SHEET_ON_PHONE,
-} from './modal-styles'
-import { resolveNativeButton } from './resolve-native-button'
+} from "./modal-styles";
+import { resolveNativeButton } from "./resolve-native-button";
 
 /**
  * Radix-compat wrapper around Base UI's Dialog.
@@ -49,18 +49,18 @@ import { resolveNativeButton } from './resolve-native-button'
 
 function Dialog({
   ...props
-}: Omit<ComponentProps<typeof DialogPrimitive.Root>, 'children'> & {
-  children?: ReactNode
+}: Omit<ComponentProps<typeof DialogPrimitive.Root>, "children"> & {
+  children?: ReactNode;
 }) {
-  return <DialogPrimitive.Root data-slot="dialog" {...props} />
+  return <DialogPrimitive.Root data-slot="dialog" {...props} />;
 }
 
 function DialogTrigger({
   asChild,
   children,
   ...props
-}: Omit<ComponentProps<typeof DialogPrimitive.Trigger>, 'render'> & {
-  asChild?: boolean
+}: Omit<ComponentProps<typeof DialogPrimitive.Trigger>, "render"> & {
+  asChild?: boolean;
 }) {
   if (asChild && isValidElement(children)) {
     // Translate Radix `asChild` to Base UI `render` prop. Base UI clones
@@ -72,25 +72,25 @@ function DialogTrigger({
         render={children as ReactElement}
         {...props}
       />
-    )
+    );
   }
   return (
     <DialogPrimitive.Trigger data-slot="dialog-trigger" {...props}>
       {children}
     </DialogPrimitive.Trigger>
-  )
+  );
 }
 
 function DialogPortal({ ...props }: ComponentProps<typeof DialogPrimitive.Portal>) {
-  return <DialogPrimitive.Portal data-slot="dialog-portal" {...props} />
+  return <DialogPrimitive.Portal data-slot="dialog-portal" {...props} />;
 }
 
 function DialogClose({
   asChild,
   children,
   ...props
-}: Omit<ComponentProps<typeof DialogPrimitive.Close>, 'render'> & {
-  asChild?: boolean
+}: Omit<ComponentProps<typeof DialogPrimitive.Close>, "render"> & {
+  asChild?: boolean;
 }) {
   if (asChild && isValidElement(children)) {
     return (
@@ -100,7 +100,7 @@ function DialogClose({
         render={children as ReactElement}
         {...props}
       />
-    )
+    );
   }
   // Emit data-state="open" so consumer CSS selectors like
   // `data-[state=open]:bg-accent` (originally from Radix's context-inherited
@@ -114,7 +114,7 @@ function DialogClose({
     >
       {children}
     </DialogPrimitive.Close>
-  )
+  );
 }
 
 function DialogOverlay({ className, ...props }: ComponentProps<typeof DialogPrimitive.Backdrop>) {
@@ -122,12 +122,12 @@ function DialogOverlay({ className, ...props }: ComponentProps<typeof DialogPrim
     <DialogPrimitive.Backdrop
       data-slot="dialog-overlay"
       render={(componentProps, state) => (
-        <div {...componentProps} data-state={state.open ? 'open' : 'closed'} />
+        <div {...componentProps} data-state={state.open ? "open" : "closed"} />
       )}
       className={cn(MODAL_OVERLAY, className)}
       {...props}
     />
-  )
+  );
 }
 
 /**
@@ -141,11 +141,11 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
-  mobile = 'sheet',
+  mobile = "sheet",
   ...props
-}: Omit<ComponentProps<typeof DialogPrimitive.Popup>, 'render'> & {
-  showCloseButton?: boolean
-  mobile?: 'sheet' | 'fullscreen'
+}: Omit<ComponentProps<typeof DialogPrimitive.Popup>, "render"> & {
+  showCloseButton?: boolean;
+  mobile?: "sheet" | "fullscreen";
 }) {
   return (
     <DialogPortal>
@@ -154,18 +154,18 @@ function DialogContent({
         data-slot="dialog-viewport"
         className={cn(
           MODAL_VIEWPORT,
-          mobile === 'sheet' ? MODAL_VIEWPORT_SHEET_ON_PHONE : MODAL_VIEWPORT_FULLSCREEN_ON_PHONE,
+          mobile === "sheet" ? MODAL_VIEWPORT_SHEET_ON_PHONE : MODAL_VIEWPORT_FULLSCREEN_ON_PHONE,
         )}
       >
         <DialogPrimitive.Popup
           data-slot="dialog-content"
           render={(componentProps, state) => (
-            <div {...componentProps} data-state={state.open ? 'open' : 'closed'} />
+            <div {...componentProps} data-state={state.open ? "open" : "closed"} />
           )}
           className={cn(
             MODAL_SURFACE,
             MODAL_CENTERED,
-            mobile === 'sheet' ? MODAL_SHEET_ON_PHONE : MODAL_FULLSCREEN_ON_PHONE,
+            mobile === "sheet" ? MODAL_SHEET_ON_PHONE : MODAL_FULLSCREEN_ON_PHONE,
             className,
           )}
           {...props}
@@ -184,16 +184,16 @@ function DialogContent({
         </DialogPrimitive.Popup>
       </DialogPrimitive.Viewport>
     </DialogPortal>
-  )
+  );
 }
 
 /** Tints for a header icon: the action's meaning, not decoration. */
 const ICON_TONES = {
-  primary: 'bg-primary/10 text-primary dark:bg-primary/20',
-  danger: 'bg-rose-50 text-rose-600 dark:bg-rose-500/15 dark:text-rose-300',
-  warning: 'bg-amber-50 text-amber-600 dark:bg-amber-500/15 dark:text-amber-300',
-  success: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300',
-} as const
+  primary: "bg-primary/10 text-primary dark:bg-primary/20",
+  danger: "bg-rose-50 text-rose-600 dark:bg-rose-500/15 dark:text-rose-300",
+  warning: "bg-amber-50 text-amber-600 dark:bg-amber-500/15 dark:text-amber-300",
+  success: "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300",
+} as const;
 
 /**
  * Title and description, left-aligned. With `icon`, the icon sits in a tinted
@@ -202,32 +202,32 @@ const ICON_TONES = {
 function DialogHeader({
   className,
   icon,
-  tone = 'primary',
+  tone = "primary",
   children,
   ...props
-}: ComponentProps<'div'> & { icon?: ReactNode; tone?: keyof typeof ICON_TONES }) {
+}: ComponentProps<"div"> & { icon?: ReactNode; tone?: keyof typeof ICON_TONES }) {
   if (!icon) {
     return (
       <div
         data-slot="dialog-header"
         // pr-10 keeps header content clear of the close button (size-8 at top-4/right-4).
-        className={cn('flex flex-col gap-1.5 pr-10 text-left', className)}
+        className={cn("flex flex-col gap-1.5 pr-10 text-left", className)}
         {...props}
       >
         {children}
       </div>
-    )
+    );
   }
   return (
     <div
       data-slot="dialog-header"
-      className={cn('flex items-start gap-3.5 pr-10 text-left', className)}
+      className={cn("flex items-start gap-3.5 pr-10 text-left", className)}
       {...props}
     >
       <span
         aria-hidden
         className={cn(
-          'grid size-10 shrink-0 place-items-center rounded-xl [&_svg]:size-5',
+          "grid size-10 shrink-0 place-items-center rounded-xl [&_svg]:size-5",
           ICON_TONES[tone],
         )}
       >
@@ -235,11 +235,11 @@ function DialogHeader({
       </span>
       <div className="flex min-w-0 flex-1 flex-col gap-1 pt-0.5">{children}</div>
     </div>
-  )
+  );
 }
 
-function DialogFooter({ className, ...props }: ComponentProps<'div'>) {
-  return <div data-slot="dialog-footer" className={cn(MODAL_FOOTER, className)} {...props} />
+function DialogFooter({ className, ...props }: ComponentProps<"div">) {
+  return <div data-slot="dialog-footer" className={cn(MODAL_FOOTER, className)} {...props} />;
 }
 
 function DialogTitle({ className, ...props }: ComponentProps<typeof DialogPrimitive.Title>) {
@@ -249,7 +249,7 @@ function DialogTitle({ className, ...props }: ComponentProps<typeof DialogPrimit
       className={cn(MODAL_TITLE, className)}
       {...props}
     />
-  )
+  );
 }
 
 function DialogDescription({
@@ -262,7 +262,7 @@ function DialogDescription({
       className={cn(MODAL_DESCRIPTION, className)}
       {...props}
     />
-  )
+  );
 }
 
 export {
@@ -276,4 +276,4 @@ export {
   DialogPortal,
   DialogTitle,
   DialogTrigger,
-}
+};

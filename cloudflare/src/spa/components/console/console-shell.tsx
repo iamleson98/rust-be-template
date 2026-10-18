@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { Link, useRouterState } from '@tanstack/react-router'
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Link, useRouterState } from "@tanstack/react-router";
 import {
   Check,
   ChevronsUpDown,
@@ -8,9 +8,9 @@ import {
   PanelLeft,
   PanelLeftClose,
   type LucideIcon,
-} from 'lucide-react'
-import { Avatar, AvatarFallback } from '@spa/components/ui/avatar'
-import { Button } from '@spa/components/ui/button'
+} from "lucide-react";
+import { Avatar, AvatarFallback } from "@spa/components/ui/avatar";
+import { Button } from "@spa/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,43 +19,43 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@spa/components/ui/dropdown-menu'
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@spa/components/ui/sheet'
-import { useLogout } from '@spa/features/auth/api'
-import { useT } from '@spa/lib/i18n'
-import { cn } from '@spa/lib/utils'
-import { usePrefs } from '@spa/stores/prefs'
-import { isStaffUser, useSession } from '@spa/stores/session'
+} from "@spa/components/ui/dropdown-menu";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@spa/components/ui/sheet";
+import { useLogout } from "@spa/features/auth/api";
+import { useT } from "@spa/lib/i18n";
+import { cn } from "@spa/lib/utils";
+import { usePrefs } from "@spa/stores/prefs";
+import { isStaffUser, useSession } from "@spa/stores/session";
 
 export type ConsoleNavItem = {
-  title: string
-  icon: LucideIcon
-  url: string
+  title: string;
+  icon: LucideIcon;
+  url: string;
   /** Active on this exact path only (a console's home page). */
-  exact?: boolean
-}
+  exact?: boolean;
+};
 /** A run of sections; `label` is left out for a group that needs no heading. */
-export type ConsoleNavGroup = { label?: string; items: ConsoleNavItem[] }
+export type ConsoleNavGroup = { label?: string; items: ConsoleNavItem[] };
 
-const COLLAPSED_KEY = 'console.sidebar.collapsed'
+const COLLAPSED_KEY = "console.sidebar.collapsed";
 
 function readCollapsed(): boolean {
   try {
-    return localStorage.getItem(COLLAPSED_KEY) === '1'
+    return localStorage.getItem(COLLAPSED_KEY) === "1";
   } catch {
-    return false
+    return false;
   }
 }
 
 function initialsOf(name: string | undefined): string {
-  const parts = (name ?? '').trim().split(/\s+/).filter(Boolean)
+  const parts = (name ?? "").trim().split(/\s+/).filter(Boolean);
   return (
     parts
       .map((p) => p[0])
       .slice(-2)
-      .join('')
-      .toUpperCase() || 'U'
-  )
+      .join("")
+      .toUpperCase() || "U"
+  );
 }
 
 /**
@@ -71,51 +71,51 @@ export function ConsoleShell({
   children,
 }: {
   /** Accessible name of the navigation, also shown under the logo ("Admin"). */
-  label: string
-  groups: ConsoleNavGroup[]
+  label: string;
+  groups: ConsoleNavGroup[];
   /** The way out of the console, at the foot of the sidebar. */
-  exit: { title: string; icon: LucideIcon; to: '/' }
-  children: ReactNode
+  exit: { title: string; icon: LucideIcon; to: "/" };
+  children: ReactNode;
 }) {
-  const pathname = useRouterState({ select: (s) => s.location.pathname })
-  const t = useT()
-  const [collapsed, setCollapsed] = useState(readCollapsed)
-  const [drawerOpen, setDrawerOpen] = useState(false)
-  const contentRef = useRef<HTMLDivElement>(null)
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const t = useT();
+  const [collapsed, setCollapsed] = useState(readCollapsed);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
 
   const isActive = (item: ConsoleNavItem) =>
-    item.exact ? pathname === item.url : pathname.startsWith(item.url)
+    item.exact ? pathname === item.url : pathname.startsWith(item.url);
 
   // New page: content back to the top.
   useEffect(() => {
-    contentRef.current?.scrollTo({ top: 0 })
-  }, [pathname])
+    contentRef.current?.scrollTo({ top: 0 });
+  }, [pathname]);
 
   useEffect(() => {
     try {
-      localStorage.setItem(COLLAPSED_KEY, collapsed ? '1' : '0')
+      localStorage.setItem(COLLAPSED_KEY, collapsed ? "1" : "0");
     } catch {
       // private mode: the sidebar simply starts expanded next time
     }
-  }, [collapsed])
+  }, [collapsed]);
 
   // Ctrl/⌘+B collapses the sidebar, like most desktop consoles.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'b' && (e.metaKey || e.ctrlKey)) {
-        e.preventDefault()
-        setCollapsed((c) => !c)
+      if (e.key === "b" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        setCollapsed((c) => !c);
       }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [])
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   const row = (compact: boolean) =>
     cn(
-      'flex h-9 items-center gap-3 rounded-lg text-sm transition-colors',
-      compact ? 'justify-center' : 'px-3',
-    )
+      "flex h-9 items-center gap-3 rounded-lg text-sm transition-colors",
+      compact ? "justify-center" : "px-3",
+    );
   const brand = (
     <>
       <img src="/logo.svg" alt="" className="size-8 shrink-0" />
@@ -124,7 +124,7 @@ export function ConsoleShell({
         <span className="block text-[11px] font-medium text-slate-500">{label}</span>
       </span>
     </>
-  )
+  );
 
   const nav = (compact: boolean) => (
     <nav aria-label={label} className="flex-1 space-y-5 overflow-y-auto px-3 py-4">
@@ -135,7 +135,7 @@ export function ConsoleShell({
           )}
           <div className="space-y-0.5">
             {group.items.map((item) => {
-              const active = isActive(item)
+              const active = isActive(item);
               return (
                 <Link
                   key={item.url}
@@ -143,46 +143,46 @@ export function ConsoleShell({
                   activeOptions={{ exact: !!item.exact }}
                   onClick={() => setDrawerOpen(false)}
                   title={compact ? item.title : undefined}
-                  aria-current={active ? 'page' : undefined}
+                  aria-current={active ? "page" : undefined}
                   className={cn(
                     row(compact),
                     active
-                      ? 'bg-primary/8 font-semibold text-primary'
-                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900',
+                      ? "bg-primary/8 font-semibold text-primary"
+                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900",
                   )}
                 >
                   <item.icon className="size-4.5 shrink-0" aria-hidden />
                   {!compact && <span className="truncate">{item.title}</span>}
                 </Link>
-              )
+              );
             })}
           </div>
         </div>
       ))}
     </nav>
-  )
+  );
 
   const exitLink = (compact: boolean) => (
     <Link
       to={exit.to}
       onClick={() => setDrawerOpen(false)}
       title={compact ? exit.title : undefined}
-      className={cn(row(compact), 'text-slate-600 hover:bg-slate-50 hover:text-slate-900')}
+      className={cn(row(compact), "text-slate-600 hover:bg-slate-50 hover:text-slate-900")}
     >
       <exit.icon className="size-4.5 shrink-0" aria-hidden />
       {!compact && <span className="truncate">{exit.title}</span>}
     </Link>
-  )
+  );
 
-  const toggleLabel = collapsed ? t('console.expandSidebar') : t('console.collapseSidebar')
+  const toggleLabel = collapsed ? t("console.expandSidebar") : t("console.collapseSidebar");
 
   return (
     <div className="flex h-dvh w-full overflow-hidden bg-canvas">
       {/* Desktop: the sidebar is the whole chrome — pages get the full height. */}
       <aside
         className={cn(
-          'hidden h-full shrink-0 flex-col border-r border-slate-200/80 bg-white transition-[width] duration-200 ease-out md:flex',
-          collapsed ? 'w-16' : 'w-64',
+          "hidden h-full shrink-0 flex-col border-r border-slate-200/80 bg-white transition-[width] duration-200 ease-out md:flex",
+          collapsed ? "w-16" : "w-64",
         )}
       >
         <div className="flex h-16 shrink-0 items-center gap-2 px-3">
@@ -219,7 +219,7 @@ export function ConsoleShell({
         {nav(collapsed)}
         <div className="shrink-0 space-y-1 border-t border-slate-100 p-3">
           {exitLink(collapsed)}
-          <AccountMenu variant={collapsed ? 'avatar' : 'card'} />
+          <AccountMenu variant={collapsed ? "avatar" : "card"} />
         </div>
       </aside>
 
@@ -244,7 +244,7 @@ export function ConsoleShell({
             size="icon"
             className="size-11 text-slate-600"
             onClick={() => setDrawerOpen(true)}
-            aria-label={t('console.openMenu')}
+            aria-label={t("console.openMenu")}
           >
             <Menu className="size-5" />
           </Button>
@@ -265,27 +265,27 @@ export function ConsoleShell({
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 /** Who is signed in, the language, and the way out. `card` = the sidebar foot, `avatar` = just the face. */
-function AccountMenu({ variant }: { variant: 'card' | 'avatar' }) {
-  const t = useT()
-  const user = useSession((s) => s.user)
-  const lang = usePrefs((s) => s.lang)
-  const setLang = usePrefs((s) => s.setLang)
-  const logout = useLogout()
-  if (!user) return null
+function AccountMenu({ variant }: { variant: "card" | "avatar" }) {
+  const t = useT();
+  const user = useSession((s) => s.user);
+  const lang = usePrefs((s) => s.lang);
+  const setLang = usePrefs((s) => s.setLang);
+  const logout = useLogout();
+  if (!user) return null;
 
   const role = !isStaffUser(user)
     ? null
-    : user.employeeRole === 'admin'
-      ? t('nav.role.admin')
-      : user.employeeRole === 'support_lead'
-        ? t('nav.role.supportLead')
-        : user.employeeRole === 'ops'
-          ? t('nav.role.operations')
-          : t('nav.role.support')
+    : user.employeeRole === "admin"
+      ? t("nav.role.admin")
+      : user.employeeRole === "support_lead"
+        ? t("nav.role.supportLead")
+        : user.employeeRole === "ops"
+          ? t("nav.role.operations")
+          : t("nav.role.support");
 
   return (
     <DropdownMenu>
@@ -294,10 +294,10 @@ function AccountMenu({ variant }: { variant: 'card' | 'avatar' }) {
           <button
             type="button"
             aria-label={user.name}
-            title={variant === 'avatar' ? user.name : undefined}
+            title={variant === "avatar" ? user.name : undefined}
             className={cn(
-              'flex items-center rounded-lg text-left transition-colors hover:bg-slate-50',
-              variant === 'card' ? 'h-12 w-full gap-2.5 px-2' : 'size-10 justify-center',
+              "flex items-center rounded-lg text-left transition-colors hover:bg-slate-50",
+              variant === "card" ? "h-12 w-full gap-2.5 px-2" : "size-10 justify-center",
             )}
           />
         }
@@ -307,7 +307,7 @@ function AccountMenu({ variant }: { variant: 'card' | 'avatar' }) {
             {initialsOf(user.name)}
           </AvatarFallback>
         </Avatar>
-        {variant === 'card' && (
+        {variant === "card" && (
           <>
             <span className="grid min-w-0 flex-1 leading-tight">
               <span className="truncate text-sm font-medium text-slate-900">{user.name}</span>
@@ -318,8 +318,8 @@ function AccountMenu({ variant }: { variant: 'card' | 'avatar' }) {
         )}
       </DropdownMenuTrigger>
       <DropdownMenuContent
-        side={variant === 'card' ? 'top' : 'bottom'}
-        align={variant === 'card' ? 'start' : 'end'}
+        side={variant === "card" ? "top" : "bottom"}
+        align={variant === "card" ? "start" : "end"}
         className="w-64"
       >
         <DropdownMenuGroup>
@@ -329,16 +329,16 @@ function AccountMenu({ variant }: { variant: 'card' | 'avatar' }) {
             {role && (
               <div className="mt-1.5 inline-flex rounded-md bg-primary/8 px-1.5 py-0.5 text-[11px] font-medium text-primary">
                 {role}
-                {user.brandName ? ` · ${user.brandName}` : ''}
+                {user.brandName ? ` · ${user.brandName}` : ""}
               </div>
             )}
           </DropdownMenuLabel>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        {(['vi', 'en'] as const).map((l) => (
+        {(["vi", "en"] as const).map((l) => (
           <DropdownMenuItem key={l} onClick={() => setLang(l)} className="gap-2">
-            <Check className={cn('size-4 text-primary', lang !== l && 'invisible')} />
-            {l === 'vi' ? 'Tiếng Việt' : 'English'}
+            <Check className={cn("size-4 text-primary", lang !== l && "invisible")} />
+            {l === "vi" ? "Tiếng Việt" : "English"}
           </DropdownMenuItem>
         ))}
         <DropdownMenuSeparator />
@@ -346,9 +346,9 @@ function AccountMenu({ variant }: { variant: 'card' | 'avatar' }) {
           onClick={logout}
           className="gap-2 text-rose-600 focus:bg-rose-50 focus:text-rose-700"
         >
-          <LogOut className="size-4" /> {t('auth.logout')}
+          <LogOut className="size-4" /> {t("auth.logout")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
-  )
+  );
 }

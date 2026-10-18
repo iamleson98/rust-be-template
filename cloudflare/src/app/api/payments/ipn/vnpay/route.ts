@@ -31,7 +31,7 @@ export async function GET(req: Request) {
     const secureHash = url.searchParams.get("vnp_SecureHash") ?? "";
     const sorted = Object.keys(params)
       .sort()
-      .map((k) => `${k}=${encodeURIComponent(params[k]!)}`)
+      .map((k) => `${k}=${encodeURIComponent(params[k])}`)
       .join("&");
 
     if (env.VNPAY_HASH_SECRET) {

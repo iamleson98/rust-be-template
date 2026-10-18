@@ -6,7 +6,7 @@ export async function POST(req: Request) {
     const body = await readJson<{ all?: boolean }>(req).catch(() => ({ all: false }));
     const cookie = req.headers.get("cookie") ?? "";
     const m = /(?:^|;\s*)refresh_token=([^;]+)/.exec(cookie);
-    const refreshToken = m ? decodeURIComponent(m[1]!) : null;
+    const refreshToken = m ? decodeURIComponent(m[1]) : null;
 
     if (body.all) {
       const user = await currentUser(req);

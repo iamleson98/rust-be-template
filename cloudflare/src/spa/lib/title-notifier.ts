@@ -33,12 +33,12 @@
  * "(3) 💬 Tin nhắn mới" rather than starting 3 separate flashers).
  */
 
-import { tSync } from '@spa/lib/i18n'
+import { tSync } from "@spa/lib/i18n";
 
-let flashInterval: ReturnType<typeof setInterval> | null = null
-let originalTitle: string | null = null
-let unreadCount = 0
-let toggle = false
+let flashInterval: ReturnType<typeof setInterval> | null = null;
+let originalTitle: string | null = null;
+let unreadCount = 0;
+let toggle = false;
 
 /**
  * Start (or bump the count of) the title-flash notification.
@@ -51,50 +51,50 @@ let toggle = false
  * the title of a tab the user is looking at).
  */
 export function startTitleNotification(count = 1): void {
-  if (typeof document === 'undefined') return
+  if (typeof document === "undefined") return;
 
   // Don't start if the page is visible — the in-app indicator + sound
   // are enough; flashing the title would be noise.
-  if (document.visibilityState === 'visible') return
+  if (document.visibilityState === "visible") return;
 
   // First call — store the original title so we can restore it later.
   if (originalTitle === null) {
-    originalTitle = document.title
+    originalTitle = document.title;
   }
 
-  unreadCount += count
+  unreadCount += count;
 
   // Already flashing — just bump the count + return. The existing
   // interval will pick up the new `unreadCount` on its next tick.
-  if (flashInterval !== null) return
+  if (flashInterval !== null) return;
 
   // Start the flasher. The interval flips `toggle` every 1s + updates
   // the document title. When `toggle` is true, show the "(N) 💬"
   // version; when false, show the original. This creates the blinking
   // effect that grabs attention.
   flashInterval = setInterval(() => {
-    toggle = !toggle
+    toggle = !toggle;
     if (toggle) {
-      document.title = tSync('notifications.unreadTitle', {
+      document.title = tSync("notifications.unreadTitle", {
         count: unreadCount,
-      })
+      });
     } else if (originalTitle !== null) {
-      document.title = originalTitle
+      document.title = originalTitle;
     }
-  }, 1000)
+  }, 1000);
 
   // Stop on focus / visibility change.
   const stop = () => {
-    if (document.visibilityState === 'visible') {
-      stopTitleNotification()
-      document.removeEventListener('visibilitychange', onVisibilityChange)
-      window.removeEventListener('focus', onFocus)
+    if (document.visibilityState === "visible") {
+      stopTitleNotification();
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("focus", onFocus);
     }
-  }
-  const onVisibilityChange = () => stop()
-  const onFocus = () => stop()
-  document.addEventListener('visibilitychange', onVisibilityChange)
-  window.addEventListener('focus', onFocus)
+  };
+  const onVisibilityChange = () => stop();
+  const onFocus = () => stop();
+  document.addEventListener("visibilitychange", onVisibilityChange);
+  window.addEventListener("focus", onFocus);
 }
 
 /**
@@ -106,13 +106,13 @@ export function startTitleNotification(count = 1): void {
  */
 export function stopTitleNotification(): void {
   if (flashInterval !== null) {
-    clearInterval(flashInterval)
-    flashInterval = null
+    clearInterval(flashInterval);
+    flashInterval = null;
   }
-  if (originalTitle !== null && typeof document !== 'undefined') {
-    document.title = originalTitle
+  if (originalTitle !== null && typeof document !== "undefined") {
+    document.title = originalTitle;
   }
-  originalTitle = null
-  unreadCount = 0
-  toggle = false
+  originalTitle = null;
+  unreadCount = 0;
+  toggle = false;
 }

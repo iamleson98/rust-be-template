@@ -9,11 +9,11 @@ import {
   Wallet,
   Wifi,
   type LucideIcon,
-} from 'lucide-react'
-import type { ReviewStats } from '@spa/api'
-import { REVIEW_TAG_LABELS } from '@spa/features/booking/history/booking-types'
-import { useT } from '@spa/lib/i18n'
-import { cn } from '@spa/lib/utils'
+} from "lucide-react";
+import type { ReviewStats } from "@spa/api";
+import { REVIEW_TAG_LABELS } from "@spa/features/booking/history/booking-types";
+import { useT } from "@spa/lib/i18n";
+import { cn } from "@spa/lib/utils";
 
 const TAG_ICONS: Record<string, LucideIcon> = {
   on_time: Clock,
@@ -24,11 +24,11 @@ const TAG_ICONS: Record<string, LucideIcon> = {
   value: Wallet,
   good_wifi: Wifi,
   easy_booking: Ticket,
-}
+};
 
 /** Five stars, filled to the nearest half of `rating`. */
-export function Stars({ rating, className = 'size-3.5' }: { rating: number; className?: string }) {
-  const halves = Math.round(rating * 2)
+export function Stars({ rating, className = "size-3.5" }: { rating: number; className?: string }) {
+  const halves = Math.round(rating * 2);
   return (
     <span className="inline-flex items-center gap-0.5" aria-hidden>
       {[1, 2, 3, 4, 5].map((n) => (
@@ -37,15 +37,15 @@ export function Stars({ rating, className = 'size-3.5' }: { rating: number; clas
           className={cn(
             className,
             n * 2 <= halves
-              ? 'fill-amber-400 text-amber-400'
+              ? "fill-amber-400 text-amber-400"
               : n * 2 - 1 === halves
-                ? 'fill-amber-400/50 text-amber-400'
-                : 'text-muted-foreground/30',
+                ? "fill-amber-400/50 text-amber-400"
+                : "text-muted-foreground/30",
           )}
         />
       ))}
     </span>
-  )
+  );
 }
 
 /**
@@ -54,9 +54,9 @@ export function Stars({ rating, className = 'size-3.5' }: { rating: number; clas
  * praise. Renders nothing until there is a review.
  */
 export function ReviewSummary({ stats, caption }: { stats: ReviewStats; caption?: string }) {
-  const t = useT()
-  const average = stats.average
-  if (stats.count === 0 || average == null) return null
+  const t = useT();
+  const average = stats.average;
+  if (stats.count === 0 || average == null) return null;
 
   return (
     <section className="space-y-4 rounded-xl border bg-card p-4">
@@ -65,13 +65,13 @@ export function ReviewSummary({ stats, caption }: { stats: ReviewStats; caption?
           <div className="text-4xl font-bold text-amber-600 tabular-nums">{average.toFixed(1)}</div>
           <Stars rating={average} className="size-4" />
           <div className="mt-1 text-xs text-muted-foreground">
-            {t('reviews.countLabel', { count: stats.count.toLocaleString('vi-VN') })}
+            {t("reviews.countLabel", { count: stats.count.toLocaleString("vi-VN") })}
           </div>
           {caption && <div className="text-[11px] text-muted-foreground">{caption}</div>}
         </div>
-        <ul className="space-y-1.5" aria-label={t('reviews.ratingDistribution')}>
+        <ul className="space-y-1.5" aria-label={t("reviews.ratingDistribution")}>
           {[5, 4, 3, 2, 1].map((star) => {
-            const n = stats.byRating[star - 1] ?? 0
+            const n = stats.byRating[star - 1] ?? 0;
             return (
               <li key={star} className="flex items-center gap-2 text-xs">
                 <span className="flex w-7 shrink-0 items-center gap-0.5 text-muted-foreground">
@@ -88,18 +88,18 @@ export function ReviewSummary({ stats, caption }: { stats: ReviewStats; caption?
                   {n}
                 </span>
               </li>
-            )
+            );
           })}
         </ul>
       </div>
 
       {stats.topTags.length > 0 && (
         <div className="border-t pt-3">
-          <h4 className="mb-2 text-sm font-semibold">{t('reviews.topPraisedTitle')}</h4>
+          <h4 className="mb-2 text-sm font-semibold">{t("reviews.topPraisedTitle")}</h4>
           <ul className="flex flex-wrap gap-2">
             {stats.topTags.map(({ tag, count }) => {
-              const Icon = TAG_ICONS[tag] ?? Star
-              const label = REVIEW_TAG_LABELS[tag] ? t(REVIEW_TAG_LABELS[tag].labelKey) : tag
+              const Icon = TAG_ICONS[tag] ?? Star;
+              const label = REVIEW_TAG_LABELS[tag] ? t(REVIEW_TAG_LABELS[tag].labelKey) : tag;
               return (
                 <li
                   key={tag}
@@ -108,14 +108,14 @@ export function ReviewSummary({ stats, caption }: { stats: ReviewStats; caption?
                   <Icon className="size-3.5 text-primary" aria-hidden />
                   {label}
                   <span className="text-muted-foreground tabular-nums">
-                    {t('reviews.mentionCount', { count })}
+                    {t("reviews.mentionCount", { count })}
                   </span>
                 </li>
-              )
+              );
             })}
           </ul>
         </div>
       )}
     </section>
-  )
+  );
 }

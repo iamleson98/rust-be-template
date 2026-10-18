@@ -1,67 +1,67 @@
-'use client'
+"use client";
 
-import { useEffect, useMemo, useState } from 'react'
-import { Navigation2 } from 'lucide-react'
-import { toast } from 'sonner'
-import type { TripResult } from '@spa/api'
-import { useT } from '@spa/lib/i18n'
-import { legSearch, type SortKey } from '@spa/lib/search-params'
-import { SearchWidget } from './widget/search-widget'
-import { ActiveFilterChips } from './active-filter-chips'
-import { FiltersSidebar } from './filters-sidebar'
-import { ResultsActions } from './results-actions'
-import { DateStrip } from './date-strip'
-import { LegTabs } from './leg-tabs'
-import { forgetReturnLeg, rememberReturnLeg } from './return-leg'
-import { SortTabs } from './filter-controls'
-import { MobileFilters } from './mobile-filters'
-import { RouteDirectory } from './route-directory'
-import { SavedSearchesList } from './saved-searches'
-import { useTripSearchInfinite } from './api'
-import { filterQuery, NO_FILTERS, type Filters } from './filters'
-import { TripResultsList } from './trip-results-list'
-import { useResultFilters } from './use-result-filters'
-import { useSavedSearches, type SavedSearch } from './use-saved-searches'
-import { useSearchUrl } from './use-search-url'
+import { useEffect, useMemo, useState } from "react";
+import { Navigation2 } from "lucide-react";
+import { toast } from "sonner";
+import type { TripResult } from "@spa/api";
+import { useT } from "@spa/lib/i18n";
+import { legSearch, type SortKey } from "@spa/lib/search-params";
+import { SearchWidget } from "./widget/search-widget";
+import { ActiveFilterChips } from "./active-filter-chips";
+import { FiltersSidebar } from "./filters-sidebar";
+import { ResultsActions } from "./results-actions";
+import { DateStrip } from "./date-strip";
+import { LegTabs } from "./leg-tabs";
+import { forgetReturnLeg, rememberReturnLeg } from "./return-leg";
+import { SortTabs } from "./filter-controls";
+import { MobileFilters } from "./mobile-filters";
+import { RouteDirectory } from "./route-directory";
+import { SavedSearchesList } from "./saved-searches";
+import { useTripSearchInfinite } from "./api";
+import { filterQuery, NO_FILTERS, type Filters } from "./filters";
+import { TripResultsList } from "./trip-results-list";
+import { useResultFilters } from "./use-result-filters";
+import { useSavedSearches, type SavedSearch } from "./use-saved-searches";
+import { useSearchUrl } from "./use-search-url";
 
-const NO_RESULTS: TripResult[] = []
+const NO_RESULTS: TripResult[] = [];
 
 /** The `/search` page body: query bar, filters, results; or the route catalogue until both ends are picked. */
 export function SearchResults() {
-  const t = useT()
-  const { search: urlSearch, update } = useSearchUrl()
-  const saved = useSavedSearches()
+  const t = useT();
+  const { search: urlSearch, update } = useSearchUrl();
+  const saved = useSavedSearches();
   // A round trip shows one leg at a time; `search` is the leg on screen.
-  const search = useMemo(() => legSearch(urlSearch), [urlSearch])
-  const returning = search !== urlSearch
+  const search = useMemo(() => legSearch(urlSearch), [urlSearch]);
+  const returning = search !== urlSearch;
 
   // While the outbound leg is on screen, the success screen of its booking can offer the way back.
   useEffect(() => {
-    if (urlSearch.roundTrip && !returning) rememberReturnLeg(urlSearch)
-    else forgetReturnLeg()
-  }, [urlSearch, returning])
+    if (urlSearch.roundTrip && !returning) rememberReturnLeg(urlSearch);
+    else forgetReturnLeg();
+  }, [urlSearch, returning]);
 
-  const browsing = !search.from || !search.to
+  const browsing = !search.from || !search.to;
   // The results page's filters, applied by the server over every match.
-  const [filters, setFilters] = useState<Filters>(NO_FILTERS)
-  const params = useMemo(() => ({ ...search, filters: filterQuery(filters) }), [search, filters])
-  const query = useTripSearchInfinite(browsing ? null : params)
+  const [filters, setFilters] = useState<Filters>(NO_FILTERS);
+  const params = useMemo(() => ({ ...search, filters: filterQuery(filters) }), [search, filters]);
+  const query = useTripSearchInfinite(browsing ? null : params);
   // `keepPreviousData` keeps the old list on screen during a re-search, so `isLoading`
   // stays false; without this the new search would give no feedback at all.
-  const loading = query.isLoading || query.isPlaceholderData || (query.isFetching && !query.data)
+  const loading = query.isLoading || query.isPlaceholderData || (query.isFetching && !query.data);
   // A search without a date is idle: ignore the previous search's trips that the cache still holds.
-  const pages = search.date ? query.data?.pages : undefined
-  const results = useMemo(() => pages?.flatMap((page) => page.items) ?? NO_RESULTS, [pages])
+  const pages = search.date ? query.data?.pages : undefined;
+  const results = useMemo(() => pages?.flatMap((page) => page.items) ?? NO_RESULTS, [pages]);
   // Trips the filters leave, across all pages, and every match before them.
-  const total = pages?.at(-1)?.total ?? results.length
-  const facets = pages?.[0]?.facets ?? undefined
-  const matches = facets?.matches ?? total
-  const rf = useResultFilters(filters, setFilters, facets)
+  const total = pages?.at(-1)?.total ?? results.length;
+  const facets = pages?.[0]?.facets ?? undefined;
+  const matches = facets?.matches ?? total;
+  const rf = useResultFilters(filters, setFilters, facets);
 
   const brandNames = useMemo(
     () => Object.fromEntries((facets?.brands ?? []).map((b) => [b.key, b.label])),
     [facets],
-  )
+  );
 
   const saveSearch = () => {
     saved.add({
@@ -73,20 +73,20 @@ export function SearchResults() {
       sort: search.sort,
       vehicleTypes: search.vehicleTypes,
       filters: rf.filters,
-    })
-    toast.success(t('searchPage.searchSaved'), {
+    });
+    toast.success(t("searchPage.searchSaved"), {
       description: `${search.from} → ${search.to} • ${search.date}`,
-    })
-  }
+    });
+  };
 
   const applySaved = (s: SavedSearch) => {
     // A saved search is one-way: it replaces the round trip.
-    update({ ...s, sort: s.sort as SortKey, returnDate: '', leg: 'out' })
-    rf.setFilters(s.filters)
-    toast.success(t('searchPage.savedSearchApplied'))
-  }
+    update({ ...s, sort: s.sort as SortKey, returnDate: "", leg: "out" });
+    rf.setFilters(s.filters);
+    toast.success(t("searchPage.savedSearchApplied"));
+  };
 
-  const precise = search.fromLat !== undefined
+  const precise = search.fromLat !== undefined;
 
   return (
     <div className="min-h-[60vh]">
@@ -119,7 +119,7 @@ export function SearchResults() {
                 date={search.date}
                 onPick={(date) =>
                   // Leaving after the return day ends the round trip.
-                  update(urlSearch.returnDate < date ? { date, returnDate: '' } : { date })
+                  update(urlSearch.returnDate < date ? { date, returnDate: "" } : { date })
                 }
               />
             ))}
@@ -135,12 +135,12 @@ export function SearchResults() {
                   </h1>
                   <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-sm text-slate-500">
                     {loading
-                      ? t('searchPage.searchingTrips')
-                      : t('searchPage.tripsFound', { found: total, total: matches })}
+                      ? t("searchPage.searchingTrips")
+                      : t("searchPage.tripsFound", { found: total, total: matches })}
                     {precise && (
                       <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700">
                         <Navigation2 className="size-3" />
-                        {t('searchPage.smartSearchShort')}
+                        {t("searchPage.smartSearchShort")}
                       </span>
                     )}
                   </p>
@@ -196,5 +196,5 @@ export function SearchResults() {
         </div>
       )}
     </div>
-  )
+  );
 }

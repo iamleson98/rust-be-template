@@ -1,24 +1,24 @@
-import type { RowData } from '@tanstack/react-table'
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react'
+import type { RowData } from "@tanstack/react-table";
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 
-import { Button } from '@spa/components/ui/button'
-import { ComboboxField } from '@spa/components/ui/combobox'
-import type { ReactTable } from '@tanstack/react-table'
+import { Button } from "@spa/components/ui/button";
+import { ComboboxField } from "@spa/components/ui/combobox";
+import type { ReactTable } from "@tanstack/react-table";
 
-import { cn } from '@spa/lib/utils'
-import { useT } from '@spa/lib/i18n'
-import type { DataTableFeatures } from './data-table-features'
+import { cn } from "@spa/lib/utils";
+import { useT } from "@spa/lib/i18n";
+import type { DataTableFeatures } from "./data-table-features";
 
 interface DataTablePaginationProps<TData extends RowData> {
-  table: ReactTable<DataTableFeatures, TData>
+  table: ReactTable<DataTableFeatures, TData>;
   /** Vietnamese noun used in the "Hiển thị X–Y / N <noun>" label. */
-  noun?: string
+  noun?: string;
   /** Offer a rows-per-page select (client mode, or manual mode with a handler). */
-  showPageSize?: boolean
-  pageSizeOptions?: number[]
+  showPageSize?: boolean;
+  pageSizeOptions?: number[];
   /** Hide the whole bar when everything fits on one page. Default: true. */
-  hideOnSinglePage?: boolean
-  className?: string
+  hideOnSinglePage?: boolean;
+  className?: string;
 }
 
 export function DataTablePagination<TData extends RowData>({
@@ -29,25 +29,25 @@ export function DataTablePagination<TData extends RowData>({
   hideOnSinglePage = true,
   className,
 }: DataTablePaginationProps<TData>) {
-  const t = useT()
-  const { pageIndex, pageSize } = table.state.pagination
-  const pageCount = table.getPageCount()
-  const total = table.getRowCount()
-  const selectedCount = table.getFilteredSelectedRowModel().rows.length
-  const visibleCount = table.getRowModel().rows.length
+  const t = useT();
+  const { pageIndex, pageSize } = table.state.pagination;
+  const pageCount = table.getPageCount();
+  const total = table.getRowCount();
+  const selectedCount = table.getFilteredSelectedRowModel().rows.length;
+  const visibleCount = table.getRowModel().rows.length;
 
-  const from = total === 0 ? 0 : pageIndex * pageSize + 1
-  const to = from + visibleCount - 1
-  const effectiveNoun = noun ?? t('dataTable.rowNoun')
+  const from = total === 0 ? 0 : pageIndex * pageSize + 1;
+  const to = from + visibleCount - 1;
+  const effectiveNoun = noun ?? t("dataTable.rowNoun");
 
   if (hideOnSinglePage && pageCount <= 1 && selectedCount === 0 && !showPageSize) {
-    return null
+    return null;
   }
 
   return (
     <div
       className={cn(
-        'flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 px-4 py-2.5 text-xs text-muted-foreground dark:border-white/10',
+        "flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 px-4 py-2.5 text-xs text-muted-foreground dark:border-white/10",
         className,
       )}
       data-slot="data-table-pagination"
@@ -56,11 +56,11 @@ export function DataTablePagination<TData extends RowData>({
       <div className="flex min-w-0 items-center gap-2 tabular-nums">
         {selectedCount > 0 ? (
           <span>
-            {t('common.selected', { selected: selectedCount, total, noun: effectiveNoun })}
+            {t("common.selected", { selected: selectedCount, total, noun: effectiveNoun })}
           </span>
         ) : (
           <span>
-            {t('common.showing', { from: total === 0 ? 0 : from, to, total, noun: effectiveNoun })}
+            {t("common.showing", { from: total === 0 ? 0 : from, to, total, noun: effectiveNoun })}
           </span>
         )}
       </div>
@@ -68,7 +68,7 @@ export function DataTablePagination<TData extends RowData>({
       <div className="flex items-center gap-4">
         {showPageSize ? (
           <div className="flex items-center gap-2">
-            <span className="hidden sm:inline">{t('common.rowsPerPage')}</span>
+            <span className="hidden sm:inline">{t("common.rowsPerPage")}</span>
             <ComboboxField
               value={`${pageSize}`}
               onValueChange={(value) => table.setPageSize(Number(value))}
@@ -78,8 +78,8 @@ export function DataTablePagination<TData extends RowData>({
               }))}
               className="h-7 w-18 text-xs tabular-nums"
               contentClassName="min-w-20"
-              searchPlaceholder={t('dataTable.rowsPerPageSearch')}
-              aria-label={t('common.rowsPerPage')}
+              searchPlaceholder={t("dataTable.rowsPerPageSearch")}
+              aria-label={t("common.rowsPerPage")}
               data-testid="page-size-combobox"
             />
           </div>
@@ -87,8 +87,8 @@ export function DataTablePagination<TData extends RowData>({
 
         <div className="flex items-center gap-2">
           <span className="tabular-nums">
-            {t('common.page', { page: pageIndex + 1 })}
-            {pageCount > 0 && pageCount !== Infinity ? ` / ${pageCount}` : ''}
+            {t("common.page", { page: pageIndex + 1 })}
+            {pageCount > 0 && pageCount !== Infinity ? ` / ${pageCount}` : ""}
           </span>
           <div className="flex items-center gap-1">
             <Button
@@ -98,7 +98,7 @@ export function DataTablePagination<TData extends RowData>({
               onClick={() => table.firstPage()}
               disabled={!table.getCanPreviousPage()}
             >
-              <span className="sr-only">{t('common.firstPage')}</span>
+              <span className="sr-only">{t("common.firstPage")}</span>
               <ChevronsLeft className="size-3.5" />
             </Button>
             <Button
@@ -108,7 +108,7 @@ export function DataTablePagination<TData extends RowData>({
               onClick={() => table.previousPage()}
               disabled={!table.getCanPreviousPage()}
             >
-              <span className="sr-only">{t('common.prevPage')}</span>
+              <span className="sr-only">{t("common.prevPage")}</span>
               <ChevronLeft className="size-3.5" />
             </Button>
             <Button
@@ -118,7 +118,7 @@ export function DataTablePagination<TData extends RowData>({
               onClick={() => table.nextPage()}
               disabled={!table.getCanNextPage()}
             >
-              <span className="sr-only">{t('common.nextPage')}</span>
+              <span className="sr-only">{t("common.nextPage")}</span>
               <ChevronRight className="size-3.5" />
             </Button>
             <Button
@@ -128,12 +128,12 @@ export function DataTablePagination<TData extends RowData>({
               onClick={() => table.lastPage()}
               disabled={!table.getCanLastPage()}
             >
-              <span className="sr-only">{t('common.lastPage')}</span>
+              <span className="sr-only">{t("common.lastPage")}</span>
               <ChevronsRight className="size-3.5" />
             </Button>
           </div>
         </div>
       </div>
     </div>
-  )
+  );
 }

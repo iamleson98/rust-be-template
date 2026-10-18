@@ -1,6 +1,6 @@
-import type { ReactNode } from 'react'
-import { Shimmer } from '@spa/components/ui/shimmer'
-import { cn } from '@spa/lib/utils'
+import type { ReactNode } from "react";
+import { Shimmer } from "@spa/components/ui/shimmer";
+import { cn } from "@spa/lib/utils";
 
 /** A landing-page band: one page width, one rhythm. */
 export function HomeSection({
@@ -10,15 +10,15 @@ export function HomeSection({
   className,
   children,
 }: {
-  title: ReactNode
-  subtitle?: ReactNode
+  title: ReactNode;
+  subtitle?: ReactNode;
   /** A link or button on the heading's right ("see all"). */
-  action?: ReactNode
-  className?: string
-  children: ReactNode
+  action?: ReactNode;
+  className?: string;
+  children: ReactNode;
 }) {
   return (
-    <section className={cn('page-x py-8 md:py-11', className)}>
+    <section className={cn("page-x py-8 md:py-11", className)}>
       <div className="mb-5 flex flex-wrap items-end justify-between gap-x-4 gap-y-2 md:mb-6">
         <div className="min-w-0 flex-1 basis-64">
           <h2 className="text-xl font-bold tracking-tight text-balance text-slate-900 md:text-2xl">
@@ -30,7 +30,7 @@ export function HomeSection({
       </div>
       {children}
     </section>
-  )
+  );
 }
 
 /**
@@ -38,15 +38,15 @@ export function HomeSection({
  * and sit in a grid from `sm` up; add the `lg:` column count at the call site.
  */
 export const RAIL =
-  '-mx-4 -mt-1 grid auto-cols-[80%] grid-flow-col gap-3 overflow-x-auto px-4 pt-1 pb-2 scrollbar-none snap-x snap-mandatory sm:mx-0 sm:mt-0 sm:auto-cols-auto sm:grid-flow-row sm:grid-cols-2 sm:gap-4 sm:overflow-visible sm:px-0 sm:pt-0 sm:pb-0 [&>*]:snap-start'
+  "-mx-4 -mt-1 grid auto-cols-[80%] grid-flow-col gap-3 overflow-x-auto px-4 pt-1 pb-2 scrollbar-none snap-x snap-mandatory sm:mx-0 sm:mt-0 sm:auto-cols-auto sm:grid-flow-row sm:grid-cols-2 sm:gap-4 sm:overflow-visible sm:px-0 sm:pt-0 sm:pb-0 [&>*]:snap-start";
 
 /** Placeholder for a band of cards while its data loads. */
 export function RailSkeleton({
   count = 4,
-  cols = 'lg:grid-cols-4',
+  cols = "lg:grid-cols-4",
 }: {
-  count?: number
-  cols?: string
+  count?: number;
+  cols?: string;
 }) {
   return (
     <section className="page-x py-8 md:py-11" aria-hidden>
@@ -60,5 +60,5 @@ export function RailSkeleton({
         ))}
       </div>
     </section>
-  )
+  );
 }

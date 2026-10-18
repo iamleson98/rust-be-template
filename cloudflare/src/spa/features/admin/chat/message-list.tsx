@@ -1,43 +1,43 @@
-import { ScrollArea } from '@spa/components/ui/scroll-area'
-import { dayBreak } from '@spa/features/chat/format'
-import { TypingDots } from '@spa/features/chat/typing-dots'
-import { useMessageScroll } from '@spa/features/chat/use-message-scroll'
-import { useT } from '@spa/lib/i18n'
-import { MessageRow } from './message-row'
-import type { AdminChat } from './use-admin-chat'
+import { ScrollArea } from "@spa/components/ui/scroll-area";
+import { dayBreak } from "@spa/features/chat/format";
+import { TypingDots } from "@spa/features/chat/typing-dots";
+import { useMessageScroll } from "@spa/features/chat/use-message-scroll";
+import { useT } from "@spa/lib/i18n";
+import { MessageRow } from "./message-row";
+import type { AdminChat } from "./use-admin-chat";
 
 const Pill = ({ children }: { children: string }) => (
   <div className="flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-xs text-muted-foreground">
     <span className="h-3 w-3 rounded-full border-2 border-slate-300 border-t-slate-600 animate-spin" />
     {children}
   </div>
-)
+);
 
 type Props = {
-  conversation: AdminChat['conversation']
-  onViewTicket?: (bookingCode: string) => void
-}
+  conversation: AdminChat["conversation"];
+  onViewTicket?: (bookingCode: string) => void;
+};
 
 /**
  * The open conversation. From `xl` it fills the space between header and composer
  * of a card with a definite height; stacked, it takes a fixed height.
  */
 export function MessageList({ conversation: c, onViewTicket }: Props) {
-  const t = useT()
+  const t = useT();
   const scrollRef = useMessageScroll({
     messages: c.messages,
     trailing: c.typingUser,
     hasMore: c.hasMore,
     loadingMore: c.loadingMore,
     onLoadMore: c.loadMore,
-  })
+  });
 
   return (
     <ScrollArea viewportRef={scrollRef} className="min-h-0 flex-1 bg-muted/30 p-4">
       <div className="space-y-2.5">
         {c.loadingMore && (
           <div className="flex items-center justify-center py-3">
-            <Pill>{t('chat.loadingMore')}</Pill>
+            <Pill>{t("chat.loadingMore")}</Pill>
           </div>
         )}
         {!c.loadingMore && c.hasMore && (
@@ -46,7 +46,7 @@ export function MessageList({ conversation: c, onViewTicket }: Props) {
               onClick={c.loadMore}
               className="text-[11px] text-blue-600 hover:text-blue-700 hover:underline"
             >
-              {t('chat.loadMore')}
+              {t("chat.loadMore")}
             </button>
           </div>
         )}
@@ -61,12 +61,12 @@ export function MessageList({ conversation: c, onViewTicket }: Props) {
         ))}
         {c.loading && (
           <div className="flex items-center justify-center py-10">
-            <Pill>{t('adminChat.loadingMessages')}</Pill>
+            <Pill>{t("adminChat.loadingMessages")}</Pill>
           </div>
         )}
         {!c.loading && c.messages.length === 0 && (
           <div className="py-10 text-center text-xs text-muted-foreground">
-            {t('adminChat.noMessages')}
+            {t("adminChat.noMessages")}
           </div>
         )}
       </div>
@@ -77,5 +77,5 @@ export function MessageList({ conversation: c, onViewTicket }: Props) {
         </div>
       )}
     </ScrollArea>
-  )
+  );
 }

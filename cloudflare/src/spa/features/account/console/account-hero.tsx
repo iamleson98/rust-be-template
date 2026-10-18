@@ -1,29 +1,29 @@
-import { Link } from '@tanstack/react-router'
-import { ChevronRight } from 'lucide-react'
-import { Avatar, AvatarFallback } from '@spa/components/ui/avatar'
-import { tierView, useLoyalty } from '@spa/features/loyalty/api'
-import { formatNum } from '@spa/lib/format'
-import { useT } from '@spa/lib/i18n'
-import { useSession } from '@spa/stores/session'
+import { Link } from "@tanstack/react-router";
+import { ChevronRight } from "lucide-react";
+import { Avatar, AvatarFallback } from "@spa/components/ui/avatar";
+import { tierView, useLoyalty } from "@spa/features/loyalty/api";
+import { formatNum } from "@spa/lib/format";
+import { useT } from "@spa/lib/i18n";
+import { useSession } from "@spa/stores/session";
 
-const GREETINGS = ['Morning', 'Afternoon', 'Evening'] as const
-const greetingKey = (hour = new Date().getHours()) => GREETINGS[hour < 12 ? 0 : hour < 18 ? 1 : 2]
+const GREETINGS = ["Morning", "Afternoon", "Evening"] as const;
+const greetingKey = (hour = new Date().getHours()) => GREETINGS[hour < 12 ? 0 : hour < 18 ? 1 : 2];
 
 /** Who you are and where you stand: greeting, tier, points and the way to the next tier. */
 export function AccountHero() {
-  const t = useT()
-  const user = useSession((s) => s.user)
-  const { data: loyalty } = useLoyalty()
-  const { tier, nextTier, style, progress } = tierView(loyalty)
+  const t = useT();
+  const user = useSession((s) => s.user);
+  const { data: loyalty } = useLoyalty();
+  const { tier, nextTier, style, progress } = tierView(loyalty);
   const initials =
-    (user?.name ?? '')
+    (user?.name ?? "")
       .trim()
       .split(/\s+/)
       .filter(Boolean)
       .map((p) => p[0])
       .slice(-2)
-      .join('')
-      .toUpperCase() || 'U'
+      .join("")
+      .toUpperCase() || "U";
 
   return (
     <section className="relative overflow-hidden rounded-3xl bg-linear-to-br from-primary to-blue-500 p-5 text-white sm:p-6">
@@ -54,7 +54,7 @@ export function AccountHero() {
             </span>
             <span className="inline-flex items-center gap-1 text-sm">
               <span className="text-lg font-bold tabular-nums">{formatNum(loyalty.points)}</span>
-              <span className="text-white/80">{t('layout.account.pointsShort').toLowerCase()}</span>
+              <span className="text-white/80">{t("layout.account.pointsShort").toLowerCase()}</span>
               <ChevronRight className="size-4 text-white/70" />
             </span>
           </div>
@@ -67,17 +67,17 @@ export function AccountHero() {
                 />
               </div>
               <div className="mt-1.5 text-xs text-white/80">
-                {t('home.pointsToNext', {
+                {t("home.pointsToNext", {
                   count: formatNum(Math.max(0, nextTier.minPoints - loyalty.points)),
                   name: nextTier.name,
                 })}
               </div>
             </>
           ) : (
-            <div className="mt-1.5 text-xs text-white/80">{t('home.topTierReached')}</div>
+            <div className="mt-1.5 text-xs text-white/80">{t("home.topTierReached")}</div>
           )}
         </Link>
       )}
     </section>
-  )
+  );
 }

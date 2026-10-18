@@ -73,7 +73,11 @@ export interface CacheOptions {
  * caller's retry policy — compose with `withRetry` at the call site so
  * reads and cache misses stay resilient independently.
  */
-export async function cacheFirst<T>(key: string, loader: () => Promise<T>, opts: CacheOptions = {}): Promise<T> {
+export async function cacheFirst<T>(
+  key: string,
+  loader: () => Promise<T>,
+  opts: CacheOptions = {},
+): Promise<T> {
   const ttlMs = opts.ttlMs ?? 30_000;
   const kvTtl = Math.max(opts.kvTtlSecs ?? 300, 60);
 

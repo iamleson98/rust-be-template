@@ -23,7 +23,9 @@ export async function PUT(req: Request, ctx: Params) {
     const { id } = await ctx.params;
     const body = await readJson<VtBody>(req);
     const db = await getDb();
-    const existing = (await db.select().from(vehicleTypes).where(eq(vehicleTypes.id, id)).limit(1))[0];
+    const existing = (
+      await db.select().from(vehicleTypes).where(eq(vehicleTypes.id, id)).limit(1)
+    )[0];
     if (!existing) return err(404, "not-found", "vehicle type not found");
     await db
       .update(vehicleTypes)
@@ -50,7 +52,13 @@ export async function DELETE(req: Request, ctx: Params) {
     await requirePermission(staff, "admin:vehicle_types:write");
     const { id } = await ctx.params;
     const db = await getDb();
-    const existing = (await db.select({ id: vehicleTypes.id }).from(vehicleTypes).where(eq(vehicleTypes.id, id)).limit(1))[0];
+    const existing = (
+      await db
+        .select({ id: vehicleTypes.id })
+        .from(vehicleTypes)
+        .where(eq(vehicleTypes.id, id))
+        .limit(1)
+    )[0];
     if (!existing) return err(404, "not-found", "vehicle type not found");
     await db.delete(vehicleTypes).where(eq(vehicleTypes.id, id));
     await invalidateVehicleTypes();

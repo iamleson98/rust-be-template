@@ -1,6 +1,6 @@
-import { memo, useCallback } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
+import { memo, useCallback } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import {
   ChevronRight,
   Droplet,
@@ -12,48 +12,48 @@ import {
   Star,
   Wifi,
   Zap,
-} from 'lucide-react'
-import { toast } from 'sonner'
-import { tripDetailOptions, type TripResult, type TripStopMatch } from '@spa/api'
-import { formatCurrency, formatDuration, formatTimeVN, parseDateSafe } from '@spa/lib/format'
-import { useT } from '@spa/lib/i18n'
-import { AMENITY_LABELS } from '@spa/lib/labels'
-import { cn } from '@spa/lib/utils'
-import { useGuest } from '@spa/stores/guest'
-import { usePrefs } from '@spa/stores/prefs'
-import { useUi } from '@spa/stores/ui'
+} from "lucide-react";
+import { toast } from "sonner";
+import { tripDetailOptions, type TripResult, type TripStopMatch } from "@spa/api";
+import { formatCurrency, formatDuration, formatTimeVN, parseDateSafe } from "@spa/lib/format";
+import { useT } from "@spa/lib/i18n";
+import { AMENITY_LABELS } from "@spa/lib/labels";
+import { cn } from "@spa/lib/utils";
+import { useGuest } from "@spa/stores/guest";
+import { usePrefs } from "@spa/stores/prefs";
+import { useUi } from "@spa/stores/ui";
 
 const AMENITY_ICON: Record<string, typeof Wifi> = {
   wifi: Wifi,
   ac: Snowflake,
   water: Droplet,
   charging: Zap,
-}
+};
 
-const DAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' })
+const DAY = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Ho_Chi_Minh" });
 
 /** Calendar days between departure and arrival in Vietnam (0 when unknown). */
 function daysLater(departureAt?: string | null, arrivalAt?: string | null): number {
-  const dep = parseDateSafe(departureAt)
-  const arr = parseDateSafe(arrivalAt)
-  if (!dep || !arr) return 0
-  return Math.round((Date.parse(DAY.format(arr)) - Date.parse(DAY.format(dep))) / 86_400_000)
+  const dep = parseDateSafe(departureAt);
+  const arr = parseDateSafe(arrivalAt);
+  if (!dep || !arr) return 0;
+  return Math.round((Date.parse(DAY.format(arr)) - Date.parse(DAY.format(dep))) / 86_400_000);
 }
 
 /** Minutes on the road, when the schedule gives an arrival time. */
 function minutesBetween(departureAt?: string | null, arrivalAt?: string | null) {
-  const dep = parseDateSafe(departureAt)
-  const arr = parseDateSafe(arrivalAt)
-  return dep && arr && arr > dep ? Math.round((arr.getTime() - dep.getTime()) / 60_000) : null
+  const dep = parseDateSafe(departureAt);
+  const arr = parseDateSafe(arrivalAt);
+  return dep && arr && arr > dep ? Math.round((arr.getTime() - dep.getTime()) / 60_000) : null;
 }
 
 const initials = (name: string) =>
   name
     .split(/\s+/)
     .map((w) => w[0])
-    .join('')
+    .join("")
     .slice(0, 2)
-    .toUpperCase()
+    .toUpperCase();
 
 /**
  * One search result. The times and the journey lead (what people compare
@@ -66,27 +66,27 @@ export const TripCard = memo(function TripCard({
   onSelect,
   cheapest = false,
 }: {
-  trip: TripResult
-  onSelect?: () => void
+  trip: TripResult;
+  onSelect?: () => void;
   /** The lowest fare among the results on screen. */
-  cheapest?: boolean
+  cheapest?: boolean;
 }) {
-  const t = useT()
-  const currency = usePrefs((s) => s.currency)
-  const toggleCompare = useUi((s) => s.toggleCompare)
-  const compareCount = useUi((s) => s.compareList.length)
-  const inCompare = useUi((s) => s.compareList.includes(trip.tripId))
-  const openShare = useUi((s) => s.openShare)
-  const pushRecentlyViewed = useGuest((s) => s.pushRecentlyViewed)
-  const queryClient = useQueryClient()
+  const t = useT();
+  const currency = usePrefs((s) => s.currency);
+  const toggleCompare = useUi((s) => s.toggleCompare);
+  const compareCount = useUi((s) => s.compareList.length);
+  const inCompare = useUi((s) => s.compareList.includes(trip.tripId));
+  const openShare = useUi((s) => s.openShare);
+  const pushRecentlyViewed = useGuest((s) => s.pushRecentlyViewed);
+  const queryClient = useQueryClient();
 
   // Warm the detail query on hover: the trip dialog reads the same cache.
   const prefetch = useCallback(() => {
     void queryClient.prefetchQuery({
       ...tripDetailOptions({ path: { id: trip.tripId } }),
       staleTime: 60_000,
-    })
-  }, [queryClient, trip.tripId])
+    });
+  }, [queryClient, trip.tripId]);
 
   const select = () => {
     pushRecentlyViewed({
@@ -94,22 +94,22 @@ export const TripCard = memo(function TripCard({
       routeId: trip.routeId,
       label: `${trip.fromName} → ${trip.toName}`,
       brandName: trip.brandName,
-    })
-    onSelect?.()
-  }
+    });
+    onSelect?.();
+  };
 
   const compare = (e: React.MouseEvent) => {
-    e.stopPropagation()
+    e.stopPropagation();
     if (!inCompare && compareCount >= 3) {
-      toast.info(t('searchPage.compareMax'))
-      return
+      toast.info(t("searchPage.compareMax"));
+      return;
     }
-    toggleCompare(trip.tripId)
-    toast.success(inCompare ? t('searchPage.compareRemoved') : t('searchPage.compareAdded'))
-  }
+    toggleCompare(trip.tripId);
+    toast.success(inCompare ? t("searchPage.compareRemoved") : t("searchPage.compareAdded"));
+  };
 
   const share = (e: React.MouseEvent) => {
-    e.stopPropagation()
+    e.stopPropagation();
     openShare({
       tripId: trip.tripId,
       fromName: trip.fromName,
@@ -120,40 +120,40 @@ export const TripCard = memo(function TripCard({
       brandRating: trip.brandRating ?? undefined,
       minPrice: trip.minPrice,
       vehicleTypeLabel: trip.vehicleTypeLabel,
-    })
-  }
+    });
+  };
 
-  const minutes = minutesBetween(trip.departureAt, trip.arrivalAt)
-  const plusDays = daysLater(trip.departureAt, trip.arrivalAt)
-  const fewSeats = trip.availableSeats > 0 && trip.availableSeats <= 5
-  const almostFull = trip.availableSeats > 0 && trip.availableSeats <= 3
+  const minutes = minutesBetween(trip.departureAt, trip.arrivalAt);
+  const plusDays = daysLater(trip.departureAt, trip.arrivalAt);
+  const fewSeats = trip.availableSeats > 0 && trip.availableSeats <= 5;
+  const almostFull = trip.availableSeats > 0 && trip.availableSeats <= 3;
 
   const quickActions = (
     <div className="flex shrink-0 items-center gap-1">
       <button
         onClick={compare}
-        title={t('searchPage.addToCompare')}
-        aria-label={t('searchPage.addToCompare')}
+        title={t("searchPage.addToCompare")}
+        aria-label={t("searchPage.addToCompare")}
         aria-pressed={inCompare}
         className={cn(
-          'grid size-8 place-items-center rounded-full transition-colors',
+          "grid size-8 place-items-center rounded-full transition-colors",
           inCompare
-            ? 'bg-violet-600 text-white'
-            : 'text-slate-400 hover:bg-violet-50 hover:text-violet-600',
+            ? "bg-violet-600 text-white"
+            : "text-slate-400 hover:bg-violet-50 hover:text-violet-600",
         )}
       >
         <GitCompare className="size-4" />
       </button>
       <button
         onClick={share}
-        title={t('searchPage.shareTrip')}
-        aria-label={t('searchPage.shareTrip')}
+        title={t("searchPage.shareTrip")}
+        aria-label={t("searchPage.shareTrip")}
         className="grid size-8 place-items-center rounded-full text-slate-400 transition-colors hover:bg-primary/10 hover:text-primary"
       >
         <Share2 className="size-4" />
       </button>
     </div>
-  )
+  );
 
   return (
     <article
@@ -175,7 +175,7 @@ export const TripCard = memo(function TripCard({
                 params={{ slug: trip.brandSlug }}
                 onClick={(e) => e.stopPropagation()}
                 className="block truncate text-sm font-semibold text-slate-900 hover:text-primary"
-                title={t('searchPage.viewBrandDetails', { name: trip.brandName })}
+                title={t("searchPage.viewBrandDetails", { name: trip.brandName })}
               >
                 {trip.brandName}
               </Link>
@@ -231,7 +231,7 @@ export const TripCard = memo(function TripCard({
             <div className="mt-1.5 truncate text-xs text-slate-500">{trip.fromName}</div>
             <div />
             <div className="mt-1.5 truncate text-right text-xs text-slate-500">
-              {trip.arrivalAt ? trip.toName : t('searchPage.viewArrival')}
+              {trip.arrivalAt ? trip.toName : t("searchPage.viewArrival")}
             </div>
           </div>
 
@@ -247,7 +247,7 @@ export const TripCard = memo(function TripCard({
           {trip.amenities.length > 0 && (
             <div className="mt-4 flex flex-wrap items-center gap-1.5">
               {trip.amenities.slice(0, 4).map((a) => {
-                const Icon = AMENITY_ICON[a]
+                const Icon = AMENITY_ICON[a];
                 return (
                   <span
                     key={a}
@@ -256,7 +256,7 @@ export const TripCard = memo(function TripCard({
                     {Icon && <Icon className="size-3" />}
                     {t(AMENITY_LABELS[a] ?? a)}
                   </span>
-                )
+                );
               })}
               {trip.amenities.length > 4 && (
                 <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-500">
@@ -273,63 +273,63 @@ export const TripCard = memo(function TripCard({
             <div className="flex flex-wrap gap-1 sm:justify-end">
               {cheapest && (
                 <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
-                  {t('searchPage.cheapest')}
+                  {t("searchPage.cheapest")}
                 </span>
               )}
               {almostFull && (
                 <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-semibold text-rose-600">
-                  {t('searchPage.almostFull')}
+                  {t("searchPage.almostFull")}
                 </span>
               )}
             </div>
             <div className="mt-1 text-xl font-extrabold tracking-tight whitespace-nowrap text-slate-900 tabular-nums sm:text-2xl">
               {trip.maxPrice > trip.minPrice && (
                 <span className="mr-1 text-xs font-medium text-slate-500">
-                  {t('home.priceFrom')}
+                  {t("home.priceFrom")}
                 </span>
               )}
               {formatCurrency(trip.minPrice, currency)}
             </div>
             <div
-              className={cn('text-xs', fewSeats ? 'font-semibold text-rose-600' : 'text-slate-500')}
+              className={cn("text-xs", fewSeats ? "font-semibold text-rose-600" : "text-slate-500")}
             >
               {fewSeats
-                ? t('searchPage.onlySeatsLeft', { count: trip.availableSeats })
-                : `${trip.availableSeats} ${t('common.seatsAvailable')}`}
+                ? t("searchPage.onlySeatsLeft", { count: trip.availableSeats })
+                : `${trip.availableSeats} ${t("common.seatsAvailable")}`}
             </div>
           </div>
           <button
             type="button"
             onClick={(e) => {
-              e.stopPropagation()
-              select()
+              e.stopPropagation();
+              select();
             }}
             className="inline-flex h-10 shrink-0 items-center gap-1 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 sm:mt-3 sm:w-full sm:justify-center"
           >
-            {t('searchPage.selectTrip')}
+            {t("searchPage.selectTrip")}
             <ChevronRight className="size-4 transition-transform group-hover:translate-x-0.5" />
           </button>
         </div>
       </div>
     </article>
-  )
-})
+  );
+});
 
 /** "Board at Long Biên · 06:40 · 0.4 km away", one line, the name truncating first. */
-function StopLine({ kind, stop }: { kind: 'pickup' | 'dropoff'; stop: TripStopMatch }) {
-  const t = useT()
-  const Icon = kind === 'pickup' ? MapPin : Flag
+function StopLine({ kind, stop }: { kind: "pickup" | "dropoff"; stop: TripStopMatch }) {
+  const t = useT();
+  const Icon = kind === "pickup" ? MapPin : Flag;
   return (
     <div className="flex min-w-0 items-center gap-1.5 text-xs text-slate-700">
       <Icon className="size-3.5 shrink-0 text-emerald-600" />
       <span className="shrink-0 text-slate-500">
-        {t(kind === 'pickup' ? 'searchPage.boardAt' : 'searchPage.alightAt')}
+        {t(kind === "pickup" ? "searchPage.boardAt" : "searchPage.alightAt")}
       </span>
       <span className="min-w-0 truncate font-medium text-slate-900">{stop.name}</span>
       {stop.time && <span className="shrink-0 font-semibold tabular-nums">{stop.time}</span>}
       <span className="shrink-0 text-slate-500">
-        · {t('searchPage.kmAway', { km: stop.distanceKm })}
+        · {t("searchPage.kmAway", { km: stop.distanceKm })}
       </span>
     </div>
-  )
+  );
 }

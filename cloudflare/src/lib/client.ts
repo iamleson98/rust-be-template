@@ -33,7 +33,11 @@ async function req<T>(path: string, init?: RequestInit, isRetry = false): Promis
   const body = text ? JSON.parse(text) : {};
   if (!res.ok) {
     const err = (body as { error?: { code?: string; message?: string } }).error;
-    throw new ApiClientError(res.status, err?.code ?? "error", err?.message ?? `HTTP ${res.status}`);
+    throw new ApiClientError(
+      res.status,
+      err?.code ?? "error",
+      err?.message ?? `HTTP ${res.status}`,
+    );
   }
   return body as T;
 }
@@ -48,7 +52,8 @@ export const api = {
   upload: async <T>(path: string, form: FormData) => {
     const res = await fetch(path, { method: "POST", body: form, credentials: "same-origin" });
     const body = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error((body as { error?: { message?: string } }).error?.message ?? "Upload failed");
+    if (!res.ok)
+      throw new Error((body as { error?: { message?: string } }).error?.message ?? "Upload failed");
     return body as T;
   },
 };
@@ -83,7 +88,13 @@ export interface TripItem {
   totalSeats: number;
   availableSeats: number;
   route: { id: string; name: string; from: string; to: string };
-  brand: { id: string; slug: string; name: string; logoUrl: string | null; rating: number | null } | null;
+  brand: {
+    id: string;
+    slug: string;
+    name: string;
+    logoUrl: string | null;
+    rating: number | null;
+  } | null;
   vehicleType: { code: string; label: string } | null;
   amenities: string[];
   price: { adult: number; child: number | null; currency: string };
@@ -124,8 +135,19 @@ export interface BookingView {
     paymentMethod: string | null;
     createdAt: string;
   };
-  seats: { seatLabel: string; seatClass: string | null; passengerName: string | null; price: number }[];
-  trip: { id: string; departureDate: string; departureTime: string; routeName: string; brandName: string | null };
+  seats: {
+    seatLabel: string;
+    seatClass: string | null;
+    passengerName: string | null;
+    price: number;
+  }[];
+  trip: {
+    id: string;
+    departureDate: string;
+    departureTime: string;
+    routeName: string;
+    brandName: string | null;
+  };
 }
 
 export interface PaymentView {
@@ -183,7 +205,12 @@ export function fmtDate(iso: string | null | undefined): string {
 
 export function fmtDateLong(iso: string): string {
   const d = new Date(iso.includes("T") ? iso : `${iso}T00:00:00`);
-  return d.toLocaleDateString("vi-VN", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
+  return d.toLocaleDateString("vi-VN", {
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
 }
 
 export function cityLabel(slug: string): string {

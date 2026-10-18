@@ -28,7 +28,7 @@ export function brandPrefix(slug: string): string {
   const p = slug
     .split("-")
     .filter(Boolean)
-    .map((s) => s[0]!)
+    .map((s) => s[0])
     .join("")
     .toUpperCase();
   return p || "BK";
@@ -44,15 +44,13 @@ export function normalizePhone(p: string): string {
 
 /** Strip Vietnamese tones + lowercase ("Hà Nội" → "ha noi"). */
 export function stripTones(s: string): string {
-  return (
-    s
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/đ/g, "d")
-      .replace(/Đ/g, "D")
-      .toLowerCase()
-      .trim()
-  );
+  return s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D")
+    .toLowerCase()
+    .trim();
 }
 
 /** Compact form ("ha noi" → "hanoi") used for exact-match boosts. */

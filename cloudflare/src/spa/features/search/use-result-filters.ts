@@ -1,6 +1,12 @@
-import { useMemo, useState } from 'react'
-import type { SearchFacets } from '@spa/api'
-import { activeFilterCount, effectiveRange, NO_FILTERS, priceBounds, type Filters } from './filters'
+import { useMemo, useState } from "react";
+import type { SearchFacets } from "@spa/api";
+import {
+  activeFilterCount,
+  effectiveRange,
+  NO_FILTERS,
+  priceBounds,
+  type Filters,
+} from "./filters";
 
 /**
  * The results page's filters: what is picked, and the price range the slider
@@ -13,17 +19,17 @@ export function useResultFilters(
   setFilters: (filters: Filters) => void,
   facets: SearchFacets | undefined,
 ) {
-  const bounds = useMemo(() => priceBounds(facets), [facets])
+  const bounds = useMemo(() => priceBounds(facets), [facets]);
 
   // A new search moves the price bounds: forget the old price pick (render-phase sync).
-  const boundsKey = bounds.join('-')
-  const [lastKey, setLastKey] = useState(boundsKey)
+  const boundsKey = bounds.join("-");
+  const [lastKey, setLastKey] = useState(boundsKey);
   if (boundsKey !== lastKey) {
-    setLastKey(boundsKey)
-    if (filters.priceMin || filters.priceMax) setFilters({ ...filters, priceMin: 0, priceMax: 0 })
+    setLastKey(boundsKey);
+    if (filters.priceMin || filters.priceMax) setFilters({ ...filters, priceMin: 0, priceMax: 0 });
   }
 
-  const range = useMemo(() => effectiveRange(filters, bounds), [filters, bounds])
+  const range = useMemo(() => effectiveRange(filters, bounds), [filters, bounds]);
 
   return {
     filters,
@@ -33,7 +39,7 @@ export function useResultFilters(
     range,
     facets,
     activeCount: activeFilterCount(filters, range, bounds),
-  }
+  };
 }
 
-export type ResultFilters = ReturnType<typeof useResultFilters>
+export type ResultFilters = ReturnType<typeof useResultFilters>;

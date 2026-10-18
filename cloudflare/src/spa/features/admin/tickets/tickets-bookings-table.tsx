@@ -1,16 +1,20 @@
-'use client'
+"use client";
 
-import type { Dispatch, SetStateAction } from 'react'
-import type { CellData, ColumnDef, SortingState } from '@tanstack/react-table'
-import { DataTable, DataTableViewOptions, type DataTableFeatures } from '@spa/components/data-table'
-import { CountPill } from '@spa/components/console/panel'
-import { Button } from '@spa/components/ui/button'
-import { Ticket as TicketIcon, RefreshCw } from 'lucide-react'
-import type { useAdminBookings, AdminBookingFilter } from './api'
-import type { BookingOut } from '@spa/api'
-import { TicketStatusBadge } from '@spa/features/booking/history/ticket-status-badge'
-import { useT } from '@spa/lib/i18n'
-import { PAGE_SIZE, formatVND } from './tickets-helpers'
+import type { Dispatch, SetStateAction } from "react";
+import type { CellData, ColumnDef, SortingState } from "@tanstack/react-table";
+import {
+  DataTable,
+  DataTableViewOptions,
+  type DataTableFeatures,
+} from "@spa/components/data-table";
+import { CountPill } from "@spa/components/console/panel";
+import { Button } from "@spa/components/ui/button";
+import { Ticket as TicketIcon, RefreshCw } from "lucide-react";
+import type { useAdminBookings, AdminBookingFilter } from "./api";
+import type { BookingOut } from "@spa/api";
+import { TicketStatusBadge } from "@spa/features/booking/history/ticket-status-badge";
+import { useT } from "@spa/lib/i18n";
+import { PAGE_SIZE, formatVND } from "./tickets-helpers";
 
 export function TicketsBookingsTable({
   columns,
@@ -22,22 +26,22 @@ export function TicketsBookingsTable({
   handleSortingChange,
   setSelectedBookingId,
 }: {
-  columns: ColumnDef<DataTableFeatures, BookingOut, CellData>[]
-  bookingsQuery: ReturnType<typeof useAdminBookings>
-  total: number
-  offset: number
-  setFilter: Dispatch<SetStateAction<AdminBookingFilter>>
-  sorting: SortingState
-  handleSortingChange: (next: SortingState) => void
-  setSelectedBookingId: Dispatch<SetStateAction<string | null>>
+  columns: ColumnDef<DataTableFeatures, BookingOut, CellData>[];
+  bookingsQuery: ReturnType<typeof useAdminBookings>;
+  total: number;
+  offset: number;
+  setFilter: Dispatch<SetStateAction<AdminBookingFilter>>;
+  sorting: SortingState;
+  handleSortingChange: (next: SortingState) => void;
+  setSelectedBookingId: Dispatch<SetStateAction<string | null>>;
 }) {
-  const t = useT()
+  const t = useT();
   return (
     <>
       <DataTable
         columns={columns}
         data={bookingsQuery.data?.items ?? []}
-        rowNoun={t('adminTickets.rowNoun')}
+        rowNoun={t("adminTickets.rowNoun")}
         manualPagination
         totalRowCount={total}
         pageIndex={Math.floor(offset / PAGE_SIZE)}
@@ -50,15 +54,15 @@ export function TicketsBookingsTable({
         isError={bookingsQuery.isError}
         onRetry={() => bookingsQuery.refetch()}
         onRowClick={(b) => setSelectedBookingId(b.id)}
-        rowAriaLabel={(b) => t('adminTickets.viewTicketDetail', { code: b.code })}
+        rowAriaLabel={(b) => t("adminTickets.viewTicketDetail", { code: b.code })}
         rowClassName="card-hover-lift"
-        emptyTitle={t('adminTickets.emptyTitle')}
-        emptyDescription={t('adminTickets.emptyDescription')}
+        emptyTitle={t("adminTickets.emptyTitle")}
+        emptyDescription={t("adminTickets.emptyDescription")}
         emptyIcon={<TicketIcon className="h-5 w-5" aria-hidden />}
         toolbar={(table) => (
           <div className="flex items-center gap-2 border-b border-slate-100 py-2.5 pr-2.5 pl-4">
             <h2 className="flex min-w-0 items-center gap-2 text-sm font-semibold">
-              <span className="truncate">{t('adminTickets.soldTicketsTitle')}</span>
+              <span className="truncate">{t("adminTickets.soldTicketsTitle")}</span>
               <CountPill n={total} />
             </h2>
             <div className="ml-auto flex items-center gap-1">
@@ -68,10 +72,10 @@ export function TicketsBookingsTable({
                 className="size-8 text-slate-500"
                 onClick={() => bookingsQuery.refetch()}
                 disabled={bookingsQuery.isFetching}
-                aria-label={t('common.refresh')}
-                title={t('common.refresh')}
+                aria-label={t("common.refresh")}
+                title={t("common.refresh")}
               >
-                <RefreshCw className={bookingsQuery.isFetching ? 'animate-spin' : ''} />
+                <RefreshCw className={bookingsQuery.isFetching ? "animate-spin" : ""} />
               </Button>
               <DataTableViewOptions table={table} className="hidden h-8 md:inline-flex" />
             </div>
@@ -94,11 +98,11 @@ export function TicketsBookingsTable({
                       <TicketStatusBadge booking={b} className="text-[10px]" />
                     </div>
                     <div className="text-xs font-medium mt-1 truncate">
-                      {b.contactName ?? '—'} · {b.contactPhone ?? ''}
+                      {b.contactName ?? "—"} · {b.contactPhone ?? ""}
                     </div>
                     <div className="text-[11px] text-muted-foreground mt-0.5">
-                      {b.trip?.fromName ?? '—'} → {b.trip?.toName ?? '—'} ·{' '}
-                      {b.seats.map((s) => s.seatCode).join(', ')}
+                      {b.trip?.fromName ?? "—"} → {b.trip?.toName ?? "—"} ·{" "}
+                      {b.seats.map((s) => s.seatCode).join(", ")}
                     </div>
                   </div>
                   <div className="text-right shrink-0">
@@ -111,5 +115,5 @@ export function TicketsBookingsTable({
         }
       />
     </>
-  )
+  );
 }

@@ -54,7 +54,9 @@ export async function DELETE(req: Request, ctx: Params) {
     await requirePermission(staff, "admin:addresses:write");
     const { id } = await ctx.params;
     const db = await getDb();
-    const existing = (await db.select({ id: addresses.id }).from(addresses).where(eq(addresses.id, id)).limit(1))[0];
+    const existing = (
+      await db.select({ id: addresses.id }).from(addresses).where(eq(addresses.id, id)).limit(1)
+    )[0];
     if (!existing) return err(404, "not-found", "address not found");
     await db.delete(addresses).where(eq(addresses.id, id));
     return Response.json({ id });

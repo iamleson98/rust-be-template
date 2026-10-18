@@ -1,16 +1,16 @@
-import { lazy, Suspense } from 'react'
-import { CalendarDays, MessageSquareHeart, Star } from 'lucide-react'
-import { BusTile } from '@spa/components/bus-tile'
-import { Card } from '@spa/components/ui/card'
-import { Skeleton } from '@spa/components/ui/skeleton'
-import type { BookingItem } from '@spa/features/booking/history/booking-types'
-import { formatDay, formatVND } from '@spa/lib/format'
-import { useT } from '@spa/lib/i18n'
+import { lazy, Suspense } from "react";
+import { CalendarDays, MessageSquareHeart, Star } from "lucide-react";
+import { BusTile } from "@spa/components/bus-tile";
+import { Card } from "@spa/components/ui/card";
+import { Skeleton } from "@spa/components/ui/skeleton";
+import type { BookingItem } from "@spa/features/booking/history/booking-types";
+import { formatDay, formatVND } from "@spa/lib/format";
+import { useT } from "@spa/lib/i18n";
 
 export const FeedbackForm = lazy(() =>
-  import('./feedback-form').then((m) => ({ default: m.FeedbackForm })),
-)
-export const FormFallback = <div className="h-32 animate-pulse rounded-lg bg-slate-100" />
+  import("./feedback-form").then((m) => ({ default: m.FeedbackForm })),
+);
+export const FormFallback = <div className="h-32 animate-pulse rounded-lg bg-slate-100" />;
 
 /** A finished trip without a review: click to rate it in place. */
 export function PendingRideCard({
@@ -19,13 +19,13 @@ export function PendingRideCard({
   onToggle,
   onSubmitted,
 }: {
-  booking: BookingItem
-  expanded: boolean
-  onToggle: () => void
-  onSubmitted: () => void
+  booking: BookingItem;
+  expanded: boolean;
+  onToggle: () => void;
+  onSubmitted: () => void;
 }) {
-  const t = useT()
-  const trip = booking.trip
+  const t = useT();
+  const trip = booking.trip;
   return (
     <Card className="group overflow-hidden border-border">
       <button
@@ -37,7 +37,7 @@ export function PendingRideCard({
         <BusTile size="lg" />
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-semibold">
-            {trip?.routeName || t('accountPage.feedback.tripFallback')}
+            {trip?.routeName || t("accountPage.feedback.tripFallback")}
           </div>
           <div className="mt-0.5 flex items-center gap-3 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1 truncate">
@@ -47,7 +47,7 @@ export function PendingRideCard({
             {trip?.brandName && <span className="truncate">{trip.brandName}</span>}
             <span className="inline-flex shrink-0 items-center gap-1">
               <Star className="size-3 text-amber-500" />
-              {t('accountPage.feedback.seatsCount', { count: booking.seats.length })}
+              {t("accountPage.feedback.seatsCount", { count: booking.seats.length })}
             </span>
           </div>
         </div>
@@ -56,7 +56,7 @@ export function PendingRideCard({
         </div>
         <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-600 ring-1 ring-amber-500/20 transition-colors group-hover:bg-amber-500/15">
           <MessageSquareHeart className="size-3.5" />
-          {t('accountPage.feedback.rateNow')}
+          {t("accountPage.feedback.rateNow")}
         </span>
       </button>
 
@@ -73,7 +73,7 @@ export function PendingRideCard({
         </div>
       )}
     </Card>
-  )
+  );
 }
 
 export function PendingRideSkeleton() {
@@ -88,5 +88,5 @@ export function PendingRideSkeleton() {
         <Skeleton className="h-7 w-24 rounded-full" />
       </div>
     </Card>
-  )
+  );
 }

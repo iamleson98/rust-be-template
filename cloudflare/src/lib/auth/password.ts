@@ -56,13 +56,13 @@ export async function verifyPassword(password: string, stored: string | null): P
   if (!stored) return false;
   const parts = stored.split("$");
   if (parts.length !== 4 || parts[0] !== "pbkdf2") return false;
-  const iterations = parseInt(parts[1]!, 10);
+  const iterations = parseInt(parts[1], 10);
   if (!Number.isFinite(iterations) || iterations < 1) return false;
-  const salt = fromB64(parts[2]!);
-  const expected = fromB64(parts[3]!);
+  const salt = fromB64(parts[2]);
+  const expected = fromB64(parts[3]);
   const actual = await pbkdf2(password, salt, iterations);
   if (actual.length !== expected.length) return false;
   let diff = 0;
-  for (let i = 0; i < actual.length; i++) diff |= actual[i]! ^ expected[i]!;
+  for (let i = 0; i < actual.length; i++) diff |= actual[i] ^ expected[i];
   return diff === 0;
 }

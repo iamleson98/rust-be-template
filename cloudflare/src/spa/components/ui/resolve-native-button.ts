@@ -1,4 +1,4 @@
-import { isValidElement, type ReactElement, type ReactNode } from 'react'
+import { isValidElement, type ReactElement, type ReactNode } from "react";
 
 /**
  * Resolve Base UI's `nativeButton` prop for the Radix-style `asChild` →
@@ -19,7 +19,7 @@ import { isValidElement, type ReactElement, type ReactNode } from 'react'
  * All comparisons are tag-name only — no child props are inspected.
  */
 export function resolveNativeButton(children: ReactNode): boolean | undefined {
-  if (!isValidElement(children)) return undefined
-  const type = (children as ReactElement).type
-  return typeof type === 'string' ? type === 'button' : undefined
+  if (!isValidElement(children)) return undefined;
+  const type = (children as ReactElement).type;
+  return typeof type === "string" ? type === "button" : undefined;
 }

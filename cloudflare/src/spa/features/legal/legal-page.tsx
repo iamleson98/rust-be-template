@@ -1,17 +1,17 @@
-import type { Lang } from '@spa/lib/i18n'
-import { useT } from '@spa/lib/i18n'
-import { usePrefs } from '@spa/stores/prefs'
+import type { Lang } from "@spa/lib/i18n";
+import { useT } from "@spa/lib/i18n";
+import { usePrefs } from "@spa/stores/prefs";
 
 /** A paragraph, or a bulleted list. */
-export type LegalBlock = string | { list: string[] }
+export type LegalBlock = string | { list: string[] };
 
 export type LegalDoc = {
-  title: string
+  title: string;
   /** Date this version took effect, as shown to readers. */
-  updated: string
-  intro: string[]
-  sections: { id: string; heading: string; body: LegalBlock[] }[]
-}
+  updated: string;
+  intro: string[];
+  sections: { id: string; heading: string; body: LegalBlock[] }[];
+};
 
 /**
  * A legal document (privacy policy, terms) in the reader's language: a
@@ -20,15 +20,15 @@ export type LegalDoc = {
  * crawlers and reviewers read it without running scripts.
  */
 export function LegalPage({ doc }: { doc: Record<Lang, LegalDoc> }) {
-  const t = useT()
-  const lang = usePrefs((s) => s.lang)
-  const d = doc[lang] ?? doc.vi
+  const t = useT();
+  const lang = usePrefs((s) => s.lang);
+  const d = doc[lang] ?? doc.vi;
 
   return (
     <article className="mx-auto w-full max-w-3xl px-4 pt-6 pb-16 md:py-10">
       <header className="space-y-2 border-b pb-5">
         <h1 className="text-2xl font-bold tracking-tight text-balance md:text-3xl">{d.title}</h1>
-        <p className="text-sm text-muted-foreground">{t('legal.updated', { date: d.updated })}</p>
+        <p className="text-sm text-muted-foreground">{t("legal.updated", { date: d.updated })}</p>
       </header>
 
       <div className="space-y-3 pt-5 text-[15px] leading-relaxed">
@@ -37,8 +37,8 @@ export function LegalPage({ doc }: { doc: Record<Lang, LegalDoc> }) {
         ))}
       </div>
 
-      <nav aria-label={t('legal.contents')} className="mt-6 rounded-xl border bg-card p-4">
-        <h2 className="mb-2 text-sm font-semibold">{t('legal.contents')}</h2>
+      <nav aria-label={t("legal.contents")} className="mt-6 rounded-xl border bg-card p-4">
+        <h2 className="mb-2 text-sm font-semibold">{t("legal.contents")}</h2>
         <ol className="list-decimal space-y-1 pl-5 text-sm text-primary">
           {d.sections.map((s) => (
             <li key={s.id}>
@@ -57,7 +57,7 @@ export function LegalPage({ doc }: { doc: Record<Lang, LegalDoc> }) {
           </h2>
           <div className="mt-3 space-y-3 text-[15px] leading-relaxed">
             {s.body.map((block, j) =>
-              typeof block === 'string' ? (
+              typeof block === "string" ? (
                 <p key={j}>{block}</p>
               ) : (
                 <ul key={j} className="list-disc space-y-1.5 pl-5">
@@ -71,5 +71,5 @@ export function LegalPage({ doc }: { doc: Record<Lang, LegalDoc> }) {
         </section>
       ))}
     </article>
-  )
+  );
 }

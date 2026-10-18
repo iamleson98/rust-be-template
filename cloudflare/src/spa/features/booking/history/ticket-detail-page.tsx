@@ -1,6 +1,6 @@
-import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { Link, useParams } from '@tanstack/react-router'
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Link, useParams } from "@tanstack/react-router";
 import {
   AlertCircle,
   ArrowLeft,
@@ -12,46 +12,46 @@ import {
   PhoneCall,
   QrCode,
   Users,
-} from 'lucide-react'
-import { bookingsDetailOptions, type PaymentOut } from '@spa/api'
-import { Button } from '@spa/components/ui/button'
-import { ConsolePage, PageHeader } from '@spa/components/console/page'
-import { Panel } from '@spa/components/console/panel'
-import { Skeleton } from '@spa/components/ui/skeleton'
-import { useBookingPayments } from '@spa/features/booking/api'
-import { PaymentDialog } from '@spa/features/booking/flow/payment-dialog'
-import { trackConversion } from '@spa/lib/analytics'
-import { formatDateVN, formatTimeVN, useMoney } from '@spa/lib/format'
-import { useT } from '@spa/lib/i18n'
-import { useUi } from '@spa/stores/ui'
-import { PAYMENT_LABELS, ticketStage } from './booking-types'
-import { TicketPassengers, TicketStops } from './ticket-parts'
-import { TicketQrDialog } from './ticket-qr-dialog'
-import { TicketStatusBadge } from './ticket-status-badge'
+} from "lucide-react";
+import { bookingsDetailOptions, type PaymentOut } from "@spa/api";
+import { Button } from "@spa/components/ui/button";
+import { ConsolePage, PageHeader } from "@spa/components/console/page";
+import { Panel } from "@spa/components/console/panel";
+import { Skeleton } from "@spa/components/ui/skeleton";
+import { useBookingPayments } from "@spa/features/booking/api";
+import { PaymentDialog } from "@spa/features/booking/flow/payment-dialog";
+import { trackConversion } from "@spa/lib/analytics";
+import { formatDateVN, formatTimeVN, useMoney } from "@spa/lib/format";
+import { useT } from "@spa/lib/i18n";
+import { useUi } from "@spa/stores/ui";
+import { PAYMENT_LABELS, ticketStage } from "./booking-types";
+import { TicketPassengers, TicketStops } from "./ticket-parts";
+import { TicketQrDialog } from "./ticket-qr-dialog";
+import { TicketStatusBadge } from "./ticket-status-badge";
 
 /** One ticket in the customer's console: trip, stops, passengers, payment, QR and actions. */
 export function TicketDetailPage() {
-  const t = useT()
-  const money = useMoney()
-  const { code } = useParams({ from: '/account/trips/$code' })
-  const openCancel = useUi((s) => s.openCancel)
+  const t = useT();
+  const money = useMoney();
+  const { code } = useParams({ from: "/account/trips/$code" });
+  const openCancel = useUi((s) => s.openCancel);
   const {
     data: ticket,
     isLoading,
     isError,
-  } = useQuery(bookingsDetailOptions({ path: { id: code } }))
-  const [qrOpen, setQrOpen] = useState(false)
-  const [paying, setPaying] = useState(false)
-  const stage = ticket ? ticketStage(ticket) : null
-  const payments = useBookingPayments(ticket?.id, stage === 'paying')
+  } = useQuery(bookingsDetailOptions({ path: { id: code } }));
+  const [qrOpen, setQrOpen] = useState(false);
+  const [paying, setPaying] = useState(false);
+  const stage = ticket ? ticketStage(ticket) : null;
+  const payments = useBookingPayments(ticket?.id, stage === "paying");
 
   const back = (
     <Button asChild variant="ghost" size="sm" className="mb-2 -ml-2 text-muted-foreground">
       <Link to="/account/trips">
-        <ArrowLeft className="size-4" /> {t('layout.account.tripHistory')}
+        <ArrowLeft className="size-4" /> {t("layout.account.tripHistory")}
       </Link>
     </Button>
-  )
+  );
 
   if (isLoading) {
     return (
@@ -60,7 +60,7 @@ export function TicketDetailPage() {
         <Skeleton className="h-48 w-full rounded-xl" />
         <Skeleton className="h-40 w-full rounded-xl" />
       </ConsolePage>
-    )
+    );
   }
   if (isError || !ticket) {
     return (
@@ -68,24 +68,24 @@ export function TicketDetailPage() {
         {back}
         <div className="flex flex-col items-center py-16 text-center">
           <AlertCircle className="mb-3 size-10 text-muted-foreground" />
-          <h2 className="text-lg font-semibold">{t('bookingDetail.notFoundTitle')}</h2>
+          <h2 className="text-lg font-semibold">{t("bookingDetail.notFoundTitle")}</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            {t('bookingDetail.invalidCode', { code })}
+            {t("bookingDetail.invalidCode", { code })}
           </p>
         </div>
       </ConsolePage>
-    )
+    );
   }
 
-  const trip = ticket.trip
+  const trip = ticket.trip;
   const onPaid = (payment: PaymentOut) => {
-    setPaying(false)
-    trackConversion('purchase', {
+    setPaying(false);
+    trackConversion("purchase", {
       value: payment.amount,
       currency: payment.currency,
       transactionId: ticket.code,
-    })
-  }
+    });
+  };
 
   return (
     <ConsolePage width="narrow">
@@ -101,16 +101,16 @@ export function TicketDetailPage() {
           ticket.ticketQr && (
             <Button variant="outline" className="gap-1.5" onClick={() => setQrOpen(true)}>
               <QrCode className="size-4" />
-              {t('bookingHistory.qrCode')}
+              {t("bookingHistory.qrCode")}
             </Button>
           )
         }
       />
 
-      {stage === 'awaiting' && (
+      {stage === "awaiting" && (
         <p className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
           <PhoneCall className="mt-0.5 size-4 shrink-0" />
-          {t('bookingHistory.awaitingNotice', { phone: ticket.contactPhone ?? '' })}
+          {t("bookingHistory.awaitingNotice", { phone: ticket.contactPhone ?? "" })}
         </p>
       )}
 
@@ -119,22 +119,22 @@ export function TicketDetailPage() {
           <div className="space-y-4">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Bus className="size-4" />
-              <span className="font-medium text-foreground">{trip.brandName ?? '—'}</span>
+              <span className="font-medium text-foreground">{trip.brandName ?? "—"}</span>
               {trip.busLayoutName && <span>· {trip.busLayoutName}</span>}
             </div>
             <div className="flex flex-wrap items-center gap-2 text-lg font-semibold">
-              {trip.fromName ?? '—'}
+              {trip.fromName ?? "—"}
               <ArrowRight className="size-4 text-muted-foreground" />
-              {trip.toName ?? '—'}
+              {trip.toName ?? "—"}
             </div>
             <div className="flex flex-wrap items-center gap-x-2 text-sm">
               <CalendarClock className="size-4 text-primary" />
               <span className="font-medium">
                 {formatDateVN(trip.departureAt ?? trip.departureDate, {
-                  weekday: 'long',
-                  day: '2-digit',
-                  month: '2-digit',
-                  year: 'numeric',
+                  weekday: "long",
+                  day: "2-digit",
+                  month: "2-digit",
+                  year: "numeric",
                 })}
               </span>
               <span className="font-semibold tabular-nums">
@@ -148,7 +148,7 @@ export function TicketDetailPage() {
 
       <Panel
         icon={<Users />}
-        title={t('bookingHistory.passengersAndSeats', { count: ticket.seats.length })}
+        title={t("bookingHistory.passengersAndSeats", { count: ticket.seats.length })}
       >
         <TicketPassengers seats={ticket.seats} />
       </Panel>
@@ -157,25 +157,25 @@ export function TicketDetailPage() {
         <div className="space-y-1.5 text-sm">
           {ticket.paymentMethod && (
             <Row
-              label={t('payment.method')}
+              label={t("payment.method")}
               value={t(PAYMENT_LABELS[ticket.paymentMethod] ?? ticket.paymentMethod)}
             />
           )}
           <Row
-            label={t('bookingHistory.subtotalSeats', { count: ticket.seats.length })}
+            label={t("bookingHistory.subtotalSeats", { count: ticket.seats.length })}
             value={money(ticket.subtotal)}
           />
           {ticket.discount > 0 && (
-            <Row label={t('bookingHistory.discount')} value={`- ${money(ticket.discount)}`} />
+            <Row label={t("bookingHistory.discount")} value={`- ${money(ticket.discount)}`} />
           )}
           <div className="flex items-center justify-between border-t pt-2">
-            <span className="font-semibold">{t('bookingHistory.grandTotal')}</span>
+            <span className="font-semibold">{t("bookingHistory.grandTotal")}</span>
             <span className="text-xl font-semibold tabular-nums">{money(ticket.total)}</span>
           </div>
         </div>
       </Panel>
 
-      {(ticket.canCancel || stage === 'paying') && (
+      {(ticket.canCancel || stage === "paying") && (
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           {ticket.canCancel && (
             <Button
@@ -184,13 +184,13 @@ export function TicketDetailPage() {
               onClick={() => openCancel(ticket.id)}
             >
               <Ban className="size-4" />
-              {t('cancel.title')}
+              {t("cancel.title")}
             </Button>
           )}
-          {stage === 'paying' && (
+          {stage === "paying" && (
             <Button className="gap-1.5" onClick={() => setPaying(true)}>
               <CreditCard className="size-4" />
-              {t('booking.payment')}
+              {t("booking.payment")}
             </Button>
           )}
         </div>
@@ -206,7 +206,7 @@ export function TicketDetailPage() {
         onPaid={onPaid}
       />
     </ConsolePage>
-  )
+  );
 }
 
 function Row({ label, value }: { label: string; value: string }) {
@@ -215,5 +215,5 @@ function Row({ label, value }: { label: string; value: string }) {
       <span className="text-muted-foreground">{label}</span>
       <span className="font-medium">{value}</span>
     </div>
-  )
+  );
 }

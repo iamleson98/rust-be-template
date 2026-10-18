@@ -1,20 +1,20 @@
-'use client'
+"use client";
 
-import { cancelPaymentMutation, createPaymentMutation } from '@spa/api'
-import { useMutation } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
-import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@spa/components/ui/dialog'
-import { Button } from '@spa/components/ui/button'
-import { Banknote, CheckCircle2, Clock, Loader2, ShieldCheck, XCircle } from 'lucide-react'
-import { toast } from 'sonner'
-import { formatVND } from '@spa/lib/format'
-import { useT } from '@spa/lib/i18n'
-import { usePayment } from '../api'
-import type { PaymentOut } from '@spa/api'
-import type { PaymentProvider } from '@spa/lib/payment'
-import { ProviderPicker } from './payment-provider-picker'
-import { GatewayRedirect } from './gateway-redirect'
-import { VietQrDisplay } from './vietqr-display'
+import { cancelPaymentMutation, createPaymentMutation } from "@spa/api";
+import { useMutation } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@spa/components/ui/dialog";
+import { Button } from "@spa/components/ui/button";
+import { Banknote, CheckCircle2, Clock, Loader2, ShieldCheck, XCircle } from "lucide-react";
+import { toast } from "sonner";
+import { formatVND } from "@spa/lib/format";
+import { useT } from "@spa/lib/i18n";
+import { usePayment } from "../api";
+import type { PaymentOut } from "@spa/api";
+import type { PaymentProvider } from "@spa/lib/payment";
+import { ProviderPicker } from "./payment-provider-picker";
+import { GatewayRedirect } from "./gateway-redirect";
+import { VietQrDisplay } from "./vietqr-display";
 
 /**
  * Pay for an existing booking from its detail page: resume the payment in
@@ -29,70 +29,70 @@ export function PaymentDialog({
   onPaid,
 }: {
   /** If provided, the dialog opens in resume mode showing this payment. */
-  paymentId?: string
+  paymentId?: string;
   /** Required when creating a new payment (no `paymentId`). */
-  bookingId?: string
+  bookingId?: string;
   /** Booking total (VND integer) — shown when no payment exists yet. */
-  bookingTotal?: number
-  open: boolean
-  onClose: () => void
+  bookingTotal?: number;
+  open: boolean;
+  onClose: () => void;
   /** Called when the payment transitions to `completed`. */
-  onPaid?: (payment: PaymentOut) => void
+  onPaid?: (payment: PaymentOut) => void;
 }) {
-  const t = useT()
-  const [resumeId, setResumeId] = useState<string | undefined>(paymentId)
+  const t = useT();
+  const [resumeId, setResumeId] = useState<string | undefined>(paymentId);
   // Re-sync when the parent's `paymentId` prop changes (e.g. after the
   // first successful create-payment, the parent refetches the booking and
   // passes the new paymentId).
   useEffect(() => {
     // Intentional effect-synced state (dialog reset-on-open /
     // server-data snapshot / DOM-availability gate).
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setResumeId(paymentId)
-  }, [paymentId])
 
-  const payment = usePayment(resumeId, open)
-  const cancelPayment = useMutation(cancelPaymentMutation())
-  const createPayment = useMutation(createPaymentMutation())
+    setResumeId(paymentId);
+  }, [paymentId]);
+
+  const payment = usePayment(resumeId, open);
+  const cancelPayment = useMutation(cancelPaymentMutation());
+  const createPayment = useMutation(createPaymentMutation());
 
   // When the payment becomes `completed`, fire onPaid + auto-close after 1.5s.
   useEffect(() => {
-    if (payment.data?.status === 'completed') {
-      onPaid?.(payment.data)
+    if (payment.data?.status === "completed") {
+      onPaid?.(payment.data);
       const t = setTimeout(() => {
-        onClose()
-      }, 1500)
-      return () => clearTimeout(t)
+        onClose();
+      }, 1500);
+      return () => clearTimeout(t);
     }
-  }, [payment.data, onPaid, onClose])
+  }, [payment.data, onPaid, onClose]);
 
-  const p = payment.data
+  const p = payment.data;
 
   const handleCreate = async (provider: PaymentProvider) => {
     if (!bookingId) {
-      toast.error(t('payment.missingBooking'))
-      return
+      toast.error(t("payment.missingBooking"));
+      return;
     }
     try {
-      const result = await createPayment.mutateAsync({ body: { bookingId, provider } })
-      setResumeId(result.payment.id)
+      const result = await createPayment.mutateAsync({ body: { bookingId, provider } });
+      setResumeId(result.payment.id);
     } catch (e: unknown) {
-      toast.error(t('payment.createFailed'), {
+      toast.error(t("payment.createFailed"), {
         description: e instanceof Error ? e.message : undefined,
-      })
+      });
     }
-  }
+  };
 
-  const showProviderPicker = !p || ['failed', 'cancelled'].includes(p.status)
+  const showProviderPicker = !p || ["failed", "cancelled"].includes(p.status);
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-lg">
         <DialogTitle className="text-base font-semibold">
-          {t('bookingFlow.paymentTitle')}
+          {t("bookingFlow.paymentTitle")}
         </DialogTitle>
         <DialogDescription className="text-xs text-muted-foreground">
-          {p ? t('bookingFlow.txnRef', { ref: p.providerTxnRef }) : t('bookingFlow.chooseMethod')}
+          {p ? t("bookingFlow.txnRef", { ref: p.providerTxnRef }) : t("bookingFlow.chooseMethod")}
         </DialogDescription>
 
         {showProviderPicker ? (
@@ -110,17 +110,17 @@ export function PaymentDialog({
             {/* Amount */}
             <div className="rounded-lg bg-slate-50 border border-slate-200 p-4 text-center">
               <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1">
-                {t('bookingFlow.amount')}
+                {t("bookingFlow.amount")}
               </div>
               <div className="text-2xl font-extrabold text-slate-900">{formatVND(p.amount)}</div>
             </div>
 
             {/* Provider-specific body */}
-            {p.provider === 'vnpay' || p.provider === 'momo' || p.provider === 'zalopay' ? (
+            {p.provider === "vnpay" || p.provider === "momo" || p.provider === "zalopay" ? (
               <GatewayRedirect provider={p.provider} gatewayUrl={p.gatewayUrl} status={p.status} />
-            ) : p.provider === 'vietqr' ? (
+            ) : p.provider === "vietqr" ? (
               <VietQrDisplay payment={p} />
-            ) : p.provider === 'cod' ? (
+            ) : p.provider === "cod" ? (
               <CodDisplay payment={p} />
             ) : null}
 
@@ -128,27 +128,27 @@ export function PaymentDialog({
             <div className="flex justify-between items-center pt-2">
               <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                 <ShieldCheck className="h-3.5 w-3.5 text-primary" />
-                {t('bookingFlow.sslShortNote')}
+                {t("bookingFlow.sslShortNote")}
               </div>
-              {p.status === 'pending' && (
+              {p.status === "pending" && (
                 <Button
                   variant="outline"
                   size="sm"
                   disabled={cancelPayment.isPending}
                   onClick={async () => {
                     try {
-                      await cancelPayment.mutateAsync({ path: { id: p.id }, body: {} })
-                      toast.success(t('bookingFlow.paymentCancelled'))
+                      await cancelPayment.mutateAsync({ path: { id: p.id }, body: {} });
+                      toast.success(t("bookingFlow.paymentCancelled"));
                       // Reset to provider-picker for retry.
-                      setResumeId(undefined)
+                      setResumeId(undefined);
                     } catch (e: unknown) {
-                      toast.error(t('bookingFlow.cancelFailed'), {
+                      toast.error(t("bookingFlow.cancelFailed"), {
                         description: e instanceof Error ? e.message : undefined,
-                      })
+                      });
                     }
                   }}
                 >
-                  {t('common.cancel')}
+                  {t("common.cancel")}
                 </Button>
               )}
             </div>
@@ -160,7 +160,7 @@ export function PaymentDialog({
         )}
       </DialogContent>
     </Dialog>
-  )
+  );
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -169,33 +169,33 @@ export function PaymentDialog({
 
 /** Status pill shared with the booking-flow payment step
  *  (single-dialog checkout). Exported for reuse. */
-export function StatusPill({ status }: { status: PaymentOut['status'] | string }) {
-  const t = useT()
+export function StatusPill({ status }: { status: PaymentOut["status"] | string }) {
+  const t = useT();
   const map = {
-    pending: { label: t('payment.pending'), color: 'bg-amber-100 text-amber-800', icon: Clock },
+    pending: { label: t("payment.pending"), color: "bg-amber-100 text-amber-800", icon: Clock },
     completed: {
-      label: t('bookingFlow.statusPaid'),
-      color: 'bg-emerald-100 text-emerald-800',
+      label: t("bookingFlow.statusPaid"),
+      color: "bg-emerald-100 text-emerald-800",
       icon: CheckCircle2,
     },
     failed: {
-      label: t('bookingFlow.statusFailed'),
-      color: 'bg-rose-100 text-rose-800',
+      label: t("bookingFlow.statusFailed"),
+      color: "bg-rose-100 text-rose-800",
       icon: XCircle,
     },
     cancelled: {
-      label: t('bookingFlow.statusCancelled'),
-      color: 'bg-slate-100 text-slate-700',
+      label: t("bookingFlow.statusCancelled"),
+      color: "bg-slate-100 text-slate-700",
       icon: XCircle,
     },
     refunded: {
-      label: t('bookingFlow.statusRefunded'),
-      color: 'bg-primary/10 text-primary',
+      label: t("bookingFlow.statusRefunded"),
+      color: "bg-primary/10 text-primary",
       icon: ShieldCheck,
     },
-  } as const
-  const cfg = map[status as keyof typeof map] ?? map.pending
-  const Icon = cfg.icon
+  } as const;
+  const cfg = map[status as keyof typeof map] ?? map.pending;
+  const Icon = cfg.icon;
   return (
     <div
       className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${cfg.color}`}
@@ -203,34 +203,34 @@ export function StatusPill({ status }: { status: PaymentOut['status'] | string }
       <Icon className="h-3.5 w-3.5" />
       {cfg.label}
     </div>
-  )
+  );
 }
 
 function CodDisplay({ payment }: { payment: PaymentOut }) {
-  const t = useT()
-  if (payment.status === 'completed') {
+  const t = useT();
+  if (payment.status === "completed") {
     return (
       <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-4 text-center">
         <CheckCircle2 className="h-6 w-6 text-emerald-600 mx-auto mb-2" />
-        <div className="text-sm font-medium text-emerald-800">{t('bookingFlow.codCollected')}</div>
+        <div className="text-sm font-medium text-emerald-800">{t("bookingFlow.codCollected")}</div>
         {payment.collectedAt && (
           <div className="text-[11px] text-emerald-700 mt-1">
-            {new Date(payment.collectedAt).toLocaleString('vi-VN')}
+            {new Date(payment.collectedAt).toLocaleString("vi-VN")}
           </div>
         )}
       </div>
-    )
+    );
   }
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
         <Banknote className="h-5 w-5 text-amber-600" />
-        <span className="font-medium text-sm">{t('bookingFlow.codTitle')}</span>
+        <span className="font-medium text-sm">{t("bookingFlow.codTitle")}</span>
       </div>
-      <p className="text-xs text-muted-foreground">{t('bookingFlow.codDesc')}</p>
+      <p className="text-xs text-muted-foreground">{t("bookingFlow.codDesc")}</p>
       <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-900">
-        <strong>{t('bookingFlow.codNoticeLabel')}</strong> {t('bookingFlow.codNoticeBody')}
+        <strong>{t("bookingFlow.codNoticeLabel")}</strong> {t("bookingFlow.codNoticeBody")}
       </div>
     </div>
-  )
+  );
 }
