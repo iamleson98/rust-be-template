@@ -1,5 +1,5 @@
 import { Suspense, useEffect } from "react";
-import { Outlet, useRouterState } from "@tanstack/react-router";
+import { Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { IslandFallback } from "@spa/components/island-fallback";
 import { useAuthMe } from "@spa/features/auth/api";
 import { cn } from "@spa/lib/utils";
@@ -23,6 +23,8 @@ function SessionSync() {
   const user = useSession((s) => s.user);
   const setUser = useSession((s) => s.setUser);
   const bookingOpen = useBookingFlow((s) => s.step !== "idle");
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const navigate = useNavigate();
   const { data, isLoading, isError } = useAuthMe();
 
   useEffect(() => {
@@ -33,6 +35,21 @@ function SessionSync() {
       setUser(data.user);
     }
   }, [data, isLoading, isError]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // A session that died SERVER-side (expired refresh cookie, sign-out in
+  // another tab) would otherwise leave a zombie console behind: the route
+  // guards only re-run on navigation, so the open tab keeps rendering
+  // /admin or /account with every widget 401-ing. When the verified
+  // session is gone while a private area is on screen, go to the login
+  // page with a way back. The SPA's own logout never lands here — it
+  // clears the query cache first, so `data` goes back to loading and the
+  // redirect below does not race its navigate-home.
+  useEffect(() => {
+    if (user) return;
+    const inPrivateArea = pathname.startsWith("/admin") || pathname.startsWith("/account");
+    if (!inPrivateArea) return;
+    navigate({ to: "/login", search: { redirect: pathname }, replace: true });
+  }, [user, pathname, navigate]);
 
   useEffect(() => {
     document.body.style.overflow = bookingOpen ? "hidden" : "";

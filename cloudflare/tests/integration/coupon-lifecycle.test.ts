@@ -276,7 +276,10 @@ describe("wallet (GET /api/coupons/mine)", () => {
     });
     const { GET } = await import("../../src/app/api/coupons/mine/route");
     const res = await GET(await authReq("https://datxevui.com/api/coupons/mine"));
-    const body = (await res.json()) as { active: { id: string } | null; claimedCampaignIds: string[] };
+    const body = (await res.json()) as {
+      active: { id: string } | null;
+      claimedCampaignIds: string[];
+    };
     expect(res.status).toBe(200);
     expect(body.active).toBeNull(); // the stale one expired on read
     const row = await couponRow(staleId);
@@ -297,9 +300,14 @@ describe("give up (DELETE /api/coupons/mine)", () => {
       validUntil: daysFromNow(20),
     });
     const held = await couponRow(heldId);
-    await db.update(discountTiers).set({ claimedSlots: 3 }).where(eq(discountTiers.id, held!.tierId));
+    await db
+      .update(discountTiers)
+      .set({ claimedSlots: 3 })
+      .where(eq(discountTiers.id, held!.tierId));
     const { DELETE } = await import("../../src/app/api/coupons/mine/route");
-    const res = await DELETE(await authReq("https://datxevui.com/api/coupons/mine", { method: "DELETE" }));
+    const res = await DELETE(
+      await authReq("https://datxevui.com/api/coupons/mine", { method: "DELETE" }),
+    );
     expect(res.status).toBe(200);
     const row = await couponRow(heldId);
     expect(row?.status).toBe("released"); // Rust release status
@@ -339,7 +347,7 @@ describe("booking lifecycle drives the coupon (reserve → redeem / return)", ()
     expect(bookingRow?.campaignAppliedId).toBe(couponId);
 
     // 2. Payment completes → redeemed + holder released.
-    await completeBookingPayment(db, booking.booking.id);
+    await completeBookingPayment(booking.booking.id);
     row = await couponRow(couponId);
     expect(row?.status).toBe("redeemed");
     expect(row?.activeHolder).toBeNull();

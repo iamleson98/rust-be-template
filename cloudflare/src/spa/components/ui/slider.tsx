@@ -29,9 +29,14 @@ function Slider({
   min = 0,
   max = 100,
   onValueChange,
+  thumbLabels,
   ...props
 }: Omit<ComponentProps<typeof SliderPrimitive.Root>, "onValueChange"> & {
   onValueChange?: (value: number[]) => void;
+  /** Accessible name for each thumb's range input, in value order
+   * (e.g. `["Minimum price", "Maximum price"]`). Screen readers announce
+   * the slider as "name + value" — without it, it's just a bare number. */
+  thumbLabels?: Array<string>;
 }) {
   const _values = useMemo(
     () => (Array.isArray(value) ? value : Array.isArray(defaultValue) ? defaultValue : [min, max]),
@@ -74,6 +79,7 @@ function Slider({
           data-slot="slider-thumb"
           key={index}
           index={index}
+          getAriaLabel={thumbLabels === undefined ? undefined : () => thumbLabels[index]}
           className="border-primary bg-background ring-ring/50 block size-4 shrink-0 rounded-full border  transition-[color,box-shadow] hover:ring-4 focus-visible:ring-4 focus-visible:outline-hidden disabled:pointer-events-none disabled:opacity-50"
         />
       ))}

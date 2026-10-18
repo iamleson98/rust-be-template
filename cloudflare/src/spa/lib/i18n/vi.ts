@@ -1738,6 +1738,8 @@ export const vi: TranslationMap = {
   "searchPage.clearAllFilters": "Xoá tất cả bộ lọc",
   "searchPage.clearFilters": "Xoá bộ lọc",
   "searchPage.priceRange": "Khoảng giá",
+  "searchPage.priceMinLabel": "Giá thấp nhất",
+  "searchPage.priceMaxLabel": "Giá cao nhất",
   "searchPage.timeEvening": "Ban đêm (18-24h)",
   "searchPage.minRating": "Đánh giá tối thiểu",
   "searchPage.availableSeats": "Số ghế trống",

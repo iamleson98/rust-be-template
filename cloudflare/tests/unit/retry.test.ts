@@ -3,7 +3,10 @@ import { withRetry, isTransientDbError } from "@/lib/db/retry";
 
 /** Minimal stand-in for the app's ApiError (numeric `status`). */
 class FakeApiError extends Error {
-  constructor(message: string, readonly status: number) {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
     super(message);
   }
 }

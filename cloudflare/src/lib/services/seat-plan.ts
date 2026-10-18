@@ -20,9 +20,16 @@
  *  - `fitToSeats` — lays a catalog template over the existing seats
  *    (preview only; ids and labels are kept).
  */
-import { eq, inArray } from "drizzle-orm";
+import { count, eq, inArray } from "drizzle-orm";
 import { getDb, atomicBatch, type AtomicStatement } from "@/lib/db/client";
-import { busLayouts, schedules, seats } from "@/lib/db/schema";
+import {
+  bookingSeats,
+  busLayouts,
+  schedules,
+  seatInventory,
+  seats,
+  tripSessions,
+} from "@/lib/db/schema";
 
 export type SeatPlan = {
   decks: Array<{
@@ -352,15 +359,32 @@ export async function layoutSeats(layoutId: string): Promise<SeatRow[]> {
   return db.select().from(seats).where(eq(seats.busLayoutId, layoutId));
 }
 
-/** Any schedule referencing the layout (trips sell its seats). */
+/** A layout is "in use" when the Rust `layout_in_use` says so: trips have
+ * been materialized from its schedules, or any of its seats has live
+ * inventory, or any is sold on a booking. (A schedule merely REFERENCING
+ * the layout is not enough — the Rust original keeps such layouts
+ * editable, and the editor lock follows that.) */
 export async function layoutInUse(layoutId: string): Promise<boolean> {
   const db = await getDb();
-  const rows = await db
+  const seatIds = db.select({ id: seats.id }).from(seats).where(eq(seats.busLayoutId, layoutId));
+  const scheduleIds = db
     .select({ id: schedules.id })
     .from(schedules)
-    .where(eq(schedules.busLayoutId, layoutId))
-    .limit(1);
-  return rows.length > 0;
+    .where(eq(schedules.busLayoutId, layoutId));
+  const one = (rows: Array<{ n: number }>): number => {
+    const r = rows[0];
+    if (r === undefined) return 0;
+    return Number(r.n);
+  };
+  const [trips, inventory, sold] = await Promise.all([
+    db
+      .select({ n: count() })
+      .from(tripSessions)
+      .where(inArray(tripSessions.scheduleId, scheduleIds)),
+    db.select({ n: count() }).from(seatInventory).where(inArray(seatInventory.seatId, seatIds)),
+    db.select({ n: count() }).from(bookingSeats).where(inArray(bookingSeats.seatId, seatIds)),
+  ]);
+  return one(trips) + one(inventory) + one(sold) > 0;
 }
 
 /**

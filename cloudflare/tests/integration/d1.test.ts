@@ -3,7 +3,7 @@ import migration0 from "../../migrations/0000_init_domain.sql?raw";
 import migration1 from "../../migrations/0001_fts_and_seeds.sql?raw";
 import migration2 from "../../migrations/0002_realtime_meeting_id.sql?raw";
 import { applyMigrations } from "../helpers/migrate";
-import { getDb, getD1, atomicBatch, rawAll, sqlIn } from "@/lib/db/client";
+import { getDb, atomicBatch, rawAll, sqlIn } from "@/lib/db/client";
 import { users, chatChannels } from "@/lib/db/schema";
 import { eq, sql } from "drizzle-orm";
 
@@ -23,7 +23,13 @@ describe("atomicBatch — typed builders and raw SQL in one D1 transaction", () 
     const db = await getDb();
     const userId = crypto.randomUUID();
     const results = await atomicBatch([
-      db.insert(users).values({ id: userId, fullName: "Batch User", email: "batch@test.vn", createdAt: now, updatedAt: now }),
+      db.insert(users).values({
+        id: userId,
+        fullName: "Batch User",
+        email: "batch@test.vn",
+        createdAt: now,
+        updatedAt: now,
+      }),
       sql`UPDATE "user" SET locale = 'en' WHERE id = ${userId}`,
     ]);
     expect(results).toHaveLength(2);
@@ -37,7 +43,13 @@ describe("atomicBatch — typed builders and raw SQL in one D1 transaction", () 
     const userId = crypto.randomUUID();
     await expect(
       atomicBatch([
-        db.insert(users).values({ id: userId, fullName: "Doomed", email: "doomed@test.vn", createdAt: now, updatedAt: now }),
+        db.insert(users).values({
+          id: userId,
+          fullName: "Doomed",
+          email: "doomed@test.vn",
+          createdAt: now,
+          updatedAt: now,
+        }),
         sql`UPDATE "user" SET nonexistent_column = 'x' WHERE id = ${userId}`,
       ]),
     ).rejects.toThrow();
@@ -50,7 +62,13 @@ describe("atomicBatch — typed builders and raw SQL in one D1 transaction", () 
     const userId = crypto.randomUUID();
     const channelId = crypto.randomUUID();
     await atomicBatch([
-      db.insert(users).values({ id: userId, fullName: "Chatter", email: "chatter@test.vn", createdAt: now, updatedAt: now }),
+      db.insert(users).values({
+        id: userId,
+        fullName: "Chatter",
+        email: "chatter@test.vn",
+        createdAt: now,
+        updatedAt: now,
+      }),
       db
         .insert(chatChannels)
         .values({ id: channelId, userId, topic: "help", createdAt: now, realtimeMeetingId: null }),
@@ -64,7 +82,9 @@ describe("atomicBatch — typed builders and raw SQL in one D1 transaction", () 
           .onConflictDoNothing(),
       ]),
     ).resolves.toBeDefined();
-    const count = await rawAll<{ n: number }>(sql`SELECT COUNT(*) AS n FROM chat_channel WHERE id = ${channelId}`);
+    const count = await rawAll<{ n: number }>(
+      sql`SELECT COUNT(*) AS n FROM chat_channel WHERE id = ${channelId}`,
+    );
     expect(Number(count[0]?.n)).toBe(1);
   });
 });
@@ -93,9 +113,13 @@ describe("migrations", () => {
   });
 
   it("created the FTS5 virtual table with diacritic-insensitive tokenizer (0001)", async () => {
-    const tables = await rawAll<{ name: string }>(sql`SELECT name FROM sqlite_master WHERE name = 'place_fts'`);
+    const tables = await rawAll<{ name: string }>(
+      sql`SELECT name FROM sqlite_master WHERE name = 'place_fts'`,
+    );
     expect(tables).toHaveLength(1);
-    const ddl = await rawAll<{ sql: string }>(sql`SELECT sql FROM sqlite_master WHERE name = 'place_fts'`);
+    const ddl = await rawAll<{ sql: string }>(
+      sql`SELECT sql FROM sqlite_master WHERE name = 'place_fts'`,
+    );
     expect(ddl[0]?.sql).toContain("remove_diacritics");
   });
 });

@@ -1740,6 +1740,8 @@ export const en: TranslationMap = {
   "searchPage.clearAllFilters": "Clear all filters",
   "searchPage.clearFilters": "Clear filters",
   "searchPage.priceRange": "Price range",
+  "searchPage.priceMinLabel": "Minimum price",
+  "searchPage.priceMaxLabel": "Maximum price",
   "searchPage.timeEvening": "Night (18-24h)",
   "searchPage.minRating": "Minimum rating",
   "searchPage.availableSeats": "Available seats",

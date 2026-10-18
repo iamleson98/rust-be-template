@@ -66,9 +66,7 @@ describe("validateSeatPlan (Rust structural rules)", () => {
   it("rejects cells outside the grid and duplicate positions", () => {
     expect(
       validateSeatPlan(
-        planOf([
-          { rows: 1, cols: 1, cells: [{ row: 2, col: 1, kind: "seat", label: "01" }] },
-        ]),
+        planOf([{ rows: 1, cols: 1, cells: [{ row: 2, col: 1, kind: "seat", label: "01" }] }]),
       ),
     ).toMatch(/outside the 1×1 grid/);
     expect(
@@ -113,7 +111,13 @@ describe("deriveFromSeats (legacy layouts open in the editor)", () => {
   it("derives a deck per floor with seat ids and labels", () => {
     const lower1 = seat({ seatLabel: "01", rowNum: 1, colNum: 1 });
     const lower2 = seat({ seatLabel: "02", rowNum: 1, colNum: 2 });
-    const upper = seat({ seatLabel: "B01", rowNum: 1, colNum: 1, floor: 2, seatClass: "bed_lower" });
+    const upper = seat({
+      seatLabel: "B01",
+      rowNum: 1,
+      colNum: 1,
+      floor: 2,
+      seatClass: "bed_lower",
+    });
     const plan = deriveFromSeats([lower1, lower2, upper]);
     expect(plan.decks).toHaveLength(2);
     expect(plan.decks[0]!.cells.map((c) => c.seatId)).toEqual([idOf(lower1), idOf(lower2)]);
@@ -123,7 +127,11 @@ describe("deriveFromSeats (legacy layouts open in the editor)", () => {
 
   it("falls back to rows of four for seats without row/col", () => {
     const rows = Array.from({ length: 8 }, (_, i) =>
-      seat({ seatLabel: `S${i + 1}`, rowNum: null as unknown as number, colNum: null as unknown as number }),
+      seat({
+        seatLabel: `S${i + 1}`,
+        rowNum: null as unknown as number,
+        colNum: null as unknown as number,
+      }),
     );
     const plan = deriveFromSeats(rows);
     expect(plan.decks[0]!.rows).toBe(2);
@@ -147,7 +155,10 @@ describe("trustedPlan (stored plan must match the seat rows)", () => {
   });
 
   it("rejects a drifted plan (seat moved by a direct DB edit)", () => {
-    const rows = [seat({ seatLabel: "01", rowNum: 2, colNum: 2 }), seat({ seatLabel: "02", rowNum: 1, colNum: 2 })];
+    const rows = [
+      seat({ seatLabel: "01", rowNum: 2, colNum: 2 }),
+      seat({ seatLabel: "02", rowNum: 1, colNum: 2 }),
+    ];
     expect(trustedPlan(JSON.stringify(twoSeats), rows)).toBeNull();
   });
 
@@ -311,7 +322,10 @@ describe("fitToSeats (template preview, ids kept, nothing saved)", () => {
           { rows: 1, cols: 1, cells: [{ row: 1, col: 1, kind: "seat" }] },
         ]),
         // two ambiguous single-floor seats: no strategy splits 1/1
-        [seat({ seatLabel: "Q1", floor: 1, seatClass: null }), seat({ seatLabel: "Q2", floor: 1, seatClass: null })],
+        [
+          seat({ seatLabel: "Q1", floor: 1, seatClass: null }),
+          seat({ seatLabel: "Q2", floor: 1, seatClass: null }),
+        ],
       ),
     ).toThrow(/cannot tell which seats belong to which deck/);
   });

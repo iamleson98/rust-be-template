@@ -17,6 +17,7 @@ import {
   brands,
 } from "@/lib/db/schema";
 import { findCity } from "@/lib/services/trip-search";
+import { countOf, groupedCounts } from "@/lib/db/counts";
 import {
   deriveFromSeats,
   trustedPlan,
@@ -413,18 +414,18 @@ export function findPreset(id: string): BusLayoutPreset | null {
   return null;
 }
 
-/** `AdminBrandOut` — brand row + route/layout counts + child fare policy. */
+/** `AdminBrandOut` — brand row + route/layout counts + child fare policy.
+ * (Counts via batched GROUP BY maps — the Rust admin_service pattern; the
+ * correlated-subquery form silently returned 0, see db/counts.ts.) */
 export async function adminBrandList() {
   const db = await getDb();
-  const rows = await db
-    .select({
-      brand: brands,
-      routeCount: sql<number>`(SELECT COUNT(*) FROM ${routes} WHERE ${routes.brandId} = ${brands.id})`,
-      layoutCount: sql<number>`(SELECT COUNT(*) FROM ${busLayouts} WHERE ${busLayouts.brandId} = ${brands.id})`,
-    })
-    .from(brands)
-    .orderBy(desc(brands.createdAt));
-  return rows.map(({ brand: b, routeCount, layoutCount }) => ({
+  const rows = await db.select({ brand: brands }).from(brands).orderBy(desc(brands.createdAt));
+  const ids = rows.map((r) => r.brand.id);
+  const [routeCounts, layoutCounts] = await Promise.all([
+    groupedCounts(routes, routes.brandId, ids),
+    groupedCounts(busLayouts, busLayouts.brandId, ids),
+  ]);
+  return rows.map(({ brand: b }) => ({
     id: b.id,
     slug: b.slug,
     name: b.name,
@@ -435,8 +436,8 @@ export async function adminBrandList() {
     contactEmail: b.contactEmail,
     createdAt: b.createdAt,
     updatedAt: b.updatedAt,
-    routeCount,
-    layoutCount,
+    routeCount: countOf(routeCounts, b.id),
+    layoutCount: countOf(layoutCounts, b.id),
     childFare:
       b.childMaxAge != null && b.childDiscountAmount != null
         ? { maxAge: b.childMaxAge, discountAmount: b.childDiscountAmount }
@@ -502,11 +503,7 @@ export async function adminRouteList(filters: {
       : undefined,
   );
   const rows = await db
-    .select({
-      route: routes,
-      scheduleCount: sql<number>`(SELECT COUNT(*) FROM ${schedules} WHERE ${schedules.routeId} = ${routes.id})`,
-      pickupCount: sql<number>`(SELECT COUNT(*) FROM ${pickupPoints} WHERE ${pickupPoints.routeId} = ${routes.id})`,
-    })
+    .select({ route: routes })
     .from(routes)
     .where(where)
     .orderBy(desc(routes.createdAt))
@@ -517,8 +514,13 @@ export async function adminRouteList(filters: {
     .from(routes)
     .where(where);
   const total = totalRows[0]?.total ?? 0;
+  const ids = rows.map((r) => r.route.id);
+  const [scheduleCounts, pickupCounts] = await Promise.all([
+    groupedCounts(schedules, schedules.routeId, ids),
+    groupedCounts(pickupPoints, pickupPoints.routeId, ids),
+  ]);
   return {
-    items: rows.map(({ route: r, scheduleCount, pickupCount }) => ({
+    items: rows.map(({ route: r }) => ({
       id: r.id,
       brandId: r.brandId,
       name: r.name,
@@ -529,8 +531,8 @@ export async function adminRouteList(filters: {
       status: r.status,
       createdAt: r.createdAt,
       updatedAt: r.updatedAt,
-      scheduleCount,
-      pickupPointCount: pickupCount,
+      scheduleCount: countOf(scheduleCounts, r.id),
+      pickupPointCount: countOf(pickupCounts, r.id),
     })),
     total,
   };
@@ -638,7 +640,10 @@ export async function adminVehicleTypeList(filters: { q?: string; limit: number;
   };
 }
 
-/** `AdminBusLayoutOut` list (slim — plan lives in the detail endpoint). */
+/** `AdminBusLayoutOut` list (slim — plan and `inUse` live in the DETAIL
+ * endpoint, exactly like the Rust `AdminBusLayoutOut`: the list contract
+ * has no in-use field, and both SPAs read the lock from the detail fetch
+ * when opening the editor). */
 export async function adminBusLayoutList(filters: {
   brandId?: string;
   limit: number;
@@ -647,10 +652,7 @@ export async function adminBusLayoutList(filters: {
   const db = await getDb();
   const where = filters.brandId !== undefined ? eq(busLayouts.brandId, filters.brandId) : undefined;
   const rows = await db
-    .select({
-      layout: busLayouts,
-      inUse: sql<number>`(SELECT COUNT(*) FROM ${schedules} WHERE ${schedules.busLayoutId} = ${busLayouts.id})`,
-    })
+    .select({ layout: busLayouts })
     .from(busLayouts)
     .where(where)
     .orderBy(desc(busLayouts.createdAt))
@@ -661,14 +663,13 @@ export async function adminBusLayoutList(filters: {
     .from(busLayouts)
     .where(where);
   return {
-    items: rows.map(({ layout: b, inUse }) => ({
+    items: rows.map(({ layout: b }) => ({
       id: b.id,
       brandId: b.brandId,
       name: b.name,
       vehicleType: b.vehicleType,
       totalSeats: b.totalSeats,
       planned: b.layoutData !== null,
-      inUse: inUse > 0,
       createdAt: b.createdAt,
       updatedAt: b.updatedAt,
     })),

@@ -1,11 +1,12 @@
 import { getDb } from "@/lib/db/client";
-import { and, desc, eq, gte, like, lte, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray, like, lte, or, sql } from "drizzle-orm";
 import { bookingSeats, bookings, routes, schedules, tripSessions } from "@/lib/db/schema";
 import { handleRouteError, requireStaff } from "@/lib/api";
 import { requirePermission } from "@/lib/auth/rbac";
 
 /** One CSV row: booking fields + computed seats/route/departure. */
 interface ExportRow {
+  id: string;
   code: string;
   status: string;
   seats: number;
@@ -49,11 +50,23 @@ export async function GET(req: Request) {
     const dateTo = url.searchParams.get("dateTo");
 
     const db = await getDb();
+    const where = and(
+      status != null ? eq(bookings.status, status) : undefined,
+      search != null && search.length > 0
+        ? or(
+            like(bookings.code, `%${search}%`),
+            like(bookings.contactName, `%${search}%`),
+            like(bookings.contactPhone, `%${search}%`),
+          )
+        : undefined,
+      dateFrom != null ? gte(bookings.createdAt, dateFrom) : undefined,
+      dateTo != null ? lte(bookings.createdAt, `${dateTo}T23:59:59`) : undefined,
+    );
     const rows = await db
       .select({
+        id: bookings.id,
         code: bookings.code,
         status: bookings.status,
-        seats: sql<number>`(SELECT COUNT(*) FROM ${bookingSeats} WHERE ${bookingSeats.bookingId} = ${bookings.id})`,
         routeName: sql<string | null>`(SELECT r.name FROM ${tripSessions} ts
           JOIN ${schedules} s ON s.id = ts.schedule_id
           JOIN ${routes} r ON r.id = s.route_id WHERE ts.id = ${bookings.tripSessionId})`,
@@ -69,22 +82,30 @@ export async function GET(req: Request) {
         createdAt: bookings.createdAt,
       })
       .from(bookings)
-      .where(
-        and(
-          status != null ? eq(bookings.status, status) : undefined,
-          search != null && search.length > 0
-            ? or(
-                like(bookings.code, `%${search}%`),
-                like(bookings.contactName, `%${search}%`),
-                like(bookings.contactPhone, `%${search}%`),
-              )
-            : undefined,
-          dateFrom != null ? gte(bookings.createdAt, dateFrom) : undefined,
-          dateTo != null ? lte(bookings.createdAt, `${dateTo}T23:59:59`) : undefined,
-        ),
-      )
+      .where(where)
       .orderBy(desc(bookings.createdAt))
       .limit(10_000);
+
+    // Seat counts as ONE batched GROUP BY over the same filtered booking
+    // set (subquery, so no 100-parameter D1 cap and no second filter to
+    // keep in sync). The per-row correlated COUNT this replaces silently
+    // exported `seats=0` for every booking — drizzle renders interpolated
+    // columns unqualified in select fields, and booking_seat ALSO has an
+    // `id` column, so `WHERE booking_id = "id"` compared against the wrong
+    // table (see src/lib/db/counts.ts for the full post-mortem).
+    const seatRows = await db
+      .select({ key: bookingSeats.bookingId, n: count() })
+      .from(bookingSeats)
+      .where(
+        inArray(bookingSeats.bookingId, db.select({ id: bookings.id }).from(bookings).where(where)),
+      )
+      .groupBy(bookingSeats.bookingId);
+    const seatCounts = new Map<string, number>(seatRows.map((s) => [s.key, Number(s.n)]));
+    const seatsOf = (id: string): number => {
+      const n = seatCounts.get(id);
+      if (n === undefined) return 0;
+      return n;
+    };
 
     const esc = (v: string | number | null): string => {
       const s = v === null ? "" : String(v);
@@ -92,7 +113,9 @@ export async function GET(req: Request) {
     };
     const csv = [
       csvColumns.map((c) => c.col).join(","),
-      ...rows.map((r) => csvColumns.map((c) => esc(c.get(r))).join(",")),
+      ...rows.map((r) =>
+        csvColumns.map((c) => esc(c.get({ ...r, seats: seatsOf(r.id) }))).join(","),
+      ),
     ].join("\n");
 
     const today = new Date().toISOString().slice(0, 10);

@@ -28,6 +28,33 @@ src/push/fcm.rs:private-key:274
 b9c76adbb424e0d456b75990efdf089d4e2b1863:src/push/apns.rs:private-key:212
 src/push/apns.rs:private-key:224
 
+# ── FALSE POSITIVES (cloudflare/ app — test fixtures + docs placeholders) ─
+# cloudflare/tests/helpers/context.ts — JWT_SECRET is the workerd test-suite
+# fixture: a deterministic literal that exists ONLY so vitest can sign
+# session tokens against the real D1 bindings. It is not a credential of
+# any environment (prod secrets live in `wrangler secret put`), is never
+# read outside `#[test]`-equivalent code, and rotating it changes nothing.
+# History fingerprint = the commit that introduced the file (59a28e9);
+# working-tree fingerprint = the current line.
+59a28e9aeebc177fb67a554faf78b61b8fa5bfb0:cloudflare/tests/helpers/context.ts:generic-api-key:16
+cloudflare/tests/helpers/context.ts:generic-api-key:16
+
+# cloudflare/.dev.vars.example — VNPAY_HASH_SECRET with an EMPTY value: a
+# template of the .dev.vars shape for local development. Nothing to leak —
+# the rule just matches the variable name. The value stays empty (real
+# per-developer secrets go in git-ignored .dev.vars). History line 18 was
+# the pre-restructure layout; the current line is 28.
+b2bb5a42195bddd9fe1e17192d309f066ac343e8:cloudflare/.dev.vars.example:generic-api-key:18
+cloudflare/.dev.vars.example:generic-api-key:28
+
+# cloudflare/README-CLOUDFLARE.md — the curl example driving the local dev
+# cron executor with the DEV-ONLY token from .dev.vars.example
+# (CRON_SERVICE_TOKEN=change-me). It documents the localhost workflow; the
+# production executor token is a wrangler secret. History line 24 was the
+# pre-restructure layout; the current line is 27.
+b2bb5a42195bddd9fe1e17192d309f066ac343e8:cloudflare/README-CLOUDFLARE.md:curl-auth-header:24
+cloudflare/README-CLOUDFLARE.md:curl-auth-header:27
+
 # ── HISTORICAL LEAKS (old repository lifecycle, live on stale branches) ─
 # These commits are reachable only via the old remote branches (improve*,
 # fix/**, feat/**, ...), not from master. All values were rotated when the

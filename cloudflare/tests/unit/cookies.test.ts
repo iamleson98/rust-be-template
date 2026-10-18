@@ -41,7 +41,11 @@ describe("cookiePolicy / sessionCookies", () => {
   it("COOKIE_SAMESITE=none (embedded preview): SameSite=None; Secure; Partitioned", async () => {
     setCloudflareContext({ COOKIE_SAMESITE: "none" });
     // even over internal http — the public origin is https behind the proxy
-    const [access, refresh] = await sessionCookies("at", "rt", req("http://localhost:3000/api/auth/login"));
+    const [access, refresh] = await sessionCookies(
+      "at",
+      "rt",
+      req("http://localhost:3000/api/auth/login"),
+    );
     expect(access).toContain("SameSite=None");
     expect(access).toContain("Secure");
     expect(access).toContain("Partitioned");
@@ -67,7 +71,9 @@ describe("cookiePolicy / sessionCookies", () => {
 
 describe("clearSessionCookies", () => {
   it("expires both cookies with the production policy", async () => {
-    const [access, refresh] = await clearSessionCookies(req("http://localhost:3000/api/auth/logout"));
+    const [access, refresh] = await clearSessionCookies(
+      req("http://localhost:3000/api/auth/logout"),
+    );
     expect(access).toMatch(/^access_token=; /);
     expect(access).toContain("Max-Age=0");
     expect(refresh).toMatch(/^refresh_token=; /);

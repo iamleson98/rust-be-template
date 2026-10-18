@@ -180,6 +180,7 @@ function PriceRange({ rf }: { rf: ResultFilters }) {
         onValueChange={([priceMin, priceMax]) =>
           rf.setFilters({ ...rf.filters, priceMin, priceMax })
         }
+        thumbLabels={[t("searchPage.priceMinLabel"), t("searchPage.priceMaxLabel")]}
         className="py-2"
       />
       <div className="mt-1 flex justify-between text-[10px] tabular-nums text-muted-foreground">

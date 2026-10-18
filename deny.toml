@@ -56,6 +56,14 @@ ignore = [
     # i_tree 0.10, which requires i_overlay 7+ / geo 0.30+ (major bump
     # of the geo stack). Revisit: geo >0.29.
     { id = "RUSTSEC-2025-0165", reason = "fix requires geo 0.30+ major bump; revisit when geo >0.29" },
+
+    # zip 3.0.0 — build-only dep of utoipa-swagger-ui 9.0.2 (extracts the
+    # crate's own vendored swagger-ui dist; never attacker input, not linked
+    # into the binary). Even utoipa-swagger-ui 10.0.1 pins zip ^8.6 < 9.0.0.
+    # Revisit: utoipa-swagger-ui release requiring zip >= 9.
+    { id = "RUSTSEC-2026-0367", reason = "zip is build-only (utoipa-swagger-ui vendored dist); extract() never runs on untrusted input" },
+    { id = "RUSTSEC-2026-0368", reason = "zip is build-only (utoipa-swagger-ui vendored dist); extract() never runs on untrusted input" },
+    { id = "RUSTSEC-2026-0369", reason = "zip is build-only (utoipa-swagger-ui vendored dist); extract() never runs on untrusted input" },
 ]
 
 [licenses]

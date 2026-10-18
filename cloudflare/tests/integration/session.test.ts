@@ -44,7 +44,9 @@ describe("refresh token rotation (issueSession / rotateRefresh)", () => {
   it("issues a stored, hash-checked refresh token", async () => {
     const issued = await issueSession("11111111-1111-4111-8111-111111111111", {});
     const db = await getDb();
-    const row = (await db.select().from(refreshTokens).where(eq(refreshTokens.id, issued.refreshId)).limit(1))[0];
+    const row = (
+      await db.select().from(refreshTokens).where(eq(refreshTokens.id, issued.refreshId)).limit(1)
+    )[0];
     expect(row?.revoked).toBe(false);
     // DB stores an HMAC digest, never the raw secret
     expect(row?.tokenHash).not.toContain(issued.refreshToken.split(".")[1]!);
@@ -95,7 +97,11 @@ describe("currentUser (request resolution)", () => {
   it("returns null without credentials and for inactive users", async () => {
     expect(await currentUser(new Request("https://datxevui.com/api/auth/me"))).toBeNull();
     const token = await signAccessToken("22222222-2222-4222-8222-222222222222");
-    expect(await currentUser(new Request("https://x/", { headers: { authorization: `Bearer ${token}` } }))).toBeNull();
+    expect(
+      await currentUser(
+        new Request("https://x/", { headers: { authorization: `Bearer ${token}` } }),
+      ),
+    ).toBeNull();
   });
 });
 

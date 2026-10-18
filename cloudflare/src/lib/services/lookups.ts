@@ -23,6 +23,7 @@ import {
   routes,
   vehicleTypes,
 } from "@/lib/db/schema";
+import { countOf, groupedCounts } from "@/lib/db/counts";
 import { cacheFirst, cacheInvalidatePrefix } from "@/lib/db/cache";
 import { withRetry } from "@/lib/db/retry";
 import { popularPlaces, type PlaceHit } from "./place-search";
@@ -38,7 +39,10 @@ export interface BrandListItem {
   routeCount: number;
 }
 
-/** `GET /api/brands` — active brands, rating-ordered. */
+/** `GET /api/brands` — active brands, rating-ordered.
+ * (Two queries on purpose — the Rust `list_active` + `count_routes_by_brand_map`
+ * pair; a correlated per-row count subquery is exactly the footgun that
+ * silently returned 0 for every brand, see db/counts.ts.) */
 export async function listBrands(limit: number): Promise<BrandListItem[]> {
   return cacheFirst(
     `lookups:brands:${limit}`,
@@ -52,15 +56,18 @@ export async function listBrands(limit: number): Promise<BrandListItem[]> {
             name: brands.name,
             logoUrl: brands.logoUrl,
             rating: brands.rating,
-            routeCount: sql<number>`(
-              SELECT COUNT(*) FROM route r WHERE r.brand_id = ${brands.id} AND r.status = 'active'
-            )`,
           })
           .from(brands)
           .where(eq(brands.status, "active"))
           .orderBy(desc(brands.rating), desc(brands.totalTrips), asc(brands.name))
           .limit(limit);
-        return rows.map((b) => ({ ...b, routeCount: Number(b.routeCount) }));
+        const routeCounts = await groupedCounts(
+          routes,
+          routes.brandId,
+          rows.map((b) => b.id),
+          eq(routes.status, "active"),
+        );
+        return rows.map((b) => ({ ...b, routeCount: countOf(routeCounts, b.id) }));
       }),
     { ttlMs: 60_000 },
   );

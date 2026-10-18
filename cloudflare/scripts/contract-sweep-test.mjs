@@ -63,7 +63,6 @@ const GET_PATHS = [
   "/api/search/geo?fromLat=21.03&fromLon=105.85&toLat=16.07&toLon=108.22&date=2026-10-20",
   "/api/stats",
   "/api/users?limit=5",
-  "/api/vitals/summary",
   "/health",
   "/ready",
   "/sitemap.xml",
