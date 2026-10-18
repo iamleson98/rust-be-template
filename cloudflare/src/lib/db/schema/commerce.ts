@@ -299,7 +299,11 @@ export const coupons = sqliteTable(
       .references(() => discountTiers.id, { onDelete: "cascade" }),
     userId: text("user_id").references(() => users.id, { onDelete: "set null" }),
     amount: integer("amount").notNull(),
-    status: text("status").notNull(), // held|redeemed|settled|rejected|expired
+    // Rust lifecycle: held → reserved (on a booking) → redeemed (paid) →
+    // settled | rejected; expired (window passed) | released (given up).
+    // `active_holder` is set exactly while held/reserved (UNIQUE — one
+    // active coupon per account).
+    status: text("status").notNull(),
     activeHolder: text("active_holder"),
     validUntil: text("valid_until"),
     bookingId: text("booking_id").references(() => bookings.id, { onDelete: "set null" }),
@@ -313,5 +317,12 @@ export const coupons = sqliteTable(
     settlementNote: text("settlement_note"),
     updatedAt: text("updated_at").notNull().default("(datetime('now'))"),
   },
-  (t) => [index("idx_coupon_user").on(t.userId), index("idx_coupon_status").on(t.status)],
+  (t) => [
+    index("idx_coupon_user").on(t.userId),
+    index("idx_coupon_status").on(t.status),
+    uniqueIndex("idx_coupon_code").on(t.code),
+    uniqueIndex("idx_coupon_active_holder").on(t.activeHolder),
+    uniqueIndex("idx_coupon_campaign_user").on(t.campaignId, t.userId),
+    uniqueIndex("idx_coupon_booking").on(t.bookingId),
+  ],
 );

@@ -13,7 +13,6 @@ import {
   schedules,
   schedulePoints,
   scheduleFares,
-  seats,
   vehicleTypes,
   brands,
   coupons,
@@ -23,34 +22,17 @@ import {
 } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { findCity } from "@/lib/services/trip-search";
+import {
+  deriveFromSeats,
+  trustedPlan,
+  layoutSeats,
+  layoutInUse,
+  type SeatPlan,
+  parseSeatPlan,
+} from "@/lib/services/seat-plan";
 
-export type SeatPlan = {
-  decks: Array<{
-    name?: string | null;
-    rows: number;
-    cols: number;
-    cells: Array<{
-      row: number;
-      col: number;
-      kind: string;
-      seatId?: string | null;
-      label?: string | null;
-      seatClass?: string | null;
-    }>;
-  }>;
-};
-
-/** Parse a bus_layout.layout_data JSON string into a SeatPlan. */
-export function parseSeatPlan(layoutData: string | null | undefined): SeatPlan | null {
-  if (!layoutData) return null;
-  try {
-    const parsed = JSON.parse(layoutData) as SeatPlan;
-    if (parsed && Array.isArray(parsed.decks)) return parsed;
-    return null;
-  } catch {
-    return null;
-  }
-}
+// Re-exported for the routes that import them from here (stable surface).
+export { parseSeatPlan, type SeatPlan };
 
 // ────────────────────────────────────────────────────────────────
 //  Seat-plan preset catalog — a faithful port of the Rust backend's
@@ -681,58 +663,33 @@ export async function adminBusLayoutList(filters: { brandId?: string; limit: num
   };
 }
 
-/** `AdminBusLayoutDetail` — full row + parsed plan. */
+/** `AdminBusLayoutDetail` — full row + parsed plan (Rust `get_bus_layout`).
+ *
+ * The plan is the saved one while it still agrees with the `seat` rows
+ * (seat ids/classes filled in from the rows), else a plain grid derived
+ * from them (`planned = false`) so legacy layouts open in the editor too
+ * — never an empty `decks: []` (that crashed the SPA editor with
+ * "Cannot read properties of undefined (reading 'cells')").
+ */
 export async function adminBusLayoutDetail(id: string) {
   const db = await getDb();
   const row = (await db.select().from(busLayouts).where(eq(busLayouts.id, id)).limit(1))[0];
   if (!row) return null;
-  const inUse =
-    (await db.select({ id: schedules.id }).from(schedules).where(eq(schedules.busLayoutId, id)).limit(1)).length > 0;
+  const seatRows = await layoutSeats(id);
+  const trusted = trustedPlan(row.layoutData, seatRows);
+  const plan = trusted ?? deriveFromSeats(seatRows);
+  const inUse = await layoutInUse(id);
   return {
     id: row.id,
     brandId: row.brandId,
     name: row.name,
     vehicleType: row.vehicleType,
     totalSeats: row.totalSeats,
-    planned: !!row.layoutData,
-    plan: parseSeatPlan(row.layoutData) ?? { decks: [] },
+    planned: trusted != null,
+    plan,
     inUse,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
 }
 
-/** Sync the `seat` rows to match a layout's SeatPlan (replace all). */
-export async function syncSeatsForLayout(layoutId: string, plan: SeatPlan): Promise<number> {
-  const db = await getDb();
-  await db.delete(seats).where(eq(seats.busLayoutId, layoutId));
-  const rows: Array<typeof seats.$inferInsert> = [];
-  for (const deck of plan.decks) {
-    for (const cell of deck.cells) {
-      if (cell.kind !== "seat" || !cell.label) continue;
-      const isWindow = cell.col === 0 || cell.col === deck.cols - 1;
-      rows.push({
-        id: cell.seatId || crypto.randomUUID(),
-        busLayoutId: layoutId,
-        seatLabel: cell.label,
-        seatClass: cell.seatClass ?? "standard",
-        rowNum: cell.row,
-        colNum: cell.col,
-        isWindow,
-        floor: plan.decks.indexOf(deck) + 1,
-      });
-    }
-  }
-  if (rows.length > 0) {
-    // D1 batched insert — chunk to stay under the 100-bound-param ceiling.
-    for (let i = 0; i < rows.length; i += 40) {
-      await db.insert(seats).values(rows.slice(i, i + 40));
-    }
-  }
-  // Keep total_seats in sync with the plan.
-  await db
-    .update(busLayouts)
-    .set({ totalSeats: rows.length, layoutData: JSON.stringify(plan), updatedAt: new Date().toISOString() })
-    .where(eq(busLayouts.id, layoutId));
-  return rows.length;
-}

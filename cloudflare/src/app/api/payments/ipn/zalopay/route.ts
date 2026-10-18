@@ -54,6 +54,11 @@ export async function POST(req: Request) {
           UPDATE seat_inventory SET status = 'booked', held_until = NULL, updated_at = ${now}
           WHERE held_by_booking_id = ${payment.booking_id} AND status = 'held'
         `,
+        sql`
+          UPDATE coupon SET status = 'redeemed', active_holder = NULL, redeemed_at = ${now},
+                 updated_at = ${now}
+          WHERE booking_id = ${payment.booking_id} AND status = 'reserved'
+        `,
       ]);
     } else if (returnCode !== 1 && returnCode !== 2 && payment.status === "pending") {
       await atomicBatch([

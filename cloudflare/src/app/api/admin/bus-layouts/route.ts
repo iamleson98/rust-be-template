@@ -2,7 +2,8 @@ import { getDb } from "@/lib/db/client";
 import { busLayouts } from "@/lib/db/schema";
 import { handleRouteError, requireStaff, readJson, err } from "@/lib/api";
 import { requirePermission } from "@/lib/auth/rbac";
-import { adminBusLayoutList, syncSeatsForLayout, type SeatPlan } from "@/lib/services/admin-out";
+import { adminBusLayoutList, type SeatPlan } from "@/lib/services/admin-out";
+import { replaceSeatPlan, validateSeatPlan } from "@/lib/services/seat-plan";
 
 /** `GET /api/admin/bus-layouts?brandId=&limit=&offset=` — staff list (slim). */
 export async function GET(req: Request) {
@@ -44,22 +45,11 @@ export async function POST(req: Request) {
     const now = new Date().toISOString();
 
     let plan: SeatPlan | null = body.plan ?? null;
-    let layoutData: string | null = body.layoutData ?? null;
-    let totalSeats = body.totalSeats ?? null;
-
+    if (!plan && body.seatGrid) plan = gridToPlan(body.seatGrid);
+    // Structural validation up front — the same rules the editor enforces.
     if (plan) {
-      layoutData = JSON.stringify(plan);
-      totalSeats = plan.decks.reduce(
-        (n, d) => n + d.cells.filter((c) => ["seat", "bed", "cabin", "cabin_double"].includes(c.kind)).length,
-        0,
-      );
-    } else if (body.seatGrid) {
-      plan = gridToPlan(body.seatGrid);
-      layoutData = JSON.stringify(plan);
-      totalSeats = plan.decks.reduce(
-        (n, d) => n + d.cells.filter((c) => ["seat", "bed", "cabin", "cabin_double"].includes(c.kind)).length,
-        0,
-      );
+      const invalid = validateSeatPlan(plan);
+      if (invalid) return err(400, "validation", invalid);
     }
 
     await db.insert(busLayouts).values({
@@ -67,12 +57,14 @@ export async function POST(req: Request) {
       brandId: body.brandId?.trim() || null,
       name,
       vehicleType: body.vehicleType ?? null,
-      totalSeats,
-      layoutData,
+      totalSeats: body.totalSeats ?? null,
+      layoutData: plan ? JSON.stringify(plan) : (body.layoutData ?? null),
       createdAt: now,
       updatedAt: now,
     });
-    if (plan) await syncSeatsForLayout(id, plan);
+    // Seat rows for every sellable cell (seat/bed/cabin/…), ids stable
+    // from day one; also writes layout_data + total_seats back.
+    if (plan) await replaceSeatPlan(id, plan);
     return Response.json({ id }, { status: 201 });
   } catch (e) {
     return handleRouteError(e);

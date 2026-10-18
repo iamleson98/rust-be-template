@@ -3,7 +3,7 @@ import { DurableObject } from "cloudflare:workers";
 /**
  * ChatHub — the WebSocket hub behind `/ws` (port of the Rust `ws::hub`).
  *
- * One Durable Object instance ("singleton") holds every live chat socket:
+ * One Durable Object instance ("global") holds every live chat socket:
  * customer widget tabs, staff workspace tabs. It answers the SPA's JSON
  * envelope protocol (`{"type":"<event>", ...}`):
  *
@@ -21,18 +21,21 @@ import { DurableObject } from "cloudflare:workers";
  *
  * REST endpoints (claim / release / close) push lifecycle events here via
  * `POST /emit` so both sides stay in sync with the REST state.
+ *
+ * Hibernation-safe: session state rides on each WebSocket's attachment
+ * (survives DO eviction), and the live set always comes from
+ * `ctx.getWebSockets()` — a hibernated-and-woken DO rehydrates instead of
+ * dropping every live socket on the floor.
  */
 
 interface Session {
-  id: string;
-  ws: WebSocket;
+  connId: string;
   userId: string;
   name: string;
   role: string;
   isStaff: boolean;
   channelId: string | null;
   connectedAt: number;
-  lastSeen: number;
 }
 
 interface ChatUser {
@@ -43,7 +46,6 @@ interface ChatUser {
 }
 
 export class ChatHub extends DurableObject {
-  private sessions = new Map<string, Session>();
   private presenceSeq = 0;
 
   async fetch(request: Request): Promise<Response> {
@@ -118,20 +120,17 @@ export class ChatHub extends DurableObject {
     const [client, server] = Object.values(pair) as [WebSocket, WebSocket];
     this.ctx.acceptWebSocket(server);
 
-    const id = crypto.randomUUID();
+    // Session state rides on the socket — it survives DO eviction.
     const isStaff = user.role === "employee" || user.role === "admin";
-    const session: Session = {
-      id,
-      ws: server,
+    server.serializeAttachment({
+      connId: crypto.randomUUID(),
       userId: user.id,
       name: user.fullName,
       role: user.role,
       isStaff,
       channelId: null,
       connectedAt: Date.now(),
-      lastSeen: Date.now(),
-    };
-    this.sessions.set(id, session);
+    } satisfies Session);
 
     this.sendFrame(server, {
       type: "hello",
@@ -142,7 +141,7 @@ export class ChatHub extends DurableObject {
 
     // Presence fan-out.
     if (isStaff) {
-      this.markPresence(user.id, user.fullName, user.role, true);
+      void this.markPresence(user.id, user.fullName, user.role, true);
       this.broadcastStaffPresence();
     } else {
       this.presenceSeq += 1;
@@ -161,10 +160,19 @@ export class ChatHub extends DurableObject {
     return new Response(null, { status: 101, webSocket: client });
   }
 
+  /** Every live socket + its persisted session state. */
+  private liveSessions(): Array<{ connId: string; ws: WebSocket; state: Session }> {
+    const out: Array<{ connId: string; ws: WebSocket; state: Session }> = [];
+    for (const ws of this.ctx.getWebSockets()) {
+      const state = ws.deserializeAttachment() as Session | null;
+      if (state?.connId) out.push({ connId: state.connId, ws, state });
+    }
+    return out;
+  }
+
   async webSocketMessage(ws: WebSocket, raw: string | ArrayBuffer): Promise<void> {
-    const session = this.findBySocket(ws);
-    if (!session) return;
-    session.lastSeen = Date.now();
+    const state = ws.deserializeAttachment() as Session | null;
+    if (!state) return;
 
     let frame: Record<string, unknown>;
     try {
@@ -186,37 +194,39 @@ export class ChatHub extends DurableObject {
       case "join": {
         const channelId = String(frame.channelId ?? "");
         if (!channelId) break;
-        session.channelId = channelId;
+        state.channelId = channelId;
+        ws.serializeAttachment(state);
         this.sendFrame(ws, { type: "joined", channelId, botActive: false });
         // A staff opening a channel takes the assignment (Rust behaviour).
-        if (session.isStaff) {
-          void this.assignChannel(channelId, session);
+        if (state.isStaff) {
+          void this.assignChannel(channelId, state);
         }
         break;
       }
 
       case "leave":
-        session.channelId = null;
+        state.channelId = null;
+        ws.serializeAttachment(state);
         break;
 
       case "typing": {
-        const channelId = String(frame.channelId ?? session.channelId ?? "");
+        const channelId = String(frame.channelId ?? state.channelId ?? "");
         const isTyping = !!frame.isTyping;
         this.broadcastFrame(
           {
             type: "typing",
             channelId,
-            userId: session.userId,
-            name: session.name,
+            userId: state.userId,
+            name: state.name,
             isTyping,
           },
-          (s) => s.id !== session.id && s.channelId === channelId,
+          (s) => s.userId !== state.userId && s.channelId === channelId,
         );
         break;
       }
 
       case "message": {
-        const channelId = String(frame.channelId ?? session.channelId ?? "");
+        const channelId = String(frame.channelId ?? state.channelId ?? "");
         const text = String(frame.text ?? frame.content ?? "").trim();
         const clientMsgId = frame.clientMsgId ? String(frame.clientMsgId) : null;
         if (!channelId || !text) break;
@@ -225,15 +235,15 @@ export class ChatHub extends DurableObject {
           break;
         }
         try {
-          const saved = await this.persistMessage(session, channelId, text, clientMsgId);
+          const saved = await this.persistMessage(state, channelId, text, clientMsgId);
           this.broadcastFrame(
             {
               type: "message",
               channelId,
               id: saved.id,
               senderType: saved.senderType,
-              senderId: session.userId,
-              senderName: session.name,
+              senderId: state.userId,
+              senderName: state.name,
               text,
               clientMsgId,
               createdAt: saved.createdAt,
@@ -267,32 +277,26 @@ export class ChatHub extends DurableObject {
   }
 
   private dropSession(ws: WebSocket) {
-    const session = this.findBySocket(ws);
-    if (!session) return;
-    this.sessions.delete(session.id);
+    const state = ws.deserializeAttachment() as Session | null;
+    if (!state) return;
     try {
       ws.close();
     } catch {
       // already closed
     }
-    const stillOnline = [...this.sessions.values()].some((s) => s.userId === session.userId);
+    const stillOnline = this.liveSessions().some((s) => s.state.userId === state.userId);
     if (!stillOnline) {
-      if (session.isStaff) {
-        this.markPresence(session.userId, session.name, session.role, false);
+      if (state.isStaff) {
+        void this.markPresence(state.userId, state.name, state.role, false);
       } else {
         this.presenceSeq += 1;
         this.broadcastFrame(
-          { type: "customer_presence", userId: session.userId, online: false, seq: this.presenceSeq },
+          { type: "customer_presence", userId: state.userId, online: false, seq: this.presenceSeq },
           (s) => s.isStaff,
         );
       }
       this.broadcastStaffPresence();
     }
-  }
-
-  private findBySocket(ws: WebSocket): Session | undefined {
-    for (const s of this.sessions.values()) if (s.ws === ws) return s;
-    return undefined;
   }
 
   /** Staff joining a room auto-claims the open channel (Rust semantics). */
@@ -399,16 +403,16 @@ export class ChatHub extends DurableObject {
   }
 
   private broadcastStaffPresence() {
-    const staff = [...this.sessions.values()].filter((s) => s.isStaff);
+    const staff = this.liveSessions().filter((s) => s.state.isStaff);
     const snapshot = {
       type: "staff_presence",
       staff: staff.map((s) => ({
-        userId: s.userId,
-        name: s.name,
-        role: s.role,
+        userId: s.state.userId,
+        name: s.state.name,
+        role: s.state.role,
         online: true,
-        busy: !!s.channelId,
-        activeChats: s.channelId ? 1 : 0,
+        busy: !!s.state.channelId,
+        activeChats: s.state.channelId ? 1 : 0,
       })),
       offline: [] as Array<{ userId: string; name: string; role: string; lastSeenAt: string }>,
       botActive: staff.length === 0,
@@ -417,8 +421,8 @@ export class ChatHub extends DurableObject {
   }
 
   private broadcastFrame(frame: Record<string, unknown>, filter?: (s: Session) => boolean) {
-    for (const s of this.sessions.values()) {
-      if (filter && !filter(s)) continue;
+    for (const s of this.liveSessions()) {
+      if (filter && !filter(s.state)) continue;
       this.sendFrame(s.ws, frame);
     }
   }

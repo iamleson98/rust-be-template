@@ -5,8 +5,8 @@
  * Serialization matches the SPA SDK contract (`ChatChannelOut`).
  */
 import { getDb, rawAll, atomicBatch, type Database } from "@/lib/db/client";
-import { chatAssignments, chatChannelMembers, chatChannels, chatMessages, users } from "@/lib/db/schema";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { chatAssignments, chatChannelMembers, chatChannels, chatMessages } from "@/lib/db/schema";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { ApiError } from "@/lib/auth/rbac";
 import type { SessionUser } from "@/lib/auth/session";
 
@@ -259,7 +259,10 @@ export async function postMessage(
       WHERE id = ${channelId}
     `,
     ch.status === "open" && staff
-      ? sql`UPDATE chat_channel SET status = 'assigned' WHERE id = ${channelId} AND status = 'open'`
+      ? db
+          .update(chatChannels)
+          .set({ status: "assigned" })
+          .where(and(eq(chatChannels.id, channelId), eq(chatChannels.status, "open")))
       : sql`SELECT 1`,
   ]);
   return msg;
@@ -269,11 +272,10 @@ export async function markRead(user: SessionUser, channelId: string) {
   await assertChannelAccess(user, channelId);
   const db = await getDb();
   const staff = user.role === "employee" || user.role === "admin";
-  await db.run(
-    staff
-      ? sql`UPDATE chat_channel SET unread_employee = 0 WHERE id = ${channelId}`
-      : sql`UPDATE chat_channel SET unread_user = 0 WHERE id = ${channelId}`,
-  );
+  await db
+    .update(chatChannels)
+    .set(staff ? { unreadEmployee: 0 } : { unreadUser: 0 })
+    .where(eq(chatChannels.id, channelId));
   return { ok: true };
 }
 
@@ -289,7 +291,7 @@ export async function claimChannel(user: SessionUser, channelId: string) {
       assignedAt: now,
       unassignedAt: null,
     }),
-    sql`UPDATE chat_channel SET status = 'assigned' WHERE id = ${channelId}`,
+    db.update(chatChannels).set({ status: "assigned" }).where(eq(chatChannels.id, channelId)),
     db
       .insert(chatChannelMembers)
       .values({
@@ -307,10 +309,17 @@ export async function claimChannel(user: SessionUser, channelId: string) {
 
 export async function releaseChannel(user: SessionUser, channelId: string) {
   await assertChannelAccess(user, channelId);
+  const db = await getDb();
   const now = new Date().toISOString();
   await atomicBatch([
-    sql`UPDATE chat_assignment SET unassigned_at = ${now} WHERE channel_id = ${channelId} AND unassigned_at IS NULL`,
-    sql`UPDATE chat_channel SET status = 'open' WHERE id = ${channelId} AND status = 'assigned'`,
+    db
+      .update(chatAssignments)
+      .set({ unassignedAt: now })
+      .where(and(eq(chatAssignments.channelId, channelId), isNull(chatAssignments.unassignedAt))),
+    db
+      .update(chatChannels)
+      .set({ status: "open" })
+      .where(and(eq(chatChannels.id, channelId), eq(chatChannels.status, "assigned"))),
   ]);
   return getChannelOut(user, channelId);
 }
@@ -320,19 +329,20 @@ export async function closeChannel(user: SessionUser, channelId: string) {
   const staff = user.role === "employee" || user.role === "admin";
   if (!staff && ch.status !== "open")
     throw new ApiError(403, "forbidden", "Only staff can close assigned channels");
-  const now = new Date().toISOString();
   const db = await getDb();
-  await db.run(sql`UPDATE chat_channel SET status = 'closed', closed_at = ${now} WHERE id = ${channelId}`);
+  await db
+    .update(chatChannels)
+    .set({ status: "closed", closedAt: new Date().toISOString() })
+    .where(eq(chatChannels.id, channelId));
   return getChannelOut(user, channelId);
 }
 
 export async function chatStats(db: Database) {
-  const rows = await rawAll<{ status: string; n: number }>(
-    sql`SELECT status, COUNT(*) AS n FROM chat_channel GROUP BY status`,
-  );
+  const rows = await db
+    .select({ status: chatChannels.status, n: sql<number>`COUNT(*)` })
+    .from(chatChannels)
+    .groupBy(chatChannels.status);
   const map: Record<string, number> = { open: 0, assigned: 0, closed: 0 };
   for (const r of rows) map[r.status] = Number(r.n);
   return map;
 }
-
-void chatAssignments;

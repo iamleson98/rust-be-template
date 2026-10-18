@@ -12,8 +12,8 @@
  * All runs are recorded in job_run for the admin dashboard.
  */
 import { getDb, rawAll } from "@/lib/db/client";
-import { jobRuns, scheduledJobs } from "@/lib/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { jobRuns, scheduledJobs, coupons, seatInventory } from "@/lib/db/schema";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { sweepExpiredHolds, warmTrips } from "./booking";
 import { reindexPlaces } from "./place-search";
 import { invalidatePlaces } from "./lookups";
@@ -106,12 +106,19 @@ async function executeJobBody(jobType: string): Promise<string> {
   const db = await getDb();
   switch (jobType) {
     case "coupons.expire": {
-      const r = await db.run(sql`
-        UPDATE coupon SET status = 'expired', updated_at = ${new Date().toISOString()}
-        WHERE status = 'held'
-          AND valid_until IS NOT NULL
-          AND valid_until < ${new Date().toISOString()}
-      `);
+      // Rust `expire_held`: unused coupons whose window passed become
+      // expired AND release their holder slot, freeing the owner to
+      // claim again (wallet/claim paths enforce this lazily too).
+      const nowIso = new Date().toISOString();
+      const r = await db
+        .update(coupons)
+        .set({ status: "expired", activeHolder: null, updatedAt: nowIso })
+        .where(
+          and(
+            eq(coupons.status, "held"),
+            sql`${coupons.validUntil} IS NOT NULL AND ${coupons.validUntil} <= ${nowIso}`,
+          ),
+        );
       return JSON.stringify({ expired: r.meta.changes });
     }
     case "fts.reindex": {
@@ -125,13 +132,14 @@ async function executeJobBody(jobType: string): Promise<string> {
     }
     case "trips.prune": {
       const today = new Date().toISOString().slice(0, 10);
-      const r = await db.run(sql`
-        DELETE FROM seat_inventory
-        WHERE status = 'available'
-          AND trip_session_id IN (
-            SELECT ts.id FROM trip_session ts WHERE ts.departure_date < ${today}
-          )
-      `);
+      const r = await db
+        .delete(seatInventory)
+        .where(
+          and(
+            eq(seatInventory.status, "available"),
+            sql`${seatInventory.tripSessionId} IN (SELECT ts.id FROM trip_session ts WHERE ts.departure_date < ${today})`,
+          ),
+        );
       return JSON.stringify({ pruned: r.meta.changes });
     }
     case "trips.warm": {
@@ -160,10 +168,13 @@ export async function tick(): Promise<{ ran: JobOutcome[] }> {
   const scheduled = await runDueScheduledJobs();
   // trips.warm every 6h: gate on the last successful run.
   const db = await getDb();
-  const lastWarmRows = await rawAll<{ finished_at: string }>(
-    sql`SELECT finished_at FROM job_run WHERE job_type = 'trips.warm' AND status = 'succeeded' ORDER BY finished_at DESC LIMIT 1`,
-  );
-  const lastWarm = lastWarmRows[0]?.finished_at ?? null;
+  const lastWarmRows = await db
+    .select({ finishedAt: jobRuns.finishedAt })
+    .from(jobRuns)
+    .where(and(eq(jobRuns.jobType, "trips.warm"), eq(jobRuns.status, "succeeded")))
+    .orderBy(desc(jobRuns.finishedAt))
+    .limit(1);
+  const lastWarm = lastWarmRows[0]?.finishedAt ?? null;
   const sixHours = 6 * 3600_000;
   if (!lastWarm || Date.now() - new Date(lastWarm).getTime() >= sixHours) {
     scheduled.push(
@@ -186,12 +197,22 @@ export interface CronJobRunOut {
 }
 
 async function latestRun(jobType: string): Promise<CronJobRunOut | null> {
-  const rows = await rawAll<CronJobRunOut>(sql`
-    SELECT id, job_type AS jobType, status, detail, error, started_at AS startedAt,
-           finished_at AS finishedAt, created_at AS createdAt
-    FROM job_run WHERE job_type = ${jobType}
-    ORDER BY created_at DESC LIMIT 1
-  `);
+  const db = await getDb();
+  const rows = await db
+    .select({
+      id: jobRuns.id,
+      jobType: jobRuns.jobType,
+      status: jobRuns.status,
+      detail: jobRuns.detail,
+      error: jobRuns.error,
+      startedAt: jobRuns.startedAt,
+      finishedAt: jobRuns.finishedAt,
+      createdAt: jobRuns.createdAt,
+    })
+    .from(jobRuns)
+    .where(eq(jobRuns.jobType, jobType))
+    .orderBy(desc(jobRuns.createdAt))
+    .limit(1);
   return rows[0] ?? null;
 }
 
@@ -226,10 +247,10 @@ export async function triggerJobRunOut(jobType: string): Promise<CronJobRunOut> 
 export async function cancelRun(jobType: string): Promise<CronJobRunOut> {
   const db = await getDb();
   const now = new Date().toISOString();
-  await db.run(sql`
-    UPDATE job_run SET status = 'cancelled', finished_at = ${now}, error = 'cancelled by admin'
-    WHERE job_type = ${jobType} AND status = 'running'
-  `);
+  await db
+    .update(jobRuns)
+    .set({ status: "cancelled", finishedAt: now, error: "cancelled by admin" })
+    .where(and(eq(jobRuns.jobType, jobType), eq(jobRuns.status, "running")));
   const run = await latestRun(jobType);
   return (
     run ?? {
@@ -239,21 +260,4 @@ export async function cancelRun(jobType: string): Promise<CronJobRunOut> {
       createdAt: now,
     }
   );
-}
-
-export async function listJobsWithRuns() {
-  const db = await getDb();
-  const jobs = await db.select().from(scheduledJobs);
-  const recentRuns = await rawAll<{
-    job_type: string;
-    status: string;
-    detail: string | null;
-    error: string | null;
-    started_at: string | null;
-    finished_at: string | null;
-  }>(sql`
-      SELECT job_type, status, detail, error, started_at, finished_at
-      FROM job_run ORDER BY created_at DESC LIMIT 100
-    `);
-  return { jobs, recentRuns };
 }

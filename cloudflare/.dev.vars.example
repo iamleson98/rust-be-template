@@ -16,6 +16,12 @@ REALTIME_APP_ID=
 REALTIME_ACCOUNT_ID=
 REALTIME_API_TOKEN=
 
+# Cloudflare Calls TURN (managed relay for /ws-call audio) — leave empty
+# to fall back to public STUN (P2P works only on NAT-friendly networks).
+# Create a TURN key: Cloudflare dashboard → Realtime → TURN.
+TURN_KEY_ID=
+TURN_KEY_API_TOKEN=
+
 # Payment gateways (dev off)
 VNPAY_ENABLED=false
 VNPAY_TMN_CODE=

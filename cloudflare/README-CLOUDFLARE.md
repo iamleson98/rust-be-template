@@ -57,6 +57,20 @@ The Worker's `scheduled` handler (Cron Trigger `* * * * *`) pings the container'
 `/health` as a heartbeat so it never sleeps. `custom-worker.ts` wires the
 `CronContainer` Durable Object that wraps the image.
 
+The Rust scheduler's built-in catalog maps 1:1 onto the Workers stack:
+
+| Rust job | Cadence | Cloudflare implementation |
+|---|---|---|
+| `osm.import` (Tantivy place-index refresh) | biweekly 02:00 | **`fts.reindex`** daily 03:00 — `INSERT INTO place_fts(place_fts) VALUES('rebuild')` (D1 FTS5 replaced the 500 MB Tantivy pipeline; place-table triggers keep the index live between rebuilds). Manually triggerable + run history from the admin cron-jobs page. |
+| `coupons.expire` (campaign program expiration) | daily 00:10 | **`coupons.expire`** daily 00:10 — expires stale held coupons AND clears `active_holder`; ALSO enforced lazily at claim + wallet reads (a late/skipped run never lets a stale coupon through). |
+| (in-process timers) `expire_stale_holds` | 60s | **`holds.sweep`** every tick — cancels expired pending bookings, frees seats, returns their coupons. |
+| (in-process timers) trip materializer | 6h | **`trips.warm`** every 6h — materializes trip_session + seat inventory for the 14-day sell window. |
+| — | daily | **`trips.prune`** 02:30 + **`jobs.retention`** 04:00 (maintenance). |
+
+Every run is recorded in `job_run` (30-day retention) and visible on the admin
+cron-jobs page; `PATCH /api/admin/cron-jobs/{jobType}` reschedules table-driven
+rows live.
+
 ## API surface
 
 All 121 OpenAPI contract paths from the Rust backend are implemented:
@@ -140,6 +154,64 @@ see `scripts/check-drizzle-drift.py` for the schema-vs-migrations diff tool).
   one native D1 batch = one implicit transaction, accepting typed builders AND
   raw `sql` templates side by side (booking creation mixes both).
 - `sqlIn(values)` builds parameterized `IN (...)` lists.
+- Sweep status: services (`lookups`, `jobs`, `chat`, `booking`, `claim`,
+  `coupons/mine`, `cron-jobs`, `reviews/[id]`, `admin/stats`) are builder-first;
+  the remaining `sql` templates in them are the documented exceptions above
+  (FTS5, json_each, scalar-subquery counters, conditional UPDATE guards,
+  dynamic unread column).
+
+## Coupon lifecycle (Rust parity, enforced end to end)
+
+```
+claim ──► held (active_holder = user, UNIQUE)
+        └─ booking created ──► reserved (booking_id set, holder kept)
+                                 ├─ payment confirmed / admin confirm / IPN
+                                 │    └─► redeemed (holder released, owed payout)
+                                 └─ cancel / hold-expiry sweep
+                                      └─► held again (window still open)
+                                          or expired (window passed)
+give-up ─► released (+ tier slot back while the campaign runs)
+nightly coupons.expire + lazy expiry at claim/wallet ─► expired + holder cleared
+```
+
+- Migration `0004` adds the Rust unique indexes (`code`, `active_holder`,
+  `(campaign_id, user_id)`, `booking_id`) — the race-safe backstop for
+  "one active coupon per account" and "one claim per campaign". It
+  self-heals rows written by the pre-parity code before creating them.
+- The SPA already speaks this lifecycle (`reserved`, `released` statuses have
+  i18n labels; the wallet's "on booking" chip keys off `status === 'reserved'`).
+
+## Realtime: chat + calls (corporate-network ready)
+
+- **Chat (`/ws` → `ChatHub` DO)**: the SPA's exact JSON frame protocol,
+  messages persisted to D1 idempotently (clientMsgId), staff auto-claim,
+  presence fan-out; REST lifecycle bridge via `POST /emit`.
+- **Calls (`/ws-call` → `CallHub` DO)**: WebRTC signalling (offer/answer/ice/
+  renegotiate/hangup relay, `to: "agent"` routing, in-call tracking so a
+  socket blip mid-call doesn't kill live audio).
+- **TURN — the corporate-firewall lifeline**: direct P2P audio fails behind
+  symmetric NATs / UDP-blocking firewalls. The CallHub mints short-lived
+  **Cloudflare Calls TURN** credentials server-side
+  (`turn.cloudflare.com` — UDP 3478/443, TCP 3478/80, and **TLS over 443**
+  which passes HTTPS-only corporate proxies) and pushes them in the
+  `registered` frame + `ice-servers` rotation frames (the SPA client already
+  handles both). Anycast picks the nearest Cloudflare location per client.
+  Setup: create a TURN key in the dashboard (Realtime → TURN) and set the
+  `TURN_KEY_ID` + `TURN_KEY_API_TOKEN` secrets (`TURN_TTL_SECONDS` optional,
+  default 86400). Without them the hub falls back to public STUN — calls
+  still work on NAT-friendly networks. Cost: $0.05/GB relayed egress
+  (≈22 MB per audio-call hour; the relay engages only when direct fails).
+- **Hibernation-safe hubs**: session state rides on each WebSocket's
+  attachment (`serializeAttachment`), the live set always comes from
+  `ctx.getWebSockets()`, and call heartbeats are answered by the platform
+  (`setWebSocketAutoResponse`) without waking the DO — a hibernated +
+  evicted DO rehydrates instead of dropping every live socket, and
+  thousands of idle sockets cost ~nothing.
+- **Scale ceiling**: both hubs are single global DOs (Rust was a single
+  process too). With hibernation this comfortably serves tens of thousands
+  of concurrent sockets; the sharding path (per-channel DO ids + DO-to-DO
+  presence fan-out) is documented as a future step if staff presence ever
+  needs to stay global across shards.
 
 ## Cache & retry for store lookups
 
@@ -181,5 +253,9 @@ see `scripts/check-drizzle-drift.py` for the schema-vs-migrations diff tool).
 `bun run test` — vitest inside **workerd** via `@cloudflare/vitest-plugin`,
 with real D1 + KV bindings (Miniflare): cookie policy matrix, retry
 classification/behavior, two-tier cache semantics, `atomicBatch` atomicity
-(rollback verified), parameterized `sqlIn`, and the full refresh-token
-session lifecycle over the real migration chain.
+(rollback verified), parameterized `sqlIn`, the full refresh-token session
+lifecycle over the real migration chain, the seat-plan engine (validate /
+trusted / derive / sync in-use guard / template fit), Cloudflare TURN
+credential minting+cache+fallback, and the end-to-end coupon lifecycle
+(claim → reserve → redeem/return → give-up → nightly expiry → unique-index
+race guards) over migrations 0000–0004.

@@ -1,7 +1,7 @@
-import { getDb, rawAll } from "@/lib/db/client";
-import { scheduledJobs } from "@/lib/db/schema";
-import { eq, sql } from "drizzle-orm";
-import { handleRouteError, requireStaff, readJson, err } from "@/lib/api";
+import { getDb } from "@/lib/db/client";
+import { jobRuns, scheduledJobs } from "@/lib/db/schema";
+import { desc, eq } from "drizzle-orm";
+import { handleRouteError, requireStaff, readJson } from "@/lib/api";
 import { requirePermission } from "@/lib/auth/rbac";
 
 type Params = { params: Promise<{ jobType: string }> };
@@ -68,12 +68,23 @@ export async function PATCH(req: Request, ctx: Params) {
     const row = (
       await db.select().from(scheduledJobs).where(eq(scheduledJobs.jobType, jobType)).limit(1)
     )[0]!;
-    const lastRuns = await rawAll<Record<string, unknown>>(sql`
-      SELECT id, job_type AS jobType, status, detail, error, started_at AS startedAt,
-             finished_at AS finishedAt, created_at AS createdAt
-      FROM job_run WHERE job_type = ${jobType} ORDER BY created_at DESC LIMIT 1
-    `);
-    const lastRun = lastRuns[0];
+    const lastRun = (
+      await db
+        .select({
+          id: jobRuns.id,
+          jobType: jobRuns.jobType,
+          status: jobRuns.status,
+          detail: jobRuns.detail,
+          error: jobRuns.error,
+          startedAt: jobRuns.startedAt,
+          finishedAt: jobRuns.finishedAt,
+          createdAt: jobRuns.createdAt,
+        })
+        .from(jobRuns)
+        .where(eq(jobRuns.jobType, jobType))
+        .orderBy(desc(jobRuns.createdAt))
+        .limit(1)
+    )[0];
 
     return Response.json({
       jobType: row.jobType,

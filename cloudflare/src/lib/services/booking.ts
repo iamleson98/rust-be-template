@@ -10,7 +10,7 @@
  * Seat state machine: available → held → booked (→ available on release).
  * Booking statuses: pending → confirmed | cancelled.
  */
-import { getDb, getD1, rawAll, atomicBatch, sqlIn, type AtomicStatement, type Database } from "@/lib/db/client";
+import { getDb, getD1, rawAll, rawRun, atomicBatch, sqlIn, type AtomicStatement, type Database } from "@/lib/db/client";
 import {
   bookings,
   bookingSeats,
@@ -234,6 +234,7 @@ export async function createBooking(userId: string, req: HoldRequest): Promise<B
   });
 
   const subtotal = priced.reduce((sum, s) => sum + s.price, 0);
+  const now = new Date().toISOString();
   let discount = 0;
   let couponRow: typeof coupons.$inferSelect | null = null;
   if (req.couponId) {
@@ -242,6 +243,9 @@ export async function createBooking(userId: string, req: HoldRequest): Promise<B
     )[0] ?? null;
     if (!couponRow || couponRow.userId !== userId || couponRow.status !== "held")
       throw new ApiError(400, "validation", "coupon not held by you");
+    // Rust `still_valid`: the window must still be open at use time.
+    if (couponRow.validUntil && couponRow.validUntil <= now)
+      throw new ApiError(400, "validation", "coupon expired");
     discount = Math.min(couponRow.amount, subtotal);
   }
   const total = Math.max(0, subtotal - discount);
@@ -251,7 +255,6 @@ export async function createBooking(userId: string, req: HoldRequest): Promise<B
   const code = genBookingCode(brandPrefix(brand?.slug ?? route.name));
   const ttlMin = holdTtlMinutes(trip.departureDate);
   const expiresAt = new Date(Date.now() + ttlMin * 60_000).toISOString();
-  const now = new Date().toISOString();
   const claimed = await claimSeats(db, trip.id, req.seatIds, bookingId, expiresAt);
   if (!claimed) {
     throw new ApiError(409, "conflict", "Some seats are no longer available");
@@ -280,6 +283,7 @@ export async function createBooking(userId: string, req: HoldRequest): Promise<B
         contactName: req.contactName,
         contactPhone: req.contactPhone,
         contactEmail: req.contactEmail ?? null,
+        campaignAppliedId: couponRow?.id ?? null,
         createdAt: now,
         updatedAt: now,
       }),
@@ -301,20 +305,24 @@ export async function createBooking(userId: string, req: HoldRequest): Promise<B
         WHERE id = ${trip.id}
       `,
     ];
-    if (couponRow) {
-      stmts.push(
-        sql`
-          UPDATE coupon SET status = 'redeemed', booking_id = ${bookingId}, reserved_at = ${now},
-                 redeemed_at = ${now}, updated_at = ${now}
-          WHERE id = ${couponRow.id} AND status = 'held'
-        `,
-        sql`
-          UPDATE discount_tier SET claimed_slots = claimed_slots + 1
-          WHERE id = ${couponRow.tierId}
-        `,
-      );
-    }
     await atomicBatch(stmts);
+    // Rust order: the booking exists, THEN the coupon is put on it. A
+    // conditional no-op (raced: used elsewhere / expired / given up)
+    // undoes the whole hold — no ghost pending row, no blocked seats.
+    if (couponRow) {
+      const reserved = await rawRun(sql`
+        UPDATE coupon SET status = 'reserved', booking_id = ${bookingId},
+               brand_id = ${brand?.id ?? null}, reserved_at = ${now}, updated_at = ${now}
+        WHERE id = ${couponRow.id} AND status = 'held'
+          AND active_holder = ${userId}
+          AND (valid_until IS NULL OR valid_until > ${now})
+      `);
+      if ((reserved.meta.changes ?? 0) === 0) {
+        await releaseSeats(db, bookingId);
+        await db.delete(bookings).where(eq(bookings.id, bookingId));
+        throw new ApiError(409, "conflict", "coupon-unavailable");
+      }
+    }
   } catch (e) {
     // Compensating release — batch failed after seats were claimed.
     await releaseSeats(db, bookingId);
@@ -425,8 +433,16 @@ export async function cancelBooking(userId: string, codeOrId: string): Promise<{
     sql`UPDATE payment SET status = 'refunded', updated_at = ${now} WHERE booking_id = ${b.id} AND status = 'completed' AND ${refundAmount} > 0`,
   ];
   if (b.campaignAppliedId) {
+    // Rust `return_booking_coupon`: the coupon goes back to its owner
+    // while still valid, else it expires (freeing the owner to claim
+    // again).
     stmts.push(
-      sql`UPDATE coupon SET status = 'held', booking_id = NULL, reserved_at = NULL, redeemed_at = NULL, updated_at = ${now} WHERE id = ${b.campaignAppliedId}`,
+      sql`UPDATE coupon SET status = 'held', active_holder = ${b.userId}, booking_id = NULL,
+                 brand_id = NULL, reserved_at = NULL, updated_at = ${now}
+            WHERE id = ${b.campaignAppliedId} AND status = 'reserved'
+              AND (valid_until IS NULL OR valid_until > ${now})`,
+      sql`UPDATE coupon SET status = 'expired', active_holder = NULL, updated_at = ${now}
+            WHERE id = ${b.campaignAppliedId} AND status = 'reserved'`,
     );
   }
   await atomicBatch(stmts);
@@ -449,7 +465,10 @@ export async function placeBookingOnBoard(userId: string, codeOrId: string): Pro
   return { expiresAt: untilDeparture };
 }
 
-/** Payment completion (COD collected / verified gateway IPN): confirm booking. */
+/** Payment completion (COD collected / verified gateway IPN): confirm booking.
+ * The trip is being paid for — its coupon becomes payable to the operator
+ * (`reserved → redeemed`, Rust `redeem_booking_coupon`) and the owner may
+ * claim again. */
 export async function completeBookingPayment(db: Database, bookingId: string): Promise<void> {
   const now = new Date().toISOString();
   await atomicBatch([
@@ -457,6 +476,11 @@ export async function completeBookingPayment(db: Database, bookingId: string): P
     sql`
       UPDATE seat_inventory SET status = 'booked', held_until = NULL, updated_at = ${now}
       WHERE held_by_booking_id = ${bookingId} AND status = 'held'
+    `,
+    sql`
+      UPDATE coupon SET status = 'redeemed', active_holder = NULL, redeemed_at = ${now},
+             updated_at = ${now}
+      WHERE booking_id = ${bookingId} AND status = 'reserved'
     `,
   ]);
 }
@@ -483,6 +507,14 @@ export async function sweepExpiredHolds(): Promise<{ cancelled: number }> {
       ), updated_at = ${now}
       WHERE id IN (SELECT DISTINCT trip_session_id FROM booking WHERE id IN (${idList}))
     `,
+    // Their coupons go back to the owners while still valid, else expire
+    // (Rust `release_booking` → `return_booking_coupon`).
+    sql`UPDATE coupon SET status = 'held', active_holder = (SELECT user_id FROM booking WHERE id = coupon.booking_id),
+               booking_id = NULL, brand_id = NULL, reserved_at = NULL, updated_at = ${now}
+        WHERE status = 'reserved' AND booking_id IN (${idList})
+          AND (valid_until IS NULL OR valid_until > ${now})`,
+    sql`UPDATE coupon SET status = 'expired', active_holder = NULL, updated_at = ${now}
+        WHERE status = 'reserved' AND booking_id IN (${idList})`,
   ]);
   return { cancelled: expired.length };
 }

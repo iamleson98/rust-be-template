@@ -51,6 +51,8 @@ export async function PATCH(req: Request, ctx: Params) {
 
     const now = new Date().toISOString();
     if (status === "confirmed") {
+      // Paying the ticket: its coupon becomes payable (`reserved → redeemed`)
+      // and the owner may claim again (same cascade as payment completion).
       await atomicBatch([
         sql`UPDATE booking SET status = 'confirmed', updated_at = ${now} WHERE id = ${row.id}`,
         sql`
@@ -58,13 +60,19 @@ export async function PATCH(req: Request, ctx: Params) {
           WHERE held_by_booking_id = ${row.id} AND status = 'held'
         `,
         sql`UPDATE payment SET status = 'completed', updated_at = ${now} WHERE booking_id = ${row.id} AND status = 'pending'`,
+        sql`
+          UPDATE coupon SET status = 'redeemed', active_holder = NULL, redeemed_at = ${now},
+                 updated_at = ${now}
+          WHERE booking_id = ${row.id} AND status = 'reserved'
+        `,
       ]);
     } else if (status === "completed") {
       await atomicBatch([
         sql`UPDATE booking SET status = 'completed', updated_at = ${now} WHERE id = ${row.id}`,
       ]);
     } else {
-      // cancelled — free the seats + cancel payments (same flow as the customer cancel).
+      // cancelled — free the seats + cancel payments + return the coupon
+      // (to its owner while still valid, else expired).
       const seatCount = (
         await db.select({ n: sql<number>`count(*)` }).from(bookingSeats).where(sql`booking_id = ${row.id}`)
       )[0];
@@ -81,6 +89,12 @@ export async function PATCH(req: Request, ctx: Params) {
         `,
         sql`UPDATE payment SET status = 'cancelled', updated_at = ${now} WHERE booking_id = ${row.id} AND status = 'pending'`,
         sql`UPDATE payment SET status = 'refunded', updated_at = ${now} WHERE booking_id = ${row.id} AND status = 'completed'`,
+        sql`UPDATE coupon SET status = 'held', booking_id = NULL, brand_id = NULL, reserved_at = NULL,
+               updated_at = ${now}
+          WHERE booking_id = ${row.id} AND status = 'reserved'
+            AND (valid_until IS NULL OR valid_until > ${now})`,
+        sql`UPDATE coupon SET status = 'expired', active_holder = NULL, updated_at = ${now}
+          WHERE booking_id = ${row.id} AND status = 'reserved'`,
       ]);
     }
 

@@ -13,10 +13,16 @@
  *   NEVER:  seat maps, availability, booking/payment/auth state — those
  *           are correctness-critical and always read D1 directly.
  */
-import { rawAll, getDb } from "@/lib/db/client";
-import { sql } from "drizzle-orm";
-import { eq } from "drizzle-orm";
-import { brands } from "@/lib/db/schema";
+import { getDb, rawAll } from "@/lib/db/client";
+import { and, asc, desc, eq, gte, lte, sql } from "drizzle-orm";
+import {
+  brands,
+  discountCampaignBrands,
+  discountCampaigns,
+  discountTiers,
+  routes,
+  vehicleTypes,
+} from "@/lib/db/schema";
 import { cacheFirst, cacheInvalidatePrefix } from "@/lib/db/cache";
 import { withRetry } from "@/lib/db/retry";
 import { popularPlaces, type PlaceHit } from "./place-search";
@@ -38,29 +44,23 @@ export async function listBrands(limit: number): Promise<BrandListItem[]> {
     `lookups:brands:${limit}`,
     () =>
       withRetry(async () => {
-        const rows = await rawAll<{
-          id: string;
-          slug: string;
-          name: string;
-          logo_url: string | null;
-          rating: number | null;
-          route_count: number;
-        }>(sql`
-          SELECT b.id, b.slug, b.name, b.logo_url, b.rating,
-                 (SELECT COUNT(*) FROM route r WHERE r.brand_id = b.id AND r.status = 'active') AS route_count
-          FROM brand b
-          WHERE b.status = 'active'
-          ORDER BY b.rating DESC, b.total_trips DESC, b.name ASC
-          LIMIT ${limit}
-        `);
-        return rows.map((b) => ({
-          id: b.id,
-          slug: b.slug,
-          name: b.name,
-          logoUrl: b.logo_url,
-          rating: b.rating,
-          routeCount: Number(b.route_count),
-        }));
+        const db = await getDb();
+        const rows = await db
+          .select({
+            id: brands.id,
+            slug: brands.slug,
+            name: brands.name,
+            logoUrl: brands.logoUrl,
+            rating: brands.rating,
+            routeCount: sql<number>`(
+              SELECT COUNT(*) FROM route r WHERE r.brand_id = ${brands.id} AND r.status = 'active'
+            )`,
+          })
+          .from(brands)
+          .where(eq(brands.status, "active"))
+          .orderBy(desc(brands.rating), desc(brands.totalTrips), asc(brands.name))
+          .limit(limit);
+        return rows.map((b) => ({ ...b, routeCount: Number(b.routeCount) }));
       }),
     { ttlMs: 60_000 },
   );
@@ -122,45 +122,32 @@ export async function listRoutesDefault(limit: number, offset: number): Promise<
     `lookups:routes:${limit}:${offset}`,
     () =>
       withRetry(async () => {
-        const rows = await rawAll<{
-          id: string;
-          name: string;
-          status: string;
-          brand_id: string | null;
-          brand_slug: string | null;
-          brand_name: string | null;
-          brand_logo_url: string | null;
-          brand_rating: number | null;
-          start_location_id: string;
-          end_location_id: string;
-          schedule_count: number;
-          price_from: number | null;
-        }>(sql`
-          SELECT r.id, r.name, r.status,
-                 r.brand_id, b.slug AS brand_slug, b.name AS brand_name,
-                 b.logo_url AS brand_logo_url, b.rating AS brand_rating,
-                 r.start_location_id, r.end_location_id,
-                 (SELECT COUNT(*) FROM schedule s WHERE s.route_id = r.id) AS schedule_count,
-                 (SELECT MIN(s.base_price_adult) FROM schedule s WHERE s.route_id = r.id) AS price_from
-          FROM route r
-          LEFT JOIN brand b ON b.id = r.brand_id
-          WHERE r.status = 'active'
-          ORDER BY r.created_at DESC
-          LIMIT ${limit} OFFSET ${offset}
-        `);
+        const db = await getDb();
+        const rows = await db
+          .select({
+            id: routes.id,
+            name: routes.name,
+            status: routes.status,
+            brandId: routes.brandId,
+            brandSlug: brands.slug,
+            brandName: brands.name,
+            brandLogoUrl: brands.logoUrl,
+            brandRating: brands.rating,
+            startLocationId: routes.startLocationId,
+            endLocationId: routes.endLocationId,
+            scheduleCount: sql<number>`(SELECT COUNT(*) FROM schedule s WHERE s.route_id = ${routes.id})`,
+            priceFrom: sql<number | null>`(SELECT MIN(s.base_price_adult) FROM schedule s WHERE s.route_id = ${routes.id})`,
+          })
+          .from(routes)
+          .leftJoin(brands, eq(brands.id, routes.brandId))
+          .where(eq(routes.status, "active"))
+          .orderBy(desc(routes.createdAt))
+          .limit(limit)
+          .offset(offset);
         return rows.map((r) => ({
-          id: r.id,
-          name: r.name,
-          status: r.status,
-          brandId: r.brand_id,
-          brandSlug: r.brand_slug,
-          brandName: r.brand_name,
-          brandLogoUrl: r.brand_logo_url,
-          brandRating: r.brand_rating,
-          startLocationId: r.start_location_id,
-          endLocationId: r.end_location_id,
-          scheduleCount: Number(r.schedule_count),
-          priceFrom: r.price_from == null ? null : Number(r.price_from),
+          ...r,
+          scheduleCount: Number(r.scheduleCount),
+          priceFrom: r.priceFrom == null ? null : Number(r.priceFrom),
         }));
       }),
     { ttlMs: 30_000 },
@@ -178,9 +165,13 @@ export async function vehicleTypeCatalog(): Promise<VehicleTypeEntry[]> {
   return cacheFirst(
     "lookups:vehicle-types",
     () =>
-      withRetry(async () =>
-        rawAll<{ code: string; label: string }>(sql`SELECT code, label FROM vehicle_type`),
-      ),
+      withRetry(async () => {
+        const db = await getDb();
+        return db
+          .select({ code: vehicleTypes.code, label: vehicleTypes.label })
+          .from(vehicleTypes)
+          .orderBy(asc(vehicleTypes.sortOrder));
+      }),
     { ttlMs: 300_000 },
   );
 }
@@ -213,73 +204,70 @@ export async function listPublicCampaigns(): Promise<PublicCampaign[]> {
     "lookups:campaigns",
     () =>
       withRetry(async () => {
+        const db = await getDb();
         const now = new Date().toISOString();
-        const rows = await rawAll<{
-          id: string;
-          name: string;
-          description: string | null;
-          starts_at: string;
-          ends_at: string;
-          coupon_validity: string;
-          all_brands: number;
-        }>(sql`
-          SELECT dc.id, dc.name, dc.description, dc.starts_at, dc.ends_at,
-                 dc.coupon_validity, dc.all_brands
-          FROM discount_campaign dc
-          WHERE dc.paused = 0
-            AND dc.starts_at <= ${now}
-            AND dc.ends_at >= ${now}
-          ORDER BY dc.starts_at DESC
-        `);
+        const rows = await db
+          .select({
+            id: discountCampaigns.id,
+            name: discountCampaigns.name,
+            description: discountCampaigns.description,
+            startsAt: discountCampaigns.startsAt,
+            endsAt: discountCampaigns.endsAt,
+            couponValidity: discountCampaigns.couponValidity,
+            allBrands: discountCampaigns.allBrands,
+          })
+          .from(discountCampaigns)
+          .where(
+            and(
+              eq(discountCampaigns.paused, false),
+              lte(discountCampaigns.startsAt, now),
+              gte(discountCampaigns.endsAt, now),
+            ),
+          )
+          .orderBy(desc(discountCampaigns.startsAt));
         if (!rows.length) return [];
 
-        const brands = await rawAll<{
-          campaign_id: string;
-          id: string;
-          name: string;
-          slug: string;
-          logo_url: string | null;
-        }>(sql`
-          SELECT dcb.campaign_id, br.id, br.name, br.slug, br.logo_url
-          FROM discount_campaign_brand dcb JOIN brand br ON br.id = dcb.brand_id
-        `);
-        const tiers = await rawAll<{
-          campaign_id: string;
-          id: string;
-          amount: number;
-          total_slots: number;
-          claimed_slots: number;
-        }>(sql`
-          SELECT dt.campaign_id, dt.id, dt.amount, dt.total_slots, dt.claimed_slots
-          FROM discount_tier dt ORDER BY dt.position ASC, dt.amount ASC
-        `);
+        const brandRows = await db
+          .select({
+            campaignId: discountCampaignBrands.campaignId,
+            id: brands.id,
+            name: brands.name,
+            slug: brands.slug,
+            logoUrl: brands.logoUrl,
+          })
+          .from(discountCampaignBrands)
+          .innerJoin(brands, eq(brands.id, discountCampaignBrands.brandId));
+        const tierRows = await db
+          .select({
+            campaignId: discountTiers.campaignId,
+            id: discountTiers.id,
+            amount: discountTiers.amount,
+            totalSlots: discountTiers.totalSlots,
+            claimedSlots: discountTiers.claimedSlots,
+          })
+          .from(discountTiers)
+          .orderBy(asc(discountTiers.position), asc(discountTiers.amount));
 
         const brandsBy = new Map<string, PublicCampaign["brands"]>();
-        for (const b of brands) {
-          const list = brandsBy.get(b.campaign_id) ?? [];
-          list.push({ id: b.id, name: b.name, slug: b.slug, logoUrl: b.logo_url });
-          brandsBy.set(b.campaign_id, list);
+        for (const b of brandRows) {
+          const list = brandsBy.get(b.campaignId) ?? [];
+          list.push({ id: b.id, name: b.name, slug: b.slug, logoUrl: b.logoUrl });
+          brandsBy.set(b.campaignId, list);
         }
         const tiersBy = new Map<string, PublicCampaign["tiers"]>();
-        for (const t of tiers) {
-          const list = tiersBy.get(t.campaign_id) ?? [];
+        for (const t of tierRows) {
+          const list = tiersBy.get(t.campaignId) ?? [];
           list.push({
             id: t.id,
             amount: Number(t.amount),
-            remaining: Math.max(0, Number(t.total_slots) - Number(t.claimed_slots)),
-            totalSlots: Number(t.total_slots),
+            remaining: Math.max(0, Number(t.totalSlots) - Number(t.claimedSlots)),
+            totalSlots: Number(t.totalSlots),
           });
-          tiersBy.set(t.campaign_id, list);
+          tiersBy.set(t.campaignId, list);
         }
 
         return rows.map((c) => ({
-          id: c.id,
-          name: c.name,
-          description: c.description,
-          startsAt: c.starts_at,
-          endsAt: c.ends_at,
-          couponValidity: c.coupon_validity,
-          allBrands: !!c.all_brands,
+          ...c,
           brands: brandsBy.get(c.id) ?? [],
           tiers: tiersBy.get(c.id) ?? [],
         }));
@@ -290,7 +278,9 @@ export async function listPublicCampaigns(): Promise<PublicCampaign[]> {
 
 // ── Review tags ─────────────────────────────────────────────────
 
-/** `GET /api/reviews/tags` — tags that appear on approved reviews. */
+/** `GET /api/reviews/tags` — tags that appear on approved reviews.
+ * (json_each lateral + DISTINCT LOWER — SQL semantics drizzle has no
+ * builder for; kept as a parameterized template on purpose.) */
 export async function reviewTags(limit: number): Promise<string[]> {
   return cacheFirst(
     `lookups:review-tags:${limit}`,
@@ -312,7 +302,9 @@ export async function reviewTags(limit: number): Promise<string[]> {
 
 export type HomeStats = Record<string, number>;
 
-/** `GET /api/stats` — public landing-page counters. */
+/** `GET /api/stats` — public landing-page counters.
+ * (Seven scalar-subquery counters in ONE round trip — deliberately a
+ * single statement; seven separate builder queries would be slower.) */
 export async function homeStats(): Promise<HomeStats> {
   return cacheFirst(
     "lookups:stats",

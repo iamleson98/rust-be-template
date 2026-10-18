@@ -1,14 +1,26 @@
-import { rawAll, atomicBatch } from "@/lib/db/client";
+import { rawAll, rawRun, atomicBatch } from "@/lib/db/client";
 import { sql } from "drizzle-orm";
 import { handleRouteError, requireUser, err } from "@/lib/api";
 
 /**
- * `GET /api/coupons/mine` — the user's wallet: the one ACTIVE coupon
- * (held, not yet redeemed/expired) plus every campaign they claimed from.
+ * `GET /api/coupons/mine` — the user's wallet (Rust `my_coupons`):
+ * the one coupon the account holds (status `held`, or `reserved` while a
+ * booking is using it — both keep `active_holder` set) plus every
+ * campaign they claimed from. Stale held coupons are lazily expired
+ * first, so a late nightly `coupons.expire` run never shows a dead
+ * coupon as active.
  */
 export async function GET(req: Request) {
   try {
     const user = await requireUser(req);
+    // Lazy expiry for THIS user (Rust `active_coupon` does the same).
+    const now = new Date().toISOString();
+    await rawRun(sql`
+      UPDATE coupon SET status = 'expired', active_holder = NULL, updated_at = ${now}
+      WHERE active_holder = ${user.id} AND status = 'held'
+        AND valid_until IS NOT NULL AND valid_until <= ${now}
+    `);
+
     const rows = await rawAll<{
       id: string;
       code: string;
@@ -67,7 +79,8 @@ export async function GET(req: Request) {
       })),
     });
 
-    const active = rows.find((r) => r.status === "held") ?? null;
+    // Held (or reserved-on-a-booking) — both keep active_holder set.
+    const active = rows.find((r) => r.status === "held" || r.status === "reserved") ?? null;
     return Response.json({
       active: active ? couponOut(active) : null,
       claimedCampaignIds: [...new Set(rows.map((r) => r.campaign_id))],
@@ -78,24 +91,35 @@ export async function GET(req: Request) {
 }
 
 /**
- * `DELETE /api/coupons/mine` — give up the held coupon: frees the slot
- * (tier claimed_slots) and marks the coupon abandoned so the account can
- * claim again (Rust `couponsGiveUp`).
+ * `DELETE /api/coupons/mine` — give up the held coupon: it becomes
+ * `released` and its slot goes back to the tier while the campaign
+ * still runs (Rust `release_coupon`), so the account can claim from
+ * another campaign.
  */
 export async function DELETE(req: Request) {
   try {
     const user = await requireUser(req);
-    const rows = await rawAll<{ id: string; tier_id: string; status: string }>(sql`
-      SELECT id, tier_id, status FROM coupon
-      WHERE user_id = ${user.id} AND status = 'held'
+    const rows = await rawAll<{ id: string; tier_id: string; campaign_id: string; status: string }>(sql`
+      SELECT id, tier_id, campaign_id, status FROM coupon
+      WHERE active_holder = ${user.id} AND status = 'held'
       ORDER BY claimed_at DESC LIMIT 1
     `);
     const held = rows[0];
     if (!held) return err(409, "no-coupon", "No coupon held");
     const now = new Date().toISOString();
+    // Released + slot back in one atomic unit; the slot returns only
+    // while the campaign still runs (Rust `release_coupon`).
     await atomicBatch([
-      sql`UPDATE coupon SET status = 'expired', updated_at = ${now} WHERE id = ${held.id}`,
-      sql`UPDATE discount_tier SET claimed_slots = MAX(claimed_slots - 1, 0) WHERE id = ${held.tier_id}`,
+      sql`
+        UPDATE coupon SET status = 'released', active_holder = NULL, updated_at = ${now}
+        WHERE id = ${held.id} AND status = 'held'
+      `,
+      sql`
+        UPDATE discount_tier SET claimed_slots = MAX(claimed_slots - 1, 0)
+        WHERE id = ${held.tier_id}
+          AND EXISTS (SELECT 1 FROM discount_campaign dc
+                      WHERE dc.id = ${held.campaign_id} AND dc.ends_at > ${now})
+      `,
     ]);
     return Response.json({ ok: true });
   } catch (e) {
