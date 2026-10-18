@@ -166,6 +166,7 @@ export interface BookingResult {
   booking: typeof bookings.$inferSelect;
   seats: { seatLabel: string; seatClass: string | null; passengerName: string | null; price: number }[];
   trip: { id: string; departureDate: string; departureTime: string; routeName: string; brandName: string | null };
+  couponId?: string | null;
 }
 
 export async function createBooking(userId: string, req: HoldRequest): Promise<BookingResult> {
@@ -333,6 +334,7 @@ export async function createBooking(userId: string, req: HoldRequest): Promise<B
       routeName: route.name,
       brandName: brand?.name ?? null,
     },
+    couponId: couponRow?.id ?? null,
   };
 }
 

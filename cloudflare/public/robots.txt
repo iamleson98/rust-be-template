@@ -12,8 +12,3 @@ Allow: /
 
 User-agent: *
 Allow: /
-Disallow: /api
-Disallow: /admin
-Disallow: /bookings
-Disallow: /payments
-Disallow: /checkout

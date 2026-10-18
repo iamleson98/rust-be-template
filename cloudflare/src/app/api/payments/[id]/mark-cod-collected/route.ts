@@ -11,10 +11,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     const db = await getDb();
     const result = await markCodCollected(db, id, staff.id);
     return Response.json({
-      id: result.id,
+      paymentId: result.id,
       status: result.status,
-      collectedAt: result.collectedAt,
-      bookingConfirmed: true,
+      collectedAt: result.collectedAt ?? new Date().toISOString(),
+      amountCollected: Number(result.amount ?? 0),
     });
   } catch (e) {
     return handleRouteError(e);

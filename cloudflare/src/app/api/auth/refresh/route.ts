@@ -1,5 +1,10 @@
 import { rotateRefresh, sessionCookies, type IssuedTokens } from "@/lib/auth/session";
 import { handleRouteError, err, clientIp } from "@/lib/api";
+import { getDb } from "@/lib/db/client";
+import { users } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
+import { sessionUserOut } from "@/lib/auth/session";
+import { accessTtlSecs } from "@/lib/auth/jwt";
 
 /** Refresh cookie first, body fallback (mobile raw-token clients). */
 export async function POST(req: Request) {
@@ -13,7 +18,7 @@ export async function POST(req: Request) {
     }
     if (!presented) return err(401, "unauthorized", "refresh_token required");
 
-    const tokens: IssuedTokens | null = await rotateRefresh(presented, {
+    const tokens: (IssuedTokens & { userId: string }) | null = await rotateRefresh(presented, {
       userAgent: req.headers.get("user-agent"),
       ip: clientIp(req),
     });
@@ -24,7 +29,18 @@ export async function POST(req: Request) {
     for (const c of sessionCookies(tokens.accessToken, tokens.refreshToken, { secure })) {
       headers.append("set-cookie", c);
     }
-    return Response.json({ ok: true }, { headers });
+    const db = await getDb();
+    const user = (await db.select().from(users).where(eq(users.id, tokens.userId)).limit(1))[0];
+    if (!user) return err(401, "unauthorized", "user gone");
+    const mobile = req.headers.get("x-client") === "mobile";
+    return Response.json(
+      {
+        user: sessionUserOut(user),
+        expires_at: new Date(Date.now() + (await accessTtlSecs()) * 1000).toISOString(),
+        ...(mobile ? { tokens: { access_token: tokens.accessToken, refresh_token: tokens.refreshToken } } : {}),
+      },
+      { headers },
+    );
   } catch (e) {
     return handleRouteError(e);
   }

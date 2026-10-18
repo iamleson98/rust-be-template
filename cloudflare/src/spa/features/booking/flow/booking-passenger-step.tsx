@@ -1,0 +1,112 @@
+'use client'
+
+import { Button } from '@spa/components/ui/button'
+import { Users, Copy, Sparkles, ChevronRight } from 'lucide-react'
+import { useGuest } from '@spa/stores/guest'
+import { useT } from '@spa/lib/i18n'
+import { SeatSelector } from './seat-selector'
+import { PassengerSummary } from './passenger-list'
+import { PassengerFormCard } from './passenger-form-card'
+import type { BookingForm } from './use-booking-form'
+import { StepActions } from './step-actions'
+
+/** Step 1: who travels on which seat, with helpers to fill names and hand out seats. */
+export function BookingPassengerStep({
+  booking,
+  error,
+  onContinue,
+}: {
+  booking: BookingForm
+  error: string
+  onContinue: () => void
+}) {
+  const t = useT()
+  const guestName = useGuest((s) => s.guestName)
+  const { form, fields, passengers, seats, tickets } = booking
+  const severalSeats = seats.length > 1
+  return (
+    <div className="p-5 space-y-4">
+      {/* Header + actions */}
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div>
+          <h3 className="font-semibold text-sm flex items-center gap-1.5">
+            <Users className="h-4 w-4 text-blue-600" />
+            {t('bookingFlow.passengerInfo')}
+          </h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {t('bookingFlow.passengerSeatSummary', {
+              count: passengers.length,
+              seats: seats.length,
+            })}
+          </p>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={booking.copyContactName}
+            disabled={!form.getValues('contactName') && !guestName}
+            className="gap-1.5 h-8 text-xs"
+          >
+            <Copy className="h-3.5 w-3.5" />
+            {t('bookingFlow.copyFromContact')}
+          </Button>
+          {severalSeats && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={booking.autoAssignSeats}
+              disabled={booking.unassigned === 0}
+              className="gap-1.5 h-8 text-xs"
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              {t('bookingFlow.autoMatchSeats')}
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Matching people to seats only matters with more than one seat. */}
+      {severalSeats && <SeatSelector tickets={tickets} />}
+
+      <div className="space-y-3">
+        {fields.map((field, i) => (
+          <PassengerFormCard
+            key={field.id}
+            index={i}
+            passengers={passengers}
+            seats={seats}
+            control={form.control}
+            // `useWatch` lags a freshly reset field by one render.
+            type={booking.typeOf(passengers[i] ?? field)}
+            price={tickets.find((ticket) => ticket.passengerIndex === i)?.price}
+          />
+        ))}
+      </div>
+
+      <PassengerSummary
+        tickets={tickets}
+        childFare={booking.childFare}
+        subtotal={booking.subtotal}
+        unassigned={booking.unassigned}
+        duplicateSeats={booking.duplicateSeats}
+      />
+
+      {error && (
+        <div className="rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-sm px-3 py-2">
+          {error}
+        </div>
+      )}
+
+      <StepActions>
+        <Button
+          onClick={onContinue}
+          disabled={!booking.canContinue}
+          className="ml-auto gap-1 max-sm:h-11 max-sm:flex-1"
+        >
+          {t('bookingFlow.continue')} <ChevronRight className="h-4 w-4" />
+        </Button>
+      </StepActions>
+    </div>
+  )
+}

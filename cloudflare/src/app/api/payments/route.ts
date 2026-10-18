@@ -30,20 +30,8 @@ export async function POST(req: Request) {
       userId: user?.id ?? null,
       ip: clientIp(req),
     });
-    return Response.json(
-      {
-        id: payment.id,
-        provider: payment.provider,
-        status: payment.status,
-        amount: payment.amount,
-        currency: payment.currency,
-        gatewayUrl: payment.gatewayUrl,
-        qrPayload: payment.qrPayload,
-        memo: payment.memo,
-        booking: { id: booking.id, code: booking.code, status: booking.status },
-      },
-      { status: 201 },
-    );
+    const { paymentOut } = await import("@/lib/services/payment-out");
+    return Response.json({ payment: await paymentOut(payment) }, { status: 201 });
   } catch (e) {
     return handleRouteError(e);
   }

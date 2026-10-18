@@ -8,7 +8,12 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     await currentUser(req); // any authenticated caller (owner check inside service)
     const db = await getDb();
     const result = await cancelPayment(db, id);
-    return Response.json({ id: result.id, status: result.status });
+    return Response.json({
+      paymentId: result.id,
+      status: result.status,
+      cancelledAt: result.updatedAt ?? new Date().toISOString(),
+      reason: null,
+    });
   } catch (e) {
     return handleRouteError(e);
   }

@@ -3,6 +3,7 @@ import { brands } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { handleRouteError, err } from "@/lib/api";
 
+/** `GET /api/brands/{slug}` — brand detail (`BrandDetailOut` contract). */
 export async function GET(_req: Request, ctx: { params: Promise<{ slug: string }> }) {
   try {
     const { slug } = await ctx.params;
@@ -18,9 +19,6 @@ export async function GET(_req: Request, ctx: { params: Promise<{ slug: string }
       contactPhone: row.contactPhone,
       contactEmail: row.contactEmail,
       rating: row.rating,
-      totalTrips: row.totalTrips,
-      childMaxAge: row.childMaxAge,
-      childDiscountAmount: row.childDiscountAmount,
     });
   } catch (e) {
     return handleRouteError(e);

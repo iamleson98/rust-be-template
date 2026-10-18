@@ -40,11 +40,27 @@
       {
         "class_name": "CronContainer",
         "name": "CRON_CONTAINER"
+      },
+      {
+        "class_name": "ChatHub",
+        "name": "CHAT_HUB"
+      },
+      {
+        "class_name": "CallHub",
+        "name": "CALL_HUB"
       }
     ]
   },
   "exports": {
     "CronContainer": {
+      "type": "durable-object",
+      "storage": "sqlite"
+    },
+    "ChatHub": {
+      "type": "durable-object",
+      "storage": "sqlite"
+    },
+    "CallHub": {
       "type": "durable-object",
       "storage": "sqlite"
     }

@@ -1,0 +1,16 @@
+[Unit]
+Description=Docker DOCKER-USER chain firewall rules (loopback-only 8443, swarm 2377)
+After=docker.service network-online.target
+Wants=docker.service
+# Docker creates DOCKER-USER at daemon start; re-apply whenever the
+# docker unit (re)starts so rules survive reboots and daemon restarts.
+PartOf=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/docker-user-firewall.sh
+RemainAfterExit=yes
+ExecReload=/usr/local/sbin/docker-user-firewall.sh
+
+[Install]
+WantedBy=multi-user.target

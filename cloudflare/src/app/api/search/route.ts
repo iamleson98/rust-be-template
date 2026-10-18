@@ -1,15 +1,13 @@
-import { parseSearchParams, searchTrips } from "@/lib/services/trip-search";
+import { parseSearchOptions, searchTrips } from "@/lib/services/trip-search";
 import { handleRouteError, err } from "@/lib/api";
 
+/** `GET /api/search` — city-pair trip search (Rust contract: camelCase params). */
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
-    const params = parseSearchParams(url);
-    if (!params.from || !params.to || !params.date)
-      return err(400, "validation", "from, to and date are required");
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(params.date))
-      return err(400, "validation", "date must be YYYY-MM-DD");
-    const result = await searchTrips(params);
+    const parsed = parseSearchOptions(url);
+    if ("error" in parsed) return err(400, "validation", parsed.error);
+    const result = await searchTrips(parsed.from, parsed.to, parsed.opts);
     return Response.json(result);
   } catch (e) {
     return handleRouteError(e);

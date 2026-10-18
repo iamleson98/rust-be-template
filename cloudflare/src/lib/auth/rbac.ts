@@ -5,7 +5,7 @@
  */
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db/client";
-import { permissions, rolePermissions, roles, userRoles } from "@/lib/db/schema";
+import { permissions, rolePermissions, roles, userRoles, users } from "@/lib/db/schema";
 import type { SessionUser } from "./session";
 
 export const ROLES = ["admin", "employee", "user"] as const;
@@ -94,7 +94,15 @@ export async function userHasPermission(userId: string, perm: string): Promise<b
     .innerJoin(permissions, eq(permissions.id, rolePermissions.permissionId))
     .where(and(eq(userRoles.userId, userId), eq(permissions.name, perm)))
     .limit(1);
-  return rows.length > 0;
+  if (rows.length > 0) return true;
+
+  // Fallback: no user_roles grants at all → derive from users.role (heals
+  // accounts created before the RBAC rows were kept in sync).
+  const grants = await db.select({ roleId: userRoles.roleId }).from(userRoles).where(eq(userRoles.userId, userId)).limit(1);
+  if (grants.length > 0) return false;
+  const user = (await db.select({ role: users.role }).from(users).where(eq(users.id, userId)).limit(1))[0];
+  if (!user) return false;
+  return rolePermissionsFor(user.role).includes(perm);
 }
 
 /** Require a permission; throws ApiError(403) when missing. */

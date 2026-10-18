@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "target": "ES2017",
+    "target": "ES2022",
     "lib": [
       "dom",
       "dom.iterable",
@@ -26,8 +26,13 @@
     "paths": {
       "@/*": [
         "./src/*"
+      ],
+      "@spa/*": [
+        "./src/spa/*"
       ]
-    }
+    },
+    "noUnusedLocals": false,
+    "noUnusedParameters": false
   },
   "include": [
     "next-env.d.ts",
@@ -48,6 +53,8 @@
     "skills",
     "container",
     ".open-next",
-    ".wrangler"
+    ".wrangler",
+    "src/spa/**/*.test.ts",
+    "src/spa/**/*.test.tsx"
   ]
 }

@@ -171,6 +171,28 @@ export async function tick(): Promise<{ ran: JobOutcome[] }> {
   return { ran: [...frequent, ...scheduled] };
 }
 
+/** CronJobRunOut — the SPA SDK's run row shape. */
+export interface CronJobRunOut {
+  id: string;
+  jobType: string;
+  status: string;
+  detail?: string | null;
+  error?: string | null;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  createdAt: string;
+}
+
+async function latestRun(jobType: string): Promise<CronJobRunOut | null> {
+  const rows = await rawAll<CronJobRunOut>(sql`
+    SELECT id, job_type AS jobType, status, detail, error, started_at AS startedAt,
+           finished_at AS finishedAt, created_at AS createdAt
+    FROM job_run WHERE job_type = ${jobType}
+    ORDER BY created_at DESC LIMIT 1
+  `);
+  return rows[0] ?? null;
+}
+
 /** Admin: manual trigger (POST /api/admin/cron-jobs/{jobType}/trigger). */
 export async function triggerJob(jobType: string): Promise<JobOutcome> {
   if (jobType === "holds.sweep") {
@@ -182,6 +204,39 @@ export async function triggerJob(jobType: string): Promise<JobOutcome> {
     return runJob("trips.warm", async () => JSON.stringify(await warmTrips()));
   }
   return runJob(jobType, async () => executeJobBody(jobType));
+}
+
+/** Admin: latest run for the trigger response (Rust returns CronJobRunOut). */
+export async function triggerJobRunOut(jobType: string): Promise<CronJobRunOut> {
+  await triggerJob(jobType);
+  const run = await latestRun(jobType);
+  return (
+    run ?? {
+      id: crypto.randomUUID(),
+      jobType,
+      status: "succeeded",
+      createdAt: new Date().toISOString(),
+    }
+  );
+}
+
+/** Admin: cancel an in-flight run (interrupted marker). */
+export async function cancelRun(jobType: string): Promise<CronJobRunOut> {
+  const db = await getDb();
+  const now = new Date().toISOString();
+  await db.run(sql`
+    UPDATE job_run SET status = 'cancelled', finished_at = ${now}, error = 'cancelled by admin'
+    WHERE job_type = ${jobType} AND status = 'running'
+  `);
+  const run = await latestRun(jobType);
+  return (
+    run ?? {
+      id: crypto.randomUUID(),
+      jobType,
+      status: "cancelled",
+      createdAt: now,
+    }
+  );
 }
 
 export async function listJobsWithRuns() {

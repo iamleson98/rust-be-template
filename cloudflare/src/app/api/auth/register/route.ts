@@ -1,7 +1,7 @@
 import { getDb } from "@/lib/db/client";
 import { users, userRoles, roles } from "@/lib/db/schema";
 import { hashPassword } from "@/lib/auth/password";
-import { issueSession, sessionCookies } from "@/lib/auth/session";
+import { issueSession, sessionCookies, sessionUserOut } from "@/lib/auth/session";
 import { handleRouteError, readJson, clientIp, err } from "@/lib/api";
 import { eq, sql } from "drizzle-orm";
 import { normalizePhone } from "@/lib/format";
@@ -69,16 +69,12 @@ export async function POST(req: Request) {
     for (const c of sessionCookies(tokens.accessToken, tokens.refreshToken, { secure })) {
       headers.append("set-cookie", c);
     }
+    const mobile = req.headers.get("x-client") === "mobile";
     return Response.json(
       {
-        user: {
-          id,
-          fullName,
-          email,
-          phone,
-          role: roleName,
-          locale: body.locale === "en" ? "en" : "vi",
-        },
+        user: sessionUserOut({ id, fullName, email, phone, role: roleName }),
+        expires_at: new Date(Date.now() + 900 * 1000).toISOString(),
+        ...(mobile ? { tokens: { access_token: tokens.accessToken, refresh_token: tokens.refreshToken } } : {}),
       },
       { headers },
     );

@@ -1,0 +1,143 @@
+'use client'
+
+import { Badge } from '@spa/components/ui/badge'
+import { Button } from '@spa/components/ui/button'
+import { Ticket as TicketIcon, Bus, MapPin, Armchair, User as UserIcon } from 'lucide-react'
+import { useT } from '@spa/lib/i18n'
+import type { ChatMessageOut } from '@spa/api'
+import { TicketStatusBadge } from '@spa/features/booking/history/ticket-status-badge'
+import type { CreatedTicketPayload } from '@spa/features/admin/tickets/chat-ticket-picker'
+
+const asPayload = (json: string | null | undefined): CreatedTicketPayload | null => {
+  try {
+    const parsed = json ? JSON.parse(json) : null
+    return parsed?.bookingCode ? (parsed as CreatedTicketPayload) : null
+  } catch {
+    return null
+  }
+}
+
+/** The booking card carried by a message: in `attachments`, or as JSON content of a `ticket` message. */
+export function parseTicketPayload(message: ChatMessageOut): CreatedTicketPayload | null {
+  return (
+    asPayload(message.attachments) ??
+    (message.kind === 'ticket' && message.content?.trim().startsWith('{')
+      ? asPayload(message.content)
+      : null)
+  )
+}
+
+/** A booking rendered as a ticket card inside the conversation. */
+export function TicketCardMessage({
+  payload,
+  isEmployee,
+  onView,
+}: {
+  payload: CreatedTicketPayload
+  isEmployee: boolean
+  onView?: (bookingCode: string) => void
+}) {
+  const t = useT()
+  const total = payload.totalAmount ?? 0
+  const seats = payload.seats ?? []
+  const trip = payload.trip ?? ({} as CreatedTicketPayload['trip'])
+  return (
+    <div className={`flex ${isEmployee ? 'justify-end' : 'justify-start'}`}>
+      <div className="max-w-[88%] sm:max-w-[75%] rounded-2xl overflow-hidden border bg-white">
+        <div className="flex items-center justify-between gap-2 bg-primary px-3 py-2 text-primary-foreground">
+          <div className="flex items-center gap-1.5 text-xs font-semibold">
+            <TicketIcon className="h-3.5 w-3.5" />
+            {t('adminChat.eTicket')}
+          </div>
+          {payload.status && (
+            <TicketStatusBadge
+              booking={{ status: payload.status, paymentMethod: 'cod' }}
+              className="text-[10px]"
+            />
+          )}
+        </div>
+
+        {/* Body */}
+        <div className="p-3 space-y-2">
+          {/* Booking code */}
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-[10px] text-muted-foreground uppercase">
+                {t('adminChat.bookingCode')}
+              </div>
+              <div className="font-mono font-bold text-blue-700 text-sm">
+                {payload.bookingCode || '—'}
+              </div>
+            </div>
+            {payload.bookingCode && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-[11px] gap-1"
+                onClick={() => onView?.(payload.bookingCode)}
+              >
+                {t('adminChat.viewDetails')}
+              </Button>
+            )}
+          </div>
+
+          {/* Route */}
+          {(trip?.fromName || trip?.toName || trip?.brandName) && (
+            <div className="rounded-md bg-slate-50 p-2 text-xs">
+              {trip?.brandName && (
+                <div className="flex items-center gap-1.5 font-semibold">
+                  <Bus className="h-3.5 w-3.5 text-muted-foreground" />
+                  {trip.brandName}
+                </div>
+              )}
+              {(trip?.fromName || trip?.toName) && (
+                <div className="mt-1 flex items-center gap-1.5">
+                  <MapPin className="h-3 w-3 text-blue-600" />
+                  <span className="font-medium">
+                    {trip?.fromName ?? '—'} → {trip?.toName ?? '—'}
+                  </span>
+                </div>
+              )}
+              {trip?.departureDate && (
+                <div className="mt-0.5 text-[11px] text-muted-foreground">
+                  {t('adminChat.departureLabel')}: {trip.departureDate}
+                  {trip?.departureAt ? ` · ${String(trip.departureAt).slice(11, 16)}` : ''}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Seats */}
+          {seats.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {seats.map((s, i) => (
+                <Badge key={i} variant="outline" className="text-[10px] font-mono bg-white gap-1">
+                  <Armchair className="h-2.5 w-2.5" />
+                  {s.code}
+                </Badge>
+              ))}
+            </div>
+          )}
+
+          {/* Contact */}
+          {(payload.contactName || payload.contactPhone) && (
+            <div className="text-[11px] text-muted-foreground flex items-center gap-1">
+              <UserIcon className="h-3 w-3" />
+              {payload.contactName ?? ''} {payload.contactPhone ? `· ${payload.contactPhone}` : ''}
+            </div>
+          )}
+
+          {/* Total */}
+          {total > 0 && (
+            <div className="flex items-center justify-between border-t pt-2">
+              <span className="text-xs text-muted-foreground">{t('adminChat.totalAmount')}</span>
+              <span className="font-bold text-blue-700">
+                {new Intl.NumberFormat('vi-VN').format(total)}₫
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}

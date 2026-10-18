@@ -1,11 +1,15 @@
 // @ts-ignore `.open-next/worker.ts` is generated at build time
 import { default as handler } from "./.open-next/worker.js";
 import { DurableObject } from "cloudflare:workers";
+import { ChatHub } from "./chat-hub";
+import { CallHub } from "./call-hub";
 
 /**
  * Custom OpenNext worker entry:
  *  - re-exports the generated Next.js handler
  *  - adds the `CronContainer` Durable Object that wraps the cron container
+ *  - adds the `ChatHub` Durable Object that powers the SPA's `/ws` chat
+ *    socket (messages, typing, presence fan-out — see chat-hub.ts)
  *  - adds a `scheduled` handler (Worker Cron Trigger) that acts as a HEARTBEAT:
  *    it pings the container's /health endpoint once a minute so the container
  *    never sleeps, letting its internal node-cron timers remain the OWNER of
@@ -14,7 +18,7 @@ import { DurableObject } from "cloudflare:workers";
  * Deploy-time wiring (wrangler.jsonc):
  *   main: "custom-worker.ts"
  *   containers: [{ class_name: "CronContainer", image: "./container/Dockerfile" }]
- *   durable_objects: [{ class_name: "CronContainer", name: "CRON_CONTAINER" }]
+ *   durable_objects: CronContainer + ChatHub
  *   triggers: { crons: ["* * * * *"] }
  */
 
@@ -39,7 +43,7 @@ export class CronContainer extends DurableObject {
     let lastError: unknown = null;
     for (let attempt = 0; attempt < 100; attempt++) {
       try {
-        const res = await port.fetch("http://container/health");
+        const res = await port.fetch(new Request("http://container/health"));
         if (!res.ok) throw new Error(`health check returned ${res.status}`);
         break;
       } catch (e) {
@@ -63,8 +67,27 @@ export class CronContainer extends DurableObject {
   }
 }
 
+export { ChatHub, CallHub };
+
 export default {
-  fetch: handler.fetch,
+  async fetch(request: Request, env: CloudflareEnv, ctx: ExecutionContext) {
+    const url = new URL(request.url);
+
+    // ── Chat socket upgrade — handled by the ChatHub DO, not Next.js ──
+    if (
+      (url.pathname === "/ws" || url.pathname === "/ws-call") &&
+      request.headers.get("Upgrade")?.toLowerCase() === "websocket"
+    ) {
+      const binding = url.pathname === "/ws" ? "CHAT_HUB" : "CALL_HUB";
+      const ns = (env as unknown as Record<string, DurableObjectNamespace | undefined>)[binding];
+      if (ns) {
+        const id = ns.idFromName("global");
+        return ns.get(id).fetch(request);
+      }
+    }
+
+    return handler.fetch(request, env, ctx);
+  },
   async scheduled(_event: ScheduledController, env: CloudflareEnv, _ctx: ExecutionContext) {
     // Heartbeat: keep the cron container awake (it owns the schedules).
     const id = (env as unknown as { CRON_CONTAINER: DurableObjectNamespace }).CRON_CONTAINER.idFromName(

@@ -1,0 +1,629 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+
+@custom-variant dark (&:is(.dark *));
+
+/* Customer pages: soft elevation (cards lift off the canvas without heavy
+   shadows) and one page width, so every section lines up. */
+@theme {
+  --shadow-soft: 0 1px 2px rgb(15 23 42 / 0.04), 0 2px 8px -2px rgb(15 23 42 / 0.06);
+  --shadow-float: 0 1px 2px rgb(15 23 42 / 0.05), 0 12px 32px -12px rgb(15 23 42 / 0.22);
+}
+
+/* The page width grows with the screen: a laptop keeps a comfortable
+   reading width, a 1920 or 2560 monitor gets more of the page instead of
+   two wide empty margins (`html` also scales up a step there, see below). */
+@utility page-x {
+  margin-inline: auto;
+  width: 100%;
+  max-width: 76rem;
+  padding-inline: 1rem;
+  @media (width >= 40rem) {
+    padding-inline: 1.5rem;
+  }
+  @media (width >= 64rem) {
+    padding-inline: 2rem;
+  }
+  /* Big monitors: about 90% of the screen, so margins stay slim. */
+  @media (width >= 96rem) {
+    max-width: 92rem;
+  }
+  @media (width >= 112.5rem) {
+    max-width: 102rem;
+  }
+  @media (width >= 150rem) {
+    max-width: 128rem;
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: 'Geist Variable', sans-serif;
+  --font-mono: var(--font-geist-mono);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  /* Semantic colors — success / warning / info */
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  /* Brand accent — gold for loyalty / promo badges */
+  --color-brand-accent: var(--brand-accent);
+  /* Console canvas: the soft ground white panels sit on (no shadows needed) */
+  --color-canvas: var(--canvas);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --font-heading: var(--font-sans);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+  --radius: 0.625rem;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  /* Brand primary — trust blue (hue 250, 4.5:1 contrast on white) */
+  --primary: oklch(0.5 0.18 250);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.5 0.18 250);
+  /* Semantic colors */
+  --success: oklch(0.62 0.17 145);
+  --success-foreground: oklch(0.985 0 0);
+  --warning: oklch(0.75 0.16 70);
+  --warning-foreground: oklch(0.205 0 0);
+  --info: oklch(0.62 0.13 230);
+  --info-foreground: oklch(0.985 0 0);
+  /* Brand accent — gold (Vietnamese prosperity cue) */
+  --brand-accent: oklch(0.78 0.15 85);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.5 0.18 250);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.5 0.18 250);
+  --canvas: oklch(0.982 0.003 250);
+  /* Site header height — console shells fill the viewport below it */
+  --header-h: 3.5rem;
+}
+
+@media (width >= 48rem) {
+  :root {
+    --header-h: 4rem;
+  }
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  /* Brand primary in dark mode — brighter for AA contrast on dark bg */
+  --primary: oklch(0.62 0.16 250);
+  --primary-foreground: oklch(0.145 0 0);
+  /* Brightened from 0.269 → 0.3 for visible hover states */
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  /* Brightened from 0.269 → 0.32 for visible hover/focus */
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  /* Brightened from 0.704 → 0.75 for readable error text on dark bg
+     (VLM review: dark-mode error red was dim; keeps white-on-destructive
+     buttons AA via dark:bg-destructive/60 dimming) */
+  --destructive: oklch(0.75 0.185 22.216);
+  /* Brightened from 10% → 18% for visible separation */
+  --border: oklch(1 0 0 / 10%);
+  /* Brightened from 15% → 22% for visible input borders */
+  --input: oklch(1 0 0 / 15%);
+  /* Brand ring in dark mode */
+  --ring: oklch(0.62 0.16 250);
+  /* Semantic colors — dark mode variants */
+  --success: oklch(0.7 0.17 145);
+  --success-foreground: oklch(0.145 0 0);
+  --warning: oklch(0.8 0.16 70);
+  --warning-foreground: oklch(0.145 0 0);
+  --info: oklch(0.7 0.13 230);
+  --info-foreground: oklch(0.145 0 0);
+  --brand-accent: oklch(0.82 0.15 85);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  /* Brand primary in dark mode — brighter for AA contrast on dark bg */
+  --sidebar-primary: oklch(0.62 0.16 250);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  /* Brand ring in dark mode — matches --ring */
+  --sidebar-ring: oklch(0.62 0.16 250);
+  --canvas: oklch(0.17 0 0);
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+    @apply border-border outline-ring/50;
+  }
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+    @apply bg-background text-foreground;
+  }
+
+  /* Browsers size a fieldset to its min-content: one long, truncating stop name
+     inside widened the trip dialog's side pane past the dialog. */
+  fieldset {
+    min-width: 0;
+  }
+
+  /* ── Interactive elements: cursor pointer ───────────────────────────
+   * All clickable elements show a pointer cursor on hover so users
+   * immediately know they're interactive. This covers <button>, <a>,
+   * [role=button], summary, label[for], and any element with an
+   * onClick that isn't a form input.
+   */
+  button,
+  [role='button'],
+  a[href],
+  summary,
+  label[for],
+  [data-slot='trigger'],
+  [data-slot='accordion-trigger'],
+  select,
+  [role='tab'],
+  [role='menuitem'],
+  [role='option'],
+  [role='combobox'],
+  [role='treeitem'],
+  [role='link'] {
+    cursor: pointer;
+  }
+
+  /* Buttons that are disabled shouldn't show pointer. */
+  button:disabled,
+  [role='button'][aria-disabled='true'],
+  [data-disabled='true'] {
+    cursor: not-allowed;
+  }
+
+  /* Focus-visible ring — ensure it's visible in both light and dark. */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  /* Selection color — use accent so it's visible in dark mode. */
+  ::selection {
+    background-color: oklch(0.5 0.18 250 / 30%);
+    color: var(--foreground);
+  }
+  html {
+    @apply font-sans;
+    /* Keep the scrollbar's room even when a page is short: a scrollbar that
+       comes and goes (a tall loading placeholder, a page swap) would shift
+       the whole layout sideways and make it blink. Modals lock scroll the
+       same way, so opening one shifts nothing either. */
+    scrollbar-gutter: stable;
+  }
+  /* Big monitors read from further away: one step up in scale (every rem
+     grows with it, so spacing and widths stay in proportion). */
+  @media (width >= 112.5rem) {
+    html {
+      font-size: 106.25%;
+    }
+  }
+  @media (width >= 150rem) {
+    html {
+      font-size: 112.5%;
+    }
+  }
+}
+
+/* ── Custom animations ────────────────────────────────────────── */
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  60% {
+    transform: translateX(100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* Shimmer sweep overlay — the skeleton primitive's moving highlight.
+ * Applied as an absolutely-positioned ::after gradient that slides
+ * across the placeholder block. Works in light + dark mode. */
+.shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, oklch(1 0 0 / 0.55), transparent);
+  animation: shimmer 1.8s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .shimmer::after {
+    animation: none;
+  }
+}
+
+/* Success checkmark draw-on animation — <400ms for premium feel */
+@keyframes checkmark-draw {
+  0% {
+    stroke-dashoffset: 100;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes checkmark-circle {
+  0% {
+    stroke-dashoffset: 200;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Card border highlight on hover — used by the admin tickets table.
+ * Flat design: NO box-shadow, NO lift/transform — just a calm blue
+ * border brighten (the primary brand hue, replacing the old orange
+ * hue 41 which fought the blue design system). */
+.card-hover-lift {
+  transition: border-color 120ms ease-out;
+}
+.card-hover-lift:hover {
+  border-color: var(--color-primary);
+}
+
+/* Seat pop-in animation when selected */
+/* Page fade-in on route change — applied to each page's root so the
+ * content fades in once the lazy chunk resolves (the persistent
+ * sidebar stays mounted, so only the content area animates). Opacity
+ * only: a moving page grows the scroll area for a frame. */
+@keyframes page-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.page-transition {
+  animation: page-fade-in 160ms ease-out;
+}
+/* Loading indicators that only show when loading is actually slow. */
+.delayed-reveal {
+  opacity: 0;
+  animation:
+    page-fade-in 200ms ease-out 350ms forwards,
+    spin 1s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .page-transition {
+    animation: none;
+  }
+}
+
+/* Trust badge pulse — subtle attention draw */
+/* Smooth scrollbar for filter/side panels */
+.scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(148 163 184 / 0.4) transparent;
+}
+.scroll-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.scroll-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scroll-thin::-webkit-scrollbar-thumb {
+  background-color: rgb(148 163 184 / 0.4);
+  border-radius: 3px;
+}
+.scroll-thin::-webkit-scrollbar-thumb:hover {
+  background-color: rgb(148 163 184 / 0.6);
+}
+
+/* ── Reduced motion ─────────────────────────────────────────────
+ * WCAG 2.1 SC 2.3.3 / 2.3.1. Many users are sensitive to motion
+ * (vestibular disorders, photosensitive epilepsy, concussion recovery).
+ * The app has many animations: hero count-up, shimmer sweeps, animate-ping,
+ * animate-bounce, confetti, parallax, 3D tilt, staggered seat entrance.
+ *
+ * When the user has requested reduced motion at the OS level, we:
+ *   - drop animation/transition durations to near-zero (still non-zero so
+ *     visibility-change / state transitions aren't visually jarring),
+ *   - cap iteration counts at 1 (no infinite pings/bounces),
+ *   - disable scroll-driven + parallax transforms.
+ *
+ * Tailwind's `motion-safe:` / `motion-reduce:` variants target the same
+ * media query per-property; this global rule is the catch-all safety net so
+ * ad-hoc CSS animations + third-party stylesheets are covered too.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ── Print styles ───────────────────────────────────────────────
+ * When a user prints a booking confirmation / e-ticket, hide the chrome
+ * (nav, chat FAB, footer) and expand the main content. Ink-friendly.
+ */
+@media print {
+  header,
+  footer,
+  nav,
+  [data-slot='fab'],
+  [data-slot='dialog-close'],
+  [aria-label*='chat' i] {
+    display: none !important;
+  }
+  main {
+    padding: 0 !important;
+  }
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+}
+/* ── Leaflet map design-system overrides ─────────────────────────
+ * The basemap is now a native CARTO raster TileLayer, so the only
+ * Leaflet chrome left to style is: zoom control, attribution, popups,
+ * tooltips and the tile-fade. These rules align Leaflet's default
+ * look with the shadcn surface language (rounded-lg, ring-1, soft
+ * shadows, backdrop blur) so the map doesn't look like a stock
+ * Leaflet demo dropped into the app.
+ */
+
+/* Softer tile fade-in than Leaflet's default 200ms pop. */
+.leaflet-tile {
+  transition: opacity 0.25s ease-out;
+}
+
+/* Zoom control — rounded pill, soft shadow, subtle ring. */
+.leaflet-bar {
+  border: none !important;
+  box-shadow:
+    0 1px 3px 0 rgb(0 0 0 / 0.08),
+    0 4px 12px -2px rgb(0 0 0 / 0.12) !important;
+  border-radius: 0.625rem;
+  overflow: hidden;
+}
+.leaflet-bar a {
+  width: 2rem !important;
+  height: 2rem !important;
+  line-height: 2rem !important;
+  font-size: 1.05rem !important;
+  color: #334155 !important; /* slate-700 */
+  background: rgba(255, 255, 255, 0.95) !important;
+  backdrop-filter: blur(6px);
+  border-bottom: 1px solid rgb(0 0 0 / 0.06) !important;
+  transition: background-color 0.15s ease;
+}
+.leaflet-bar a:last-child {
+  border-bottom: none !important;
+}
+.leaflet-bar a:hover {
+  background: #f8fafc !important; /* slate-50 */
+  color: #1e293b !important;
+}
+
+/* Attribution — compact, translucent pill, doesn't fight the UI. */
+.leaflet-control-attribution {
+  background: rgba(255, 255, 255, 0.85) !important;
+  backdrop-filter: blur(6px);
+  border-radius: 9999px 0 0 0;
+  padding: 2px 8px !important;
+  font-size: 10px !important;
+  color: #64748b !important; /* slate-500 */
+}
+.leaflet-control-attribution a {
+  color: #475569 !important; /* slate-600 */
+  text-decoration: none;
+}
+.leaflet-control-attribution a:hover {
+  text-decoration: underline;
+}
+
+/* Popups — rounded-xl card look with tighter type. */
+.leaflet-popup-content-wrapper {
+  border-radius: 0.875rem !important;
+  box-shadow:
+    0 1px 3px 0 rgb(0 0 0 / 0.1),
+    0 8px 24px -4px rgb(0 0 0 / 0.15) !important;
+  padding: 2px;
+}
+.leaflet-popup-content {
+  margin: 10px 12px !important;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.leaflet-popup-tip {
+  box-shadow: none !important;
+}
+.leaflet-popup-close-button {
+  color: #94a3b8 !important; /* slate-400 */
+  padding: 6px 8px 0 0 !important;
+}
+.leaflet-popup-close-button:hover {
+  color: #475569 !important;
+  background: transparent !important;
+}
+
+/* Tooltips — dark pill, slightly larger than default. */
+.leaflet-tooltip {
+  border: none !important;
+  border-radius: 0.5rem !important;
+  background: rgba(15, 23, 42, 0.92) !important; /* slate-900 */
+  color: #f8fafc !important;
+  font-size: 12px !important;
+  font-weight: 600;
+  padding: 4px 10px !important;
+  box-shadow: 0 4px 12px -2px rgb(0 0 0 / 0.25) !important;
+}
+.leaflet-tooltip-top::before {
+  border-top-color: rgba(15, 23, 42, 0.92) !important;
+}
+
+/* Keep Leaflet's high z-index panes contained inside map containers —
+   guards against popups painting over the site header on scroll. */
+.leaflet-container {
+  font: inherit;
+  outline: none;
+}
+
+/* ── Basemap style switcher (custom Leaflet control, bottom-left) ──
+   Renders a compact Layers button that expands into a vertical list
+   of basemap styles. Pure DOM — see features/map/basemap-layer.tsx. */
+.vexevn-basemap-switcher {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+.vexevn-basemap-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid rgb(226 232 240); /* slate-200 */
+  background: rgb(255 255 255 / 0.95);
+  backdrop-filter: blur(4px);
+  color: #1e293b; /* slate-800 */
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.12);
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+.vexevn-basemap-button:hover {
+  background: #eff6ff; /* blue-50 */
+  color: #2563eb; /* blue-600 */
+}
+.vexevn-basemap-menu {
+  display: flex;
+  flex-direction: column;
+  min-width: 148px;
+  padding: 4px;
+  border-radius: 10px;
+  border: 1px solid rgb(226 232 240);
+  background: rgb(255 255 255 / 0.98);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 4px 16px -4px rgb(0 0 0 / 0.18);
+}
+.vexevn-basemap-menu[hidden] {
+  display: none;
+}
+.vexevn-basemap-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #334155; /* slate-700 */
+  font-size: 12.5px;
+  font-weight: 500;
+  font-family: inherit;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color 0.12s ease,
+    color 0.12s ease;
+}
+.vexevn-basemap-item:hover {
+  background: #eff6ff; /* blue-50 */
+  color: #1d4ed8; /* blue-700 */
+}
+.vexevn-basemap-item.is-active {
+  color: #2563eb; /* blue-600 */
+  font-weight: 600;
+}
+.vexevn-basemap-check {
+  display: inline-flex;
+  width: 14px;
+  flex-shrink: 0;
+  color: #2563eb; /* blue-600 */
+  font-size: 12px;
+}

@@ -1,0 +1,68 @@
+// Local production preview: the built OpenNext worker in miniflare with
+// real D1+R2 bindings, WITHOUT the container-backed DO (Docker unavailable
+// locally) and without the cron trigger. Port 3000.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "main": "custom-worker.ts",
+  "name": "datxevui-preview",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "services": [
+    {
+      "binding": "WORKER_SELF_REFERENCE",
+      "service": "datxevui-preview"
+    }
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "datxevui",
+      "database_id": "REPLACE_WITH_YOUR_D1_DATABASE_ID",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "UPLOADS",
+      "bucket_name": "datxevui-uploads"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "class_name": "ChatHub",
+        "name": "CHAT_HUB"
+      },
+      {
+        "class_name": "CallHub",
+        "name": "CALL_HUB"
+      }
+    ]
+  },
+  "exports": {
+    "ChatHub": {
+      "type": "durable-object",
+      "storage": "sqlite"
+    },
+    "CallHub": {
+      "type": "durable-object",
+      "storage": "sqlite"
+    }
+  },
+  "vars": {
+    "APP_ENV": "production",
+    "PAYMENT_COD_ENABLED": "true",
+    "VNPAY_ENABLED": "false",
+    "VIETQR_ENABLED": "true",
+    "MOMO_ENABLED": "false",
+    "ZALOPAY_ENABLED": "false",
+    "REALTIME_ENABLED": "false"
+  },
+  "observability": {
+    "enabled": false
+  }
+}

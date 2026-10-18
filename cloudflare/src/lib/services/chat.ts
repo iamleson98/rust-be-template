@@ -2,12 +2,37 @@
  * Chat service — D1-backed support channels (port of chat_service.rs).
  * Live delivery/presence/audio runs on Cloudflare Realtime meetings keyed
  * by channel; this REST layer is the durable source of truth + fallback.
+ * Serialization matches the SPA SDK contract (`ChatChannelOut`).
  */
 import { getDb, rawAll, rawBatch, insertSql, type Database } from "@/lib/db/client";
 import { chatAssignments, chatChannelMembers, chatChannels, chatMessages, users } from "@/lib/db/schema";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { ApiError } from "@/lib/auth/rbac";
 import type { SessionUser } from "@/lib/auth/session";
+
+export interface ChannelUserOut {
+  id: string;
+  fullName?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  avatarUrl?: string | null;
+}
+
+export interface ChatChannelOut {
+  id: string;
+  userId: string;
+  user?: ChannelUserOut | null;
+  brandId?: string | null;
+  topic?: string | null;
+  status: string;
+  lastMessageAt?: string | null;
+  lastMessagePreview?: string | null;
+  unreadUser: number;
+  unreadEmployee: number;
+  createdAt: string;
+  assignedTo?: ChannelUserOut | null;
+  assignedToMe?: boolean;
+}
 
 /** Customer: create-or-reuse own open channel. */
 export async function ensureCustomerChannel(
@@ -47,42 +72,109 @@ export async function ensureCustomerChannel(
   return ch;
 }
 
-/** Channels visible to caller: customers see own; staff see open queue (brand-scoped). */
-export async function listChannels(user: SessionUser) {
-  const db = await getDb();
-  if (user.role === "user") {
-    return db
-      .select({
-        id: chatChannels.id,
-        topic: chatChannels.topic,
-        status: chatChannels.status,
-        lastMessageAt: chatChannels.lastMessageAt,
-        lastMessagePreview: chatChannels.lastMessagePreview,
-        unread: chatChannels.unreadUser,
-        createdAt: chatChannels.createdAt,
-        customerName: users.fullName,
-      })
-      .from(chatChannels)
-      .innerJoin(users, eq(users.id, chatChannels.userId))
-      .where(eq(chatChannels.userId, user.id))
-      .orderBy(desc(chatChannels.lastMessageAt), desc(chatChannels.createdAt));
-  }
-  const rows = await db
-    .select({
-      id: chatChannels.id,
-      topic: chatChannels.topic,
-      status: chatChannels.status,
-      lastMessageAt: chatChannels.lastMessageAt,
-      lastMessagePreview: chatChannels.lastMessagePreview,
-      unread: chatChannels.unreadEmployee,
-      createdAt: chatChannels.createdAt,
-      customerName: users.fullName,
-      brandId: chatChannels.brandId,
-    })
-    .from(chatChannels)
-    .innerJoin(users, eq(users.id, chatChannels.userId))
-    .orderBy(desc(chatChannels.lastMessageAt), desc(chatChannels.createdAt));
-  return user.brandId ? rows.filter((r) => !r.brandId || r.brandId === user.brandId) : rows;
+interface ChannelRow {
+  id: string;
+  user_id: string;
+  customer_name: string | null;
+  customer_email: string | null;
+  customer_phone: string | null;
+  customer_avatar: string | null;
+  brand_id: string | null;
+  topic: string | null;
+  status: string;
+  last_message_at: string | null;
+  last_message_preview: string | null;
+  unread_user: number;
+  unread_employee: number;
+  created_at: string;
+  assignee_id: string | null;
+  assignee_name: string | null;
+}
+
+/** Channel rows joined with customer + active assignee, for serialization. */
+function channelQuery(where: ReturnType<typeof sql>) {
+  return sql`
+    SELECT ch.id, ch.user_id,
+           u.full_name AS customer_name, u.email AS customer_email,
+           u.phone AS customer_phone, u.avatar_url AS customer_avatar,
+           ch.brand_id, ch.topic, ch.status,
+           ch.last_message_at, ch.last_message_preview,
+           ch.unread_user, ch.unread_employee, ch.created_at,
+           asg.employee_id AS assignee_id, au.full_name AS assignee_name
+    FROM chat_channel ch
+    JOIN user u ON u.id = ch.user_id
+    LEFT JOIN chat_assignment asg ON asg.channel_id = ch.id AND asg.unassigned_at IS NULL
+    LEFT JOIN user au ON au.id = asg.employee_id
+    WHERE ${where}
+    ORDER BY COALESCE(ch.last_message_at, ch.created_at) DESC
+  `;
+}
+
+export function serializeChannel(r: ChannelRow, viewerId?: string): ChatChannelOut {
+  const customer: ChannelUserOut = {
+    id: r.user_id,
+    fullName: r.customer_name,
+    email: r.customer_email,
+    phone: r.customer_phone,
+    avatarUrl: r.customer_avatar,
+  };
+  const assignee = r.assignee_id
+    ? { id: r.assignee_id, fullName: r.assignee_name }
+    : null;
+  return {
+    id: r.id,
+    userId: r.user_id,
+    user: customer,
+    brandId: r.brand_id,
+    topic: r.topic,
+    status: r.status,
+    lastMessageAt: r.last_message_at,
+    lastMessagePreview: r.last_message_preview,
+    unreadUser: r.unread_user,
+    unreadEmployee: r.unread_employee,
+    createdAt: r.created_at,
+    assignedTo: assignee,
+    assignedToMe: !!r.assignee_id && r.assignee_id === viewerId,
+  };
+}
+
+/** Channels visible to caller: customers see own; staff see the queue (brand-scoped). */
+export async function listChannels(user: SessionUser): Promise<ChatChannelOut[]> {
+  const staff = user.role === "employee" || user.role === "admin";
+  const where = staff
+    ? user.brandId
+      ? sql`ch.status != 'closed' AND (ch.brand_id IS NULL OR ch.brand_id = ${user.brandId})`
+      : sql`ch.status != 'closed'`
+    : sql`ch.user_id = ${user.id}`;
+  const rows = await rawAll<ChannelRow>(channelQuery(where));
+  return rows.map((r) => serializeChannel(r, user.id));
+}
+
+/** Channels with activity since `since`, with a monotonic sequence stamp. */
+export async function onlineChannels(): Promise<{
+  items: ChatChannelOut[];
+  seq: number;
+  userIds: string[];
+}> {
+  const cutoff = new Date(Date.now() - 15 * 60_000).toISOString();
+  const rows = await rawAll<ChannelRow>(
+    channelQuery(sql`ch.status != 'closed' AND COALESCE(ch.last_message_at, ch.created_at) >= ${cutoff}`),
+  );
+  const items = rows.map((r) => serializeChannel(r));
+  return {
+    items,
+    seq: Date.now(),
+    userIds: [...new Set(items.map((c) => c.userId))],
+  };
+}
+
+export async function getChannelOut(user: SessionUser, channelId: string): Promise<ChatChannelOut> {
+  const rows = await rawAll<ChannelRow>(channelQuery(sql`ch.id = ${channelId}`));
+  const row = rows[0];
+  if (!row) throw new ApiError(404, "not-found", "Channel not found");
+  const staff = user.role === "employee" || user.role === "admin";
+  if (!staff && row.user_id !== user.id) throw new ApiError(403, "forbidden", "Not your channel");
+  return serializeChannel(row, user.id);
 }
 
 async function assertChannelAccess(user: SessionUser, channelId: string) {
@@ -95,33 +187,32 @@ async function assertChannelAccess(user: SessionUser, channelId: string) {
   return ch;
 }
 
-export async function listMessages(user: SessionUser, channelId: string, limit = 30, before?: string) {
+export async function listMessages(user: SessionUser, channelId: string, limit = 30, offset = 0) {
   await assertChannelAccess(user, channelId);
   const db = await getDb();
-  const conds = [eq(chatMessages.channelId, channelId)];
-  if (before) conds.push(sql`${chatMessages.createdAt} < ${before}`);
   return db
     .select()
     .from(chatMessages)
-    .where(and(...conds))
+    .where(eq(chatMessages.channelId, channelId))
     .orderBy(desc(chatMessages.createdAt))
-    .limit(Math.min(limit, 200));
+    .limit(Math.min(Math.max(limit, 1), 200))
+    .offset(Math.max(offset, 0));
 }
 
 /** Post a message (idempotent per clientMsgId; updates channel preview/unread). */
 export async function postMessage(
   user: SessionUser,
   channelId: string,
-  body: { text?: string; clientMsgId?: string; kind?: string },
+  body: { content?: string | null; clientMsgId?: string | null; kind?: string; attachments?: string | null },
 ): Promise<typeof chatMessages.$inferSelect> {
   const ch = await assertChannelAccess(user, channelId);
   const db = await getDb();
   const staff = user.role === "employee" || user.role === "admin";
   const senderType = staff ? "employee" : "user";
   const now = new Date().toISOString();
-  const text = (body.text ?? "").trim();
-  if (!text) throw new ApiError(400, "validation", "text required");
-  if (text.length > 4000) throw new ApiError(400, "validation", "text too long");
+  const text = (body.content ?? "").trim();
+  if (!text) throw new ApiError(400, "validation", "content required");
+  if (text.length > 4000) throw new ApiError(400, "validation", "content too long");
 
   if (body.clientMsgId) {
     const existing = await db
@@ -143,7 +234,7 @@ export async function postMessage(
     content: text,
     kind: body.kind ?? "text",
     status: "sent",
-    attachments: null,
+    attachments: body.attachments ?? null,
     clientMsgId: body.clientMsgId ?? null,
     createdAt: now,
   };
@@ -157,7 +248,7 @@ export async function postMessage(
       content: text,
       kind: msg.kind,
       status: "sent",
-      attachments: null,
+      attachments: msg.attachments,
       client_msg_id: msg.clientMsgId,
       created_at: now,
     }),
@@ -187,7 +278,6 @@ export async function markRead(user: SessionUser, channelId: string) {
 
 export async function claimChannel(user: SessionUser, channelId: string) {
   await assertChannelAccess(user, channelId);
-  const db = await getDb();
   const now = new Date().toISOString();
   await rawBatch([
     insertSql("chat_assignment", {
@@ -207,28 +297,28 @@ export async function claimChannel(user: SessionUser, channelId: string) {
       left_at: null,
     }).append(sql` ON CONFLICT DO NOTHING`),
   ]);
-  return { ok: true, status: "assigned" };
+  return getChannelOut(user, channelId);
 }
 
-export async function releaseChannel(channelId: string) {
-  const db = await getDb();
+export async function releaseChannel(user: SessionUser, channelId: string) {
+  await assertChannelAccess(user, channelId);
   const now = new Date().toISOString();
   await rawBatch([
     sql`UPDATE chat_assignment SET unassigned_at = ${now} WHERE channel_id = ${channelId} AND unassigned_at IS NULL`,
     sql`UPDATE chat_channel SET status = 'open' WHERE id = ${channelId} AND status = 'assigned'`,
   ]);
-  return { ok: true, status: "open" };
+  return getChannelOut(user, channelId);
 }
 
 export async function closeChannel(user: SessionUser, channelId: string) {
   const ch = await assertChannelAccess(user, channelId);
-  const db = await getDb();
-  const now = new Date().toISOString();
   const staff = user.role === "employee" || user.role === "admin";
   if (!staff && ch.status !== "open")
     throw new ApiError(403, "forbidden", "Only staff can close assigned channels");
+  const now = new Date().toISOString();
+  const db = await getDb();
   await db.run(sql`UPDATE chat_channel SET status = 'closed', closed_at = ${now} WHERE id = ${channelId}`);
-  return { ok: true, status: "closed" };
+  return getChannelOut(user, channelId);
 }
 
 export async function chatStats(db: Database) {
@@ -239,3 +329,5 @@ export async function chatStats(db: Database) {
   for (const r of rows) map[r.status] = Number(r.n);
   return map;
 }
+
+void chatAssignments;

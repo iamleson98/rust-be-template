@@ -1,8 +1,9 @@
 import { getDb } from "@/lib/db/client";
 import { users } from "@/lib/db/schema";
 import { verifyPassword } from "@/lib/auth/password";
-import { issueSession, sessionCookies } from "@/lib/auth/session";
+import { issueSession, sessionCookies, sessionUserOut } from "@/lib/auth/session";
 import { handleRouteError, readJson, clientIp, err } from "@/lib/api";
+import { accessTtlSecs as accessTtl } from "@/lib/auth/jwt";
 import { eq, or } from "drizzle-orm";
 
 interface LoginBody {
@@ -52,18 +53,12 @@ export async function POST(req: Request) {
     for (const c of sessionCookies(tokens.accessToken, tokens.refreshToken, { secure })) {
       headers.append("set-cookie", c);
     }
+    const mobile = req.headers.get("x-client") === "mobile";
     return Response.json(
       {
-        user: {
-          id: user.id,
-          fullName: user.fullName,
-          email: user.email,
-          phone: user.phone,
-          role: user.role,
-          avatarUrl: user.avatarUrl,
-          locale: user.locale,
-        },
-        expiresAt: Math.floor(Date.now() / 1000) + 900,
+        user: sessionUserOut(user),
+        expires_at: new Date(Date.now() + (await accessTtl()) * 1000).toISOString(),
+        ...(mobile ? { tokens: { access_token: tokens.accessToken, refresh_token: tokens.refreshToken } } : {}),
       },
       { headers },
     );

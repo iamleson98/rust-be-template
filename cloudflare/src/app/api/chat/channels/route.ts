@@ -1,6 +1,7 @@
 import { handleRouteError, requireUser, readJson } from "@/lib/api";
-import { ensureCustomerChannel, listChannels } from "@/lib/services/chat";
+import { ensureCustomerChannel, getChannelOut, listChannels } from "@/lib/services/chat";
 
+/** `GET /api/chat/channels` — channels visible to the caller. */
 export async function GET(req: Request) {
   try {
     const user = await requireUser(req);
@@ -10,20 +11,13 @@ export async function GET(req: Request) {
   }
 }
 
+/** `POST /api/chat/channels` — create-or-reuse the customer's open channel. */
 export async function POST(req: Request) {
   try {
     const user = await requireUser(req);
-    const body = (await readJson<{ brandId?: string; topic?: string }>(req).catch(() => ({}))) as { brandId?: string; topic?: string };
-    const channel = await ensureCustomerChannel(user.id, body.brandId, body.topic);
-    return Response.json(
-      {
-        id: channel.id,
-        status: channel.status,
-        topic: channel.topic,
-        createdAt: channel.createdAt,
-      },
-      { status: 201 },
-    );
+    const body = await readJson<{ brandId?: string | null; topic?: string | null }>(req).catch(() => ({}) as { brandId?: string | null; topic?: string | null });
+    const channel = await ensureCustomerChannel(user.id, body.brandId ?? undefined, body.topic ?? undefined);
+    return Response.json({ channel: await getChannelOut(user, channel.id) }, { status: 201 });
   } catch (e) {
     return handleRouteError(e);
   }

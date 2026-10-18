@@ -18,20 +18,8 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
       if (booking.userId !== user.id && user.role === "user")
         return err(403, "forbidden", "Not your payment");
     }
-    return Response.json({
-      id: payment.id,
-      provider: payment.provider,
-      status: payment.status,
-      amount: payment.amount,
-      currency: payment.currency,
-      gatewayUrl: payment.gatewayUrl,
-      qrPayload: payment.qrPayload,
-      memo: payment.memo,
-      providerTxnRef: payment.providerTxnRef,
-      collectedAt: payment.collectedAt,
-      createdAt: payment.createdAt,
-      booking: booking ? { id: booking.id, code: booking.code, status: booking.status } : null,
-    });
+    const { paymentOut } = await import("@/lib/services/payment-out");
+    return Response.json(await paymentOut(payment));
   } catch (e) {
     return handleRouteError(e);
   }

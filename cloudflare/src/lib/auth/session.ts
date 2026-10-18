@@ -19,6 +19,33 @@ import {
   verifyAccessToken,
 } from "./jwt";
 
+/** The Rust `SessionUser` DTO shape (camelCase + `type` + `hasPassword`). */
+export function sessionUserOut(u: {
+  id: string;
+  fullName: string;
+  email: string | null;
+  phone: string | null;
+  role: string;
+  avatarUrl?: string | null;
+  brandId?: string | null;
+  status?: string;
+  locale?: string | null;
+}, brandName?: string | null) {
+  return {
+    id: u.id,
+    type: u.role,
+    role: u.role,
+    name: u.fullName,
+    email: u.email,
+    phone: u.phone,
+    avatarUrl: u.avatarUrl ?? null,
+    brandId: u.brandId ?? null,
+    brandName: brandName ?? null,
+    employeeRole: u.role === "employee" || u.role === "admin" ? u.role : null,
+    hasPassword: true,
+  };
+}
+
 export interface SessionUser {
   id: string;
   fullName: string;
@@ -87,7 +114,7 @@ export async function issueSession(
 export async function rotateRefresh(
   presented: string,
   ctx: { userAgent?: string | null; ip?: string | null },
-): Promise<IssuedTokens | null> {
+): Promise<(IssuedTokens & { userId: string }) | null> {
   const db = await getDb();
   const dot = presented.indexOf(".");
   if (dot <= 0) return null;
@@ -110,7 +137,7 @@ export async function rotateRefresh(
   if (!row) return null;
   // Rotation: revoke old, issue new.
   await db.update(refreshTokens).set({ revoked: true }).where(eq(refreshTokens.id, refreshId));
-  return issueSession(row.userId, ctx);
+  return { ...(await issueSession(row.userId, ctx)), userId: row.userId };
 }
 
 export async function revokeSession(refreshToken: string | null): Promise<void> {

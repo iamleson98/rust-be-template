@@ -1,0 +1,180 @@
+--- RouteOut (object):
+    brand: RouteBrandPreview
+    brandId?: ['string', 'null']
+    from: RouteEndpoint
+    id: string
+    name: string
+    priceFrom?: ['integer', 'null']
+    scheduleCount: integer
+    to: RouteEndpoint
+--- RouteEndpoint (object):
+    lat: number
+    lon: number
+    name: string
+--- RouteBrandPreview (object):
+    logoUrl?: ['string', 'null']
+    name?: ['string', 'null']
+    rating?: ['number', 'null']
+    slug?: ['string', 'null']
+--- RecommendationOut: NOT FOUND
+--- BrandOut (object):
+    id: string
+    logoUrl?: ['string', 'null']
+    name: string
+    rating?: ['number', 'null']
+    routeCount: integer
+    slug: string
+--- BrandListOut: NOT FOUND
+--- StatsOut: NOT FOUND
+--- SearchResultOut: NOT FOUND
+--- SearchMeta: NOT FOUND
+--- TripDetailOut: NOT FOUND
+--- TripSummaryOut: NOT FOUND
+--- BookingOut (object):
+    adultCount: integer
+    canCancel: boolean
+    childCount: integer
+    code: string
+    contactEmail?: ['string', 'null']
+    contactName?: ['string', 'null']
+    contactPhone?: ['string', 'null']
+    createdAt: string
+    currency: string
+    discount: integer
+    dropoff?: ?
+    expiresAt?: ['string', 'null']
+    fees: integer
+    id: string
+    paymentMethod?: ['string', 'null']
+    pickup?: ?
+    review?: ?
+    seats: array<BookingSeatOut>
+    status: string
+    subtotal: integer
+    ticketQr?: ['string', 'null']
+    total: integer
+    trip?: ?
+    updatedAt: string
+--- BookingListItemOut: NOT FOUND
+--- PaymentOut (object):
+    amount: integer
+    bankTransferInstructions?: ?
+    bookingId: string
+    collectedAt?: ['string', 'null']
+    collectedBy?: ['string', 'null']
+    createdAt: string
+    currency: string
+    failureReason?: ['string', 'null']
+    gatewayUrl?: ['string', 'null']
+    id: string
+    memo?: ['string', 'null']
+    provider: string
+    providerTransId?: ['string', 'null']
+    providerTxnRef: string
+    qrImageDataUri?: ['string', 'null']
+    qrPayload?: ['string', 'null']
+    returnUrl?: ['string', 'null']
+    status: string
+    updatedAt: string
+    userId?: ['string', 'null']
+--- PaymentProviderOut: NOT FOUND
+--- ReviewOut (object):
+    authorName?: ['string', 'null']
+    authorPhone?: ['string', 'null']
+    bookingId?: ['string', 'null']
+    brandId?: ['string', 'null']
+    content?: ['string', 'null']
+    createdAt: string
+    helpfulCount: integer
+    id: string
+    photos?: array<string>
+    rating: integer
+    repliedAt?: ['string', 'null']
+    reply?: ['string', 'null']
+    routeId?: ['string', 'null']
+    status: string
+    tags?: array<string>
+    title?: ['string', 'null']
+    tripSessionId?: ['string', 'null']
+    updatedAt: string
+    userId?: ['string', 'null']
+--- LoyaltyOut: NOT FOUND
+--- CouponOut (object):
+    allBrands: boolean
+    amount: integer
+    bookingCode?: ['string', 'null']
+    brands: array<CampaignBrandOut>
+    campaignId: string
+    campaignName: string
+    claimedAt: string
+    code: string
+    id: string
+    status: string
+    validUntil?: ['string', 'null']
+--- CampaignOut: NOT FOUND
+--- NotificationOut (object):
+    body?: ['string', 'null']
+    createdAt: string
+    data?: ['string', 'null']
+    id: string
+    read: boolean
+    title?: ['string', 'null']
+    type: string
+    userId: string
+--- StaffPresenceSnapshot: NOT FOUND
+--- ChatChannelOut (object):
+    assignedTo?: ?
+    assignedToMe?: boolean
+    brandId?: ['string', 'null']
+    createdAt: string
+    id: string
+    lastMessageAt?: ['string', 'null']
+    lastMessagePreview?: ['string', 'null']
+    status: string
+    topic?: ['string', 'null']
+    unreadEmployee: integer
+    unreadUser: integer
+    user?: ?
+    userId: string
+--- ChatMessageOut (object):
+    attachments?: ['string', 'null']
+    channelId: string
+    content?: ['string', 'null']
+    createdAt: string
+    id: string
+    kind: string
+    senderId?: ['string', 'null']
+    senderType: string
+--- UserOut (object):
+    createdAt: string
+    email?: ['string', 'null']
+    fullName: string
+    id: string
+    isBot: boolean
+    role: string
+    status: string
+--- VehicleTypeOut: NOT FOUND
+--- BusLayoutOut: NOT FOUND
+--- ScheduleOut: NOT FOUND
+--- PickupPointOut: NOT FOUND
+--- AddressOut: NOT FOUND
+--- PriceAlertOut (object):
+    createdAt: string
+    email?: ['string', 'null']
+    expiresAt?: ['string', 'null']
+    frequency: string
+    fromName?: ['string', 'null']
+    id: string
+    lastTriggeredAt?: ['string', 'null']
+    phone: string
+    routeId?: ['string', 'null']
+    status: string
+    targetPrice?: ['integer', 'null']
+    toName?: ['string', 'null']
+--- PostOut (object):
+    authorId: string
+    body: string
+    createdAt: string
+    id: string
+    title: string
+    updatedAt: string

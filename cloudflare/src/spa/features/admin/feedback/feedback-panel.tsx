@@ -1,0 +1,204 @@
+'use client'
+
+/**
+ * FeedbackPanel — the admin "Phản hồi" page (`/admin/feedback`).
+ *
+ * Organizes customer feedback BY TRANSPORT BRAND (per the product spec):
+ *
+ *   1. Brand summary cards (from `GET /api/admin/reviews/summary`) —
+ *      per-brand volume, status breakdown + avg star rating. Clicking a
+ *      card scopes the table below to that brand.
+ *   2. A server-side paginated DataTable (`GET /api/admin/reviews?…`
+ *      with `total`) — columns: customer, rating, content preview,
+ *      status, date. Status chips + debounced search mirror the other
+ *      admin tables.
+ *   3. Row click → moderation dialog: full content, brand reply editor,
+ *      status actions (approve / reject / hide).
+ *
+ * The brand summary strip, filter toolbar, column model and moderation
+ * dialog live in sibling files in this folder; this file is the
+ * orchestrator (state + data wiring + layout).
+ */
+
+import { useQuery, useMutation, keepPreviousData } from '@tanstack/react-query'
+import {
+  adminReviewsSummaryOptions,
+  adminReviewsModerateMutation,
+  adminReviewsListOptions,
+} from '@spa/api'
+import { useState, useCallback } from 'react'
+import { ConsolePage, PageHeader } from '@spa/components/console/page'
+import { DataTable } from '@spa/components/data-table'
+import { Button } from '@spa/components/ui/button'
+import { MessageSquareHeart, RefreshCw } from 'lucide-react'
+import { toast } from 'sonner'
+import { useDebouncedValue } from '@spa/hooks/use-debounced-value'
+import { useT } from '@spa/lib/i18n'
+import { BrandSummaryStrip } from './brand-summary-card'
+import { useFeedbackColumns } from './feedback-columns'
+import { FeedbackDetailDialog } from './feedback-detail-dialog'
+import { FeedbackFilterToolbar } from './feedback-filter-toolbar'
+import type { FeedbackRow } from './helpers'
+import { getErrorMessage } from '@spa/lib/error-message'
+
+/* ── Constants ─────────────────────────────────────────────────── */
+
+const PAGE_SIZE = 20
+
+/* ── Main panel ────────────────────────────────────────────────── */
+
+export function FeedbackPanel() {
+  const [brandId, setBrandId] = useState<string | null>(null)
+  const [status, setStatus] = useState<string>('all')
+  const [search, setSearch] = useState('')
+  const [page, setPage] = useState(0)
+  const [selected, setSelected] = useState<FeedbackRow | null>(null)
+  const [replyText, setReplyText] = useState('')
+  const [updating, setUpdating] = useState(false)
+  const t = useT()
+
+  const debouncedSearch = useDebouncedValue(search, 400)
+
+  // Reset paging whenever the filters change (a new result set).
+  const filterKey = `${brandId ?? 'all'}|${status}|${debouncedSearch}`
+  const [lastFilterKey, setLastFilterKey] = useState(filterKey)
+  if (filterKey !== lastFilterKey) {
+    setLastFilterKey(filterKey)
+    setPage(0)
+  }
+
+  const summaryQuery = useQuery(adminReviewsSummaryOptions())
+  const listQuery = useQuery({
+    ...adminReviewsListOptions({
+      query: {
+        brandId: brandId ?? undefined,
+        status: status === 'all' ? undefined : status,
+        search: debouncedSearch.trim() || undefined,
+        limit: PAGE_SIZE,
+        offset: page * PAGE_SIZE,
+      },
+    }),
+    placeholderData: keepPreviousData,
+  })
+  const moderateMut = useMutation(adminReviewsModerateMutation())
+
+  const rows: FeedbackRow[] = listQuery.data?.items ?? []
+  const total = listQuery.data?.total ?? 0
+  const summaries = summaryQuery.data?.items ?? []
+
+  const columns = useFeedbackColumns()
+
+  /* ── Moderation actions (from the detail dialog) ── */
+  const moderate = useCallback(
+    async (
+      id: string,
+      body: { status?: string; brandReply?: string | null },
+      successMsg: string,
+    ) => {
+      setUpdating(true)
+      try {
+        await moderateMut.mutateAsync({
+          path: { id },
+          body: { status: body.status, brandReply: body.brandReply },
+        } as unknown as Parameters<typeof moderateMut.mutateAsync>[0])
+        toast.success(successMsg)
+        return true
+      } catch (e) {
+        toast.error(getErrorMessage(e, t('adminFeedback.updateFailed')))
+        return false
+      } finally {
+        setUpdating(false)
+      }
+    },
+    [moderateMut, t],
+  )
+
+  const openDetail = (row: FeedbackRow) => {
+    setSelected(row)
+    setReplyText(row.reply ?? '')
+  }
+
+  const closeDetail = () => {
+    setSelected(null)
+    setReplyText('')
+  }
+
+  const activeSummary = summaries.find((s) => s.brandId === brandId) ?? null
+
+  return (
+    <ConsolePage>
+      <PageHeader
+        title={t('adminFeedback.title')}
+        actions={
+          <Button
+            variant="outline"
+            onClick={() => {
+              void summaryQuery.refetch()
+              void listQuery.refetch()
+            }}
+          >
+            <RefreshCw /> {t('common.refresh')}
+          </Button>
+        }
+      />
+
+      {/* ── Brand summary cards ── */}
+      <BrandSummaryStrip
+        summaries={summaries}
+        isLoading={summaryQuery.isLoading}
+        brandId={brandId}
+        setBrandId={setBrandId}
+      />
+
+      {/* ── Toolbar: status chips + search ── */}
+      <FeedbackFilterToolbar
+        status={status}
+        setStatus={setStatus}
+        search={search}
+        setSearch={setSearch}
+        brandId={brandId}
+        setBrandId={setBrandId}
+        activeSummary={activeSummary}
+      />
+
+      {/* ── Feedback table ── */}
+      <DataTable
+        columns={columns}
+        data={rows}
+        rowNoun={t('adminFeedback.rowNoun')}
+        manualPagination
+        totalRowCount={total}
+        pageIndex={page}
+        onPageIndexChange={setPage}
+        pageSize={PAGE_SIZE}
+        isLoading={listQuery.isLoading}
+        isError={listQuery.isError}
+        onRetry={() => void listQuery.refetch()}
+        onRowClick={openDetail}
+        rowAriaLabel={(r) =>
+          t('adminFeedback.rowAriaLabel', {
+            name: r.authorName ?? t('adminFeedback.anonymousCustomerLower'),
+          })
+        }
+        emptyTitle={t('adminFeedback.emptyTitle')}
+        emptyDescription={
+          brandId || status !== 'all' || debouncedSearch
+            ? t('adminFeedback.emptyFiltered')
+            : t('adminFeedback.emptyDescription')
+        }
+        emptyIcon={<MessageSquareHeart className="size-5" aria-hidden />}
+      />
+
+      {/* ── Moderation detail dialog ── */}
+      <FeedbackDetailDialog
+        selected={selected}
+        setSelected={setSelected}
+        replyText={replyText}
+        setReplyText={setReplyText}
+        updating={updating}
+        moderate={moderate}
+        onClose={closeDetail}
+      />
+    </ConsolePage>
+  )
+}

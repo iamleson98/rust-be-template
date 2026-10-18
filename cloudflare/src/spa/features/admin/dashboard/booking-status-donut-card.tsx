@@ -1,0 +1,81 @@
+'use client'
+
+/**
+ * Booking-status donut card — "Phân bổ trạng thái vé" (Row 1 of the
+ * stats overview): inline SVG donut + legend, driven by real totals.
+ *
+ * Extracted from the original 'src/features/admin/dashboard/stats-overview.tsx'.
+ */
+
+import { Panel } from '@spa/components/console/panel'
+import { PieChart } from 'lucide-react'
+import { useT } from '@spa/lib/i18n'
+import { formatNum } from '@spa/lib/format'
+import type { DonutSegment } from './segmentation-donut'
+
+export function BookingStatusDonutCard({
+  statusSegments,
+  statusSegmentTotal,
+}: {
+  statusSegments: DonutSegment[]
+  statusSegmentTotal: number
+}) {
+  const t = useT()
+  return (
+    <Panel className="h-full" icon={<PieChart />} title={t('adminDash.statusDonutTitle')}>
+      {statusSegments.length > 0 ? (
+        <>
+          <div className="flex items-center justify-center my-4">
+            <div className="relative h-36 w-36">
+              <svg viewBox="0 0 36 36" className="h-full w-full -rotate-90">
+                {(() => {
+                  let cumulative = 0
+                  return statusSegments.map((s, i) => {
+                    const pct = statusSegmentTotal > 0 ? (s.count / statusSegmentTotal) * 100 : 0
+                    const dashArray = `${pct} ${100 - pct}`
+                    const offset = -cumulative
+                    cumulative += pct
+                    return (
+                      <circle
+                        key={i}
+                        cx="18"
+                        cy="18"
+                        r="14"
+                        fill="none"
+                        stroke={s.color}
+                        strokeWidth="4"
+                        strokeDasharray={dashArray}
+                        strokeDashoffset={offset}
+                        className="transition-all duration-500 hover:stroke-width-[5]"
+                        style={{ strokeLinecap: 'butt' }}
+                      />
+                    )
+                  })
+                })()}
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <div className="text-2xl font-extrabold">{formatNum(statusSegmentTotal)}</div>
+                <div className="text-[10px] text-muted-foreground">
+                  {t('adminDash.totalTickets')}
+                </div>
+              </div>
+            </div>
+          </div>
+          <ul className="flex flex-wrap justify-center gap-x-5 gap-y-2">
+            {statusSegments.map((s, i) => (
+              <li key={i} className="flex items-center gap-1.5 text-xs">
+                <span className="size-2.5 shrink-0 rounded-full" style={{ background: s.color }} />
+                <span className="text-muted-foreground">{s.label}</span>
+                <span className="font-semibold text-slate-900 tabular-nums">{s.count}</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : (
+        <div className="h-48 flex items-center justify-center text-xs text-muted-foreground">
+          {t('adminDash.noStatusData')}
+        </div>
+      )}
+    </Panel>
+  )
+}

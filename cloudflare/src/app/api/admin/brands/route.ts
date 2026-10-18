@@ -3,14 +3,14 @@ import { brands } from "@/lib/db/schema";
 import { desc, eq } from "drizzle-orm";
 import { handleRouteError, requireStaff, readJson, err } from "@/lib/api";
 import { requirePermission } from "@/lib/auth/rbac";
+import { adminBrandList } from "@/lib/services/admin-out";
 
 export async function GET(req: Request) {
   try {
     const staff = await requireStaff(req);
     await requirePermission(staff, "admin:brands:read");
-    const db = await getDb();
-    const rows = await db.select().from(brands).orderBy(desc(brands.createdAt));
-    return Response.json({ items: rows });
+    const items = await adminBrandList();
+    return Response.json({ items });
   } catch (e) {
     return handleRouteError(e);
   }

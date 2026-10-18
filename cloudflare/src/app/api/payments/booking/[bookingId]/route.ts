@@ -20,18 +20,10 @@ export async function GET(req: Request, ctx: { params: Promise<{ bookingId: stri
       if (rows[0].userId !== user.id && user.role === "user")
         return err(403, "forbidden", "Not your payment");
     }
+    const { paymentOut } = await import("@/lib/services/payment-out");
     return Response.json({
-      items: rows.map((p) => ({
-        id: p.id,
-        provider: p.provider,
-        status: p.status,
-        amount: p.amount,
-        currency: p.currency,
-        gatewayUrl: p.gatewayUrl,
-        qrPayload: p.qrPayload,
-        createdAt: p.createdAt,
-        collectedAt: p.collectedAt,
-      })),
+      items: await Promise.all(rows.map((p) => paymentOut(p))),
+      total: rows.length,
     });
   } catch (e) {
     return handleRouteError(e);
