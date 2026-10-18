@@ -1,0 +1,67 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "main": "custom-worker.ts",
+  "name": "datxevui",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "services": [
+    {
+      "binding": "WORKER_SELF_REFERENCE",
+      "service": "datxevui"
+    }
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "datxevui",
+      "database_id": "REPLACE_WITH_YOUR_D1_DATABASE_ID",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "UPLOADS",
+      "bucket_name": "datxevui-uploads"
+    }
+  ],
+  "containers": [
+    {
+      "class_name": "CronContainer",
+      "image": "./container/Dockerfile",
+      "max_instances": 1
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "class_name": "CronContainer",
+        "name": "CRON_CONTAINER"
+      }
+    ]
+  },
+  "exports": {
+    "CronContainer": {
+      "type": "durable-object",
+      "storage": "sqlite"
+    }
+  },
+  "triggers": {
+    "crons": ["* * * * *"]
+  },
+  "vars": {
+    "APP_ENV": "production",
+    "PAYMENT_COD_ENABLED": "true",
+    "VNPAY_ENABLED": "false",
+    "VIETQR_ENABLED": "true",
+    "MOMO_ENABLED": "false",
+    "ZALOPAY_ENABLED": "false",
+    "REALTIME_ENABLED": "false"
+  },
+  "observability": {
+    "enabled": true
+  }
+}

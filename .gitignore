@@ -74,3 +74,14 @@ __pycache__/
 # Terraform — real credentials live ONLY in this local (gitignored) file.
 # Use terraform.tfvars.example as the template. NEVER commit terraform.tfvars.
 terraform/terraform.tfvars
+
+# Cloudflare migration app (cloudflare/)
+cloudflare/.open-next/
+cloudflare/.wrangler/
+cloudflare/.next/
+cloudflare/.dev.vars
+cloudflare/cloudflare-env.d.ts
+cloudflare/dev.log
+cloudflare/server.log
+cloudflare/*.tsbuildinfo
+cloudflare/migrations/seed.sql

@@ -1,0 +1,76 @@
+import { getDb } from "@/lib/db/client";
+import { reviews } from "@/lib/db/schema";
+import { and, desc, eq, sql } from "drizzle-orm";
+import { handleRouteError, requireUser, readJson, err } from "@/lib/api";
+
+export async function GET(req: Request) {
+  try {
+    const url = new URL(req.url);
+    const brandId = url.searchParams.get("brand_id");
+    const routeId = url.searchParams.get("route_id");
+    const limit = Math.min(parseInt(url.searchParams.get("limit") ?? "20", 10) || 20, 100);
+    const db = await getDb();
+    const conds = [eq(reviews.status, "published")];
+    if (brandId) conds.push(eq(reviews.brandId, brandId));
+    if (routeId) conds.push(eq(reviews.routeId, routeId));
+    const rows = await db
+      .select()
+      .from(reviews)
+      .where(and(...conds))
+      .orderBy(desc(reviews.createdAt))
+      .limit(limit);
+    return Response.json({
+      items: rows.map((r) => ({
+        id: r.id,
+        authorName: r.authorName,
+        rating: r.rating,
+        title: r.title,
+        content: r.content,
+        tags: r.tags,
+        brandId: r.brandId,
+        routeId: r.routeId,
+        helpfulCount: r.helpfulCount,
+        createdAt: r.createdAt,
+      })),
+    });
+  } catch (e) {
+    return handleRouteError(e);
+  }
+}
+
+export async function POST(req: Request) {
+  try {
+    const user = await requireUser(req);
+    const body = await readJson<{
+      bookingId?: string;
+      routeId?: string;
+      brandId?: string;
+      rating?: number;
+      title?: string;
+      content?: string;
+      tags?: string[];
+    }>(req);
+    const rating = Number(body.rating);
+    if (!Number.isInteger(rating) || rating < 1 || rating > 5)
+      return err(400, "validation", "rating must be 1..5");
+    if (!body.content?.trim()) return err(400, "validation", "content required");
+    const db = await getDb();
+    const id = crypto.randomUUID();
+    await db.insert(reviews).values({
+      id,
+      bookingId: body.bookingId ?? null,
+      routeId: body.routeId ?? null,
+      brandId: body.brandId ?? null,
+      userId: user.id,
+      authorName: user.fullName,
+      rating,
+      title: body.title?.slice(0, 255) ?? null,
+      content: body.content.slice(0, 4000),
+      tags: body.tags ? JSON.stringify(body.tags.slice(0, 10)) : null,
+      status: "published",
+    });
+    return Response.json({ id, status: "published" }, { status: 201 });
+  } catch (e) {
+    return handleRouteError(e);
+  }
+}

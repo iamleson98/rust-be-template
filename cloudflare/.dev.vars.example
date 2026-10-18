@@ -1,0 +1,24 @@
+# Local development secrets (never committed values — dev only)
+JWT_SECRET=change-me-min-16-chars
+JWT_ACCESS_TTL_SECS=900
+JWT_REFRESH_TTL_SECS=604800
+CRON_SERVICE_TOKEN=change-me
+PAYMENT_PUBLIC_BASE_URL=http://localhost:3000
+APP_ENV=development
+
+# Cloudflare Realtime (RealtimeKit) — leave empty to run chat in REST/polling mode
+REALTIME_ENABLED=false
+REALTIME_APP_ID=
+REALTIME_ACCOUNT_ID=
+REALTIME_API_TOKEN=
+
+# Payment gateways (dev off)
+VNPAY_ENABLED=false
+VNPAY_TMN_CODE=
+VNPAY_HASH_SECRET=
+VIETQR_ENABLED=true
+VIETQR_BANK_BIN=
+VIETQR_ACCOUNT_NO=
+VIETQR_ACCOUNT_NAME=
+MOMO_ENABLED=false
+ZALOPAY_ENABLED=false
