@@ -24,9 +24,8 @@ export async function POST(req: Request) {
     });
     if (!tokens) return err(401, "unauthorized", "invalid or expired refresh token");
 
-    const secure = new URL(req.url).protocol === "https:";
     const headers = new Headers();
-    for (const c of sessionCookies(tokens.accessToken, tokens.refreshToken, { secure })) {
+    for (const c of await sessionCookies(tokens.accessToken, tokens.refreshToken, req)) {
       headers.append("set-cookie", c);
     }
     const db = await getDb();

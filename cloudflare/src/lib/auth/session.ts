@@ -7,7 +7,7 @@
  *  - revocation check on every authenticated request
  */
 import { and, eq, gt } from "drizzle-orm";
-import { getDb } from "@/lib/db/client";
+import { getDb, getEnv } from "@/lib/db/client";
 import { users, refreshTokens } from "@/lib/db/schema";
 import {
   ACCESS_COOKIE,
@@ -188,26 +188,90 @@ export async function currentUser(req: Request): Promise<SessionUser | null> {
   return u;
 }
 
-/** Cookie headers — mirrors the Rust COOKIE_* knobs (Lax default). */
-export function sessionCookies(
+/** Cookie attribute policy ─ cross-site-capable sessions ──────────────
+ *
+ * Default (`COOKIE_SAMESITE` unset or "lax"): `SameSite=Lax` (+`Secure` on
+ * HTTPS) — first-party production (datxevui.com), identical to the Rust
+ * backend's default.
+ *
+ * `COOKIE_SAMESITE=none` (set in `.dev.vars` for the embedded preview):
+ * `SameSite=None; Secure; Partitioned` — the CHIPS combination
+ * (https://privacycg.github.io/CHIPS/). The sandbox preview is served on a
+ * proxied HTTPS origin and viewed inside the chat UI's cross-site iframe,
+ * where browsers drop `SameSite=Lax` cookies entirely (the "logs in, then
+ * bounces back to /login" loop). Partitioned cookies survive third-party
+ * cookie blocking while staying double-keyed to the embedding site.
+ * `Secure` is mandatory for `SameSite=None`; http://localhost is a
+ * trustworthy origin so local dev keeps working.
+ */
+function requestIsHttps(req: Request): boolean {
+  // Behind the preview/deploy proxies the worker sees http:// internally —
+  // the original scheme only survives in x-forwarded-proto.
+  const xfProto = req.headers.get("x-forwarded-proto");
+  if (xfProto) return xfProto.split(",")[0]!.trim().toLowerCase() === "https";
+  try {
+    return new URL(req.url).protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+export interface CookiePolicy {
+  secure: boolean;
+  sameSite: "Lax" | "None";
+  partitioned: boolean;
+}
+
+export async function cookiePolicy(req: Request): Promise<CookiePolicy> {
+  const env = await getEnv();
+  const wantNone = (env.COOKIE_SAMESITE ?? "lax").trim().toLowerCase() === "none";
+  if (wantNone) {
+    // Cross-site-capable (embedded preview). Secure is required by the spec
+    // and safe: the preview origin is always HTTPS (localhost is exempt).
+    return { secure: true, sameSite: "None", partitioned: true };
+  }
+  return { secure: requestIsHttps(req), sameSite: "Lax", partitioned: false };
+}
+
+/** Cookie headers — mirrors the Rust COOKIE_* knobs, CHIPS-aware (see above). */
+export async function sessionCookies(
   access: string,
   refresh: string,
+  req: Request,
   opts: { secure?: boolean; domain?: string } = {},
-): string[] {
+): Promise<string[]> {
+  const policy = await cookiePolicy(req);
   const aTtl = 900;
   const rTtl = 7 * 24 * 3600;
-  const base = `Path=/; HttpOnly; SameSite=Lax`;
-  const secure = opts.secure ?? true;
-  const domain = opts.domain ? `; Domain=${opts.domain}` : "";
+  const attrs = [
+    `Path=/`,
+    `HttpOnly`,
+    `SameSite=${policy.sameSite}`,
+    (opts.secure ?? policy.secure) ? "Secure" : "",
+    policy.partitioned ? "Partitioned" : "",
+    opts.domain ? `Domain=${opts.domain}` : "",
+  ]
+    .filter(Boolean)
+    .join("; ");
   return [
-    `${ACCESS_COOKIE}=${encodeURIComponent(access)}; ${base}; Max-Age=${aTtl}${secure ? "; Secure" : ""}${domain}`,
-    `${REFRESH_COOKIE}=${encodeURIComponent(refresh)}; ${base}; Max-Age=${rTtl}${secure ? "; Secure" : ""}${domain}`,
+    `${ACCESS_COOKIE}=${encodeURIComponent(access)}; ${attrs}; Max-Age=${aTtl}`,
+    `${REFRESH_COOKIE}=${encodeURIComponent(refresh)}; ${attrs}; Max-Age=${rTtl}`,
   ];
 }
 
-export function clearSessionCookies(): string[] {
-  const base = `Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
-  return [`${ACCESS_COOKIE}=; ${base}`, `${REFRESH_COOKIE}=; ${base}`];
+export async function clearSessionCookies(req: Request): Promise<string[]> {
+  const policy = await cookiePolicy(req);
+  const attrs = [
+    `Path=/`,
+    `HttpOnly`,
+    `SameSite=${policy.sameSite}`,
+    policy.secure ? "Secure" : "",
+    policy.partitioned ? "Partitioned" : "",
+    `Max-Age=0`,
+  ]
+    .filter(Boolean)
+    .join("; ");
+  return [`${ACCESS_COOKIE}=; ${attrs}`, `${REFRESH_COOKIE}=; ${attrs}`];
 }
 
 export { accessTtlSecs, refreshTtlSecs };

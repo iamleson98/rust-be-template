@@ -6,6 +6,10 @@ CRON_SERVICE_TOKEN=change-me
 PAYMENT_PUBLIC_BASE_URL=http://localhost:3000
 APP_ENV=development
 
+# Session cookie policy: lax (default, first-party production) | none
+# (cross-site-capable preview: SameSite=None; Secure; Partitioned — CHIPS).
+COOKIE_SAMESITE=none
+
 # Cloudflare Realtime (RealtimeKit) — leave empty to run chat in REST/polling mode
 REALTIME_ENABLED=false
 REALTIME_APP_ID=

@@ -4,7 +4,7 @@
  * by channel; this REST layer is the durable source of truth + fallback.
  * Serialization matches the SPA SDK contract (`ChatChannelOut`).
  */
-import { getDb, rawAll, rawBatch, insertSql, type Database } from "@/lib/db/client";
+import { getDb, rawAll, atomicBatch, type Database } from "@/lib/db/client";
 import { chatAssignments, chatChannelMembers, chatChannels, chatMessages, users } from "@/lib/db/schema";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { ApiError } from "@/lib/auth/rbac";
@@ -63,6 +63,7 @@ export async function ensureCustomerChannel(
     unreadEmployee: 0,
     createdAt: now,
     closedAt: null,
+    realtimeMeetingId: null,
   };
   await db.insert(chatChannels).values(ch);
   await db
@@ -239,18 +240,18 @@ export async function postMessage(
     createdAt: now,
   };
   const unreadCol = sql.raw(staff ? "unread_user" : "unread_employee");
-  await rawBatch([
-    insertSql("chat_message", {
+  await atomicBatch([
+    db.insert(chatMessages).values({
       id: msg.id,
-      channel_id: channelId,
-      sender_type: senderType,
-      sender_id: user.id,
+      channelId,
+      senderType,
+      senderId: user.id,
       content: text,
       kind: msg.kind,
       status: "sent",
       attachments: msg.attachments,
-      client_msg_id: msg.clientMsgId,
-      created_at: now,
+      clientMsgId: msg.clientMsgId,
+      createdAt: now,
     }),
     sql`
       UPDATE chat_channel SET last_message_at = ${now}, last_message_preview = ${text.slice(0, 80)},
@@ -278,24 +279,28 @@ export async function markRead(user: SessionUser, channelId: string) {
 
 export async function claimChannel(user: SessionUser, channelId: string) {
   await assertChannelAccess(user, channelId);
+  const db = await getDb();
   const now = new Date().toISOString();
-  await rawBatch([
-    insertSql("chat_assignment", {
+  await atomicBatch([
+    db.insert(chatAssignments).values({
       id: crypto.randomUUID(),
-      channel_id: channelId,
-      employee_id: user.id,
-      assigned_at: now,
-      unassigned_at: null,
+      channelId,
+      employeeId: user.id,
+      assignedAt: now,
+      unassignedAt: null,
     }),
     sql`UPDATE chat_channel SET status = 'assigned' WHERE id = ${channelId}`,
-    insertSql("chat_channel_member", {
-      id: crypto.randomUUID(),
-      channel_id: channelId,
-      user_id: user.id,
-      role: "employee",
-      joined_at: now,
-      left_at: null,
-    }).append(sql` ON CONFLICT DO NOTHING`),
+    db
+      .insert(chatChannelMembers)
+      .values({
+        id: crypto.randomUUID(),
+        channelId,
+        userId: user.id,
+        role: "employee",
+        joinedAt: now,
+        leftAt: null,
+      })
+      .onConflictDoNothing(),
   ]);
   return getChannelOut(user, channelId);
 }
@@ -303,7 +308,7 @@ export async function claimChannel(user: SessionUser, channelId: string) {
 export async function releaseChannel(user: SessionUser, channelId: string) {
   await assertChannelAccess(user, channelId);
   const now = new Date().toISOString();
-  await rawBatch([
+  await atomicBatch([
     sql`UPDATE chat_assignment SET unassigned_at = ${now} WHERE channel_id = ${channelId} AND unassigned_at IS NULL`,
     sql`UPDATE chat_channel SET status = 'open' WHERE id = ${channelId} AND status = 'assigned'`,
   ]);

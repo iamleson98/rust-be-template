@@ -1,4 +1,5 @@
 import { rawAll, rawRun } from "@/lib/db/client";
+import { invalidateReviews } from "@/lib/services/lookups";
 import { sql } from "drizzle-orm";
 import { handleRouteError, requireStaff, readJson, err } from "@/lib/api";
 import { requirePermission } from "@/lib/auth/rbac";
@@ -33,6 +34,7 @@ export async function PATCH(req: Request, ctx: Params) {
           updated_at = ${now}
       WHERE id = ${id}
     `);
+    await invalidateReviews();
     return Response.json({ id });
   } catch (e) {
     return handleRouteError(e);

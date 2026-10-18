@@ -1,0 +1,34 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1740000000000,
+      "tag": "0000_init_domain",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1740086400000,
+      "tag": "0001_fts_and_seeds",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1740172800000,
+      "tag": "0002_realtime_meeting_id",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1792309662916,
+      "tag": "0003_drizzle_baseline",
+      "breakpoints": true
+    }
+  ]
+}

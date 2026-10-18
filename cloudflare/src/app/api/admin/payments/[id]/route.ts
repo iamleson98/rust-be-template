@@ -1,4 +1,4 @@
-import { rawAll, rawBatch } from "@/lib/db/client";
+import { rawAll, atomicBatch } from "@/lib/db/client";
 import { sql } from "drizzle-orm";
 import { handleRouteError, requireStaff, readJson, err } from "@/lib/api";
 import { requirePermission } from "@/lib/auth/rbac";
@@ -44,7 +44,7 @@ export async function PATCH(req: Request, ctx: Params) {
         sql`UPDATE payment SET status = ${status}, updated_at = ${now} WHERE id = ${id}`,
       );
     }
-    await rawBatch(stmts);
+    await atomicBatch(stmts);
 
     const updated = (
       await rawAll<{ id: string; status: string; updated_at: string }>(

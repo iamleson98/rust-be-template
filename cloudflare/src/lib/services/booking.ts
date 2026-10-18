@@ -10,7 +10,7 @@
  * Seat state machine: available → held → booked (→ available on release).
  * Booking statuses: pending → confirmed | cancelled.
  */
-import { getDb, getD1, rawAll, rawBatch, insertSql, type Database } from "@/lib/db/client";
+import { getDb, getD1, rawAll, atomicBatch, sqlIn, type AtomicStatement, type Database } from "@/lib/db/client";
 import {
   bookings,
   bookingSeats,
@@ -29,6 +29,7 @@ import {
 import { and, eq, inArray, sql, type SQL } from "drizzle-orm";
 import { ApiError } from "@/lib/auth/rbac";
 import { brandPrefix, genBookingCode, holdTtlMinutes, refundPercent } from "@/lib/format";
+import { withRetry } from "@/lib/db/retry";
 
 export interface HoldRequest {
   tripId: string;
@@ -53,14 +54,16 @@ const SELL_WINDOW_DAYS = 14;
 
 async function loadTripContext(tripId: string): Promise<TripContext> {
   const db = await getDb();
-  const rows = await db
-    .select({ trip: tripSessions, schedule: schedules, route: routes, brand: brands })
-    .from(tripSessions)
-    .innerJoin(schedules, eq(schedules.id, tripSessions.scheduleId))
-    .innerJoin(routes, eq(routes.id, schedules.routeId))
-    .leftJoin(brands, eq(brands.id, routes.brandId))
-    .where(eq(tripSessions.id, tripId))
-    .limit(1);
+  const rows = await withRetry(() =>
+    db
+      .select({ trip: tripSessions, schedule: schedules, route: routes, brand: brands })
+      .from(tripSessions)
+      .innerJoin(schedules, eq(schedules.id, tripSessions.scheduleId))
+      .innerJoin(routes, eq(routes.id, schedules.routeId))
+      .leftJoin(brands, eq(brands.id, routes.brandId))
+      .where(eq(tripSessions.id, tripId))
+      .limit(1),
+  );
   const ctx = rows[0];
   if (!ctx) throw new ApiError(404, "not-found", "Trip not found");
   return ctx;
@@ -122,7 +125,7 @@ async function ensureTripInventory(db: Database, tripId: string, scheduleId: str
       VALUES (${crypto.randomUUID()}, ${tripId}, ${s.id}, 'available', ${seatFare(s.seatClass, fares, base)}, ${seatFare(s.seatClass, fares, base)}, 'VND')
     `,
   );
-  await rawBatch(stmts);
+  await atomicBatch(stmts);
 }
 
 /** All-or-nothing seat claim. Returns true when every seat was claimed. */
@@ -133,8 +136,7 @@ async function claimSeats(
   bookingId: string,
   heldUntil: string,
 ): Promise<boolean> {
-  const seatList = seatIds.map((id) => sql`${id}`);
-  const inList = seatList.reduce((a, b) => sql`${a}, ${b}`);
+  const inList = sqlIn(seatIds);
   const result = await db.run(sql`
     UPDATE seat_inventory
     SET status = 'held',
@@ -255,41 +257,42 @@ export async function createBooking(userId: string, req: HoldRequest): Promise<B
     throw new ApiError(409, "conflict", "Some seats are no longer available");
   }
 
-  // 4. Persist booking + seats + counters (single atomic batch).
+  // 4. Persist booking + seats + counters (single atomic batch of typed
+  //    builders + the conditional raw updates that need SQL semantics).
   try {
-    const stmts: SQL[] = [
-      insertSql("booking", {
+    const stmts: AtomicStatement[] = [
+      db.insert(bookings).values({
         id: bookingId,
         code,
-        user_id: userId,
-        trip_session_id: trip.id,
-        boarding_point_id: req.boardingPointId ?? null,
-        dropping_point_id: req.droppingPointId ?? null,
-        adult_count: priced.filter((p) => p.passengerType === "adult").length,
-        child_count: priced.filter((p) => p.passengerType === "child").length,
+        userId,
+        tripSessionId: trip.id,
+        boardingPointId: req.boardingPointId ?? null,
+        droppingPointId: req.droppingPointId ?? null,
+        adultCount: priced.filter((p) => p.passengerType === "adult").length,
+        childCount: priced.filter((p) => p.passengerType === "child").length,
         subtotal,
         discount,
         fees: 0,
         total,
         currency: "VND",
         status: "pending",
-        expires_at: expiresAt,
-        contact_name: req.contactName,
-        contact_phone: req.contactPhone,
-        contact_email: req.contactEmail ?? null,
-        created_at: now,
-        updated_at: now,
+        expiresAt,
+        contactName: req.contactName,
+        contactPhone: req.contactPhone,
+        contactEmail: req.contactEmail ?? null,
+        createdAt: now,
+        updatedAt: now,
       }),
       ...priced.map((s) =>
-        insertSql("booking_seat", {
+        db.insert(bookingSeats).values({
           id: crypto.randomUUID(),
-          booking_id: bookingId,
-          seat_id: s.seatId,
-          passenger_name: s.passengerName,
-          passenger_age: s.passengerAge,
-          passenger_type: s.passengerType,
+          bookingId,
+          seatId: s.seatId,
+          passengerName: s.passengerName,
+          passengerAge: s.passengerAge,
+          passengerType: s.passengerType,
           price: s.price,
-          created_at: now,
+          createdAt: now,
         }),
       ),
       sql`
@@ -311,7 +314,7 @@ export async function createBooking(userId: string, req: HoldRequest): Promise<B
         `,
       );
     }
-    await rawBatch(stmts);
+    await atomicBatch(stmts);
   } catch (e) {
     // Compensating release — batch failed after seats were claimed.
     await releaseSeats(db, bookingId);
@@ -344,15 +347,19 @@ export async function getBookingForUser(
 ): Promise<BookingResult | null> {
   const db = await getDb();
   const row = (
-    await db
-      .select({ booking: bookings, trip: tripSessions, schedule: schedules, route: routes, brand: brands })
-      .from(bookings)
-      .innerJoin(tripSessions, eq(tripSessions.id, bookings.tripSessionId))
-      .innerJoin(schedules, eq(schedules.id, tripSessions.scheduleId))
-      .innerJoin(routes, eq(routes.id, schedules.routeId))
-      .leftJoin(brands, eq(brands.id, routes.brandId))
-      .where(sql`(${bookings.id} = ${codeOrId} OR LOWER(${bookings.code}) = LOWER(${codeOrId})) AND ${bookings.userId} = ${userId}`)
-      .limit(1)
+    await withRetry(() =>
+      db
+        .select({ booking: bookings, trip: tripSessions, schedule: schedules, route: routes, brand: brands })
+        .from(bookings)
+        .innerJoin(tripSessions, eq(tripSessions.id, bookings.tripSessionId))
+        .innerJoin(schedules, eq(schedules.id, tripSessions.scheduleId))
+        .innerJoin(routes, eq(routes.id, schedules.routeId))
+        .leftJoin(brands, eq(brands.id, routes.brandId))
+        .where(
+          sql`(${bookings.id} = ${codeOrId} OR LOWER(${bookings.code}) = LOWER(${codeOrId})) AND ${bookings.userId} = ${userId}`,
+        )
+        .limit(1),
+    )
   )[0];
   if (!row) return null;
   const seatRows = await db
@@ -403,7 +410,7 @@ export async function cancelBooking(userId: string, codeOrId: string): Promise<{
   const refCode = `HX-${b.code}-${Date.now().toString(36)}`;
   const now = new Date().toISOString();
 
-  const stmts: SQL[] = [
+  const stmts: AtomicStatement[] = [
     sql`UPDATE booking SET status = 'cancelled', updated_at = ${now} WHERE id = ${b.id}`,
     sql`
       UPDATE seat_inventory SET status = 'available', held_by_booking_id = NULL, held_until = NULL, updated_at = ${now}
@@ -422,7 +429,7 @@ export async function cancelBooking(userId: string, codeOrId: string): Promise<{
       sql`UPDATE coupon SET status = 'held', booking_id = NULL, reserved_at = NULL, redeemed_at = NULL, updated_at = ${now} WHERE id = ${b.campaignAppliedId}`,
     );
   }
-  await rawBatch(stmts);
+  await atomicBatch(stmts);
   return { status: "cancelled", refundPercent: pct, refundAmount, refCode };
 }
 
@@ -435,7 +442,7 @@ export async function placeBookingOnBoard(userId: string, codeOrId: string): Pro
     throw new ApiError(409, "conflict", "Only pending bookings can be placed");
   const untilDeparture = `${found.trip.departureDate}T${found.trip.departureTime}:00Z`;
   const now = new Date().toISOString();
-  await rawBatch([
+  await atomicBatch([
     sql`UPDATE booking SET expires_at = ${untilDeparture}, updated_at = ${now} WHERE id = ${found.booking.id}`,
     sql`UPDATE seat_inventory SET held_until = ${untilDeparture}, updated_at = ${now} WHERE held_by_booking_id = ${found.booking.id} AND status = 'held'`,
   ]);
@@ -445,7 +452,7 @@ export async function placeBookingOnBoard(userId: string, codeOrId: string): Pro
 /** Payment completion (COD collected / verified gateway IPN): confirm booking. */
 export async function completeBookingPayment(db: Database, bookingId: string): Promise<void> {
   const now = new Date().toISOString();
-  await rawBatch([
+  await atomicBatch([
     sql`UPDATE booking SET status = 'confirmed', updated_at = ${now} WHERE id = ${bookingId} AND status = 'pending'`,
     sql`
       UPDATE seat_inventory SET status = 'booked', held_until = NULL, updated_at = ${now}
@@ -462,9 +469,8 @@ export async function sweepExpiredHolds(): Promise<{ cancelled: number }> {
     sql`SELECT id, trip_session_id FROM booking WHERE status = 'pending' AND expires_at IS NOT NULL AND expires_at < ${now}`,
   );
   if (expired.length === 0) return { cancelled: 0 };
-  const ids = expired.map((e) => sql`${e.id}`);
-  const idList = ids.reduce((a, b) => sql`${a}, ${b}`);
-  await rawBatch([
+  const idList = sqlIn(expired.map((e) => e.id));
+  await atomicBatch([
     sql`UPDATE booking SET status = 'cancelled', updated_at = ${now} WHERE id IN (${idList}) AND status = 'pending'`,
     sql`
       UPDATE seat_inventory SET status = 'available', held_by_booking_id = NULL, held_until = NULL, updated_at = ${now}

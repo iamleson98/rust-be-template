@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db/client";
+import { invalidateRoutes } from "@/lib/services/lookups";
 import { routes } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { handleRouteError, requireStaff, readJson, err } from "@/lib/api";
@@ -54,6 +55,7 @@ export async function POST(req: Request) {
       createdAt: now,
       updatedAt: now,
     });
+    await invalidateRoutes();
     return Response.json({ id }, { status: 201 });
   } catch (e) {
     return handleRouteError(e);

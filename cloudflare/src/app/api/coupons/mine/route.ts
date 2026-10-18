@@ -1,4 +1,4 @@
-import { rawAll, rawBatch } from "@/lib/db/client";
+import { rawAll, atomicBatch } from "@/lib/db/client";
 import { sql } from "drizzle-orm";
 import { handleRouteError, requireUser, err } from "@/lib/api";
 
@@ -93,7 +93,7 @@ export async function DELETE(req: Request) {
     const held = rows[0];
     if (!held) return err(409, "no-coupon", "No coupon held");
     const now = new Date().toISOString();
-    await rawBatch([
+    await atomicBatch([
       sql`UPDATE coupon SET status = 'expired', updated_at = ${now} WHERE id = ${held.id}`,
       sql`UPDATE discount_tier SET claimed_slots = MAX(claimed_slots - 1, 0) WHERE id = ${held.tier_id}`,
     ]);

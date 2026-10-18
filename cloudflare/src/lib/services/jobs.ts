@@ -16,6 +16,7 @@ import { jobRuns, scheduledJobs } from "@/lib/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { sweepExpiredHolds, warmTrips } from "./booking";
 import { reindexPlaces } from "./place-search";
+import { invalidatePlaces } from "./lookups";
 
 export interface JobOutcome {
   jobType: string;
@@ -115,6 +116,7 @@ async function executeJobBody(jobType: string): Promise<string> {
     }
     case "fts.reindex": {
       const r = await reindexPlaces();
+      await invalidatePlaces();
       return JSON.stringify(r);
     }
     case "jobs.retention": {

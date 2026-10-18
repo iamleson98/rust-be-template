@@ -108,3 +108,78 @@ with a healing fallback that derives permissions from `users.role` when the
 - Web push notifications (device registration endpoints optional)
 - Valhalla routing proxy (`/api/routing/*`) — map features currently degrade gracefully
 - Load-test + D1 read-replica evaluation at scale
+
+## Database schema & migrations (drizzle-kit → wrangler D1)
+
+The TypeScript schema in `src/lib/db/schema/` is the **single source of truth**.
+The workflow (Cloudflare's documented D1 + Drizzle flow):
+
+1. Edit the schema files.
+2. `bun run db:generate` — `drizzle-kit generate` diffs the schema against the
+   last snapshot in `migrations/meta/` and emits `migrations/NNNN_*.sql`
+   (every interpolated value is a bound parameter — no string concatenation).
+3. `bun run db:migrate:local` (or `:remote`) — **wrangler** applies the new
+   files to D1. Never let drizzle-kit itself apply D1 migrations; wrangler
+   owns application and tracks applied files in `d1_migrations`.
+
+Migrations `0000`–`0002` were hand-written and already applied everywhere;
+`0003_drizzle_baseline` is a no-op that marks where the drizzle-kit snapshot
+chain was baselined to exactly that applied schema (verified: `drizzle-kit
+generate` no-ops on a clean schema and emits correct `ALTER`s on change —
+see `scripts/check-drizzle-drift.py` for the schema-vs-migrations diff tool).
+
+## SQL style policy
+
+- **Standard CRUD** → the drizzle query builder (`db.select/insert/update/
+  delete` over typed tables): typed results, free parameterization.
+- **FTS5 `MATCH`, recursive CTEs, conditional atomic `UPDATE`s, analytics**
+  → `sql` tagged templates (`rawAll`/`rawRun`). Values interpolate as bound
+  parameters, so both styles are injection-safe; the builder is simply the
+  more ergonomic default.
+- **Atomic multi-statement units** → `atomicBatch([...])` (`src/lib/db/client.ts`):
+  one native D1 batch = one implicit transaction, accepting typed builders AND
+  raw `sql` templates side by side (booking creation mixes both).
+- `sqlIn(values)` builds parameterized `IN (...)` lists.
+
+## Cache & retry for store lookups
+
+- **`cacheFirst(key, loader, { ttlMs, kvTtlSecs })`** (`src/lib/db/cache.ts`) —
+  the port of the Rust app's moka cache-first reads. L1: per-isolate `Map`
+  (bounded, TTL, LRU-ish). L2: Workers KV via the optional `CACHE_KV`
+  binding — survives isolate eviction, shared across isolates/colos
+  (eventually consistent, ≤60s; best-effort, never throws). No binding →
+  memory-only, automatically.
+  Cached today: brands, brand detail, default routes page, vehicle-type
+  catalog, popular places, campaigns, review tags, homepage stats
+  (`src/lib/services/lookups.ts`). NEVER cached: seats, availability,
+  bookings, payments, auth — correctness-critical reads go straight to D1.
+  Admin write routes call the matching `invalidate*` helper so changes
+  surface immediately.
+- **`withRetry(fn)`** (`src/lib/db/retry.ts`) — `p-retry` with exponential
+  backoff + full jitter, retrying only transient D1 failures
+  (D1_ERROR: internal, SQLITE_BUSY/LOCKED, dropped connections, 5xx);
+  deterministic failures (UNIQUE/FK/CHECK, 4xx ApiError) abort with the
+  original error identity preserved. Applied to reads and idempotent
+  writes only — side-effecting writes (bookings, payments) are never
+  retried, since a timed-out request may already have committed.
+
+## Session cookies & the embedded preview
+
+`COOKIE_SAMESITE` (default `lax`) controls the cookie policy:
+- **`lax`** (production, first-party datxevui.com): `SameSite=Lax` +
+  `Secure` when the request is HTTPS (`x-forwarded-proto` aware) — the Rust
+  backend's default.
+- **`none`** (set in `.dev.vars` for the sandbox preview): `SameSite=None;
+  Secure; Partitioned` — the CHIPS combination. The preview is served on a
+  proxied HTTPS origin inside a cross-site iframe, where browsers drop Lax
+  cookies (the "logs in, bounces back to /login" loop). Partitioned cookies
+  survive third-party cookie blocking while staying double-keyed to the
+  embedding site.
+
+## Tests
+
+`bun run test` — vitest inside **workerd** via `@cloudflare/vitest-plugin`,
+with real D1 + KV bindings (Miniflare): cookie policy matrix, retry
+classification/behavior, two-tier cache semantics, `atomicBatch` atomicity
+(rollback verified), parameterized `sqlIn`, and the full refresh-token
+session lifecycle over the real migration chain.

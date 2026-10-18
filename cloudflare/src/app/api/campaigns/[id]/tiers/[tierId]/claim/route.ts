@@ -1,6 +1,7 @@
 import { rawAll, rawRun } from "@/lib/db/client";
 import { sql } from "drizzle-orm";
 import { handleRouteError, requireUser, clientIp, err } from "@/lib/api";
+import { invalidateCampaigns } from "@/lib/services/lookups";
 
 type Params = { params: Promise<{ id: string; tierId: string }> };
 
@@ -98,6 +99,8 @@ export async function POST(req: Request, ctx: Params) {
       `)
     )[0]!;
     const split = (s: unknown) => (s ? String(s).split(",") : []);
+    // A claim shrinks every tier's remaining slots — drop the cached campaign list.
+    await invalidateCampaigns();
     return Response.json(
       {
         id: out.id,

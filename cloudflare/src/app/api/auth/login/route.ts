@@ -48,9 +48,8 @@ export async function POST(req: Request) {
       userAgent: req.headers.get("user-agent"),
       ip: clientIp(req),
     });
-    const secure = new URL(req.url).protocol === "https:";
     const headers = new Headers();
-    for (const c of sessionCookies(tokens.accessToken, tokens.refreshToken, { secure })) {
+    for (const c of await sessionCookies(tokens.accessToken, tokens.refreshToken, req)) {
       headers.append("set-cookie", c);
     }
     const mobile = req.headers.get("x-client") === "mobile";

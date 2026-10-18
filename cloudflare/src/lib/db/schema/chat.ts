@@ -27,6 +27,8 @@ export const chatChannels = sqliteTable(
     unreadEmployee: integer("unread_employee").notNull().default(0),
     createdAt: text("created_at").notNull().default("(datetime('now'))"),
     closedAt: text("closed_at"),
+    /** Cloudflare Realtime meeting id for live chat / audio (migration 0002). */
+    realtimeMeetingId: text("realtime_meeting_id"),
   },
   (t) => [index("idx_chat_user").on(t.userId), index("idx_chat_status").on(t.status)],
 );

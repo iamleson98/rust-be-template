@@ -1,4 +1,4 @@
-import { getDb, rawBatch } from "@/lib/db/client";
+import { getDb, atomicBatch } from "@/lib/db/client";
 import { bookingSeats } from "@/lib/db/schema";
 import { sql } from "drizzle-orm";
 import { handleRouteError, requireStaff, readJson, err } from "@/lib/api";
@@ -51,7 +51,7 @@ export async function PATCH(req: Request, ctx: Params) {
 
     const now = new Date().toISOString();
     if (status === "confirmed") {
-      await rawBatch([
+      await atomicBatch([
         sql`UPDATE booking SET status = 'confirmed', updated_at = ${now} WHERE id = ${row.id}`,
         sql`
           UPDATE seat_inventory SET status = 'booked', held_until = NULL, updated_at = ${now}
@@ -60,7 +60,7 @@ export async function PATCH(req: Request, ctx: Params) {
         sql`UPDATE payment SET status = 'completed', updated_at = ${now} WHERE booking_id = ${row.id} AND status = 'pending'`,
       ]);
     } else if (status === "completed") {
-      await rawBatch([
+      await atomicBatch([
         sql`UPDATE booking SET status = 'completed', updated_at = ${now} WHERE id = ${row.id}`,
       ]);
     } else {
@@ -68,7 +68,7 @@ export async function PATCH(req: Request, ctx: Params) {
       const seatCount = (
         await db.select({ n: sql<number>`count(*)` }).from(bookingSeats).where(sql`booking_id = ${row.id}`)
       )[0];
-      await rawBatch([
+      await atomicBatch([
         sql`UPDATE booking SET status = 'cancelled', updated_at = ${now} WHERE id = ${row.id}`,
         sql`
           UPDATE seat_inventory SET status = 'available', held_by_booking_id = NULL, held_until = NULL, updated_at = ${now}

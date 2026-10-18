@@ -1,0 +1,21 @@
+# dependencies
+node_modules/
+
+# next.js / opennext
+.next/
+.open-next/
+next-env.d.ts
+*.tsbuildinfo
+
+# wrangler local state & secrets
+.wrangler/
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+
+# logs & scratch
+*.log
+.DS_Store
+
+# test scratch
+/test-results/

@@ -1,6 +1,7 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { drizzle } from "drizzle-orm/d1";
-import { sql, type SQL } from "drizzle-orm";
+import { SQL, sql } from "drizzle-orm";
+import type { BatchItem } from "drizzle-orm/batch";
 import * as schema from "./schema";
 
 export type Database = ReturnType<typeof drizzle<typeof schema>>;
@@ -33,6 +34,18 @@ export async function getEnv(): Promise<CloudflareEnv> {
   return env as CloudflareEnv;
 }
 
+// ── Raw SQL helpers ────────────────────────────────────────────
+//
+// SQL POLICY for this codebase:
+//   1. Standard CRUD → the drizzle query builder (`db.select/insert/
+//      update/delete` with typed schema tables). Types + parameters for free.
+//   2. FTS5 MATCH, recursive CTEs, conditional atomic UPDATEs and analytics
+//      → `sql` tagged templates. Every interpolated value becomes a bound
+//      parameter — NEVER string-concatenated — so both styles are
+//      injection-safe; the builder is just the more ergonomic default.
+//   3. Multi-statement atomic units → `atomicBatch` below, which accepts
+//      BOTH builders and raw `sql` templates in a single D1 transaction.
+
 /** Raw SQL SELECT → typed rows (drizzle's all() loses generics for raw SQL). */
 export async function rawAll<T = Record<string, unknown>>(query: SQL): Promise<T[]> {
   const db = await getDb();
@@ -46,27 +59,44 @@ export async function rawRun(query: SQL): Promise<D1Result<Record<string, unknow
   return (await db.run(query)) as D1Result<Record<string, unknown>>;
 }
 
+/** A drizzle query builder (select/insert/update/delete) usable in atomicBatch. */
+export type BatchBuilder = BatchItem<"sqlite">;
+
+/** Duck-typed access to the internal builder API drizzle's own batch uses. */
+interface Preparable {
+  _prepare(): { getQuery(): { sql: string; params: unknown[] } };
+}
+
+/** Anything `atomicBatch` accepts: raw `sql` templates + drizzle builders. */
+export type AtomicStatement = SQL | BatchBuilder;
+
 /**
- * Atomic batch of RAW SQL statements via the native D1 batch API.
- * (drizzle's db.batch only accepts query builders; raw db.run items lack
- * the prepared .stmt the D1 session expects.)
+ * Atomic batch of statements via the native D1 batch API — a single implicit
+ * transaction. Unlike drizzle's `db.batch`, this accepts raw `sql` templates
+ * AND typed query builders side by side, so a unit can mix ergonomic
+ * `db.insert(...).values(...)` builders with conditional raw UPDATEs
+ * (the seat-claim pattern) while staying atomic.
  */
-export async function rawBatch(queries: SQL[]): Promise<D1Result<Record<string, unknown>>[]> {
+export async function atomicBatch<T = Record<string, unknown>>(queries: AtomicStatement[]): Promise<D1Result<T>[]> {
   const db = await getDb();
   const d1 = await getD1();
   const dialect = (db as unknown as { dialect: { sqlToQuery: (q: SQL) => { sql: string; params: unknown[] } } }).dialect;
   const stmts = queries.map((q) => {
-    const built = dialect.sqlToQuery(q);
+    const built =
+      q instanceof SQL
+        ? dialect.sqlToQuery(q)
+        : (q as unknown as Preparable)._prepare().getQuery();
     const stmt = d1.prepare(built.sql);
-    return built.params.length > 0 ? stmt.bind(...built.params) : stmt;
+    return built.params.length > 0 ? stmt.bind(...(built.params as unknown[])) : stmt;
   });
-  return d1.batch(stmts) as Promise<D1Result<Record<string, unknown>>[]>;
+  return d1.batch(stmts) as Promise<D1Result<T>[]>;
 }
 
-/** Build a raw INSERT statement from a plain row object. */
-export function insertSql(table: string, row: Record<string, unknown>): SQL {
-  const cols = Object.keys(row);
-  const colList = sql.raw(cols.map((c) => `"${c}"`).join(", "));
-  const values = cols.map((c) => sql`${row[c]}`).reduce((a, b) => sql`${a}, ${b}`);
-  return sql`INSERT INTO ${sql.raw(`"${table}"`)} (${colList}) VALUES (${values})`;
+/**
+ * In-clause helper for raw SQL: `IN (${sqlIn(ids)})` with every value bound
+ * as a parameter (injection-safe even for untrusted lists).
+ */
+export function sqlIn(values: Array<string | number>): SQL {
+  if (values.length === 0) return sql`NULL`;
+  return values.map((v) => sql`${v}`).reduce((a, b) => sql`${a}, ${b}`);
 }

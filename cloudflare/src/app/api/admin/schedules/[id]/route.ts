@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db/client";
+import { invalidateRoutes } from "@/lib/services/lookups";
 import { schedules, schedulePoints, scheduleFares } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { handleRouteError, requireStaff, readJson, err } from "@/lib/api";
@@ -81,6 +82,7 @@ export async function PUT(req: Request, ctx: Params) {
         await db.insert(scheduleFares).values(rows.slice(i, i + 40));
       }
     }
+    await invalidateRoutes();
     return Response.json({ id });
   } catch (e) {
     return handleRouteError(e);
@@ -97,6 +99,7 @@ export async function DELETE(req: Request, ctx: Params) {
     const existing = (await db.select({ id: schedules.id }).from(schedules).where(eq(schedules.id, id)).limit(1))[0];
     if (!existing) return err(404, "not-found", "schedule not found");
     await db.delete(schedules).where(eq(schedules.id, id));
+    await invalidateRoutes();
     return Response.json({ id });
   } catch (e) {
     return handleRouteError(e);

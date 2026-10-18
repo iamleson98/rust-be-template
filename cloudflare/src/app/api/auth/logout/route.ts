@@ -16,7 +16,7 @@ export async function POST(req: Request) {
     }
 
     const headers = new Headers();
-    for (const c of clearSessionCookies()) headers.append("set-cookie", c);
+    for (const c of await clearSessionCookies(req)) headers.append("set-cookie", c);
     return new Response(null, { status: 204, headers });
   } catch (e) {
     return handleRouteError(e);

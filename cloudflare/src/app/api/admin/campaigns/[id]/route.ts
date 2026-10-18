@@ -1,4 +1,5 @@
-import { rawAll, rawBatch } from "@/lib/db/client";
+import { rawAll, atomicBatch } from "@/lib/db/client";
+import { invalidateCampaigns } from "@/lib/services/lookups";
 import { sql } from "drizzle-orm";
 import { handleRouteError, requireStaff, readJson, err } from "@/lib/api";
 import { isAdmin } from "@/lib/auth/rbac";
@@ -103,7 +104,8 @@ export async function PATCH(req: Request, ctx: Params) {
       }
     }
     stmts.push(sql`DELETE FROM discount_tier WHERE campaign_id = ${id} AND position = -1`);
-    await rawBatch(stmts);
+    await atomicBatch(stmts);
+    await invalidateCampaigns();
     return Response.json(await campaignOut(id));
   } catch (e) {
     return handleRouteError(e);
@@ -120,7 +122,8 @@ export async function DELETE(req: Request, ctx: Params) {
       sql`SELECT id FROM discount_campaign WHERE id = ${id} LIMIT 1`,
     );
     if (!rows[0]) return err(404, "not-found", "campaign not found");
-    await rawBatch([sql`DELETE FROM discount_campaign WHERE id = ${id}`]);
+    await atomicBatch([sql`DELETE FROM discount_campaign WHERE id = ${id}`]);
+    await invalidateCampaigns();
     return Response.json({ id });
   } catch (e) {
     return handleRouteError(e);

@@ -8,6 +8,7 @@
  * Input is sanitized into quoted AND-terms to avoid FTS5 syntax errors.
  */
 import { getD1 } from "@/lib/db/client";
+import { withRetry } from "@/lib/db/retry";
 import { compactNoTones, stripTones } from "@/lib/format";
 
 export interface PlaceHit {
@@ -66,9 +67,10 @@ export async function searchPlaces(raw: string, limit = 10): Promise<PlaceHit[]>
   const q = buildMatchQuery(raw);
   if (!q) return [];
   const d1 = await getD1();
-  const { results } = await d1
-    .prepare(
-      `
+  const { results } = await withRetry(() =>
+    d1
+      .prepare(
+        `
       SELECT p.id, p.name, p.name_no_tones, p.type, p.province, p.district, p.ward, p.lat, p.lon,
              bm25(place_fts) AS rank
       FROM place_fts
@@ -77,20 +79,21 @@ export async function searchPlaces(raw: string, limit = 10): Promise<PlaceHit[]>
       ORDER BY rank
       LIMIT ?
       `,
-    )
-    .bind(q, Math.min(limit * 3, 50))
-    .all<{
-      id: string;
-      name: string;
-      name_no_tones: string | null;
-      type: string;
-      province: string | null;
-      district: string | null;
-      ward: string | null;
-      lat: number;
-      lon: number;
-      rank: number;
-    }>();
+      )
+      .bind(q, Math.min(limit * 3, 50))
+      .all<{
+        id: string;
+        name: string;
+        name_no_tones: string | null;
+        type: string;
+        province: string | null;
+        district: string | null;
+        ward: string | null;
+        lat: number;
+        lon: number;
+        rank: number;
+      }>(),
+  );
   if (!results) return [];
 
   // Compact-form exact boost ("hanoi" matches name_no_tones without spaces).

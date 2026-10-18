@@ -1,4 +1,5 @@
-import { rawAll, rawBatch } from "@/lib/db/client";
+import { rawAll, atomicBatch } from "@/lib/db/client";
+import { invalidateCampaigns } from "@/lib/services/lookups";
 import { sql } from "drizzle-orm";
 import { handleRouteError, requireStaff, readJson, err } from "@/lib/api";
 import { isAdmin } from "@/lib/auth/rbac";
@@ -74,7 +75,8 @@ export async function POST(req: Request) {
         `,
       );
     });
-    await rawBatch(stmts);
+    await atomicBatch(stmts);
+    await invalidateCampaigns();
     return Response.json({ id }, { status: 201 });
   } catch (e) {
     return handleRouteError(e);

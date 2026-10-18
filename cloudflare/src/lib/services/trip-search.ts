@@ -9,6 +9,7 @@ import { rawAll } from "@/lib/db/client";
 import { sql, type SQL } from "drizzle-orm";
 import { VIETNAMESE_CITIES } from "@/lib/cities";
 import { CITY_COORDS } from "@/lib/city-coords";
+import { vehicleTypeCatalog as vehicleTypeCatalogCached } from "./lookups";
 
 // ── Constants (Rust parity) ────────────────────────────────────
 
@@ -492,11 +493,9 @@ function buildFacets(built: Array<{ card: TripResultCard; boardsAt: number }>) {
 
 // ── The search itself ──────────────────────────────────────────
 
-/** Vehicle-type catalog for label resolution. */
+/** Vehicle-type catalog for label resolution (cache-first, 5 min TTL). */
 export async function vehicleTypeCatalog(): Promise<Array<{ code: string; label: string }>> {
-  return rawAll<{ code: string; label: string }>(
-    sql`SELECT code, label FROM vehicle_type`,
-  );
+  return vehicleTypeCatalogCached();
 }
 
 /** City search: build → facets → filter → sort → page (Rust `results`). */

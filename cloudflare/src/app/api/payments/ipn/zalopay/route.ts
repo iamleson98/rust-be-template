@@ -1,4 +1,4 @@
-import { rawAll, rawBatch } from "@/lib/db/client";
+import { rawAll, atomicBatch } from "@/lib/db/client";
 import { sql } from "drizzle-orm";
 import { handleRouteError } from "@/lib/api";
 import { getEnv } from "@/lib/db/client";
@@ -47,7 +47,7 @@ export async function POST(req: Request) {
 
     const now = new Date().toISOString();
     if ((returnCode === 1 || returnCode === 2) && payment.status === "pending") {
-      await rawBatch([
+      await atomicBatch([
         sql`UPDATE payment SET status = 'completed', updated_at = ${now} WHERE id = ${payment.id}`,
         sql`UPDATE booking SET status = 'confirmed', updated_at = ${now} WHERE id = ${payment.booking_id} AND status = 'pending'`,
         sql`
@@ -56,7 +56,7 @@ export async function POST(req: Request) {
         `,
       ]);
     } else if (returnCode !== 1 && returnCode !== 2 && payment.status === "pending") {
-      await rawBatch([
+      await atomicBatch([
         sql`UPDATE payment SET status = 'failed', failure_reason = 'gateway declined', updated_at = ${now} WHERE id = ${payment.id}`,
       ]);
     }

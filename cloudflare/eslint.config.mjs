@@ -44,7 +44,15 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
     "no-useless-escape": "off",
   },
 }, {
-  ignores: ["node_modules/**", ".next/**", "out/**", "build/**", "next-env.d.ts", "examples/**", "skills"]
+  ignores: [
+    "node_modules/**", ".next/**", "out/**", "build/**", "next-env.d.ts",
+    "examples/**", "skills",
+    // Sandbox-only trees: git source copy, local state, artifacts, docs,
+    // sandbox helper scripts (not shipped with the Worker)
+    "repo/**", ".wrangler/**", ".open-next/**", "download/**", "tool-results/**",
+    "dev-data/**", "bin/**", "migrations/**", "public/**", "*.log", "container/**",
+    "scripts/**",
+  ]
 }];
 
 export default eslintConfig;
