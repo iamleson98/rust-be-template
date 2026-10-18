@@ -43,6 +43,7 @@ bun run deploy                      # wrangler deploy
 ```
 
 Before the first deploy:
+
 1. `bunx wrangler d1 create datxevui` → put the returned `database_id` into `wrangler.jsonc`
 2. `bunx wrangler r2 bucket create datxevui-uploads`
 3. Set secrets: `wrangler secret put JWT_SECRET`, `wrangler secret put CRON_SERVICE_TOKEN` (+ payment secrets as needed)
@@ -238,6 +239,7 @@ nightly coupons.expire + lazy expiry at claim/wallet ─► expired + holder cle
 ## Session cookies & the embedded preview
 
 `COOKIE_SAMESITE` (default `lax`) controls the cookie policy:
+
 - **`lax`** (production, first-party datxevui.com): `SameSite=Lax` +
   `Secure` when the request is HTTPS (`x-forwarded-proto` aware) — the Rust
   backend's default.
