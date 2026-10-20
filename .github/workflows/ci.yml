@@ -609,14 +609,16 @@ jobs:
         # v4, not v3: Google no longer serves the deprecated 'tools' package
         # and v3 fails hard asking for it ("Failed to find package 'tools'").
         # v4 installs cmdline-tools + platform-tools and accepts the SDK
-        # licenses itself; the Android Gradle Plugin auto-installs the
-        # platform/build-tools the APK build needs.
+        # licenses itself.
         uses: android-actions/setup-android@v4
 
-      - name: Install Android platform (compileSdk 37)
-        # AGP 9 no longer auto-installs missing platforms from the SDK
-        # ("Failed to find target with hash string 'android-37'").
-        run: sdkmanager "platforms;android-37" >/dev/null
+      - name: Install Android platform + build tools
+        # AGP 9 no longer auto-installs missing SDK pieces:
+        # - compileSdk = 37 resolves to hash 'android-37' = minor-0 platform,
+        #   served as platforms;android-37.0 (there is no plain android-37)
+        # - AGP 9.1's default build tools revision is 36.0.0
+        # (see AGP 9.1 release notes compatibility table)
+        run: sdkmanager "platforms;android-37.0" "build-tools;36.0.0" >/dev/null
 
       - name: Build debug APK (smoke)
         run: flutter build apk --debug
