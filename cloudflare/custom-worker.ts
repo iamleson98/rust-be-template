@@ -62,6 +62,6 @@ export default {
       // Throwing marks the cron invocation as failed in Workers observability.
       throw new Error(`tick failed: HTTP ${res.status} ${body.slice(0, 300)}`);
     }
-    console.log(`[cron] tick ok: ${body.slice(0, 300)}`);
+    console.info(`[cron] tick ok: ${body.slice(0, 300)}`);
   },
 } satisfies ExportedHandler<CloudflareEnv>;

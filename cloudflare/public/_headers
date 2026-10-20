@@ -1,3 +1,8 @@
 # Static asset caching for the Workers deployment
 /_next/static/*
   Cache-Control: public,max-age=31536000,immutable
+
+# Place-search index (rebuilt weekly with each deploy): revalidate hourly so a
+# new index is picked up without a client holding a week-old shard.
+/places/*
+  Cache-Control: public,max-age=3600

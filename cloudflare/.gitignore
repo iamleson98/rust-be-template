@@ -19,3 +19,6 @@ next-env.d.ts
 
 # test scratch
 /test-results/
+
+# generated weekly by CI (tools/place-extract + scripts/build-place-shards.ts)
+/public/places/

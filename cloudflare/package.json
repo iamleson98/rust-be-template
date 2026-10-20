@@ -21,7 +21,8 @@
     "db:studio": "drizzle-kit studio",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "places:build": "bun scripts/build-place-shards.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
@@ -124,5 +125,5 @@
     "vitest": "^4.1.0",
     "wrangler": "^4.151.1"
   },
-  "description": "datxevui — Next.js on Cloudflare Workers (D1 + R2 + Realtime + Containers)"
+  "description": "datxevui — Next.js on Cloudflare Workers (D1 + R2 + Realtime)"
 }

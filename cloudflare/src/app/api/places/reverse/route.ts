@@ -9,7 +9,7 @@ export async function GET(req: Request) {
     if (!Number.isFinite(lat) || !Number.isFinite(lon))
       return err(400, "validation", "lat and lon are required");
     const items = await reverseGeocode(lat, lon);
-    return Response.json({ items });
+    return Response.json({ items }, { headers: { "cache-control": "public, max-age=3600" } });
   } catch (e) {
     return handleRouteError(e);
   }

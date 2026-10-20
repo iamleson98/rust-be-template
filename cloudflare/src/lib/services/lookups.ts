@@ -26,7 +26,6 @@ import {
 import { countOf, groupedCounts } from "@/lib/db/counts";
 import { cacheFirst, cacheInvalidatePrefix } from "@/lib/db/cache";
 import { withRetry } from "@/lib/db/retry";
-import { popularPlaces, type PlaceHit } from "./place-search";
 
 // ── Brands ─────────────────────────────────────────────────────
 
@@ -183,14 +182,6 @@ export async function vehicleTypeCatalog(): Promise<VehicleTypeEntry[]> {
       }),
     { ttlMs: 300_000 },
   );
-}
-
-// ── Places (autocomplete default list) ──────────────────────────
-
-export async function popularPlacesCached(limit: number): Promise<PlaceHit[]> {
-  return cacheFirst(`lookups:places:${limit}`, () => withRetry(() => popularPlaces(limit)), {
-    ttlMs: 600_000,
-  });
 }
 
 // ── Campaigns ───────────────────────────────────────────────────
@@ -367,7 +358,6 @@ export const invalidateRoutes = () => cacheInvalidatePrefix("lookups:routes:", "
 export const invalidateVehicleTypes = () => cacheInvalidatePrefix("lookups:vehicle-types");
 
 /** Place / FTS writes. */
-export const invalidatePlaces = () => cacheInvalidatePrefix("lookups:places:");
 
 /** Campaign / tier / coupon-claim writes (claims change remaining slots). */
 export const invalidateCampaigns = () => cacheInvalidatePrefix("lookups:campaigns");
