@@ -25,6 +25,12 @@ serde_json = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
+# src/osm/mod.rs includes the backend's osm_reader.rs / spatial.rs / vn_text.rs
+# BY PATH. Those files use these crates, but cargo-machete only scans this
+# crate's own src/ tree and would report them unused.
+[package.metadata.cargo-machete]
+ignored = ["deunicode", "once_cell", "osmpbf", "regex"]
+
 [profile.release]
 opt-level = 3
 lto = "thin"

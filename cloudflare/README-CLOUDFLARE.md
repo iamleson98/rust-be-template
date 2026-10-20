@@ -24,8 +24,8 @@ bun run places:fetch          # download the latest weekly place index into publ
 CI=true bunx wrangler d1 execute DB --local --file migrations/seed.sql   # dev seed data
 bun run dev                   # next dev + initOpenNextCloudflareForDev → real D1/R2 bindings locally
 
-# Drive the cron executor manually:
-curl -X POST localhost:3000/api/jobs/tick -H "X-Cron-Token: dev-cron-service-token"
+# Drive the cron executor manually (token = CRON_SERVICE_TOKEN from .dev.vars):
+curl -X POST localhost:3000/api/jobs/tick -H "X-Cron-Token: $CRON_SERVICE_TOKEN"
 ```
 
 Secrets live in `.dev.vars` (git-ignored).
