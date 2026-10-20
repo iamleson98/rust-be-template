@@ -6,7 +6,7 @@
 # patterns, etc. Not a style gate — a vulnerability discovery gate.
 #
 # TRIGGERS ("verify once" — see docs/CI.md § Trigger):
-#   * pull_request (master) — the gate. Analyzes the MERGE REF, so the
+#   * pull_request (master, feat/cloudflare-migration) — the gate. Analyzes the MERGE REF, so the
 #     exact tree a merge would produce is what gets analyzed; results
 #     annotate the PR. New code cannot land unanalyzed.
 #   * merge_group — merge-queue-ready (no-op until a queue exists).
@@ -26,10 +26,10 @@ name: CodeQL
 
 on:
   pull_request:
-    branches: [master]
+    branches: [master, feat/cloudflare-migration]
   merge_group:
     types: [checks_requested]
-    branches: [master]
+    branches: [master, feat/cloudflare-migration]
   schedule:
     # Mondays 04:30 UTC — off-peak, catches new queries on old code.
     - cron: '30 4 * * 1'
