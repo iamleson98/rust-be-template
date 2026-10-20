@@ -18,14 +18,14 @@
     {
       "binding": "DB",
       "database_name": "datxevui",
-      "database_id": "REPLACE_WITH_YOUR_D1_DATABASE_ID",
+      "database_id": "2b6b3103-eecf-4580-84bf-fc556f45b906",
       "migrations_dir": "migrations"
     }
   ],
   "kv_namespaces": [
     {
       "binding": "CACHE_KV",
-      "id": "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"
+      "id": "afdcb1c28727427a9934b66f5fb3b6f7"
     }
   ],
   "r2_buckets": [
