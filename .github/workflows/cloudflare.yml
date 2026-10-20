@@ -1,15 +1,14 @@
 # ─── Cloudflare app checks (cloudflare/ — Next.js on Workers) ────────
 #
 # Typecheck, lint, format and the workerd test suite (real D1/R2/KV
-# bindings via Miniflare) on every PR that touches the Cloudflare app.
+# bindings via Miniflare) on EVERY pull request. No path filter on purpose:
+# this is a required status check on the default branch, and a required check
+# that never reports (because the PR touched other files) blocks the merge.
 
 name: Cloudflare app
 
 on:
   pull_request:
-    paths:
-      - 'cloudflare/**'
-      - '.github/workflows/cloudflare.yml'
 
 concurrency:
   group: cloudflare-${{ github.ref }}
