@@ -147,11 +147,52 @@ pickup points remain the source of truth for bookable stops.
 
 Three layers, because each tool is good at one thing:
 
-| Layer                             | Guards                          | Exactness                                         | Where                                                                                                                                                                                                                                                                                                                                                                                                          |
-| --------------------------------- | ------------------------------- | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Account lockout**               | password guessing               | exact, durable (D1)                               | `src/lib/auth/lockout.ts` — 5 wrong passwords lock the account for 15 min (`user.failed_login_attempts` / `locked_until`, one atomic `UPDATE`); success or a password change clears it. A locked account answers `429 account-locked` + `Retry-After`.                                                                                                                                                         |
-| **Workers Rate Limiting binding** | per-account / per-user bursts   | best-effort (per location, eventually consistent) | `src/lib/rate-limit.ts` — `AUTH_LIMITER` (10/min, keyed by the account being tried, checked _before_ any DB or hashing work) and `WRITE_LIMITER` (30/min, keyed by user id: booking, coupon claim, payment, chat, review, post, price alert, upload). `429 rate-limited` + `Retry-After: 60` (the full window — the binding does not report what is left). Off when the binding is absent (tests, `next dev`). |
-| **Edge rate-limiting rule (WAF)** | per-IP floods, anonymous writes | per IP                                            | configured in the dashboard, not in code — see below                                                                                                                                                                                                                                                                                                                                                           |
+| Layer                                       | Guards                                        | Exactness                                         | Where                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ------------------------------------------- | --------------------------------------------- | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Account lockout**                         | password guessing                             | exact, durable (D1)                               | `src/lib/auth/lockout.ts` — 5 wrong passwords lock the account for 15 min (`user.failed_login_attempts` / `locked_until`, one atomic `UPDATE`); success or a password change clears it. A locked account answers `429 account-locked` + `Retry-After`.                                                                                                                                                         |
+| **Workers Rate Limiting binding**           | per-account / per-user bursts                 | best-effort (per location, eventually consistent) | `src/lib/rate-limit.ts` — `AUTH_LIMITER` (10/min, keyed by the account being tried, checked _before_ any DB or hashing work) and `WRITE_LIMITER` (30/min, keyed by user id: booking, coupon claim, payment, chat, review, post, price alert, upload). `429 rate-limited` + `Retry-After: 60` (the full window — the binding does not report what is left). Off when the binding is absent (tests, `next dev`). |
+| **Per-IP limiter (Worker, before Next.js)** | per-IP floods on `/api/*` and socket upgrades | best-effort (per location)                        | `src/lib/edge-guard.ts` via `custom-worker.ts` — see below                                                                                                                                                                                                                                                                                                                                                     |
+| **Edge rate-limiting rule (WAF)**           | per-IP floods, before the Worker runs         | per IP                                            | configured in the dashboard, not in code — see below                                                                                                                                                                                                                                                                                                                                                           |
+
+**Per-IP limiter (in code).** `custom-worker.ts` runs `enforceIpLimit` before anything else,
+keyed on `CF-Connecting-IP` with IPv6 collapsed to its /64 (IPv4-mapped IPv6 becomes the
+IPv4 address). Two bindings, 60 s window: `IP_READ_LIMITER` (600/min, the Rust limit) for
+`/api/*`, and `IP_STRICT_LIMITER` (100/min) for `/api/auth/*`, `/api/uploads/*`,
+`/api/search*`, `/api/recommendations`, `/api/vitals`, `/api/ads/*` and `/ws` + `/ws-call`
+upgrades (socket upgrades use their own `ws:` key). Exempt: `/health`, `/ready`,
+`/api/health`, `/sitemap.xml`, `/robots.txt`, `/api/payments/ipn/*`. A limited request gets
+`429` + `Retry-After: 60`. With no binding or no client IP (tests, `next dev`) it fails open.
+Tune `limit` in `wrangler.jsonc`; the strict bucket is shared by everyone behind one
+carrier-grade NAT address, so raise it rather than lower it if real users report 429s.
+
+**Origin check.** POST/PUT/PATCH/DELETE under `/api/` need an `Origin` (or `Referer`) on this
+host or in `WS_ALLOWED_ORIGINS`, else `403 forbidden` (Rust `anti_scraping.rs`). Exempt: IPN
+webhooks, `/api/vitals`, `/api/jobs/tick` (token-authenticated) and `X-Client: mobile`.
+
+**Security headers and caching.** Dynamic responses get HSTS (`max-age=15552000;
+includeSubDomains`), `nosniff`, `X-Frame-Options: DENY` and `Referrer-Policy:
+strict-origin-when-cross-origin` (never overriding a header a route set); `public/_headers`
+adds the same to static files plus a day of cache (+ a week stale-while-revalidate) for
+fonts, icons and images (`sw.js` stays `no-cache`). `GET /api/brands`, `/api/stats`,
+`/api/routes` and `/api/reviews/tags` are served from the Workers Cache API
+(`s-maxage=30, stale-while-revalidate=120`): a hit costs no D1 read and no KV operation. The
+cache is per data centre and only works on a custom domain, not `*.workers.dev`.
+
+### Dashboard steps still to do (cannot be done in code)
+
+1. **Free WAF rate-limit rule for `/api/*`** (stops floods before the Worker is invoked, so it
+   saves requests): Cloudflare dashboard → select `datxevui.com` → **Security → WAF → Rate
+   limiting rules → Create rule**. Name: `api-per-ip`. Expression (edit expression):
+   `starts_with(http.request.uri.path, "/api/")`. Characteristic: **IP**. Requests: **100**,
+   period: **10 seconds** (the free plan only offers 10 s), action **Block**, duration **10
+   seconds**. **Deploy**. The free plan allows one rule, so this replaces the narrower
+   login-only rule suggested below.
+2. **Bot Fight Mode**: **Security → Bots → Bot Fight Mode → On**.
+3. **www → apex 301**: **Rules → Redirect Rules → Create rule**, name `www-to-apex`. Custom
+   filter: Hostname **equals** `www.datxevui.com`. Then: **Dynamic** URL redirect, expression
+   `concat("https://datxevui.com", http.request.uri.path)`, status **301**, **Preserve query
+   string** on. **Deploy**. (The `www` Worker custom domain in `wrangler.jsonc` must stay so the
+   hostname still reaches Cloudflare and the rule can answer it.)
 
 **Edge rule.** Cloudflare's Free plan allows exactly **one** rate-limiting rule (counted per
 IP, 10 s window, 10 s block); Pro allows two. Spend the one rule on the endpoints that are
