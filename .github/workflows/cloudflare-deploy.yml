@@ -1,0 +1,100 @@
+# ─── Deploy the Cloudflare app (Next.js on Workers + D1 + R2) ─────────
+#
+# One deploy path for everything:
+#   push to the DEFAULT branch (a merged PR)   → this workflow
+#   weekly place-index build (place-index.yml) → calls this workflow
+#   manual                                      → Actions → Run workflow
+#
+# Steps: typecheck + tests → install the latest place index → apply pending D1
+# migrations → build + deploy → check the live /health.
+#
+# The branch gate reads the repository's default branch at run time, so
+# renaming it needs no edit here. Feature-branch pushes only run
+# cloudflare.yml (checks); they never deploy.
+#
+# Secrets (repo → Settings → Secrets → Actions): CLOUDFLARE_API_TOKEN (Workers
+# write + D1 edit), CLOUDFLARE_ACCOUNT_ID. Variable (optional): SITE_URL, the
+# public origin used for the post-deploy health check.
+#
+# Migrations run BEFORE the new code goes live, so a migration must keep the
+# previous version working (add columns/tables; remove things in a later
+# release). Deploys never overlap: runs queue behind each other.
+
+name: Cloudflare deploy
+
+on:
+  push:
+    branches: ['**']
+    paths:
+      - 'cloudflare/**'
+      - '.github/workflows/cloudflare-deploy.yml'
+  workflow_dispatch:
+  workflow_call:
+
+concurrency:
+  group: cloudflare-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Test, migrate, deploy
+    # A push only deploys from the default branch; dispatch / workflow_call
+    # deploy whatever ref they were started on.
+    if: github.event_name != 'push' || github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: cloudflare
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CI: 'true'
+    steps:
+      - name: Guard — Cloudflare credentials present?
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::error::CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID are not set — cannot deploy."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+
+      # Never ship a build that fails its own checks (also covers direct pushes).
+      - run: bun run typecheck
+      - run: bun run test
+
+      # The place-search shards are generated weekly and published as a release
+      # asset; a code deploy picks up the latest instead of rebuilding them.
+      - name: Install the latest place index
+        run: bash scripts/fetch-place-index.sh
+
+      - name: Apply pending D1 migrations
+        run: bunx wrangler d1 migrations apply DB --remote
+
+      - name: Build and deploy the Worker
+        run: bun run deploy
+
+      - name: Post-deploy health check
+        env:
+          SITE_URL: ${{ vars.SITE_URL }}
+        run: |
+          if [ -z "$SITE_URL" ]; then
+            echo "::notice::SITE_URL variable not set — skipping the health check."
+            exit 0
+          fi
+          for attempt in 1 2 3 4 5 6; do
+            if curl --fail --silent --show-error --max-time 15 "$SITE_URL/health"; then
+              echo
+              echo "healthy after attempt $attempt"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::$SITE_URL/health did not come back healthy after the deploy."
+          exit 1

@@ -36,20 +36,39 @@ Secrets live in `.dev.vars` (git-ignored).
 
 ## Production build & deploy
 
-```bash
-bunx next build                     # standard Next.js build
-bunx opennextjs-cloudflare build    # → .open-next/worker.js (Workers bundle)
-bun run preview                     # wrangler dev against the real built worker
-bun run deploy                      # wrangler deploy
+**Merging to the default branch deploys.** `feat/cloudflare-migration` is the repository's
+default branch; every PR targets it, and a push to it runs `.github/workflows/cloudflare-deploy.yml`:
+
+```text
+typecheck + tests → install the latest place index → apply pending D1 migrations
+  → opennextjs-cloudflare build + deploy → GET $SITE_URL/health
 ```
 
-Before the first deploy:
+- Deploys never overlap (runs queue), and a failing test or typecheck stops before anything
+  ships. Feature-branch pushes only run the checks in `cloudflare.yml`; they never deploy.
+- **Migrations run before the new code goes live**, so write them to keep the previous version
+  working (add columns/tables now, remove things in a later release).
+- The weekly `place-index.yml` build rebuilds the OSM shards, publishes the `place-index`
+  release and calls the same deploy workflow.
+- Repo settings it relies on: secrets `CLOUDFLARE_API_TOKEN` (Workers write + **D1 edit**) and
+  `CLOUDFLARE_ACCOUNT_ID`; variable `SITE_URL` (the public origin, for the health check).
+- Rollback: Cloudflare keeps previous versions (`bunx wrangler rollback`); D1 migrations are
+  forward-only, which is why they must stay backward compatible.
 
-1. `bunx wrangler d1 create datxevui` → put the returned `database_id` into `wrangler.jsonc`
-2. `bunx wrangler r2 bucket create datxevui-uploads`
-3. Set secrets: `wrangler secret put JWT_SECRET`, `wrangler secret put CRON_SERVICE_TOKEN` (+ payment secrets as needed)
-4. `bun run db:migrate:remote`
-5. `bun run places:fetch` (the build ships the place index as static assets; `bun run deploy` does not fetch it for you)
+Manual deploy from a laptop (needs `wrangler login` or `CLOUDFLARE_API_TOKEN`):
+
+```bash
+bun install --frozen-lockfile
+bun run places:fetch                      # latest place index into public/places/
+bunx wrangler d1 migrations apply DB --remote
+bun run deploy                            # opennextjs-cloudflare build + deploy
+```
+
+One-time setup (already done for the production account): `wrangler d1 create datxevui
+--location apac`, `wrangler kv namespace create CACHE_KV`, `wrangler r2 bucket create
+datxevui-uploads` (ids go in `wrangler.jsonc`), `wrangler secret put JWT_SECRET`,
+`CRON_SERVICE_TOKEN`, and the TURN key (`TURN_KEY_ID`, `TURN_KEY_API_TOKEN`). **Register the
+first account yourself right after the first deploy: the first registrant becomes admin.**
 
 ## Cron jobs (no container)
 

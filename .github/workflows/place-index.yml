@@ -20,8 +20,9 @@
 # Ordinary deploys (cloudflare/scripts/fetch-place-index.sh) download it, so a
 # code deploy never ships without an index and never has to rebuild one.
 #
-# Secrets for the deploy step: CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID
-# (the step is skipped, with a notice, when they are absent).
+# The redeploy is the shared cloudflare-deploy.yml (tests → D1 migrations →
+# build + deploy → health check), so scheduled and merge-triggered deploys are
+# identical. Secrets: CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID.
 
 name: Place index
 
@@ -155,24 +156,11 @@ jobs:
               --notes "Weekly OSM place-search shards. Consumed by cloudflare/scripts/fetch-place-index.sh; replaced in place every run."
           gh release upload place-index place-index.tgz --clobber
 
-      - name: Guard — Cloudflare secrets present?
-        if: github.event_name != 'pull_request' && inputs.deploy != false
-        id: cf
-        env:
-          TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          if [ -z "$TOKEN" ] || [ -z "$ACCOUNT" ]; then
-            echo "::notice::CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID not set — index published, deploy skipped."
-            echo "ready=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "ready=true" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Build + deploy the Worker with the new index
-        if: steps.cf.outputs.ready == 'true'
-        working-directory: cloudflare
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: bun run deploy
+  deploy:
+    name: Redeploy the Worker with the new index
+    needs: index
+    if: github.event_name != 'pull_request' && inputs.deploy != false
+    permissions:
+      contents: read
+    uses: ./.github/workflows/cloudflare-deploy.yml
+    secrets: inherit

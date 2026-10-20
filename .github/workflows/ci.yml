@@ -74,14 +74,16 @@
 name: CI
 
 on:
-  # The ONLY binding gate: PRs targeting master. Pre-PR feedback on a
-  # feature branch = open a (draft) PR — it triggers the same matrix.
+  # The ONLY binding gate: PRs targeting the integration branch. Pre-PR
+  # feedback on a feature branch = open a (draft) PR — it triggers the same
+  # matrix. feat/cloudflare-migration is the default (deploy) branch; master
+  # is kept as the Rust-era baseline.
   pull_request:
-    branches: [master]
+    branches: [master, feat/cloudflare-migration]
   # Merge-queue-ready (no-op until a queue is enabled in repo Settings).
   merge_group:
     types: [checks_requested]
-    branches: [master]
+    branches: [master, feat/cloudflare-migration]
   # Weekly drift canary (engine-upstream + advisory drift on master).
   schedule:
     - cron: '0 3 * * 1'  # Mondays 03:00 UTC, off-peak
