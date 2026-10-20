@@ -546,7 +546,7 @@ export const vi: TranslationMap = {
   "adminChat.onlineNow": "Đang online",
   "adminChat.offlineSection": "Ngoại tuyến",
   "adminChat.customersOnline": "{count} khách online",
-  "adminChat.customersOnlineTitle": "Khách đã đăng nhập và đang mở trang web",
+  "adminChat.customersOnlineTitle": "Khách đã đăng nhập và đang mở khung chat hỗ trợ",
   "adminChat.customer": "Khách",
   "adminChat.today": "Hôm nay",
   "adminChat.yesterday": "Hôm qua",

@@ -13,7 +13,6 @@ export const Footer = lazyNamed(() => import("./layout/footer"), "Footer");
 export const MobileNav = lazyNamed(() => import("./layout/mobile-nav"), "MobileNav");
 export const SupportFab = lazyNamed(() => import("./layout/support-fab"), "SupportFab");
 const ChatWidget = lazyNamed(() => import("@spa/features/chat/widget/chat-widget"), "ChatWidget");
-const SitePresence = lazyNamed(() => import("@spa/features/chat/site-presence"), "SitePresence");
 const AudioCallWidget = lazyNamed(
   () => import("@spa/features/call/audio-call-widget"),
   "AudioCallWidget",
@@ -52,10 +51,6 @@ export function Overlays() {
 
   return (
     <>
-      {/* Always mounted: support sees a signed-in customer as online. */}
-      <Deferred>
-        <SitePresence />
-      </Deferred>
       {chatOpen && (
         <Deferred>
           <ChatWidget />

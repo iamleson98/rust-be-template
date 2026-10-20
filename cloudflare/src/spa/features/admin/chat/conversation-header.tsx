@@ -46,7 +46,7 @@ type Props = {
   /** Back to the queue — phones and tablets show one pane at a time. */
   onBack?: () => void;
   channel: ChatChannelOut;
-  /** The customer is signed in with the site open. */
+  /** The customer is signed in with the support chat open. */
   userOnline: boolean;
   typingUser: { name: string } | null;
   busy: boolean;

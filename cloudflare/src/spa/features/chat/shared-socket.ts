@@ -5,10 +5,9 @@ const listeners = new Set<() => void>();
 const notify = () => listeners.forEach((listener) => listener());
 
 /**
- * The tab's one chat socket. Everything that needs it — the presence that
- * tells support a customer is on the site, the support panel, the staff
- * workspace — holds it while mounted; it closes when the last holder lets go.
- * One socket per tab keeps "online" honest: it ends when the tab closes.
+ * The tab's one chat socket. Everything that needs it — the customer's
+ * support panel, the staff chat workspace — holds it while mounted; it closes
+ * when the last holder lets go, so nothing connects until chat is opened.
  */
 export function holdChatSocket(): { client: WsClient; release: () => void } {
   if (!shared) {
