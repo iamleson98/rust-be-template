@@ -28,13 +28,15 @@
 import http from "node:http";
 
 const PORT = Number(process.env.PORT ?? 8080);
-const APP_URL = process.env.APP_URL ?? "http://datxevui.example.workers.dev";
+const APP_URL = process.env.APP_URL ?? "";
 const CRON_TOKEN = process.env.CRON_SERVICE_TOKEN ?? "";
 const TICK_INTERVAL_MS = Number(process.env.TICK_INTERVAL_MS ?? 60_000);
 const WARM_INTERVAL_MS = Number(process.env.WARM_INTERVAL_MS ?? 6 * 3600_000);
 
-if (!CRON_TOKEN) {
-  console.error("[cron] CRON_SERVICE_TOKEN is required (must match the Worker's secret)");
+if (!CRON_TOKEN || !APP_URL) {
+  console.error(
+    "[cron] APP_URL and CRON_SERVICE_TOKEN are required (passed by the CronContainer DO on start)",
+  );
   process.exit(1);
 }
 
@@ -44,7 +46,7 @@ let running = false;
 let consecutiveFailures = 0;
 const history = [];
 
-async function callTick(reason: string): Promise<void> {
+async function callTick(reason) {
   if (running) {
     console.log(`[cron] tick skipped (${reason}): previous tick still running`);
     return;

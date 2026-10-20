@@ -22,6 +22,8 @@ declare interface CloudflareEnv {
   JWT_ACCESS_TTL_SECS?: string;
   JWT_REFRESH_TTL_SECS?: string;
   CRON_SERVICE_TOKEN?: string;
+  /** Public origin of this Worker; the cron container calls `${APP_URL}/api/jobs/tick`. */
+  APP_URL?: string;
   /** "lax" (default, first-party production) | "none" (cross-site-capable preview). */
   COOKIE_SAMESITE?: string;
   /** Optional cross-isolate cache tier; absent → memory-only caching. */

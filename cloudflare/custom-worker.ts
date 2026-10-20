@@ -26,19 +26,32 @@ import { CallHub } from "./call-hub";
 
 interface ContainerLike {
   running: boolean;
-  start: () => void;
+  start: (options?: { env?: Record<string, string>; enableInternet?: boolean }) => void;
   setInactivityTimeout: (ms: number) => Promise<void>;
   getTcpPort: (port: number) => { fetch: (req: Request) => Promise<Response> };
 }
 
-export class CronContainer extends DurableObject {
+export class CronContainer extends DurableObject<CloudflareEnv> {
   async fetch(request: Request): Promise<Response> {
     const container = (this.ctx as unknown as { container: ContainerLike }).container;
     if (!container) {
       return new Response("container unavailable", { status: 500 });
     }
     await container.setInactivityTimeout(10 * 60 * 1000);
-    if (!container.running) container.start();
+    if (!container.running) {
+      // Containers have no dashboard env: everything the cron driver needs
+      // must be handed over here, from the Worker's own vars/secrets.
+      const { APP_URL, CRON_SERVICE_TOKEN } = this.env;
+      if (!APP_URL || !CRON_SERVICE_TOKEN) {
+        return new Response("APP_URL and CRON_SERVICE_TOKEN must be set on the Worker", {
+          status: 500,
+        });
+      }
+      container.start({
+        env: { APP_URL, CRON_SERVICE_TOKEN },
+        enableInternet: true,
+      });
+    }
     const port = container.getTcpPort(8080);
 
     // Poll the health endpoint until the app inside is ready.

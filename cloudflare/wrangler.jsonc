@@ -76,6 +76,7 @@
   },
   "vars": {
     "APP_ENV": "production",
+    "APP_URL": "REPLACE_WITH_PUBLIC_ORIGIN",
     "PAYMENT_COD_ENABLED": "true",
     "VNPAY_ENABLED": "false",
     "VIETQR_ENABLED": "true",
