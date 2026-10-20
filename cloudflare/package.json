@@ -22,7 +22,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "places:build": "bun scripts/build-place-shards.ts"
+    "places:build": "bun scripts/build-place-shards.ts",
+    "places:fetch": "bash scripts/fetch-place-index.sh"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

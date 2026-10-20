@@ -1,0 +1,44 @@
+# ─── Cloudflare app checks (cloudflare/ — Next.js on Workers) ────────
+#
+# Typecheck, lint, format and the workerd test suite (real D1/R2/KV
+# bindings via Miniflare) on every PR that touches the Cloudflare app.
+
+name: Cloudflare app
+
+on:
+  pull_request:
+    paths:
+      - 'cloudflare/**'
+      - '.github/workflows/cloudflare.yml'
+
+concurrency:
+  group: cloudflare-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Typecheck, lint, format, test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: cloudflare
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+      - run: bunx eslint src tests custom-worker.ts
+      - run: bunx prettier --check src tests scripts custom-worker.ts
+      - run: bun run test
+      - name: Drizzle schema has no un-generated changes
+        run: |
+          bunx drizzle-kit generate --name=ci_drift
+          if [ -n "$(git status --porcelain -- migrations)" ]; then
+            git status --short -- migrations
+            echo "::error::schema.ts changed without a generated migration (run bun run db:generate)"
+            exit 1
+          fi

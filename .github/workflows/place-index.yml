@@ -1,0 +1,169 @@
+# ─── Place-search index: rebuilt weekly from OpenStreetMap ───────────
+#
+# Geofabrik Vietnam extract  →  tools/place-extract (Rust, ~25 s)
+#   →  cloudflare/scripts/build-place-shards.ts  →  cloudflare/public/places/**
+#
+# The shards ship WITH the Worker as static assets, so place search needs no
+# database, container or native binary at runtime (see
+# cloudflare/src/lib/places/format.ts). Everything heavy happens here, on a
+# free GitHub runner, once a week.
+#
+# Triggers
+#   schedule          — Mondays 03:17 Vietnam time (Sunday 20:17 UTC): build,
+#                       publish the `place-index` release asset, redeploy.
+#   workflow_dispatch — same; `deploy: false` builds + publishes only.
+#   pull_request      — build + validate only (never publishes or deploys), so
+#                       a change to the extractor / builder / search format is
+#                       exercised against the REAL extract before it merges.
+#
+# Publishing: the tarball is attached to the rolling `place-index` release.
+# Ordinary deploys (cloudflare/scripts/fetch-place-index.sh) download it, so a
+# code deploy never ships without an index and never has to rebuild one.
+#
+# Secrets for the deploy step: CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID
+# (the step is skipped, with a notice, when they are absent).
+
+name: Place index
+
+on:
+  schedule:
+    - cron: '17 20 * * 0'
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: 'Redeploy the Worker with the new index'
+        type: boolean
+        default: true
+  pull_request:
+    paths:
+      - 'tools/place-extract/**'
+      - 'src/osm/osm_reader.rs'
+      - 'src/osm/spatial.rs'
+      - 'src/osm/vn_text.rs'
+      - 'cloudflare/src/lib/places/**'
+      - 'cloudflare/src/lib/cities.ts'
+      - 'cloudflare/scripts/build-place-shards.ts'
+      - '.github/workflows/place-index.yml'
+
+concurrency:
+  group: place-index-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  # Geofabrik asks bulk consumers to identify themselves.
+  OSM_USER_AGENT: datxevui-place-index (+https://github.com/iamleson98/rust-be-template)
+  OSM_URL: https://download.geofabrik.de/asia/vietnam-latest.osm.pbf
+  # The real extract is ~330 MB; anything far below is an error page.
+  OSM_MIN_BYTES: '150000000'
+  # A healthy extract yields ~28k places; far fewer means the pipeline broke.
+  MIN_PLACES: '15000'
+
+jobs:
+  index:
+    name: Extract + build the place index
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write # attach the tarball to the rolling release
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cargo cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            tools/place-extract/target
+          key: place-extract-${{ runner.os }}-${{ hashFiles('tools/place-extract/Cargo.lock') }}
+          restore-keys: place-extract-${{ runner.os }}-
+
+      - name: Test + build the extractor
+        working-directory: tools/place-extract
+        run: |
+          cargo test --locked
+          cargo build --release --locked
+
+      - name: Download the Vietnam extract
+        run: |
+          curl --fail --silent --show-error --location --retry 3 --retry-delay 20 \
+            -A "$OSM_USER_AGENT" -o vietnam-latest.osm.pbf "$OSM_URL"
+          size=$(stat -c %s vietnam-latest.osm.pbf)
+          echo "extract: $size bytes"
+          if [ "$size" -lt "$OSM_MIN_BYTES" ]; then
+            echo "::error::extract is only $size bytes — truncated download or an error page"
+            exit 1
+          fi
+
+      - name: Extract travel places
+        run: |
+          tools/place-extract/target/release/place-extract vietnam-latest.osm.pbf \
+            --out places.ndjson --tmp-dir "$RUNNER_TEMP/place-extract"
+          wc -l places.ndjson
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install web dependencies
+        working-directory: cloudflare
+        run: bun install --frozen-lockfile
+
+      - name: Build the shards
+        working-directory: cloudflare
+        run: bun scripts/build-place-shards.ts ../places.ndjson --out public/places
+
+      - name: Sanity-check the index
+        working-directory: cloudflare
+        run: |
+          count=$(bun -e 'console.log(JSON.parse(await Bun.file("public/places/manifest.json").text()).count)')
+          echo "unique places: $count"
+          if [ "$count" -lt "$MIN_PLACES" ]; then
+            echo "::error::only $count places (< $MIN_PLACES) — refusing to publish"
+            exit 1
+          fi
+
+      - name: Package
+        run: tar -czf place-index.tgz -C cloudflare/public places
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: place-index
+          path: place-index.tgz
+          retention-days: 14
+
+      - name: Publish the rolling `place-index` release
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view place-index >/dev/null 2>&1 || \
+            gh release create place-index --title "Place index (rolling)" \
+              --notes "Weekly OSM place-search shards. Consumed by cloudflare/scripts/fetch-place-index.sh; replaced in place every run."
+          gh release upload place-index place-index.tgz --clobber
+
+      - name: Guard — Cloudflare secrets present?
+        if: github.event_name != 'pull_request' && inputs.deploy != false
+        id: cf
+        env:
+          TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$TOKEN" ] || [ -z "$ACCOUNT" ]; then
+            echo "::notice::CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID not set — index published, deploy skipped."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build + deploy the Worker with the new index
+        if: steps.cf.outputs.ready == 'true'
+        working-directory: cloudflare
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: bun run deploy

@@ -4,26 +4,27 @@ The Rust/axum backend + React SPA are being migrated to a single **Next.js 16 ap
 
 **The frontend is the original DatXeVui SPA, ported verbatim** (`src/spa/` — the React 19 + TanStack Router + Tailwind 4 app from `frontend/`, adapted only for `@spa/*` import aliases and Next.js env access). It mounts client-side through the `src/app/[[...slug]]` catch-all; every route, component, layout and style matches the deployed production UI. The backend contract (121 OpenAPI paths) is implemented by the App Router API routes and the two WebSocket Durable Objects.
 
-| Capability | Before (Rust + VPS) | After (this app) |
-|---|---|---|
-| Frontend + API | axum + Vite React SPA (2 deploys) | **The original SPA verbatim** (`src/spa/`) + App Router API routes on Workers (1 deploy) |
-| SQLite storage | rustqlite file on VPS | **Cloudflare D1** (SQLite at the edge) |
-| Full-text place search | Tantivy (in-process index) | **D1 FTS5** virtual table + triggers |
-| Image storage (brand logos, route pictures) | S3/rustfs | **R2 bucket** (`/api/media/*` proxy + admin upload) |
-| Chat socket (`/ws`) | tokio WS hub | **ChatHub Durable Object** (`chat-hub.ts`) — same JSON frame protocol: join/leave/message/typing, presence fan-out, clientMsgId-idempotent persistence |
-| Audio-call signalling (`/ws-call`) | tokio WS hub + coturn | **CallHub Durable Object** (`call-hub.ts`) — SDP/ICE relay, `to: "agent"` routing, presence + public STUN |
-| Cron jobs | tokio scheduler in-process | **Cloudflare Container** (node timers) + Worker Cron-Trigger heartbeat |
-| Auth | JWT + argon2 + refresh rotation | JWT (jose, HS256) + PBKDF2 (WebCrypto) + refresh rotation — same cookie semantics |
+| Capability                                  | Before (Rust + VPS)               | After (this app)                                                                                                                                       |
+| ------------------------------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Frontend + API                              | axum + Vite React SPA (2 deploys) | **The original SPA verbatim** (`src/spa/`) + App Router API routes on Workers (1 deploy)                                                               |
+| SQLite storage                              | rustqlite file on VPS             | **Cloudflare D1** (SQLite at the edge)                                                                                                                 |
+| Full-text place search                      | Tantivy (in-process index)        | **Static shard index** built weekly by CI, served as Worker static assets (see below)                                                                  |
+| Image storage (brand logos, route pictures) | S3/rustfs                         | **R2 bucket** (`/api/media/*` proxy + admin upload)                                                                                                    |
+| Chat socket (`/ws`)                         | tokio WS hub                      | **ChatHub Durable Object** (`chat-hub.ts`) — same JSON frame protocol: join/leave/message/typing, presence fan-out, clientMsgId-idempotent persistence |
+| Audio-call signalling (`/ws-call`)          | tokio WS hub + coturn             | **CallHub Durable Object** (`call-hub.ts`) — SDP/ICE relay, `to: "agent"` routing, presence + public STUN                                              |
+| Cron jobs                                   | tokio scheduler in-process        | **Worker Cron Trigger** (every minute) running the job executor in-process — no container                                                              |
+| Auth                                        | JWT + argon2 + refresh rotation   | JWT (jose, HS256) + PBKDF2 (WebCrypto) + refresh rotation — same cookie semantics                                                                      |
 
 ## Local development
 
 ```bash
 bun install
-bun run db:migrate:local      # apply D1 migrations (incl. FTS5 + seeds)
+bun run db:migrate:local      # apply D1 migrations (incl. seeds)
+bun run places:fetch          # download the latest weekly place index into public/places/
 CI=true bunx wrangler d1 execute DB --local --file migrations/seed.sql   # dev seed data
 bun run dev                   # next dev + initOpenNextCloudflareForDev → real D1/R2 bindings locally
 
-# Drive the cron executor manually (or run the container):
+# Drive the cron executor manually:
 curl -X POST localhost:3000/api/jobs/tick -H "X-Cron-Token: dev-cron-service-token"
 ```
 
@@ -48,29 +49,62 @@ Before the first deploy:
 2. `bunx wrangler r2 bucket create datxevui-uploads`
 3. Set secrets: `wrangler secret put JWT_SECRET`, `wrangler secret put CRON_SERVICE_TOKEN` (+ payment secrets as needed)
 4. `bun run db:migrate:remote`
-5. Configure the container env vars (`APP_URL`, `CRON_SERVICE_TOKEN`) — see `container/.env.example`
+5. `bun run places:fetch` (the build ships the place index as static assets; `bun run deploy` does not fetch it for you)
 
-## The cron container
+## Cron jobs (no container)
 
-`container/` builds a Node 22 image that owns the schedules (per the migration plan):
-a per-minute tick POSTs `/api/jobs/tick` on the Worker with the shared service token.
-The Worker's `scheduled` handler (Cron Trigger `* * * * *`) pings the container's
-`/health` as a heartbeat so it never sleeps. `custom-worker.ts` wires the
-`CronContainer` Durable Object that wraps the image.
+The Worker's Cron Trigger (`* * * * *`, see `wrangler.jsonc`) calls `scheduled()` in
+`custom-worker.ts`, which feeds a synthetic `POST /api/jobs/tick` through the Next.js
+handler in-process — same bindings, same request context as any API route, no public round
+trip. The route stays callable with the `CRON_SERVICE_TOKEN` for manual runs.
 
-The Rust scheduler's built-in catalog maps 1:1 onto the Workers stack:
+Table-driven jobs are **claimed** with a compare-and-swap lease on `scheduled_job.next_run_at`
+before they run, so overlapping ticks (a slow run, the admin "trigger" button) never run a
+slot twice; a failed run is retried when its 10-minute lease expires. Frequent jobs
+(`holds.sweep`) are idempotent under overlap instead.
 
-| Rust job | Cadence | Cloudflare implementation |
-|---|---|---|
-| `osm.import` (Tantivy place-index refresh) | biweekly 02:00 | **`fts.reindex`** daily 03:00 — `INSERT INTO place_fts(place_fts) VALUES('rebuild')` (D1 FTS5 replaced the 500 MB Tantivy pipeline; place-table triggers keep the index live between rebuilds). Manually triggerable + run history from the admin cron-jobs page. |
+| Rust job                                       | Cadence     | Cloudflare implementation                                                                                                                                                                      |
+| ---------------------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `osm.import` (Tantivy place-index refresh)     | biweekly    | **Weekly CI**, not a runtime job — see "Place search"                                                                                                                                          |
 | `coupons.expire` (campaign program expiration) | daily 00:10 | **`coupons.expire`** daily 00:10 — expires stale held coupons AND clears `active_holder`; ALSO enforced lazily at claim + wallet reads (a late/skipped run never lets a stale coupon through). |
-| (in-process timers) `expire_stale_holds` | 60s | **`holds.sweep`** every tick — cancels expired pending bookings, frees seats, returns their coupons. |
-| (in-process timers) trip materializer | 6h | **`trips.warm`** every 6h — materializes trip_session + seat inventory for the 14-day sell window. |
-| — | daily | **`trips.prune`** 02:30 + **`jobs.retention`** 04:00 (maintenance). |
+| (in-process timers) `expire_stale_holds`       | 60s         | **`holds.sweep`** every tick — cancels expired pending bookings (in chunks of 20, D1 caps statements at 100 bound parameters), frees seats, returns their coupons.                             |
+| (in-process timers) trip materializer          | 6h          | **`trips.warm`** every 6h — materializes trip_session + seat inventory for the 14-day sell window.                                                                                             |
+| —                                              | daily       | **`trips.prune`** 02:30 + **`jobs.retention`** 04:00 (maintenance).                                                                                                                            |
 
 Every run is recorded in `job_run` (30-day retention) and visible on the admin
 cron-jobs page; `PATCH /api/admin/cron-jobs/{jobType}` reschedules table-driven
 rows live.
+
+## Place search (static shard index)
+
+Place search has no database, container or native binary at runtime.
+
+```text
+Geofabrik Vietnam .osm.pbf ──► tools/place-extract (Rust) ──► places.ndjson
+        ──► scripts/build-place-shards.ts ──► public/places/** ──► static assets
+```
+
+- **Extractor** (`tools/place-extract`): a standalone crate that reuses the backend's
+  `osm_reader` / `spatial` / `vn_text` by path, keeping only travel-relevant places —
+  settlements, admin areas, intercity stations, airports, ferry terminals, major
+  attractions. On the real extract: ~25 s, ~260 MB RAM, ~28.7k places.
+- **Builder** (`src/lib/places/build.ts`): drops places outside the 63 served provinces
+  (the Geofabrik clip includes Laos/Cambodia/China border areas), canonicalises province
+  names to `src/lib/cities.ts`, merges the node + relation twins of one city, and writes
+  prefix-sharded search files (`s/<key>.json`, 3-char prefix, split to 4 when > 1,200
+  records) plus 0.25° geo cells for reverse geocoding (`g/<cell>.json`). Real data:
+  ~22.8k places, 8.4 MB raw / 2.5 MB gzipped, 2,118 shards (largest 251 KB).
+- **Search** (`src/lib/places/search.ts`): reads only the shards a query needs through the
+  `ASSETS` binding (typically 2–4 files, 25–170 KB, < 10 ms warm) with a bounded
+  per-isolate cache. Tone/case/spacing-insensitive, prefix matching, `hanoi` = `ha noi`,
+  type words (`ga`, `bến xe`, `phường`) are optional but ranked, address context counts.
+- **CI** (`.github/workflows/place-index.yml`): weekly (Mondays 03:17 Vietnam time) it builds
+  the index, attaches `place-index.tgz` to the rolling `place-index` release, and redeploys.
+  Ordinary deploys run `bun run places:fetch` to pick up the same tarball. Pull requests that
+  touch the pipeline build against the real extract but never publish.
+
+OSM does not map every station (e.g. Bến xe Mỹ Đình is absent from the extract); brand
+pickup points remain the source of truth for bookable stops.
 
 ## API surface
 
@@ -78,7 +112,7 @@ All 121 OpenAPI contract paths from the Rust backend are implemented:
 
 - **Customer**: auth (login/register/refresh/me/logout/password/employee-login),
   OAuth provider discovery (+ start/callback 501-stubs until credentials are set),
-  place search/list/reverse (FTS5), trip search + geo search, recommendations,
+  place search/list/reverse (static shards), trip search + geo search, recommendations,
   trip detail + seat map, booking hold/place/cancel, payments (COD, VietQR, VNPay
   URL, MoMo/ZaloPay env-gated) + IPN webhooks, coupons wallet + give-up,
   campaign listing + tier claim, loyalty, notifications, price alerts, reviews
@@ -111,7 +145,7 @@ with a healing fallback that derives permissions from `users.role` when the
   `/ws-call` register → offer relay (`incoming`) → hangup
 - **Contract sweep**: 63/63 OpenAPI GET/POST endpoints return JSON (no SPA-HTML
   fallback), authed as admin
-- End-to-end against local D1: register/login/refresh/logout, FTS5 place search,
+- End-to-end against local D1: register/login/refresh/logout, shard-index place search,
   trip search with facets, all-or-nothing seat claim (409 on conflict),
   child-discount fare logic, COD payment → mark-collected → booking confirmed,
   hold-expiry sweep, trips.warm (98 sessions), R2 media upload/serve with ETag/304
@@ -146,8 +180,8 @@ see `scripts/check-drizzle-drift.py` for the schema-vs-migrations diff tool).
 ## SQL style policy
 
 - **Standard CRUD** → the drizzle query builder (`db.select/insert/update/
-  delete` over typed tables): typed results, free parameterization.
-- **FTS5 `MATCH`, recursive CTEs, conditional atomic `UPDATE`s, analytics**
+delete` over typed tables): typed results, free parameterization.
+- **Recursive CTEs, conditional atomic `UPDATE`s, analytics**
   → `sql` tagged templates (`rawAll`/`rawRun`). Values interpolate as bound
   parameters, so both styles are injection-safe; the builder is simply the
   more ergonomic default.
@@ -158,7 +192,7 @@ see `scripts/check-drizzle-drift.py` for the schema-vs-migrations diff tool).
 - Sweep status: services (`lookups`, `jobs`, `chat`, `booking`, `claim`,
   `coupons/mine`, `cron-jobs`, `reviews/[id]`, `admin/stats`) are builder-first;
   the remaining `sql` templates in them are the documented exceptions above
-  (FTS5, json_each, scalar-subquery counters, conditional UPDATE guards,
+  (json_each, scalar-subquery counters, conditional UPDATE guards,
   dynamic unread column).
 
 ## Coupon lifecycle (Rust parity, enforced end to end)
@@ -244,7 +278,7 @@ nightly coupons.expire + lazy expiry at claim/wallet ─► expired + holder cle
   `Secure` when the request is HTTPS (`x-forwarded-proto` aware) — the Rust
   backend's default.
 - **`none`** (set in `.dev.vars` for the sandbox preview): `SameSite=None;
-  Secure; Partitioned` — the CHIPS combination. The preview is served on a
+Secure; Partitioned` — the CHIPS combination. The preview is served on a
   proxied HTTPS origin inside a cross-site iframe, where browsers drop Lax
   cookies (the "logs in, bounces back to /login" loop). Partitioned cookies
   survive third-party cookie blocking while staying double-keyed to the
