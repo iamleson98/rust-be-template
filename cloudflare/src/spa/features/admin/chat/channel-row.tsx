@@ -12,7 +12,7 @@ type Props = {
   selected: boolean;
   /** A customer message arrived here while it was not open. */
   unseen: boolean;
-  /** The customer is signed in with the site open. */
+  /** The customer is signed in with the support chat open. */
   online: boolean;
   onOpen: () => void;
 };

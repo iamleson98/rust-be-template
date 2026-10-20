@@ -545,7 +545,7 @@ export const en: TranslationMap = {
   "adminChat.onlineNow": "Online now",
   "adminChat.offlineSection": "Offline",
   "adminChat.customersOnline": "{count} customers online",
-  "adminChat.customersOnlineTitle": "Signed-in customers with the site open",
+  "adminChat.customersOnlineTitle": "Signed-in customers with the support chat open",
   "adminChat.customer": "Customer",
   "adminChat.today": "Today",
   "adminChat.yesterday": "Yesterday",

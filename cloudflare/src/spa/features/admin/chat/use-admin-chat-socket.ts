@@ -128,7 +128,7 @@ export function useAdminChatSocket(
     unseen,
     staffPresence,
     sendTyping,
-    /** Customers signed in with the site open. */
+    /** Customers with the support panel open. */
     onlineUserIds,
     /** Open channels of online customers (may include ones the list has not loaded). */
     onlineChannels: online.data?.items ?? [],

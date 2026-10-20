@@ -38,7 +38,7 @@ export type ChatEvent =
     }
   | { type: "typing"; channelId: string; userId?: string; name: string; isTyping: boolean }
   | {
-      /** A customer signed in with the site open (first tab) or left (last tab). */
+      /** A customer opened the support chat (first tab) or left (last tab). */
       type: "customer_presence";
       userId: string;
       online: boolean;

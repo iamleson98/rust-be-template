@@ -6,7 +6,7 @@ export type PresenceEvents = ReadonlyMap<string, { online: boolean; seq: number 
 type Snapshot = { seq: number; userIds: string[] };
 
 /**
- * Customers online right now (signed in with the site open): the
+ * Customers online right now (signed in with the support chat open): the
  * `GET /api/chat/channels/online` snapshot, corrected by the live events newer
  * than it. Snapshot and events carry the hub's presence sequence number — a
  * page refresh closes one socket and opens another within milliseconds, and
