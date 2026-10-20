@@ -277,7 +277,7 @@ describe("public JSON cache", () => {
 
 describe("static files", () => {
   it("_headers carries the security headers, asset caching and a no-cache sw.js", () => {
-    expect(headersFile).toMatch(/\/\*\n(\s+.+\n)*\s+X-Frame-Options: DENY/);
+    expect(headersFile).toMatch(/\/\*\n(?:[ \t]+[^\n]+\n)*[ \t]+X-Frame-Options: DENY/);
     expect(headersFile).toContain("Strict-Transport-Security");
     expect(headersFile).toContain("X-Content-Type-Options: nosniff");
     expect(headersFile).toContain("Referrer-Policy: strict-origin-when-cross-origin");
