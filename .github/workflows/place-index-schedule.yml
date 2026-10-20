@@ -1,0 +1,44 @@
+# ─── Weekly trigger for the Cloudflare place-index build ─────────────
+#
+# GitHub only fires `schedule:` from the repository's DEFAULT branch, but the
+# Cloudflare app and its `Place index` workflow live on the deploy branch
+# (feat/cloudflare-migration), which is deliberately not merged here. This file
+# is the whole bridge: every Monday 03:17 Vietnam time it dispatches that
+# workflow on the deploy branch, which extracts the Geofabrik Vietnam OSM
+# extract, rebuilds the static place-search shards, publishes the rolling
+# `place-index` release and redeploys the Worker.
+#
+# It touches nothing else on master. If the deploy branch is renamed or
+# merged later, update DEPLOY_BRANCH (or delete this file).
+#
+# Manual run: Actions → "Place index schedule" → Run workflow.
+
+name: Place index schedule
+
+on:
+  schedule:
+    - cron: '17 20 * * 0'
+  workflow_dispatch:
+
+permissions:
+  actions: write # dispatch another workflow
+  contents: read
+
+env:
+  DEPLOY_BRANCH: feat/cloudflare-migration
+
+jobs:
+  dispatch:
+    name: Run the place-index build on the deploy branch
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Dispatch place-index.yml
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run place-index.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref "$DEPLOY_BRANCH" \
+            -f deploy=true \
+            -f profile=all
