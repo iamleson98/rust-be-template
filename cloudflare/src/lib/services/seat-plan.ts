@@ -22,6 +22,7 @@
  */
 import { count, eq, inArray } from "drizzle-orm";
 import { getDb, atomicBatch, type AtomicStatement } from "@/lib/db/client";
+import { repriceUpcoming } from "./fares";
 import {
   bookingSeats,
   busLayouts,
@@ -47,13 +48,30 @@ export type SeatPlan = {
   }>;
 };
 
+/**
+ * Serialize for `layout_data` (Rust `to_stored`): versioned, and without
+ * seat ids — those are operational state, not part of the stored plan.
+ */
+export function toStored(plan: SeatPlan): string {
+  return JSON.stringify({
+    version: PLAN_VERSION,
+    decks: plan.decks.map((d) => ({
+      ...d,
+      cells: d.cells.map((c) => ({ ...c, seatId: undefined })),
+    })),
+  });
+}
+
 /** Parse a bus_layout.layout_data JSON string into a SeatPlan. */
 export function parseSeatPlan(layoutData: string | null | undefined): SeatPlan | null {
   if (!layoutData) return null;
   try {
-    const parsed = JSON.parse(layoutData) as SeatPlan;
-    if (parsed && Array.isArray(parsed.decks)) return parsed;
-    return null;
+    const parsed = JSON.parse(layoutData) as SeatPlan & { version?: number };
+    if (!parsed || !Array.isArray(parsed.decks)) return null;
+    // Rust stores `{version: 2, decks}`; anything else is a legacy/garbage
+    // layout. Plans this port saved before it wrote a version have none.
+    if (parsed.version !== undefined && parsed.version !== PLAN_VERSION) return null;
+    return { decks: parsed.decks };
   } catch {
     return null;
   }
@@ -61,6 +79,13 @@ export function parseSeatPlan(layoutData: string | null | undefined): SeatPlan |
 
 export type SeatRow = typeof seats.$inferSelect;
 
+export const PLAN_VERSION = 2;
+/** Mirrors the cap `create_bus_layout` has always enforced. */
+export const MAX_SEATS = 120;
+/** `seat.seat_label` is `VARCHAR(10)`. */
+const MAX_LABEL_CHARS = 10;
+/** `seat.seat_class` is `VARCHAR(30)`. */
+const MAX_CLASS_CHARS = 30;
 export const MAX_DECKS = 2;
 export const MAX_ROWS = 30;
 export const MAX_COLS = 9;
@@ -80,7 +105,7 @@ function defaultClass(kind: string, floor: number): string | null {
   return null;
 }
 
-/** Structural validation; returns the error message or null. */
+/** Structural validation; returns the error message or null (shown to admins as-is). */
 export function validateSeatPlan(plan: SeatPlan): string | null {
   if (plan.decks.length === 0 || plan.decks.length > MAX_DECKS) {
     return `a plan needs 1–${MAX_DECKS} decks`;
@@ -109,15 +134,22 @@ export function validateSeatPlan(plan: SeatPlan): string | null {
       if (isSellable(cell.kind)) {
         sellable += 1;
         const label = cell.label?.trim() ?? "";
-        if (!label) return `deck ${n}: a ${cell.kind} cell has no seat label`;
+        const length = [...label].length;
+        if (length === 0 || length > MAX_LABEL_CHARS) {
+          return `deck ${n}: seat at row ${cell.row}, column ${cell.col} needs a label of 1–${MAX_LABEL_CHARS} characters`;
+        }
         const lower = label.toLowerCase();
-        if (labels.has(lower)) return `seat label "${label}" is used twice`;
+        if (labels.has(lower)) return `seat label "${label}" is used more than once`;
         labels.add(lower);
+        if (cell.seatClass != null && [...cell.seatClass.trim()].length > MAX_CLASS_CHARS) {
+          return `seat ${label}: class is longer than ${MAX_CLASS_CHARS} characters`;
+        }
       }
     }
-    if (drivers > 1) return `deck ${n}: more than one driver cell`;
+    if (drivers > 1) return `deck ${n}: only one driver position is allowed`;
   }
-  if (sellable === 0) return "a plan needs at least one sellable seat";
+  if (sellable === 0) return "a plan needs at least one seat";
+  if (sellable > MAX_SEATS) return `seat plan too large — max ${MAX_SEATS} seats`;
   return null;
 }
 
@@ -158,12 +190,13 @@ export function trustedPlan(layoutData: string | null, seatRows: SeatRow[]): Sea
  * them. Berth classes (`bed_*`) are recognised; no fixtures are invented.
  */
 export function deriveFromSeats(seatRows: SeatRow[]): SeatPlan {
+  const cmp = <T extends string | number>(a: T, b: T) => (a < b ? -1 : a > b ? 1 : 0);
   const sorted = [...seatRows].sort(
     (a, b) =>
-      Math.min(Math.max(a.floor, 1), MAX_DECKS) - Math.min(Math.max(b.floor, 1), MAX_DECKS) ||
-      (a.rowNum ?? 0) - (b.rowNum ?? 0) ||
-      (a.colNum ?? 0) - (b.colNum ?? 0) ||
-      a.seatLabel.localeCompare(b.seatLabel),
+      cmp(a.floor, b.floor) ||
+      cmp(a.rowNum ?? 0, b.rowNum ?? 0) ||
+      cmp(a.colNum ?? 0, b.colNum ?? 0) ||
+      cmp(a.seatLabel, b.seatLabel),
   );
   const decks: SeatPlan["decks"] = [];
   for (let deckNo = 1; deckNo <= MAX_DECKS; deckNo++) {
@@ -231,9 +264,7 @@ export class InUseError extends Error {
     public readonly count: number,
   ) {
     super(
-      kind === "added"
-        ? `cannot add seats: ${count} new seat(s) while trips sell this layout`
-        : `cannot remove seats: ${count} seat(s) dropped while trips sell this layout`,
+      `Sơ đồ ghế đã có chuyến hoặc vé sử dụng — không thể ${kind === "added" ? "thêm" : "bớt"} ${count} ghế (chỉ được di chuyển, đổi tên hoặc đổi hạng các ghế hiện có)`,
     );
     this.name = "InUseError";
   }
@@ -304,12 +335,12 @@ function naturalKey(label: string): [string, number, string] {
 
 /** Split seats across the template's decks (floor, then bed_upper, then B-prefix). */
 function groupByDeck(seatRows: SeatRow[], wanted: number[]): SeatRow[][] | null {
-  const sorted = [...seatRows].sort(
-    (a, b) =>
-      naturalKey(a.seatLabel)[0].localeCompare(naturalKey(b.seatLabel)[0]) ||
-      naturalKey(a.seatLabel)[1] - naturalKey(b.seatLabel)[1] ||
-      naturalKey(a.seatLabel)[2].localeCompare(naturalKey(b.seatLabel)[2]),
-  );
+  const cmp = <T extends string | number>(a: T, b: T) => (a < b ? -1 : a > b ? 1 : 0);
+  const sorted = [...seatRows].sort((a, b) => {
+    const x = naturalKey(a.seatLabel);
+    const y = naturalKey(b.seatLabel);
+    return cmp(x[0], y[0]) || cmp(x[1], y[1]) || cmp(x[2], y[2]);
+  });
   if (wanted.length === 1) return [sorted];
   const strategies: Array<(s: SeatRow) => number> = [
     (s) => (s.floor >= 2 ? 1 : 0),
@@ -456,7 +487,7 @@ export async function applySeatPlan(
   stmts.push(
     db
       .update(busLayouts)
-      .set({ totalSeats: sellable, layoutData: JSON.stringify(plan), updatedAt: now })
+      .set({ totalSeats: sellable, layoutData: toStored(plan), updatedAt: now })
       .where(eq(busLayouts.id, layoutId)),
   );
   await atomicBatch(stmts);
@@ -479,5 +510,12 @@ export async function replaceSeatPlan(
   const inUse = await layoutInUse(layoutId);
   const sync = syncSeatRows(existing, plan, inUse); // throws InUseError → 409
   const sellable = await applySeatPlan(layoutId, plan, sync);
+  // Seats may have changed class: what is still for sale follows the fares.
+  const db = await getDb();
+  const users = await db
+    .select({ id: schedules.id })
+    .from(schedules)
+    .where(eq(schedules.busLayoutId, layoutId));
+  for (const sch of users) await repriceUpcoming(sch.id);
   return { sellable };
 }

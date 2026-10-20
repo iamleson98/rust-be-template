@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   deriveFromSeats,
   fitToSeats,
+  parseSeatPlan,
+  toStored,
   isSellable,
   syncSeatRows,
   trustedPlan,
@@ -100,10 +102,10 @@ describe("validateSeatPlan (Rust structural rules)", () => {
           },
         ]),
       ),
-    ).toMatch(/used twice/);
+    ).toMatch(/more than once/);
     expect(
       validateSeatPlan(planOf([{ rows: 1, cols: 1, cells: [{ row: 1, col: 1, kind: "bed" }] }])),
-    ).toMatch(/no seat label/);
+    ).toMatch(/needs a label/);
   });
 });
 
@@ -245,7 +247,7 @@ describe("syncSeatRows (id/label preserving seat sync)", () => {
       },
     ]);
     expect(() => syncSeatRows(existing, grown, true)).toThrow(InUseError);
-    expect(() => syncSeatRows(existing, grown, true)).toThrow(/add seats/);
+    expect(() => syncSeatRows(existing, grown, true)).toThrow(/thêm 1 ghế/);
 
     const shrunk = planOf([
       {
@@ -254,7 +256,7 @@ describe("syncSeatRows (id/label preserving seat sync)", () => {
         cells: [{ row: 1, col: 1, kind: "seat", label: "01", seatId: "id-01" }],
       },
     ]);
-    expect(() => syncSeatRows(existing, shrunk, true)).toThrow(/remove seats/);
+    expect(() => syncSeatRows(existing, shrunk, true)).toThrow(/bớt/);
     // Same shape while in use: move + relabel is allowed
     const moved = planOf([
       {
@@ -328,5 +330,52 @@ describe("fitToSeats (template preview, ids kept, nothing saved)", () => {
         ],
       ),
     ).toThrow(/cannot tell which seats belong to which deck/);
+  });
+});
+
+describe("stored form and the remaining Rust validation rules", () => {
+  it("round-trips as a versioned plan without seat ids", () => {
+    const plan = planOf([
+      { rows: 1, cols: 1, cells: [{ row: 1, col: 1, kind: "seat", label: "1", seatId: "x" }] },
+    ]);
+    const raw = toStored(plan);
+    expect(raw.startsWith('{"version":2')).toBe(true);
+    const back = parseSeatPlan(raw);
+    expect(back?.decks[0]?.cells[0]?.seatId).toBeUndefined();
+    expect(back?.decks[0]?.cells[0]?.label).toBe("1");
+  });
+
+  it("legacy and garbage layout data is not a plan", () => {
+    expect(parseSeatPlan(null)).toBeNull();
+    expect(parseSeatPlan("")).toBeNull();
+    expect(parseSeatPlan('{"version":1,"decks":[]}')).toBeNull();
+    expect(parseSeatPlan("not json")).toBeNull();
+    // Plans this port saved before it wrote a version still read.
+    expect(parseSeatPlan('{"decks":[]}')).toEqual({ decks: [] });
+  });
+
+  it("enforces label length, class length and the seat cap", () => {
+    const one = (cell: SeatPlan["decks"][number]["cells"][number]) =>
+      validateSeatPlan(planOf([{ rows: 1, cols: 1, cells: [cell] }]));
+    expect(one({ row: 1, col: 1, kind: "seat", label: "ABCDEFGHIJK" })).toMatch(/label of 1–10/);
+    expect(one({ row: 1, col: 1, kind: "seat", label: "1", seatClass: "x".repeat(31) })).toMatch(
+      /class is longer than 30/,
+    );
+    const big = planOf([
+      {
+        rows: 30,
+        cols: 9,
+        cells: Array.from({ length: 121 }, (_, i) => ({
+          row: Math.floor(i / 9) + 1,
+          col: (i % 9) + 1,
+          kind: "seat",
+          label: `S${i}`,
+        })),
+      },
+    ]);
+    expect(validateSeatPlan(big)).toMatch(/too large/);
+    expect(
+      validateSeatPlan(planOf([{ rows: 1, cols: 1, cells: [{ row: 1, col: 1, kind: "door" }] }])),
+    ).toBe("a plan needs at least one seat");
   });
 });

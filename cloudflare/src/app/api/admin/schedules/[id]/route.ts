@@ -4,6 +4,7 @@ import { schedules, schedulePoints, scheduleFares } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { handleRouteError, requireStaff, readJson, err } from "@/lib/api";
 import { requirePermission } from "@/lib/auth/rbac";
+import { repriceUpcoming } from "@/lib/services/fares";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -83,6 +84,8 @@ export async function PUT(req: Request, ctx: Params) {
         await db.insert(scheduleFares).values(rows.slice(i, i + 40));
       }
     }
+    // Seats still for sale on upcoming trips follow the new fares.
+    await repriceUpcoming(id);
     await invalidateRoutes();
     return Response.json({ id });
   } catch (e) {

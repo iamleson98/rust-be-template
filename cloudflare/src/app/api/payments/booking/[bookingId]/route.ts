@@ -1,30 +1,12 @@
-import { getDb } from "@/lib/db/client";
-import { payments } from "@/lib/db/schema";
-import { desc, eq } from "drizzle-orm";
-import { handleRouteError, currentUser, err } from "@/lib/api";
+import { handleRouteError, currentUser } from "@/lib/api";
+import { listBookingPayments } from "@/lib/services/payment";
 
+/** `GET /api/payments/booking/{bookingId}` — a booking's payments, newest first. */
 export async function GET(req: Request, ctx: { params: Promise<{ bookingId: string }> }) {
   try {
     const { bookingId } = await ctx.params;
     const user = await currentUser(req);
-    const db = await getDb();
-    const rows = await db
-      .select()
-      .from(payments)
-      .where(eq(payments.bookingId, bookingId))
-      .orderBy(desc(payments.createdAt))
-      .limit(10);
-    if (rows.length === 0) return Response.json({ items: [] });
-    if (rows[0]?.userId) {
-      if (!user) return err(401, "unauthorized", "Login required");
-      if (rows[0].userId !== user.id && user.role === "user")
-        return err(403, "forbidden", "Not your payment");
-    }
-    const { paymentOut } = await import("@/lib/services/payment-out");
-    return Response.json({
-      items: await Promise.all(rows.map((p) => paymentOut(p))),
-      total: rows.length,
-    });
+    return Response.json(await listBookingPayments(bookingId, user?.id ?? null));
   } catch (e) {
     return handleRouteError(e);
   }

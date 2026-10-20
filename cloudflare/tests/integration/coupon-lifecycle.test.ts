@@ -8,7 +8,12 @@ import { applyMigrations } from "../helpers/migrate";
 import { getDb } from "@/lib/db/client";
 import { eq } from "drizzle-orm";
 import { signAccessToken } from "@/lib/auth/jwt";
-import { createBooking, completeBookingPayment, cancelBooking } from "@/lib/services/booking";
+import {
+  cancelBooking,
+  completeBooking,
+  confirmAsSystem,
+  createBooking,
+} from "@/lib/services/booking";
 import { triggerJob } from "@/lib/services/jobs";
 import {
   brands,
@@ -229,7 +234,9 @@ describe("claim → held (one per account, one per campaign)", () => {
   it("rejects a second concurrent coupon (already-held)", async () => {
     const res = await claim(CAMPAIGN_B, TIER_B);
     expect(res.status).toBe(409);
-    expect(((await res.json()) as { error: { code: string } }).error.code).toBe("already-held");
+    expect(((await res.json()) as { error: { message: string } }).error.message).toBe(
+      "coupon_already_held",
+    );
   });
 
   it("rejects re-claiming the same campaign even after the coupon left the account", async () => {
@@ -240,7 +247,9 @@ describe("claim → held (one per account, one per campaign)", () => {
       .where(eq(coupons.activeHolder, USER_ID));
     const res = await claim(CAMPAIGN_A, TIER_A);
     expect(res.status).toBe(409);
-    expect(((await res.json()) as { error: { code: string } }).error.code).toBe("already-claimed");
+    expect(((await res.json()) as { error: { message: string } }).error.message).toBe(
+      "campaign_already_claimed",
+    );
   });
 });
 
@@ -340,20 +349,35 @@ describe("booking lifecycle drives the coupon (reserve → redeem / return)", ()
     let row = await couponRow(couponId);
     expect(row?.status).toBe("reserved");
     expect(row?.activeHolder).toBe(USER_ID);
-    expect(row?.bookingId).toBe(booking.booking.id);
+    expect(row?.bookingId).toBe(booking.bookingId);
     const bookingRow = (
-      await db.select().from(bookings).where(eq(bookings.id, booking.booking.id)).limit(1)
+      await db.select().from(bookings).where(eq(bookings.id, booking.bookingId)).limit(1)
     )[0];
     expect(bookingRow?.campaignAppliedId).toBe(couponId);
 
-    // 2. Payment completes → redeemed + holder released.
-    await completeBookingPayment(booking.booking.id);
+    // 2. Payment confirms the booking: the coupon stays reserved (the trip
+    //    has not happened, a cancel would still return it).
+    await confirmAsSystem(booking.bookingId, "vnpay");
+    row = await couponRow(couponId);
+    expect(row?.status).toBe("reserved");
+
+    // 3. The trip is completed → redeemed (payable to the operator) +
+    //    holder released. Rust `redeem_booking_coupon` runs in `complete_booking`.
+    await db
+      .update(tripSessions)
+      .set({ departureDate: "2020-01-01" })
+      .where(eq(tripSessions.id, TRIP_ID));
+    expect(await completeBooking(booking.bookingId)).toBe(true);
+    await db
+      .update(tripSessions)
+      .set({ departureDate: daysFromNow(3).slice(0, 10) })
+      .where(eq(tripSessions.id, TRIP_ID));
     row = await couponRow(couponId);
     expect(row?.status).toBe("redeemed");
     expect(row?.activeHolder).toBeNull();
     expect(row?.redeemedAt).toBeTruthy();
 
-    // 3. A second booking with a second coupon → cancel returns it.
+    // 4. A second booking with a second coupon → cancel returns it.
     const coupon2 = await seedCoupon({
       status: "held",
       activeHolder: USER_ID,
@@ -370,14 +394,14 @@ describe("booking lifecycle drives the coupon (reserve → redeem / return)", ()
     row = await couponRow(coupon2);
     expect(row?.status).toBe("reserved");
 
-    const cancelled = await cancelBooking(USER_ID, booking2.booking.id);
-    expect(cancelled.status).toBe("cancelled");
+    const cancelled = await cancelBooking(USER_ID, booking2.bookingId);
+    expect(cancelled.success).toBe(true);
     row = await couponRow(coupon2);
     expect(row?.status).toBe("held"); // window still open → back to the owner
     expect(row?.activeHolder).toBe(USER_ID);
     expect(row?.bookingId).toBeNull();
 
-    // 4. An expired-window coupon cannot start a booking (validated up
+    // 5. An expired-window coupon cannot start a booking (validated up
     //    front — Rust `still_valid` at use time).
     await db
       .update(coupons)
@@ -391,13 +415,13 @@ describe("booking lifecycle drives the coupon (reserve → redeem / return)", ()
     await expect(
       createBooking(USER_ID, {
         tripId: TRIP_ID,
-        seatIds: [SEAT_1],
+        seatIds: [SEAT_2],
         passengers: [{ name: "Passenger Three", type: "adult" }],
         contactName: "Coupon Tester",
         contactPhone: "0900123456",
         couponId: coupon4,
       }),
-    ).rejects.toThrow(/coupon expired/i);
+    ).rejects.toThrow(/^coupon_expired$/);
   });
 });
 

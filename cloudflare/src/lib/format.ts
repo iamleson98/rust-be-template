@@ -72,19 +72,3 @@ export function addDays(dateStr: string, days: number): string {
   d.setUTCDate(d.getUTCDate() + days);
   return isoDate(d);
 }
-
-/** Hold TTL in minutes for a departure date (10 base, 20 if ≥3 days out). */
-export function holdTtlMinutes(departureDate: string): number {
-  const dep = new Date(`${departureDate}T00:00:00Z`).getTime();
-  const days = (dep - Date.now()) / 86_400_000;
-  return days >= 3 ? 20 : 10;
-}
-
-/** Refund percentage for a confirmed cancellation (90% >24h, 50% >4h, else 0). */
-export function refundPercent(departureIso: string | null): number {
-  if (!departureIso) return 0;
-  const ms = new Date(departureIso).getTime() - Date.now();
-  if (ms >= 24 * 3600_000) return 90;
-  if (ms >= 4 * 3600_000) return 50;
-  return 0;
-}

@@ -1,24 +1,48 @@
 /**
- * BookingOut serializer — assembles the SPA SDK's flat `BookingOut`
- * (port of the Rust `booking_service` views): booking row + seat tickets
- * + trip preview + review + boarding QR + cancellation window.
+ * Bookings as customers and staff see them — port of `booking_view.rs`.
+ *
+ * One serializer for every listing and detail view: it loads what a page of
+ * bookings refers to (trips, schedules, routes, brands, layouts, seats,
+ * reviews) in a fixed number of queries, whatever the page size.
  */
 import { getDb, type Database } from "@/lib/db/client";
 import {
   bookings,
   bookingSeats,
-  seats,
-  reviews,
-  tripSessions,
-  schedules,
-  routes,
   brands,
   busLayouts,
+  pickupPoints,
+  reviews,
+  routes,
+  schedules,
+  seats,
+  tripSessions,
 } from "@/lib/db/schema";
-import { and, desc, eq, gte, like, lte, or, sql, type SQL } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNotNull,
+  like,
+  lt,
+  or,
+  sql,
+  type SQL,
+} from "drizzle-orm";
 import { findCity } from "@/lib/services/trip-search";
+import { departureInstant, rfc3339 } from "./trip-time";
 
 type BookingRow = typeof bookings.$inferSelect;
+
+interface StopOut {
+  name: string;
+  address?: string;
+  lat?: number;
+  lon?: number;
+}
 
 export interface BookingOut {
   id: string;
@@ -32,21 +56,11 @@ export interface BookingOut {
   fees: number;
   total: number;
   currency: string;
-  contactName?: string | null;
-  contactPhone?: string | null;
-  contactEmail?: string | null;
-  pickup?: {
-    name: string;
-    address?: string | null;
-    lat?: number | null;
-    lon?: number | null;
-  } | null;
-  dropoff?: {
-    name: string;
-    address?: string | null;
-    lat?: number | null;
-    lon?: number | null;
-  } | null;
+  contactName?: string;
+  contactPhone?: string;
+  contactEmail?: string;
+  pickup?: StopOut;
+  dropoff?: StopOut;
   seats: Array<{
     seatId?: string;
     seatCode?: string;
@@ -74,213 +88,363 @@ export interface BookingOut {
   review?: {
     id: string;
     rating: number;
-    title?: string | null;
-    content?: string | null;
+    title?: string;
+    content?: string;
     tags: string[];
     photos: string[];
     createdAt: string;
   };
   canCancel: boolean;
   ticketQr?: string;
-  expiresAt?: string | null;
+  expiresAt?: string;
   createdAt: string;
   updatedAt: string;
 }
 
-/** Tiny QR SVG generator — byte mode, ECC L, without external deps. */
-async function ticketQrSvg(payload: string): Promise<string> {
-  try {
-    const QR = (await import("qrcode")).default;
-    const svg = await QR.toString(payload, { type: "svg", margin: 1, width: 220 });
-    return `data:image/svg+xml;base64,${btoa(svg)}`;
-  } catch {
-    return undefined as unknown as string;
-  }
-}
+// D1 allows 100 bound parameters per statement.
+const IN_CHUNK = 90;
 
-const num = (v: unknown): number | null => {
-  if (v == null) return null;
-  const n = Number(v);
-  return Number.isFinite(n) ? n : null;
-};
+const unique = <T>(items: T[]): T[] => [...new Set(items)];
 
-/** Full `BookingOut` for one booking row (optionally with the boarding QR). */
-export async function bookingOut(
-  booking: BookingRow,
-  opts: { withQr?: boolean } = {},
-): Promise<BookingOut> {
-  const db = await getDb();
-  const tripRow = (
-    await db
-      .select({
-        trip: tripSessions,
-        schedule: schedules,
-        route: routes,
-        brand: brands,
-        layout: busLayouts,
-      })
-      .from(tripSessions)
-      .innerJoin(schedules, eq(schedules.id, tripSessions.scheduleId))
-      .innerJoin(routes, eq(routes.id, schedules.routeId))
-      .leftJoin(brands, eq(brands.id, routes.brandId))
-      .leftJoin(busLayouts, eq(busLayouts.id, schedules.busLayoutId))
-      .where(eq(tripSessions.id, booking.tripSessionId))
-      .limit(1)
-  )[0];
-
-  const seatRows = await db
-    .select({ bs: bookingSeats, seat: seats })
-    .from(bookingSeats)
-    .leftJoin(seats, eq(seats.id, bookingSeats.seatId))
-    .where(eq(bookingSeats.bookingId, booking.id));
-
-  const reviewRow = (
-    await db.select().from(reviews).where(eq(reviews.bookingId, booking.id)).limit(1)
-  )[0];
-
-  const depIso = tripRow
-    ? `${tripRow.trip.departureDate}T${tripRow.schedule.departureTime}:00`
-    : null;
-  const departed = depIso ? Date.now() > new Date(`${depIso}+07:00`).getTime() : false;
-  const open = booking.status === "pending" || booking.status === "confirmed";
-  const canCancel = open && !departed;
-
-  const parseArr = (v: string | null) => {
-    if (!v) return [];
-    try {
-      const parsed = JSON.parse(v);
-      return Array.isArray(parsed) ? parsed.map(String) : [];
-    } catch {
-      return [];
-    }
-  };
-
-  const out: BookingOut = {
-    id: booking.id,
-    code: booking.code,
-    status: booking.status,
-    paymentMethod: booking.paymentMethod ?? undefined,
-    adultCount: booking.adultCount,
-    childCount: booking.childCount,
-    subtotal: booking.subtotal,
-    discount: booking.discount,
-    fees: booking.fees,
-    total: booking.total,
-    currency: booking.currency,
-    contactName: booking.contactName,
-    contactPhone: booking.contactPhone,
-    contactEmail: booking.contactEmail,
-    pickup: booking.pickupName
-      ? {
-          name: booking.pickupName,
-          address: booking.pickupAddress,
-          lat: num(booking.pickupLat),
-          lon: num(booking.pickupLon),
-        }
-      : null,
-    dropoff: booking.dropoffName
-      ? {
-          name: booking.dropoffName,
-          address: booking.dropoffAddress,
-          lat: num(booking.dropoffLat),
-          lon: num(booking.dropoffLon),
-        }
-      : null,
-    seats: seatRows.map(({ bs, seat }) => ({
-      seatId: bs.seatId ?? undefined,
-      seatCode: seat?.seatLabel ?? undefined,
-      seatClass: seat?.seatClass ?? undefined,
-      passengerName: bs.passengerName ?? undefined,
-      passengerType: bs.passengerType ?? undefined,
-      passengerAge: bs.passengerAge ?? undefined,
-      price: bs.price != null ? Number(bs.price) : undefined,
-    })),
-    trip: tripRow
-      ? {
-          id: tripRow.trip.id,
-          departureDate: tripRow.trip.departureDate,
-          departureTime: tripRow.schedule.departureTime,
-          departureAt: depIso ?? undefined,
-          status: tripRow.trip.status,
-          routeId: tripRow.route.id,
-          routeName: tripRow.route.name,
-          fromName: findCity(tripRow.route.startLocationId)?.name,
-          toName: findCity(tripRow.route.endLocationId)?.name,
-          brandId: tripRow.route.brandId ?? undefined,
-          brandName: tripRow.brand?.name ?? undefined,
-          brandLogo: tripRow.brand?.logoUrl ?? undefined,
-          busLayoutName: tripRow.layout?.name ?? undefined,
-        }
-      : undefined,
-    review: reviewRow
-      ? {
-          id: reviewRow.id,
-          rating: reviewRow.rating,
-          title: reviewRow.title,
-          content: reviewRow.content,
-          tags: parseArr(reviewRow.tags),
-          photos: parseArr(reviewRow.photos),
-          createdAt: reviewRow.createdAt,
-        }
-      : undefined,
-    canCancel,
-    expiresAt: booking.expiresAt,
-    createdAt: booking.createdAt,
-    updatedAt: booking.updatedAt,
-  };
-  if (opts.withQr && open) out.ticketQr = await ticketQrSvg(booking.code);
+async function inChunks<T>(ids: string[], load: (part: string[]) => Promise<T[]>): Promise<T[]> {
+  const out: T[] = [];
+  for (let i = 0; i < ids.length; i += IN_CHUNK)
+    out.push(...(await load(ids.slice(i, i + IN_CHUNK))));
   return out;
 }
 
-/** Load one booking row by id or code (optionally scoped to a user). */
-export async function loadBooking(
-  idOrCode: string,
-  userId?: string | null,
-): Promise<BookingRow | null> {
+const orUndefined = <T>(v: T | null | undefined): T | undefined => v ?? undefined;
+
+const parseArr = (v: string | null): string[] => {
+  if (!v) return [];
+  try {
+    const parsed = JSON.parse(v);
+    return Array.isArray(parsed) ? parsed.map(String) : [];
+  } catch {
+    return [];
+  }
+};
+
+const num = (v: unknown): number | undefined => {
+  if (v == null) return undefined;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : undefined;
+};
+
+/** `bookings` as `BookingOut`, in the same order. */
+export async function bookingViews(rows: BookingRow[]): Promise<BookingOut[]> {
+  if (rows.length === 0) return [];
   const db = await getDb();
-  const row = (
-    await db
-      .select()
-      .from(bookings)
-      .where(
-        and(
-          or(eq(bookings.id, idOrCode), sql`LOWER(${bookings.code}) = LOWER(${idOrCode})`),
-          userId != null ? eq(bookings.userId, userId) : undefined,
-        ),
+
+  const trips = new Map(
+    (
+      await inChunks(unique(rows.map((b) => b.tripSessionId)), (part) =>
+        db.select().from(tripSessions).where(inArray(tripSessions.id, part)),
       )
-      .limit(1)
-  )[0];
-  return row ?? null;
+    ).map((t) => [t.id, t]),
+  );
+  const scheduleMap = new Map(
+    (
+      await inChunks(unique([...trips.values()].map((t) => t.scheduleId)), (part) =>
+        db.select().from(schedules).where(inArray(schedules.id, part)),
+      )
+    ).map((s) => [s.id, s]),
+  );
+  const routeMap = new Map(
+    (
+      await inChunks(unique([...scheduleMap.values()].map((s) => s.routeId)), (part) =>
+        db.select().from(routes).where(inArray(routes.id, part)),
+      )
+    ).map((r) => [r.id, r]),
+  );
+  const brandMap = new Map(
+    (
+      await inChunks(
+        unique([...routeMap.values()].flatMap((r) => (r.brandId ? [r.brandId] : []))),
+        (part) => db.select().from(brands).where(inArray(brands.id, part)),
+      )
+    ).map((b) => [b.id, b]),
+  );
+  const layoutMap = new Map(
+    (
+      await inChunks(
+        unique([...scheduleMap.values()].flatMap((s) => (s.busLayoutId ? [s.busLayoutId] : []))),
+        (part) => db.select().from(busLayouts).where(inArray(busLayouts.id, part)),
+      )
+    ).map((l) => [l.id, l]),
+  );
+
+  const bookingIds = rows.map((b) => b.id);
+  const tickets = await inChunks(bookingIds, (part) =>
+    db.select().from(bookingSeats).where(inArray(bookingSeats.bookingId, part)),
+  );
+  const seatMap = new Map(
+    (
+      await inChunks(unique(tickets.map((t) => t.seatId)), (part) =>
+        db.select().from(seats).where(inArray(seats.id, part)),
+      )
+    ).map((s) => [s.id, s]),
+  );
+  const reviewMap = new Map(
+    (
+      await inChunks(bookingIds, (part) =>
+        db.select().from(reviews).where(inArray(reviews.bookingId, part)),
+      )
+    ).flatMap((r) => (r.bookingId ? [[r.bookingId, r] as const] : [])),
+  );
+
+  // Bookings sold before stops were copied onto them still name their
+  // route pickup points by id.
+  const legacyIds = unique(
+    rows
+      .filter((b) => !b.pickupName || !b.dropoffName)
+      .flatMap((b) => [b.boardingPointId, b.droppingPointId])
+      .filter((id): id is string => !!id),
+  );
+  const legacyPoints = new Map(
+    (
+      await inChunks(legacyIds, (part) =>
+        db.select().from(pickupPoints).where(inArray(pickupPoints.id, part)),
+      )
+    ).map((p) => [p.id, p]),
+  );
+  const legacyStop = (id: string | null): StopOut | undefined => {
+    const p = id ? legacyPoints.get(id) : undefined;
+    if (!p?.name) return undefined;
+    return {
+      name: p.name,
+      address: orUndefined(p.address),
+      lat: orUndefined(p.lat),
+      lon: orUndefined(p.lon),
+    };
+  };
+  const cityStop = (slug: string | undefined): StopOut | undefined => {
+    const c = slug ? findCity(slug) : null;
+    return c ? { name: c.name, lat: c.lat, lon: c.lon } : undefined;
+  };
+  const now = Date.now();
+
+  return rows.map((b) => {
+    const trip = trips.get(b.tripSessionId);
+    const schedule = trip ? scheduleMap.get(trip.scheduleId) : undefined;
+    const route = schedule ? routeMap.get(schedule.routeId) : undefined;
+    const brand = route?.brandId ? brandMap.get(route.brandId) : undefined;
+    const from = route ? findCity(route.startLocationId) : null;
+    const to = route ? findCity(route.endLocationId) : null;
+    const departsAt =
+      trip && schedule
+        ? departureInstant(trip.departureDate, schedule.departureTime, trip.actualDepartureAt)
+        : null;
+    const departed = departsAt != null && departsAt.getTime() <= now;
+
+    const pickup: StopOut | undefined = b.pickupName
+      ? {
+          name: b.pickupName,
+          address: orUndefined(b.pickupAddress),
+          lat: num(b.pickupLat),
+          lon: num(b.pickupLon),
+        }
+      : (legacyStop(b.boardingPointId) ?? cityStop(route?.startLocationId));
+    const dropoff: StopOut | undefined = b.dropoffName
+      ? {
+          name: b.dropoffName,
+          address: orUndefined(b.dropoffAddress),
+          lat: num(b.dropoffLat),
+          lon: num(b.dropoffLon),
+        }
+      : (legacyStop(b.droppingPointId) ?? cityStop(route?.endLocationId));
+
+    const seatsOut = tickets
+      .filter((t) => t.bookingId === b.id)
+      .map((t) => {
+        const seat = seatMap.get(t.seatId);
+        return {
+          seatId: t.seatId,
+          seatCode: orUndefined(seat?.seatLabel),
+          seatClass: orUndefined(seat?.seatClass),
+          passengerName: orUndefined(t.passengerName),
+          passengerType: orUndefined(t.passengerType),
+          passengerAge: orUndefined(t.passengerAge),
+          price: Number(t.price),
+        };
+      })
+      // Rust sorts by the (optional) seat code; byte order, absent first.
+      .sort((x, y) => {
+        const a = x.seatCode ?? "";
+        const c = y.seatCode ?? "";
+        if (x.seatCode == null && y.seatCode != null) return -1;
+        if (x.seatCode != null && y.seatCode == null) return 1;
+        return a < c ? -1 : a > c ? 1 : 0;
+      });
+
+    const r = reviewMap.get(b.id);
+    return {
+      id: b.id,
+      code: b.code,
+      status: b.status,
+      paymentMethod: orUndefined(b.paymentMethod),
+      adultCount: b.adultCount,
+      childCount: b.childCount,
+      subtotal: b.subtotal,
+      discount: b.discount,
+      fees: b.fees,
+      total: b.total,
+      currency: b.currency,
+      contactName: orUndefined(b.contactName),
+      contactPhone: orUndefined(b.contactPhone),
+      contactEmail: orUndefined(b.contactEmail),
+      pickup,
+      dropoff,
+      seats: seatsOut,
+      trip:
+        trip && schedule && route
+          ? {
+              id: trip.id,
+              departureDate: trip.departureDate,
+              departureTime: schedule.departureTime,
+              departureAt: departsAt ? rfc3339(departsAt) : undefined,
+              status: trip.status,
+              routeId: route.id,
+              routeName: route.name,
+              fromName: orUndefined(from?.name),
+              toName: orUndefined(to?.name),
+              brandId: orUndefined(route.brandId),
+              brandName: orUndefined(brand?.name),
+              brandLogo: orUndefined(brand?.logoUrl),
+              busLayoutName: orUndefined(
+                schedule.busLayoutId ? layoutMap.get(schedule.busLayoutId)?.name : null,
+              ),
+            }
+          : undefined,
+      review: r
+        ? {
+            id: r.id,
+            rating: r.rating,
+            title: orUndefined(r.title),
+            content: orUndefined(r.content),
+            tags: parseArr(r.tags),
+            photos: parseArr(r.photos),
+            createdAt: r.createdAt,
+          }
+        : undefined,
+      canCancel: (b.status === "pending" || b.status === "confirmed") && !departed,
+      expiresAt: orUndefined(b.expiresAt),
+      createdAt: b.createdAt,
+      updatedAt: b.updatedAt,
+    };
+  });
 }
 
-/** Booking rows for a user (or all, staff view), newest first. */
-export async function loadBookings(
-  userId?: string | null,
-  limit = 50,
-  offset = 0,
-  filters: { status?: string; search?: string; dateFrom?: string; dateTo?: string } = {},
+/** The boarding QR of a ticket: its code, as an SVG data URI. */
+async function ticketQr(code: string): Promise<string | undefined> {
+  try {
+    const QR = (await import("qrcode")).default;
+    const svg = await QR.toString(code, { type: "svg", margin: 4, width: 240 });
+    return `data:image/svg+xml;base64,${btoa(svg)}`;
+  } catch {
+    return undefined;
+  }
+}
+
+/** One booking as `BookingOut`, with its boarding QR while it is open. */
+export async function bookingView(booking: BookingRow): Promise<BookingOut> {
+  const [view] = await bookingViews([booking]);
+  if (view.status === "pending" || view.status === "confirmed")
+    view.ticketQr = await ticketQr(view.code);
+  return view;
+}
+
+// ── Listings ─────────────────────────────────────────────────────
+
+/** Which bookings a listing returns, and in what order. Every field narrows it. */
+export interface BookingFilter {
+  userId?: string;
+  status?: string;
+  paymentMethod?: string;
+  /** Only tickets: bookings placed for payment or already confirmed, not checkouts left unfinished. */
+  placed?: boolean;
+  /** Code, contact name or contact phone contains this. */
+  search?: string;
+  brandId?: string;
+  routeId?: string;
+  /** Created at or after this instant (ISO, ms precision like stored timestamps). */
+  createdFrom?: string;
+  /** Created before this instant. */
+  createdBefore?: string;
+  order?: "newest" | "oldest" | "total_desc" | "total_asc";
+}
+
+function filterWhere(db: Database, f: BookingFilter): SQL | undefined {
+  const search = f.search?.trim();
+  const tripsOf = (cond: SQL) =>
+    db
+      .select({ id: tripSessions.id })
+      .from(tripSessions)
+      .innerJoin(schedules, eq(schedules.id, tripSessions.scheduleId))
+      .innerJoin(routes, eq(routes.id, schedules.routeId))
+      .where(cond);
+  return and(
+    f.userId ? eq(bookings.userId, f.userId) : undefined,
+    f.status ? eq(bookings.status, f.status) : undefined,
+    f.paymentMethod ? eq(bookings.paymentMethod, f.paymentMethod) : undefined,
+    f.placed
+      ? or(isNotNull(bookings.paymentMethod), inArray(bookings.status, ["confirmed", "completed"]))
+      : undefined,
+    search
+      ? or(
+          like(bookings.code, `%${search.toUpperCase()}%`),
+          like(bookings.contactName, `%${search}%`),
+          like(bookings.contactPhone, `%${search}%`),
+        )
+      : undefined,
+    f.routeId ? inArray(bookings.tripSessionId, tripsOf(eq(routes.id, f.routeId))) : undefined,
+    f.brandId ? inArray(bookings.tripSessionId, tripsOf(eq(routes.brandId, f.brandId))) : undefined,
+    f.createdFrom ? gte(bookings.createdAt, f.createdFrom) : undefined,
+    f.createdBefore ? lt(bookings.createdAt, f.createdBefore) : undefined,
+  );
+}
+
+/** A page of the bookings matching `filter`, in its order. */
+export async function listBookings(
+  filter: BookingFilter,
+  limit: number,
+  offset: number,
 ): Promise<BookingRow[]> {
   const db = await getDb();
-  const search = filters.search?.trim();
-  const conds: Array<SQL | undefined> = [
-    userId != null ? eq(bookings.userId, userId) : undefined,
-    filters.status !== undefined ? eq(bookings.status, filters.status) : undefined,
-    search !== undefined && search.length > 0
-      ? or(like(bookings.code, `%${search}%`), like(bookings.contactName, `%${search}%`))
-      : undefined,
-    filters.dateFrom !== undefined ? gte(bookings.createdAt, filters.dateFrom) : undefined,
-    filters.dateTo !== undefined
-      ? lte(bookings.createdAt, `${filters.dateTo}T23:59:59`)
-      : undefined,
-  ];
-  const rows = await db
+  const order =
+    filter.order === "oldest"
+      ? asc(bookings.createdAt)
+      : filter.order === "total_desc"
+        ? desc(bookings.total)
+        : filter.order === "total_asc"
+          ? asc(bookings.total)
+          : desc(bookings.createdAt);
+  return db
     .select()
     .from(bookings)
-    .where(and(...conds))
-    .orderBy(desc(bookings.createdAt))
+    .where(filterWhere(db, filter))
+    .orderBy(order)
     .limit(limit)
     .offset(offset);
-  return rows;
 }
 
-export type { Database };
+/** How many bookings match `filter`. */
+export async function countBookings(filter: BookingFilter): Promise<number> {
+  const db = await getDb();
+  const rows = await db
+    .select({ n: sql<number>`COUNT(*)` })
+    .from(bookings)
+    .where(filterWhere(db, filter));
+  return Number(rows[0]?.n ?? 0);
+}
+
+/** `(createdAt, status, total)` of every booking matching `filter`: what reports aggregate. */
+export async function bookingFacts(
+  filter: BookingFilter,
+): Promise<Array<{ createdAt: string; status: string; total: number }>> {
+  const db = await getDb();
+  return db
+    .select({ createdAt: bookings.createdAt, status: bookings.status, total: bookings.total })
+    .from(bookings)
+    .where(filterWhere(db, filter));
+}

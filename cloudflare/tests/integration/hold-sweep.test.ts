@@ -14,6 +14,7 @@ import {
   busLayouts,
   routes,
   schedules,
+  seatInventory,
   seats,
   tripSessions,
   users,
@@ -152,6 +153,15 @@ describe("sweepExpiredHolds", () => {
           seatId: seatIds[i],
           passengerName: "p",
           price: 1,
+        });
+        // The seats the booking holds: what the sweep frees and counts.
+        await db.insert(seatInventory).values({
+          id: crypto.randomUUID(),
+          tripSessionId: tripId,
+          seatId: seatIds[i],
+          status: "held",
+          heldByBookingId: id,
+          heldUntil: past,
         });
       }
     };

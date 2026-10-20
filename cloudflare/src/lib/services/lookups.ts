@@ -9,20 +9,13 @@
  *
  * What is cached — and deliberately NOT cached:
  *   cached: reference data (brands, routes list, vehicle types, popular
- *           places, campaigns, review tags, homepage counters)
+ *           places, review tags, homepage counters)
  *   NEVER:  seat maps, availability, booking/payment/auth state — those
  *           are correctness-critical and always read D1 directly.
  */
 import { getDb, rawAll } from "@/lib/db/client";
-import { and, asc, desc, eq, gte, lte, sql } from "drizzle-orm";
-import {
-  brands,
-  discountCampaignBrands,
-  discountCampaigns,
-  discountTiers,
-  routes,
-  vehicleTypes,
-} from "@/lib/db/schema";
+import { asc, desc, eq, sql } from "drizzle-orm";
+import { brands, routes, vehicleTypes } from "@/lib/db/schema";
 import { countOf, groupedCounts } from "@/lib/db/counts";
 import { cacheFirst, cacheInvalidatePrefix } from "@/lib/db/cache";
 import { withRetry } from "@/lib/db/retry";
@@ -184,98 +177,6 @@ export async function vehicleTypeCatalog(): Promise<VehicleTypeEntry[]> {
   );
 }
 
-// ── Campaigns ───────────────────────────────────────────────────
-
-export interface PublicCampaign {
-  id: string;
-  name: string;
-  description: string | null;
-  startsAt: string;
-  endsAt: string;
-  couponValidity: string;
-  allBrands: boolean;
-  brands: Array<{ id: string; name: string; slug: string; logoUrl: string | null }>;
-  tiers: Array<{ id: string; amount: number; remaining: number; totalSlots: number }>;
-}
-
-/** `GET /api/campaigns` item computation (serverTime is added per response). */
-export async function listPublicCampaigns(): Promise<PublicCampaign[]> {
-  return cacheFirst(
-    "lookups:campaigns",
-    () =>
-      withRetry(async () => {
-        const db = await getDb();
-        const now = new Date().toISOString();
-        const rows = await db
-          .select({
-            id: discountCampaigns.id,
-            name: discountCampaigns.name,
-            description: discountCampaigns.description,
-            startsAt: discountCampaigns.startsAt,
-            endsAt: discountCampaigns.endsAt,
-            couponValidity: discountCampaigns.couponValidity,
-            allBrands: discountCampaigns.allBrands,
-          })
-          .from(discountCampaigns)
-          .where(
-            and(
-              eq(discountCampaigns.paused, false),
-              lte(discountCampaigns.startsAt, now),
-              gte(discountCampaigns.endsAt, now),
-            ),
-          )
-          .orderBy(desc(discountCampaigns.startsAt));
-        if (!rows.length) return [];
-
-        const brandRows = await db
-          .select({
-            campaignId: discountCampaignBrands.campaignId,
-            id: brands.id,
-            name: brands.name,
-            slug: brands.slug,
-            logoUrl: brands.logoUrl,
-          })
-          .from(discountCampaignBrands)
-          .innerJoin(brands, eq(brands.id, discountCampaignBrands.brandId));
-        const tierRows = await db
-          .select({
-            campaignId: discountTiers.campaignId,
-            id: discountTiers.id,
-            amount: discountTiers.amount,
-            totalSlots: discountTiers.totalSlots,
-            claimedSlots: discountTiers.claimedSlots,
-          })
-          .from(discountTiers)
-          .orderBy(asc(discountTiers.position), asc(discountTiers.amount));
-
-        const brandsBy = new Map<string, PublicCampaign["brands"]>();
-        for (const b of brandRows) {
-          const list = brandsBy.get(b.campaignId) ?? [];
-          list.push({ id: b.id, name: b.name, slug: b.slug, logoUrl: b.logoUrl });
-          brandsBy.set(b.campaignId, list);
-        }
-        const tiersBy = new Map<string, PublicCampaign["tiers"]>();
-        for (const t of tierRows) {
-          const list = tiersBy.get(t.campaignId) ?? [];
-          list.push({
-            id: t.id,
-            amount: Number(t.amount),
-            remaining: Math.max(0, Number(t.totalSlots) - Number(t.claimedSlots)),
-            totalSlots: Number(t.totalSlots),
-          });
-          tiersBy.set(t.campaignId, list);
-        }
-
-        return rows.map((c) => ({
-          ...c,
-          brands: brandsBy.get(c.id) ?? [],
-          tiers: tiersBy.get(c.id) ?? [],
-        }));
-      }),
-    { ttlMs: 30_000 },
-  );
-}
-
 // ── Review tags ─────────────────────────────────────────────────
 
 /** `GET /api/reviews/tags` — tags that appear on approved reviews.
@@ -358,9 +259,6 @@ export const invalidateRoutes = () => cacheInvalidatePrefix("lookups:routes:", "
 export const invalidateVehicleTypes = () => cacheInvalidatePrefix("lookups:vehicle-types");
 
 /** Place / FTS writes. */
-
-/** Campaign / tier / coupon-claim writes (claims change remaining slots). */
-export const invalidateCampaigns = () => cacheInvalidatePrefix("lookups:campaigns");
 
 /** Review moderation — tags + stats. */
 export const invalidateReviews = () =>
