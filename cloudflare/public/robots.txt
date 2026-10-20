@@ -12,3 +12,9 @@ Allow: /
 
 User-agent: *
 Allow: /
+Disallow: /api/
+Disallow: /admin/
+Disallow: /bookings/
+Disallow: /payments/
+
+Sitemap: https://datxevui.com/sitemap.xml
