@@ -23,6 +23,7 @@ export const CITY_COORDS: Record<string, { lat: number; lon: number }> = {
   "bac-giang": { lat: 21.27, lon: 106.21 },
   "vinh-phuc": { lat: 21.31, lon: 105.6 },
   "bac-ninh": { lat: 21.18, lon: 106.06 },
+  "hai-duong": { lat: 20.94, lon: 106.33 },
   "phu-tho": { lat: 21.41, lon: 105.4 },
   "ha-nam": { lat: 20.59, lon: 105.92 },
   "thai-binh": { lat: 20.45, lon: 106.34 },

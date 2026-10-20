@@ -16,6 +16,7 @@ export default defineConfig({
         compatibilityFlags: ["nodejs_compat"],
         d1Databases: ["DB"],
         kvNamespaces: ["CACHE_KV"],
+        r2Buckets: ["UPLOADS"],
       },
     }),
   ],

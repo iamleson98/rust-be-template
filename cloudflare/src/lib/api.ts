@@ -37,8 +37,10 @@ export async function requireStaff(req: Request): Promise<SessionUser> {
 }
 
 export function clientIp(req: Request): string {
-  const cf = (req as Request & { cf?: { connectingIp?: string } }).cf;
-  if (cf?.connectingIp) return cf.connectingIp;
+  // Set by Cloudflare's edge on every request and not client-spoofable
+  // (`request.cf` has no such field).
+  const connecting = req.headers.get("cf-connecting-ip");
+  if (connecting) return connecting;
   const xff = req.headers.get("x-forwarded-for");
   if (xff)
     return (

@@ -6,5 +6,6 @@ declare namespace Cloudflare {
   interface Env {
     DB: D1Database;
     CACHE_KV: KVNamespace;
+    UPLOADS: R2Bucket;
   }
 }
