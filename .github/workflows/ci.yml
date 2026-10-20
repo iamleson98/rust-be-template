@@ -606,14 +606,12 @@ jobs:
           restore-keys: gradle-${{ runner.os }}-
 
       - name: Set up Android SDK
-        # ubuntu-latest ships an Android SDK; the self-hosted fleet image is
-        # lean and jobs own their exotic deps. With licenses accepted, the
-        # Android Gradle Plugin auto-installs the platform/build-tools the
-        # APK build needs.
-        uses: android-actions/setup-android@v3
-
-      - name: Accept Android SDK licenses
-        run: (yes || true) | sdkmanager --licenses >/dev/null
+        # v4, not v3: Google no longer serves the deprecated 'tools' package
+        # and v3 fails hard asking for it ("Failed to find package 'tools'").
+        # v4 installs cmdline-tools + platform-tools and accepts the SDK
+        # licenses itself; the Android Gradle Plugin auto-installs the
+        # platform/build-tools the APK build needs.
+        uses: android-actions/setup-android@v4
 
       - name: Build debug APK (smoke)
         run: flutter build apk --debug
