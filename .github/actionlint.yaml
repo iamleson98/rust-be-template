@@ -1,5 +1,6 @@
 # actionlint configuration
-# Custom self-hosted runner labels used by this repo's workflows (the fleet
-# label is `oci-runner`; see the RUNNER note at the top of ci.yml).
-runner-labels:
-  - oci-runner
+# Declare the custom self-hosted runner labels used by this repo's workflows
+# (the fleet label is `oci-runner`; see the RUNNER note at the top of ci.yml).
+self-hosted-runner:
+  labels:
+    - oci-runner
