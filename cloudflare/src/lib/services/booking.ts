@@ -223,6 +223,9 @@ export async function createBooking(userId: string, req: HoldRequest): Promise<B
 
   // Validations (port of hold_seat checks).
   if (req.seatIds.length === 0) throw new ApiError(400, "validation", "seat_ids required");
+  // claimSeats binds the id list twice; stay far below D1's 100-parameter cap.
+  if (req.seatIds.length > MAX_SEATS_PER_BOOKING)
+    throw new ApiError(400, "validation", `at most ${MAX_SEATS_PER_BOOKING} seats per booking`);
   if (req.seatIds.length !== req.passengers.length)
     throw new ApiError(400, "validation", "passengers count must match seats");
   if (!req.contactName?.trim() || !req.contactPhone?.trim())
@@ -640,9 +643,27 @@ export async function sweepExpiredHolds(): Promise<{ cancelled: number }> {
         isNotNull(bookings.expiresAt),
         lt(bookings.expiresAt, now),
       ),
+    )
+    .orderBy(bookings.expiresAt)
+    .limit(SWEEP_MAX_PER_RUN);
+  // D1 allows 100 bound parameters per statement and each batch statement
+  // below binds the id list (twice in one), so cancel in small atomic chunks
+  // — an outage backlog drains over a few ticks instead of failing forever.
+  for (let i = 0; i < expired.length; i += SWEEP_CHUNK) {
+    await cancelExpiredChunk(
+      db,
+      expired.slice(i, i + SWEEP_CHUNK).map((e) => e.id),
+      now,
     );
-  if (expired.length === 0) return { cancelled: 0 };
-  const ids = expired.map((e) => e.id);
+  }
+  return { cancelled: expired.length };
+}
+
+const MAX_SEATS_PER_BOOKING = 40;
+const SWEEP_CHUNK = 20;
+const SWEEP_MAX_PER_RUN = 200;
+
+async function cancelExpiredChunk(db: Database, ids: string[], now: string): Promise<void> {
   await atomicBatch([
     db
       .update(bookings)
@@ -700,7 +721,6 @@ export async function sweepExpiredHolds(): Promise<{ cancelled: number }> {
       .set({ status: "expired", activeHolder: null, updatedAt: now })
       .where(and(eq(coupons.status, "reserved"), inArray(coupons.bookingId, ids))),
   ]);
-  return { cancelled: expired.length };
 }
 
 /** Cron: materialize trip_session + seat inventory for the 14-day sell window. */
