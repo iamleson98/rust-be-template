@@ -229,7 +229,9 @@ describe("claim → held (one per account, one per campaign)", () => {
   it("rejects a second concurrent coupon (already-held)", async () => {
     const res = await claim(CAMPAIGN_B, TIER_B);
     expect(res.status).toBe(409);
-    expect(((await res.json()) as { error: { code: string } }).error.code).toBe("already-held");
+    expect(((await res.json()) as { error: { message: string } }).error.message).toBe(
+      "coupon_already_held",
+    );
   });
 
   it("rejects re-claiming the same campaign even after the coupon left the account", async () => {
@@ -240,7 +242,9 @@ describe("claim → held (one per account, one per campaign)", () => {
       .where(eq(coupons.activeHolder, USER_ID));
     const res = await claim(CAMPAIGN_A, TIER_A);
     expect(res.status).toBe(409);
-    expect(((await res.json()) as { error: { code: string } }).error.code).toBe("already-claimed");
+    expect(((await res.json()) as { error: { message: string } }).error.message).toBe(
+      "campaign_already_claimed",
+    );
   });
 });
 
@@ -397,7 +401,7 @@ describe("booking lifecycle drives the coupon (reserve → redeem / return)", ()
         contactPhone: "0900123456",
         couponId: coupon4,
       }),
-    ).rejects.toThrow(/coupon expired/i);
+    ).rejects.toThrow(/^coupon_expired$/);
   });
 });
 

@@ -23,6 +23,8 @@ import {
   bookingSeats,
   brands,
   coupons,
+  discountCampaignBrands,
+  discountCampaigns,
   payments,
   routes,
   scheduleFares,
@@ -34,6 +36,7 @@ import {
 import { and, eq, gt, inArray, isNotNull, isNull, lt, ne, notExists, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import { ApiError } from "@/lib/auth/rbac";
+import { CAMPAIGN_CODES, couponBadRequest, couponConflict } from "@/lib/services/campaign-codes";
 import { brandPrefix, genBookingCode, holdTtlMinutes, refundPercent } from "@/lib/format";
 import { withRetry } from "@/lib/db/retry";
 
@@ -296,12 +299,39 @@ export async function createBooking(userId: string, req: HoldRequest): Promise<B
   if (req.couponId) {
     couponRow =
       (await db.select().from(coupons).where(eq(coupons.id, req.couponId)).limit(1))[0] ?? null;
-    if (!couponRow || couponRow.userId !== userId || couponRow.status !== "held")
-      throw new ApiError(400, "validation", "coupon not held by you");
+    // Rust `coupon_discount`: the account must hold it (`active_holder`)
+    // and it must still be `held`, not on another booking.
+    if (!couponRow || couponRow.activeHolder !== userId || couponRow.status !== "held")
+      throw couponBadRequest(CAMPAIGN_CODES.UNAVAILABLE);
     // Rust `still_valid`: the window must still be open at use time.
     if (couponRow.validUntil && couponRow.validUntil <= now)
-      throw new ApiError(400, "validation", "coupon expired");
-    discount = Math.min(couponRow.amount, subtotal);
+      throw couponBadRequest(CAMPAIGN_CODES.EXPIRED);
+    const campaign = (
+      await db
+        .select({ allBrands: discountCampaigns.allBrands })
+        .from(discountCampaigns)
+        .where(eq(discountCampaigns.id, couponRow.campaignId))
+        .limit(1)
+    )[0];
+    if (!campaign) throw couponBadRequest(CAMPAIGN_CODES.UNAVAILABLE);
+    // Brand scope: every operator, or only the campaign's chosen list.
+    const covered =
+      campaign.allBrands ||
+      (!!brand?.id &&
+        (
+          await db
+            .select({ brandId: discountCampaignBrands.brandId })
+            .from(discountCampaignBrands)
+            .where(
+              and(
+                eq(discountCampaignBrands.campaignId, couponRow.campaignId),
+                eq(discountCampaignBrands.brandId, brand.id),
+              ),
+            )
+            .limit(1)
+        ).length > 0);
+    if (!covered) throw couponBadRequest(CAMPAIGN_CODES.WRONG_OPERATOR);
+    discount = Math.min(Math.max(couponRow.amount, 0), Math.max(subtotal, 0));
   }
   const total = Math.max(0, subtotal - discount);
 
@@ -382,13 +412,22 @@ export async function createBooking(userId: string, req: HoldRequest): Promise<B
             eq(coupons.status, "held"),
             eq(coupons.activeHolder, userId),
             or(isNull(coupons.validUntil), gt(coupons.validUntil, now)),
+            // The scope is re-checked in the same statement: an admin edit
+            // between the check above and now cannot let a coupon through.
+            sql`EXISTS (
+              SELECT 1 FROM discount_campaign dc
+              WHERE dc.id = ${coupons.campaignId}
+                AND (dc.all_brands = 1 OR EXISTS (
+                  SELECT 1 FROM discount_campaign_brand dcb
+                  WHERE dcb.campaign_id = dc.id AND dcb.brand_id = ${brand?.id ?? null}))
+            )`,
           ),
         )
         .run();
       if (reserved.meta.changes === 0) {
         await releaseSeats(db, bookingId);
         await db.delete(bookings).where(eq(bookings.id, bookingId));
-        throw new ApiError(409, "conflict", "coupon-unavailable");
+        throw couponConflict(CAMPAIGN_CODES.UNAVAILABLE);
       }
     }
   } catch (e) {
