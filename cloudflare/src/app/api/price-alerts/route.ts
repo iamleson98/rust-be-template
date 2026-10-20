@@ -1,3 +1,4 @@
+import { limitWrite } from "@/lib/rate-limit";
 import { getDb } from "@/lib/db/client";
 import { priceAlerts } from "@/lib/db/schema";
 import { and, desc, eq } from "drizzle-orm";
@@ -34,6 +35,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const user = await requireUser(req);
+    await limitWrite("price-alert", user.id);
     const body = await readJson<{
       phone?: string;
       email?: string | null;

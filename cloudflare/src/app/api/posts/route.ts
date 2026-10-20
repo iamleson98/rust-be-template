@@ -1,3 +1,4 @@
+import { limitWrite } from "@/lib/rate-limit";
 import { getDb } from "@/lib/db/client";
 import { posts } from "@/lib/db/schema";
 import { desc, eq } from "drizzle-orm";
@@ -31,6 +32,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const staff = await requireStaff(req);
+    await limitWrite("post", staff.id);
     const body = await readJson<{ title?: string; body?: string }>(req);
     const title = (body.title ?? "").trim();
     const content = (body.body ?? "").trim();

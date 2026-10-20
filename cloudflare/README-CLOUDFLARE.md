@@ -106,6 +106,32 @@ Geofabrik Vietnam .osm.pbf ──► tools/place-extract (Rust) ──► places
 OSM does not map every station (e.g. Bến xe Mỹ Đình is absent from the extract); brand
 pickup points remain the source of truth for bookable stops.
 
+## Abuse protection (rate limiting + lockout)
+
+Three layers, because each tool is good at one thing:
+
+| Layer                             | Guards                          | Exactness                                         | Where                                                                                                                                                                                                                                                                                                                                                                                                          |
+| --------------------------------- | ------------------------------- | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Account lockout**               | password guessing               | exact, durable (D1)                               | `src/lib/auth/lockout.ts` — 5 wrong passwords lock the account for 15 min (`user.failed_login_attempts` / `locked_until`, one atomic `UPDATE`); success or a password change clears it. A locked account answers `429 account-locked` + `Retry-After`.                                                                                                                                                         |
+| **Workers Rate Limiting binding** | per-account / per-user bursts   | best-effort (per location, eventually consistent) | `src/lib/rate-limit.ts` — `AUTH_LIMITER` (10/min, keyed by the account being tried, checked _before_ any DB or hashing work) and `WRITE_LIMITER` (30/min, keyed by user id: booking, coupon claim, payment, chat, review, post, price alert, upload). `429 rate-limited` + `Retry-After: 60` (the full window — the binding does not report what is left). Off when the binding is absent (tests, `next dev`). |
+| **Edge rate-limiting rule (WAF)** | per-IP floods, anonymous writes | per IP                                            | configured in the dashboard, not in code — see below                                                                                                                                                                                                                                                                                                                                                           |
+
+**Edge rule.** Cloudflare's Free plan allows exactly **one** rate-limiting rule (counted per
+IP, 10 s window, 10 s block); Pro allows two. Spend the one rule on the endpoints that are
+anonymous and either expensive or write to D1:
+
+```text
+(http.request.uri.path in {"/api/auth/login" "/api/auth/register" "/api/auth/employee-login"
+  "/api/auth/refresh" "/api/vitals" "/api/ads/conversions"})
+```
+
+Suggested: 20 requests / 10 s per IP, block 10 s. Rules apply to traffic on your zone (a custom
+domain), not to the `*.workers.dev` hostname — put the production Worker on a custom domain.
+
+Known trade-off: anyone who knows an email can lock that account for 15 minutes with five bad
+guesses. That is the price of an exact bound on online guessing; OAuth and refresh-token
+sessions are unaffected.
+
 ## API surface
 
 All 121 OpenAPI contract paths from the Rust backend are implemented:

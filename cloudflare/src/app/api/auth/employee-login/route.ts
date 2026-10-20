@@ -5,6 +5,8 @@ import { issueSession, sessionCookies, sessionUserOut } from "@/lib/auth/session
 import { handleRouteError, readJson, clientIp, err } from "@/lib/api";
 import { accessTtlSecs } from "@/lib/auth/jwt";
 import { eq } from "drizzle-orm";
+import { assertNotLocked, recordFailedLogin } from "@/lib/auth/lockout";
+import { rateLimit } from "@/lib/rate-limit";
 
 /**
  * `POST /api/auth/employee-login` — employee-only login (rejects regular
@@ -17,11 +19,17 @@ export async function POST(req: Request) {
     const password = body.password ?? "";
     if (!email || !password) return err(400, "validation", "email and password are required");
 
+    await rateLimit("AUTH", "login", email);
+
     const db = await getDb();
     const user = (await db.select().from(users).where(eq(users.email, email)).limit(1))[0];
     if (!user || !user.passwordHash) return err(401, "invalid-credentials", "Invalid credentials");
+    assertNotLocked(user);
     const ok = await verifyPassword(password, user.passwordHash);
-    if (!ok) return err(401, "invalid-credentials", "Invalid credentials");
+    if (!ok) {
+      await recordFailedLogin(user.id);
+      return err(401, "invalid-credentials", "Invalid credentials");
+    }
 
     // Only employees (or admins) pass.
     if (user.role !== "employee" && user.role !== "admin") {
@@ -40,7 +48,13 @@ export async function POST(req: Request) {
       : {};
     await db
       .update(users)
-      .set({ ...upgraded, lastLoginAt: new Date().toISOString(), lastLoginIp: clientIp(req) })
+      .set({
+        ...upgraded,
+        failedLoginAttempts: 0,
+        lockedUntil: null,
+        lastLoginAt: new Date().toISOString(),
+        lastLoginIp: clientIp(req),
+      })
       .where(eq(users.id, user.id));
 
     const tokens = await issueSession(user.id, {

@@ -1,3 +1,4 @@
+import { limitWrite } from "@/lib/rate-limit";
 import { handleRouteError, requireUser, readJson } from "@/lib/api";
 import { ensureCustomerChannel, getChannelOut, listChannels } from "@/lib/services/chat";
 
@@ -15,6 +16,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const user = await requireUser(req);
+    await limitWrite("chat-channel", user.id);
     const body = await readJson<{ brandId?: string | null; topic?: string | null }>(req).catch(
       () => ({}) as { brandId?: string | null; topic?: string | null },
     );

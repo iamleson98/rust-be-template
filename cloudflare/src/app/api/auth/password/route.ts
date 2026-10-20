@@ -1,6 +1,7 @@
 import { getDb } from "@/lib/db/client";
 import { users } from "@/lib/db/schema";
 import { hashPassword } from "@/lib/auth/password";
+import { rateLimit } from "@/lib/rate-limit";
 import { handleRouteError, readJson, requireUser, err } from "@/lib/api";
 import { eq } from "drizzle-orm";
 
@@ -8,6 +9,7 @@ import { eq } from "drizzle-orm";
 export async function POST(req: Request) {
   try {
     const user = await requireUser(req);
+    await rateLimit("AUTH", "password", user.id);
     const body = await readJson<{ currentPassword?: string | null; newPassword?: string }>(req);
     const newPassword = body.newPassword ?? "";
     if (newPassword.length < 8)
@@ -30,6 +32,8 @@ export async function POST(req: Request) {
       .update(users)
       .set({
         passwordHash,
+        failedLoginAttempts: 0,
+        lockedUntil: null,
         passwordChangedAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       })

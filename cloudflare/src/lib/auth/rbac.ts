@@ -78,6 +78,8 @@ export class ApiError extends Error {
     public status: number,
     public code: string,
     message: string,
+    /** Seconds the client should wait (sent as `Retry-After` on 429/423). */
+    public retryAfter?: number,
   ) {
     super(message);
   }

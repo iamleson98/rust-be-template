@@ -1,3 +1,4 @@
+import { limitWrite } from "@/lib/rate-limit";
 import { getR2 } from "@/lib/db/client";
 import { handleRouteError, requireStaff, err } from "@/lib/api";
 import { requirePermission } from "@/lib/auth/rbac";
@@ -46,6 +47,7 @@ function sniff(bytes: Uint8Array, declared: string): string | null {
 export async function POST(req: Request) {
   try {
     const staff = await requireStaff(req);
+    await limitWrite("upload", staff.id);
     await requirePermission(staff, "admin:brands:write");
     const form = await req.formData();
     const file = form.get("file");

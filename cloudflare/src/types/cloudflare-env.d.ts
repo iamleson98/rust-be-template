@@ -21,6 +21,9 @@ declare interface CloudflareEnv {
   JWT_ACCESS_TTL_SECS?: string;
   JWT_REFRESH_TTL_SECS?: string;
   CRON_SERVICE_TOKEN?: string;
+  /** Workers Rate Limiting bindings (wrangler `ratelimits`); absent → limiting is off. */
+  AUTH_LIMITER?: RateLimit;
+  WRITE_LIMITER?: RateLimit;
   /** "lax" (default, first-party production) | "none" (cross-site-capable preview). */
   COOKIE_SAMESITE?: string;
   /** Optional cross-isolate cache tier; absent → memory-only caching. */

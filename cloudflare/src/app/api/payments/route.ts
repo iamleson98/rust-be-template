@@ -1,3 +1,4 @@
+import { limitWrite } from "@/lib/rate-limit";
 import { getDb } from "@/lib/db/client";
 import { bookings } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
@@ -15,6 +16,8 @@ export async function POST(req: Request) {
     const body = await readJson<{ bookingId?: string; provider?: string }>(req);
     if (!body.bookingId || !body.provider)
       return err(400, "validation", "bookingId and provider are required");
+    // Guests can pay too: key by the user, else by the booking being paid.
+    await limitWrite("payment", user?.id ?? body.bookingId);
     const db = await getDb();
     const booking = (
       await db.select().from(bookings).where(eq(bookings.id, body.bookingId)).limit(1)

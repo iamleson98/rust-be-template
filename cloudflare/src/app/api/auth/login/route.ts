@@ -5,6 +5,8 @@ import { issueSession, sessionCookies, sessionUserOut } from "@/lib/auth/session
 import { handleRouteError, readJson, clientIp, err } from "@/lib/api";
 import { accessTtlSecs as accessTtl } from "@/lib/auth/jwt";
 import { eq, or } from "drizzle-orm";
+import { assertNotLocked, recordFailedLogin } from "@/lib/auth/lockout";
+import { rateLimit } from "@/lib/rate-limit";
 
 interface LoginBody {
   email?: string;
@@ -21,6 +23,10 @@ export async function POST(req: Request) {
     if (!password || (!email && !phone))
       return err(400, "validation", "email/phone and password are required");
 
+    // Brake per account being tried — before any DB or hashing work, so a
+    // flood against one login (existing or not) is cheap to refuse.
+    await rateLimit("AUTH", "login", email || phone);
+
     const db = await getDb();
     const rows = await db
       .select()
@@ -36,8 +42,12 @@ export async function POST(req: Request) {
     if (user.status !== "active")
       return err(403, "blocked", user.blockReason ?? "Account is not active");
 
+    assertNotLocked(user);
     const ok = await verifyPassword(password, user.passwordHash);
-    if (!ok) return err(401, "invalid-credentials", "Invalid credentials");
+    if (!ok) {
+      await recordFailedLogin(user.id);
+      return err(401, "invalid-credentials", "Invalid credentials");
+    }
 
     // Imported Argon2id (or weaker-PBKDF2) hashes upgrade to the current
     // format now that the plaintext is in hand.
@@ -46,7 +56,13 @@ export async function POST(req: Request) {
       : {};
     await db
       .update(users)
-      .set({ ...upgraded, lastLoginAt: new Date().toISOString(), lastLoginIp: clientIp(req) })
+      .set({
+        ...upgraded,
+        failedLoginAttempts: 0,
+        lockedUntil: null,
+        lastLoginAt: new Date().toISOString(),
+        lastLoginIp: clientIp(req),
+      })
       .where(eq(users.id, user.id));
 
     const tokens = await issueSession(user.id, {

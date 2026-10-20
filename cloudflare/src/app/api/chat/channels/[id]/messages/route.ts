@@ -1,3 +1,4 @@
+import { limitWrite } from "@/lib/rate-limit";
 import { handleRouteError, requireUser, readJson } from "@/lib/api";
 import { listMessages, postMessage } from "@/lib/services/chat";
 import { emitChatEvent } from "@/lib/services/chat-hub-bridge";
@@ -32,6 +33,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   try {
     const user = await requireUser(req);
+    await limitWrite("chat-message", user.id);
     const { id } = await ctx.params;
     const body = await readJson<{
       content?: string | null;

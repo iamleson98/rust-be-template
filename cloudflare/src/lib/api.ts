@@ -12,13 +12,19 @@ export function json(data: unknown, init?: ResponseInit): Response {
   return Response.json(data, init);
 }
 
-export function err(status: number, code: string, message: string): Response {
-  return Response.json({ error: { code, message } }, { status });
+export function err(status: number, code: string, message: string, retryAfter?: number): Response {
+  return Response.json(
+    { error: { code, message } },
+    {
+      status,
+      headers: retryAfter ? { "retry-after": String(Math.max(1, Math.ceil(retryAfter))) } : {},
+    },
+  );
 }
 
 /** Convert thrown values into the standard error envelope. */
 export function handleRouteError(e: unknown): Response {
-  if (e instanceof ApiError) return err(e.status, e.code, e.message);
+  if (e instanceof ApiError) return err(e.status, e.code, e.message, e.retryAfter);
   const message = e instanceof Error ? e.message : "Internal error";
   console.error("[api]", e);
   return err(500, "internal", message);

@@ -1,3 +1,4 @@
+import { limitWrite } from "@/lib/rate-limit";
 import { handleRouteError, requireUser, readJson } from "@/lib/api";
 import { createBooking, type HoldRequest } from "@/lib/services/booking";
 import { bookingOut, loadBookings } from "@/lib/services/booking-out";
@@ -25,6 +26,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const user = await requireUser(req);
+    await limitWrite("booking", user.id);
     const body = await readJson<HoldRequest>(req);
     const result = await createBooking(user.id, body);
     const out = await bookingOut(result.booking);

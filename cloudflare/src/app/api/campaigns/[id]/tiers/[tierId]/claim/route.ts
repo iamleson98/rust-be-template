@@ -1,3 +1,4 @@
+import { limitWrite } from "@/lib/rate-limit";
 import { getDb, rawAll } from "@/lib/db/client";
 import { and, eq, sql } from "drizzle-orm";
 import { coupons, discountCampaigns, discountTiers } from "@/lib/db/schema";
@@ -23,6 +24,7 @@ function isUniqueViolation(e: unknown): boolean {
 export async function POST(req: Request, ctx: Params) {
   try {
     const user = await requireUser(req);
+    await limitWrite("claim", user.id);
     const { id, tierId } = await ctx.params;
     if (user.role === "admin" || user.role === "employee") {
       return err(403, "customers-only", "Staff accounts cannot claim campaign coupons");

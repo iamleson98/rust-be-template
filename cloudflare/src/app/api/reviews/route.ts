@@ -1,3 +1,4 @@
+import { limitWrite } from "@/lib/rate-limit";
 import { getDb } from "@/lib/db/client";
 import { reviews } from "@/lib/db/schema";
 import { and, desc, eq } from "drizzle-orm";
@@ -62,6 +63,7 @@ function reviewOut(r: typeof reviews.$inferSelect) {
 export async function POST(req: Request) {
   try {
     const user = await requireUser(req);
+    await limitWrite("review", user.id);
     const body = await readJson<{
       bookingId?: string | null;
       tripSessionId?: string | null;
