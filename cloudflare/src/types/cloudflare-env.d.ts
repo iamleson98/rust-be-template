@@ -36,6 +36,8 @@ declare interface CloudflareEnv {
   PAYMENT_PUBLIC_BASE_URL?: string;
   PAYMENT_COD_ENABLED?: string;
   VNPAY_ENABLED?: string;
+  /** `production` → live gateway; anything else → sandbox. */
+  VNPAY_ENV?: string;
   VNPAY_TMN_CODE?: string;
   VNPAY_HASH_SECRET?: string;
   VIETQR_ENABLED?: string;
@@ -44,10 +46,12 @@ declare interface CloudflareEnv {
   VIETQR_ACCOUNT_NO?: string;
   VIETQR_ACCOUNT_NAME?: string;
   MOMO_ENABLED?: string;
+  MOMO_ENV?: string;
   MOMO_PARTNER_CODE?: string;
   MOMO_ACCESS_KEY?: string;
   MOMO_SECRET_KEY?: string;
   ZALOPAY_ENABLED?: string;
+  ZALOPAY_ENV?: string;
   ZALOPAY_APP_ID?: string;
   ZALOPAY_KEY1?: string;
   ZALOPAY_KEY2?: string;

@@ -1,6 +1,7 @@
 import { rawAll, rawRun, atomicBatch } from "@/lib/db/client";
 import { sql } from "drizzle-orm";
 import { handleRouteError, requireUser, err } from "@/lib/api";
+import { invalidateCampaigns } from "@/lib/services/campaign-public";
 
 /**
  * `GET /api/coupons/mine` — the user's wallet (Rust `my_coupons`):
@@ -91,41 +92,42 @@ export async function GET(req: Request) {
 }
 
 /**
- * `DELETE /api/coupons/mine` — give up the held coupon: it becomes
- * `released` and its slot goes back to the tier while the campaign
- * still runs (Rust `release_coupon`), so the account can claim from
- * another campaign.
+ * `DELETE /api/coupons/mine` — give up the held coupon (Rust `give_up` /
+ * `release_coupon`): it becomes `released` and its slot goes back to the
+ * tier while the campaign still runs, so the account can claim from another
+ * campaign. A coupon on a booking cannot be given up. 404
+ * `no unused coupon to give up` when there is none.
  */
 export async function DELETE(req: Request) {
   try {
     const user = await requireUser(req);
-    const rows = await rawAll<{
-      id: string;
-      tier_id: string;
-      campaign_id: string;
-      status: string;
-    }>(sql`
-      SELECT id, tier_id, campaign_id, status FROM coupon
+    const rows = await rawAll<{ id: string; tier_id: string; campaign_id: string }>(sql`
+      SELECT id, tier_id, campaign_id FROM coupon
       WHERE active_holder = ${user.id} AND status = 'held'
-      ORDER BY claimed_at DESC LIMIT 1
+      LIMIT 1
     `);
     const held = rows[0];
-    if (!held) return err(409, "no-coupon", "No coupon held");
+    if (!held) return err(404, "not_found", "no unused coupon to give up");
     const now = new Date().toISOString();
-    // Released + slot back in one atomic unit; the slot returns only
-    // while the campaign still runs (Rust `release_coupon`).
-    await atomicBatch([
+    // One atomic unit. The slot goes back first and only while the coupon is
+    // still held, so a racing release can never return it twice; then the
+    // coupon is released by the same condition.
+    const [, released] = await atomicBatch([
+      sql`
+        UPDATE discount_tier SET claimed_slots = claimed_slots - 1
+        WHERE id = ${held.tier_id} AND claimed_slots > 0
+          AND EXISTS (SELECT 1 FROM coupon WHERE id = ${held.id} AND status = 'held')
+          AND EXISTS (SELECT 1 FROM discount_campaign dc
+                      WHERE dc.id = ${held.campaign_id} AND dc.ends_at > ${now})
+      `,
       sql`
         UPDATE coupon SET status = 'released', active_holder = NULL, updated_at = ${now}
         WHERE id = ${held.id} AND status = 'held'
       `,
-      sql`
-        UPDATE discount_tier SET claimed_slots = MAX(claimed_slots - 1, 0)
-        WHERE id = ${held.tier_id}
-          AND EXISTS (SELECT 1 FROM discount_campaign dc
-                      WHERE dc.id = ${held.campaign_id} AND dc.ends_at > ${now})
-      `,
     ]);
+    if (!released.meta.changes) return err(404, "not_found", "no unused coupon to give up");
+    // A slot may be free again.
+    await invalidateCampaigns();
     return Response.json({ ok: true });
   } catch (e) {
     return handleRouteError(e);
