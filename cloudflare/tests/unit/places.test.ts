@@ -81,7 +81,7 @@ const FIXTURE: RawPlace[] = [
   }),
   place({
     name: "Hà Nội",
-    kind: "train_station",
+    kind: "rail_station",
     province: "Thành phố Hà Nội",
     lat: 21.024,
     lon: 105.841,
@@ -102,18 +102,47 @@ const FIXTURE: RawPlace[] = [
     lon: 106.7,
   }),
   place({ name: "Đà Lạt", kind: "city", province: "Tỉnh Lâm Đồng", lat: 11.94, lon: 108.44 }),
+  place({
+    name: "Hồ Hoàn Kiếm",
+    altNames: ["Hồ Gươm"],
+    kind: "nature",
+    province: "Thành phố Hà Nội",
+    lat: 21.0288,
+    lon: 105.8523,
+  }),
+  place({
+    name: "Bệnh viện Chợ Rẫy",
+    kind: "amenity_hospital",
+    province: "Thành phố Hồ Chí Minh",
+    lat: 10.7576,
+    lon: 106.6595,
+  }),
+  place({
+    name: "Đường Nguyễn Huệ",
+    kind: "road_primary",
+    province: "Thành phố Hồ Chí Minh",
+    lat: 10.7745,
+    lon: 106.7036,
+  }),
+  place({
+    name: "Đường Nguyễn Huệ",
+    kind: "road_residential",
+    province: "Thành phố Hồ Chí Minh",
+    lat: 10.7747,
+    lon: 106.7038,
+  }),
 ];
 
 describe("buildIndex", () => {
   it("merges an OSM node and relation for the same city into one place", () => {
     const merged = dedupe(FIXTURE);
-    const hanoi = merged.filter((p) => p.name === "Hà Nội" && p.kind !== "train_station");
+    const hanoi = merged.filter((p) => p.name === "Hà Nội" && p.kind !== "rail_station");
     expect(hanoi).toHaveLength(1);
     expect(hanoi[0].kind).toBe("city"); // higher-priority kind wins
     expect(hanoi[0].population).toBe(8_000_000);
     expect(hanoi[0].province).toBe("Thành phố Hà Nội");
     // The railway station that shares the city's name is a different place.
-    expect(merged.some((p) => p.name === "Hà Nội" && p.kind === "train_station")).toBe(true);
+    expect(merged.some((p) => p.name === "Hà Nội" && p.kind === "rail_station")).toBe(true);
   });
 
   it("maps OSM province spellings onto the app's own list, and rejects the rest", () => {
@@ -169,23 +198,40 @@ describe("buildIndex", () => {
     const a = buildIndex([...FIXTURE, place({ name: "Nowhere", lat: Number.NaN })], "t");
     const b = buildIndex([...FIXTURE].reverse(), "t");
     expect([...a.files.entries()]).toEqual([...b.files.entries()]);
-    expect(a.manifest.count).toBe(8);
+    expect(a.manifest.count).toBe(11);
   });
 
   it("splits oversized prefixes into longer keys without losing records", () => {
     const many = Array.from({ length: MAX_SHARD_RECORDS + 50 }, (_, i) =>
       place({
-        name: `Phường ${["An", "Bình", "Cát"][i % 3]}${i}`,
-        kind: "ward",
+        name: `Tân Bình ${["An", "Cát", "Dũng"][i % 3]}${i}`,
+        kind: "village",
         lat: 10 + (i % 40) * 0.2,
         lon: 100 + Math.floor(i / 40) * 0.2,
       }),
     );
     const { manifest, files } = buildIndex(many, "t");
-    expect(manifest.keys.phu).toBeUndefined(); // "phuong" prefixes moved to 4 chars
-    expect(manifest.keys.phuo).toBe(many.length);
-    expect(Math.max(...Object.values(manifest.keys))).toBeLessThanOrEqual(many.length);
-    expect(files.has("s/phuo.json")).toBe(true);
+    expect(manifest.keys.bin).toBeUndefined(); // "binh" moved to a 4-char key
+    expect(manifest.keys.binh).toBe(many.length);
+    expect(files.has("s/binh.json")).toBe(true);
+  });
+
+  it("never keys a record by a type word like Đường / Phường / Xã", () => {
+    const built = buildIndex(
+      [
+        place({ name: "Đường Lê Lợi", kind: "village" }),
+        place({ name: "Phường Bến Nghé", kind: "ward", lat: 10.78, lon: 106.7 }),
+        place({ name: "Xã", kind: "village", lat: 12, lon: 107 }),
+      ],
+      "t",
+    );
+    const keys = Object.keys(built.manifest.keys);
+    expect(keys).not.toContain("duo");
+    expect(keys).not.toContain("phu");
+    expect(keys).toContain("le");
+    expect(keys).toContain("ben");
+    // ...but a name made only of type words stays findable.
+    expect(keys).toContain("xa");
   });
 });
 
@@ -211,9 +257,27 @@ describe("searchIndex", () => {
     expect((await searchIndex(load, "hai ph"))[0]?.name).toBe("Hải Phòng");
   });
 
+  it("finds a place by its alternative names, and shows the main one", async () => {
+    const hits = await searchIndex(load, "ho guom");
+    expect(hits[0]).toMatchObject({ name: "Hồ Hoàn Kiếm", type: "nature" });
+    expect((await searchIndex(load, "hoguom"))[0]?.name).toBe("Hồ Hoàn Kiếm");
+    expect((await searchIndex(load, "ho hoan kiem"))[0]?.name).toBe("Hồ Hoàn Kiếm");
+  });
+
+  it("finds landmarks and streets, merging one street's segments into one hit", async () => {
+    expect((await searchIndex(load, "benh vien cho ray"))[0]).toMatchObject({
+      type: "amenity_hospital",
+    });
+    const streets = (await searchIndex(load, "nguyen hue")).filter((h) =>
+      h.type.startsWith("road_"),
+    );
+    expect(streets).toHaveLength(1);
+    expect(streets[0].type).toBe("road_primary"); // the higher class wins the merge
+  });
+
   it("treats type words (ga, bến xe, phường) as optional", async () => {
     const station = await searchIndex(load, "ga ha noi");
-    expect(station.map((h) => h.type)).toContain("train_station");
+    expect(station.map((h) => h.type)).toContain("rail_station");
     expect((await searchIndex(load, "thanh pho ha noi"))[0]?.name).toBe("Hà Nội");
     // ...but a query of only type words still has to match them.
     const only = await searchIndex(load, "ben xe");
@@ -251,6 +315,22 @@ describe("searchIndex", () => {
       lon: 105.85,
     });
     expect(hits[0].id).toMatch(/^[nwr]\d+$/);
+  });
+
+  it("finds a street through its identifying words, with or without 'đường'", async () => {
+    const { load } = loaderFor([
+      place({ name: "Đường Lê Lợi", kind: "village", province: "Thành phố Hà Nội" }),
+      place({
+        name: "Phường Bến Nghé",
+        kind: "ward",
+        province: "Thành phố Hồ Chí Minh",
+        lat: 10.78,
+        lon: 106.7,
+      }),
+    ]);
+    expect((await searchIndex(load, "duong le loi"))[0]?.name).toBe("Đường Lê Lợi");
+    expect((await searchIndex(load, "le loi"))[0]?.name).toBe("Đường Lê Lợi");
+    expect((await searchIndex(load, "p. bến nghé"))[0]?.name).toBe("Phường Bến Nghé");
   });
 
   it("expands administrative abbreviations", async () => {
@@ -312,7 +392,7 @@ describe("reverseIndex / popularIndex", () => {
   it("answers with areas rather than landmarks when both are near", async () => {
     // Mỹ Đình bus station is nearest, but the user is "in" a place, not a station.
     const hits = await reverseIndex(load, 21.028, 105.78, 3);
-    expect(hits.every((h) => !["bus_station", "airport", "train_station"].includes(h.type))).toBe(
+    expect(hits.every((h) => !["bus_station", "airport", "rail_station"].includes(h.type))).toBe(
       true,
     );
   });

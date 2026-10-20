@@ -35,3 +35,43 @@ export function expandAbbreviations(q: string): string {
     .replace(/\bD\.\s*/gi, "Đường ")
     .replace(/\bSt\.\s*/gi, "Đường ");
 }
+
+/**
+ * Words that prefix thousands of names without identifying any ("Đường X",
+ * "Phường X", "Thôn 3", "Xã Y"). They are never used to locate a record — a
+ * shard keyed on "duong" would hold every street in the country — but still
+ * count when scoring a record that was found another way.
+ */
+export const NON_KEY_WORDS = new Set([
+  "duong",
+  "pho",
+  "ngo",
+  "hem",
+  "phuong",
+  "xa",
+  "quan",
+  "huyen",
+  "thi",
+  "tran",
+  "thanh",
+  "tinh",
+  "tp",
+  "tx",
+  "tt",
+  "thon",
+  "ap",
+  "xom",
+  "khu",
+  "kp",
+  "to",
+]);
+
+/**
+ * The words a record is found by: its name tokens minus [NON_KEY_WORDS]
+ * (kept when nothing else is left, so "Phường 1" stays findable).
+ */
+export function keyWords(name: string): string[] {
+  const tokens = tokenize(name);
+  const keep = tokens.filter((t) => !NON_KEY_WORDS.has(t));
+  return keep.length > 0 ? keep : tokens;
+}

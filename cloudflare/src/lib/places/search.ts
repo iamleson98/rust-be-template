@@ -3,7 +3,7 @@
  * Worker, reads only the one-to-few small JSON shards a query needs, and
  * needs no database, container or native binary.
  */
-import { compact, expandAbbreviations, fold, tokenize } from "./text";
+import { compact, expandAbbreviations, fold, keyWords, tokenize } from "./text";
 import { BASE_KEY_LEN, CELL_DEG, cellKey, type Manifest, type PlaceRecord } from "./format";
 
 export interface PlaceHit {
@@ -26,16 +26,33 @@ const KIND_BOOST: Record<string, number> = {
   city: 4,
   town: 3.6,
   province: 3,
-  train_station: 3.2,
+  rail_station: 3.2,
   bus_station: 3.2,
   airport: 3.2,
   ferry_terminal: 2.6,
+  amenity_hospital: 2.4,
+  amenity_university: 2.4,
+  amenity_college: 2,
+  amenity_marketplace: 2.2,
   district: 2,
+  mall: 1.8,
   island: 1.8,
   attraction: 1.6,
+  park: 1.6,
+  historic: 1.6,
+  nature: 1.6,
+  road_trunk: 1.5,
   ward: 1.5,
+  road_motorway: 1.3,
+  amenity_townhall: 1.4,
+  worship: 1.4,
+  road_primary: 1.4,
+  lodging: 1.3,
+  road_secondary: 1.2,
   village: 1.2,
+  road_tertiary: 1.1,
   suburb: 1.1,
+  road_residential: 1.0,
   hamlet: 1.0,
 };
 
@@ -44,6 +61,8 @@ const MAX_QUERY_TOKENS = 6;
 const MAX_LOOKUPS = 4;
 /** Shards fetched for one lookup token (a 1–2 letter token spans many keys). */
 const MAX_SHARDS = 6;
+/** A lookup this big (records) is skipped when a narrower one is available. */
+const BIG_SHARD = 4000;
 /**
  * Words that describe the TYPE of place ("Ga", "Bến xe", "Phường"). People
  * type them whether or not OSM's name does ("ga hà nội" vs the station
@@ -136,15 +155,33 @@ export function candidateKeys(keys: Record<string, number>, token: string): stri
 interface Candidate {
   rec: PlaceRecord;
   nameTokens: string[];
+  altTokens: string[];
   ctxTokens: string[];
+  /** Run-together forms a "hanoi"-style query may be a prefix of. */
+  compacts: string[];
 }
 
+/**
+ * Tokenising is the expensive part of scoring a shard. Records live as long
+ * as their shard sits in the loader cache, so memoise per record: a repeat
+ * query over a hot shard costs a scan, not a re-tokenisation.
+ */
+const candidates = new WeakMap<PlaceRecord, Candidate>();
+
 function toCandidate(rec: PlaceRecord): Candidate {
-  return {
-    rec,
-    nameTokens: tokenize(rec[1]),
-    ctxTokens: tokenize(`${rec[3]} ${rec[4]} ${rec[5]}`),
-  };
+  let c = candidates.get(rec);
+  if (!c) {
+    const alts = rec[9] ? rec[9].split(";") : [];
+    c = {
+      rec,
+      nameTokens: tokenize(rec[1]),
+      altTokens: alts.flatMap(tokenize),
+      ctxTokens: tokenize(`${rec[3]} ${rec[4]} ${rec[5]}`),
+      compacts: [rec[1], ...alts].map((n) => keyWords(n).join("")),
+    };
+    candidates.set(rec, c);
+  }
+  return c;
 }
 
 /** Best match of one query token against a record, or -1 when it matches nothing. */
@@ -153,6 +190,10 @@ function tokenScore(qt: string, c: Candidate): number {
   for (const t of c.nameTokens) {
     if (t === qt) return 3;
     if (t.startsWith(qt)) best = Math.max(best, 2);
+  }
+  for (const t of c.altTokens) {
+    if (t === qt) best = Math.max(best, 2.5);
+    else if (t.startsWith(qt)) best = Math.max(best, 2);
   }
   for (const t of c.ctxTokens) {
     if (t === qt) best = Math.max(best, 1);
@@ -207,8 +248,25 @@ export async function searchIndex(load: Loader, raw: string, limit = 10): Promis
   // One- and two-letter words ("ha", "sa") span dozens of shards and select
   // nothing; the run-together form ("hanoi") already covers them.
   const selective = ordered.filter((t) => t.length >= BASE_KEY_LEN);
-  const lookups = (selective.length > 0 ? selective : ordered).slice(0, MAX_LOOKUPS);
-  const files = [...new Set(lookups.flatMap((t) => candidateKeys(manifest.keys, t)))];
+  const pool = selective.length > 0 ? selective : ordered;
+  // Read the SMALLEST shards first: "nguyen hue" is answered from the "hue"
+  // shard; the surname's megabyte-sized shard is only worth loading when
+  // nothing narrower exists. (Order of `ordered` already puts required words
+  // ahead of type words, which a stable sort preserves between equals.)
+  const plan = pool
+    .map((token) => {
+      const keys = candidateKeys(manifest.keys, token);
+      return { token, keys, size: keys.reduce((n, k) => n + manifest.keys[k], 0) };
+    })
+    .filter((p) => p.keys.length > 0)
+    .sort((a, b) => a.size - b.size);
+  const lookups: typeof plan = [];
+  for (const p of plan) {
+    if (lookups.length >= MAX_LOOKUPS) break;
+    if (p.size > BIG_SHARD && lookups.length > 0) continue;
+    lookups.push(p);
+  }
+  const files = [...new Set(lookups.flatMap((p) => p.keys))];
   const shards = await Promise.all(files.map((k) => load(`s/${k}.json`)));
 
   const seen = new Set<string>();
@@ -234,7 +292,7 @@ export async function searchIndex(load: Loader, raw: string, limit = 10): Promis
         }
       }
       // "hanoi" / "bennghe": the query is a prefix of the name run together.
-      if (!ok && queryCompact.length >= 3 && compact(rec[1]).startsWith(queryCompact)) {
+      if (!ok && queryCompact.length >= 3 && c.compacts.some((k) => k.startsWith(queryCompact))) {
         ok = true;
         match = 2.5 * tokens.length;
       }

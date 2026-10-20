@@ -38,6 +38,7 @@ import {
 } from "@spa/components/ui/dialog";
 import { cn } from "@spa/lib/utils";
 import { useT } from "@spa/lib/i18n";
+import { formatPlaceType } from "@spa/lib/place-type";
 import { toast } from "sonner";
 import { VIETNAMESE_CITIES, type VietnameseCity } from "@spa/lib/vietnamese-cities";
 import { noTones } from "@spa/lib/text";
@@ -170,7 +171,7 @@ export function PlaceAutocomplete({
       bus_station: t("searchPage.placeBusStation"),
       bus_stop: t("searchPage.placeBusStop"),
     };
-    return map[type] ?? type.replace(/_/g, " ");
+    return map[type] ?? formatPlaceType(type, t);
   };
 
   // ── City rows: the hardcoded province list, filtered locally.

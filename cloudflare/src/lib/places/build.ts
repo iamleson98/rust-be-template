@@ -4,7 +4,7 @@
  * the interesting logic unit-testable inside workerd.
  */
 import { VIETNAMESE_CITIES } from "@/lib/cities";
-import { compact, fold, tokenize } from "./text";
+import { fold, keyWords } from "./text";
 import {
   BASE_KEY_LEN,
   INDEX_VERSION,
@@ -28,15 +28,32 @@ const KIND_PRIORITY: Record<string, number> = {
   city: 10,
   town: 9,
   province: 8,
-  train_station: 7,
+  rail_station: 7,
   bus_station: 7,
   airport: 7,
   ferry_terminal: 6,
+  amenity_hospital: 5,
+  amenity_university: 5,
+  amenity_college: 4,
+  amenity_marketplace: 4,
   district: 5,
   island: 4,
   attraction: 4,
+  mall: 3,
+  park: 3,
+  historic: 3,
+  nature: 3,
+  worship: 3,
+  amenity_townhall: 3,
   ward: 3,
   suburb: 3,
+  road_motorway: 5,
+  road_trunk: 5,
+  road_primary: 4,
+  road_secondary: 3,
+  road_tertiary: 2,
+  road_residential: 1,
+  lodging: 2,
   village: 2,
   hamlet: 1,
 };
@@ -54,7 +71,10 @@ const AREA_KINDS = new Set([
   "hamlet",
   "island",
 ]);
-const sameClass = (a: string, b: string) => (AREA_KINDS.has(a) && AREA_KINDS.has(b)) || a === b;
+const sameClass = (a: string, b: string) =>
+  (AREA_KINDS.has(a) && AREA_KINDS.has(b)) ||
+  (a.startsWith("road_") && b.startsWith("road_")) || // one street, many segments
+  a === b;
 
 export interface BuiltIndex {
   /** Published path → file body. */
@@ -107,6 +127,7 @@ function toRecord(p: RawPlace): PlaceRecord {
     Math.round(p.lat * 1e5) / 1e5,
     Math.round(p.lon * 1e5) / 1e5,
     p.population > 0 ? p.population : 0,
+    (p.altNames ?? []).join(";"),
   ];
 }
 
@@ -139,6 +160,7 @@ export function dedupe(places: RawPlace[]): RawPlace[] {
       });
       if (twin) {
         twin.population = Math.max(twin.population, p.population);
+        twin.altNames = [...new Set([...(twin.altNames ?? []), ...(p.altNames ?? [])])];
         // The weaker element may know the address context the winner lacks.
         twin.province ??= p.province;
         twin.district ??= p.district;
@@ -154,17 +176,22 @@ export function dedupe(places: RawPlace[]): RawPlace[] {
 }
 
 /**
- * Tokens a record is findable by: its name's words, plus the whole name run
- * together so "hanoi" finds "Hà Nội" (people type it both ways).
+ * Tokens a record is findable by: its identifying words (see keyWords), plus
+ * those run together so "hanoi" finds "Hà Nội" (people type it both ways).
  */
-function nameKeyTokens(name: string): string[] {
-  return [...new Set([...tokenize(name), compact(name)])].filter(Boolean);
+function nameKeyTokens(name: string, alt: string): string[] {
+  const tokens: string[] = [];
+  for (const n of [name, ...alt.split(";").filter(Boolean)]) {
+    const words = keyWords(n);
+    tokens.push(...words, words.join(""));
+  }
+  return [...new Set(tokens)].filter(Boolean);
 }
 
 /** Distinct leading-`len` prefixes of a record's key tokens. */
-function keysOf(name: string, len: number): Set<string> {
+function keysOf(name: string, alt: string, len: number): Set<string> {
   const keys = new Set<string>();
-  for (const t of nameKeyTokens(name)) keys.add(t.slice(0, len));
+  for (const t of nameKeyTokens(name, alt)) keys.add(t.slice(0, len));
   return keys;
 }
 
@@ -182,7 +209,7 @@ export function buildIndex(raw: RawPlace[], builtAt = new Date().toISOString()):
     if (list) list.push(rec);
     else byKey.set(key, [rec]);
   };
-  for (const rec of records) for (const k of keysOf(rec[1], BASE_KEY_LEN)) add(k, rec);
+  for (const rec of records) for (const k of keysOf(rec[1], rec[9], BASE_KEY_LEN)) add(k, rec);
 
   for (const [key, list] of [...byKey]) {
     if (list.length <= MAX_SHARD_RECORDS || key.length >= MAX_KEY_LEN) continue;
@@ -191,7 +218,7 @@ export function buildIndex(raw: RawPlace[], builtAt = new Date().toISOString()):
     const split = new Map<string, PlaceRecord[]>();
     for (const rec of list) {
       let stays = false;
-      for (const t of nameKeyTokens(rec[1])) {
+      for (const t of nameKeyTokens(rec[1], rec[9])) {
         if (!t.startsWith(key)) continue;
         if (t.length <= key.length) {
           stays = true;
@@ -217,8 +244,11 @@ export function buildIndex(raw: RawPlace[], builtAt = new Date().toISOString()):
   }
 
   // ── geo cells ──
+  // Reverse geocoding answers "which area am I in", so cells hold areas only:
+  // streets, hotels and landmarks would make Hà Nội's cell megabytes for nothing.
   const cells = new Map<string, PlaceRecord[]>();
   for (const rec of records) {
+    if (!AREA_KINDS.has(rec[2])) continue;
     const key = cellKey(rec[6], rec[7]);
     const list = cells.get(key);
     if (list) list.push(rec);

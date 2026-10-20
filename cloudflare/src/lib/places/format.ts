@@ -30,6 +30,8 @@ export type PlaceRecord = [
   lat: number,
   lon: number,
   population: number,
+  /** Other names for the same place, `;`-separated ("" when none). */
+  alt: string,
 ];
 
 /** One line of the extractor's NDJSON (tools/place-extract). */
@@ -38,6 +40,8 @@ export interface RawPlace {
   osmType: "node" | "way" | "relation";
   kind: string;
   name: string;
+  /** Other names for the same place (searchable, never displayed). */
+  altNames?: string[];
   province: string | null;
   district: string | null;
   ward: string | null;

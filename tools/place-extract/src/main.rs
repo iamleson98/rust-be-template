@@ -47,6 +47,9 @@ struct Args {
     tmp_dir: Option<PathBuf>,
     #[arg(long, value_enum, default_value_t = Centroids::First)]
     centroids: Centroids,
+    /// How much of OSM to ship (each profile includes the one before it).
+    #[arg(long, value_enum, default_value_t = travel::Profile::Travel)]
+    profile: travel::Profile,
 }
 
 /// One shipped place. Names keep their diacritics: tone folding is done by the
@@ -58,6 +61,9 @@ struct Place {
     osm_type: &'static str,
     kind: &'static str,
     name: String,
+    /// Other names for the same place (searchable, never displayed).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    alt_names: Vec<String>,
     province: Option<String>,
     district: Option<String>,
     ward: Option<String>,
@@ -198,7 +204,7 @@ fn main() -> Result<()> {
     let (mut nodes, mut ways, mut admins) = (0u64, 0u64, 0u64);
 
     for rec in records::<NodeRecord>(&pass2.nodes_file_path)? {
-        let Some(kind) = travel::travel_kind(&rec.tags) else {
+        let Some(kind) = travel::travel_kind(&rec.tags, args.profile) else {
             continue;
         };
         let h = hierarchy(&spatial, rec.lat, rec.lon, 0);
@@ -209,6 +215,7 @@ fn main() -> Result<()> {
                 osm_type: "node",
                 kind,
                 name: rec.tags["name"].trim().to_string(),
+                alt_names: travel::alt_names(&rec.tags, rec.tags["name"].trim()),
                 province: h.province,
                 district: h.district,
                 ward: h.ward,
@@ -221,7 +228,7 @@ fn main() -> Result<()> {
     }
 
     for rec in records::<WayRecord>(&pass2.ways_file_path)? {
-        let Some(kind) = travel::travel_kind(&rec.tags) else {
+        let Some(kind) = travel::travel_kind(&rec.tags, args.profile) else {
             continue;
         };
         let Some((lat, lon)) = way_centroid(&rec.node_refs, &node_coords) else {
@@ -235,6 +242,7 @@ fn main() -> Result<()> {
                 osm_type: "way",
                 kind,
                 name: rec.tags["name"].trim().to_string(),
+                alt_names: travel::alt_names(&rec.tags, rec.tags["name"].trim()),
                 province: h.province,
                 district: h.district,
                 ward: h.ward,
@@ -268,6 +276,7 @@ fn main() -> Result<()> {
                 osm_type: "relation",
                 kind: rel.place_kind,
                 name: rel.name.clone(),
+                alt_names: Vec::new(),
                 province: h.province,
                 district: h.district,
                 ward: h.ward,

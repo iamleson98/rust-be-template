@@ -34,6 +34,11 @@ on:
         description: 'Redeploy the Worker with the new index'
         type: boolean
         default: true
+      profile:
+        description: 'How much of OSM to ship: travel (22k places) | landmarks (39k) | full (118k, adds streets + hotels)'
+        type: choice
+        options: [full, landmarks, travel]
+        default: full
   pull_request:
     paths:
       - 'tools/place-extract/**'
@@ -58,7 +63,8 @@ env:
   OSM_URL: https://download.geofabrik.de/asia/vietnam-latest.osm.pbf
   # The real extract is ~330 MB; anything far below is an error page.
   OSM_MIN_BYTES: '150000000'
-  # A healthy extract yields ~28k places; far fewer means the pipeline broke.
+  # Healthy `travel` output is ~22k unique places (`full` ~118k); far fewer
+  # means the pipeline broke.
   MIN_PLACES: '15000'
 
 jobs:
@@ -101,10 +107,13 @@ jobs:
             exit 1
           fi
 
-      - name: Extract travel places
+      - name: Extract places
+        env:
+          PROFILE: ${{ inputs.profile }}
         run: |
           tools/place-extract/target/release/place-extract vietnam-latest.osm.pbf \
-            --out places.ndjson --tmp-dir "$RUNNER_TEMP/place-extract"
+            --out places.ndjson --tmp-dir "$RUNNER_TEMP/place-extract" \
+            --profile "${PROFILE:-full}"
           wc -l places.ndjson
 
       - uses: oven-sh/setup-bun@v2
