@@ -1,5 +1,10 @@
 # ─── CI: the quality harness ──────────────────────────────────────────
 #
+# RUNNER: all jobs run on the self-hosted fleet (label `oci-runner`,
+# VPS 169.58.249.26, managed by iamleson98/oci-provision controller:
+# ephemeral one-job runner containers, autoscaled from the job queue).
+# Toolchains are installed per-run; caches ride GitHub's hosted cache.
+#
 # TRIGGER DESIGN — "verify once, at the door" (docs/CI.md § Trigger):
 #   * pull_request (master) — THE gate. Actions checks out the MERGE REF
 #     (refs/pull/N/merge = PR rebased onto the current master tip), so CI
@@ -107,7 +112,7 @@ jobs:
   # THIS job is itself a required check → fail-closed by design.
   changes:
     name: Changes (path filter)
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, oci-runner]
     timeout-minutes: 5
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
@@ -215,7 +220,7 @@ jobs:
     if: |
       needs.changes.outputs.run_all == 'true' ||
       needs.changes.outputs.backend == 'true'
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, oci-runner]
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
@@ -340,7 +345,7 @@ jobs:
     if: |
       needs.changes.outputs.run_all == 'true' ||
       needs.changes.outputs.backend == 'true'
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, oci-runner]
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -372,7 +377,7 @@ jobs:
     if: |
       needs.changes.outputs.run_all == 'true' ||
       needs.changes.outputs.backend == 'true'
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, oci-runner]
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -446,7 +451,7 @@ jobs:
     if: |
       needs.changes.outputs.run_all == 'true' ||
       needs.changes.outputs.frontend == 'true'
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, oci-runner]
     timeout-minutes: 30
     defaults:
       run:
@@ -508,7 +513,7 @@ jobs:
     if: |
       needs.changes.outputs.run_all == 'true' ||
       needs.changes.outputs.frontend == 'true'
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, oci-runner]
     timeout-minutes: 30
     defaults:
       run:
@@ -547,7 +552,7 @@ jobs:
     if: |
       needs.changes.outputs.run_all == 'true' ||
       needs.changes.outputs.mobile == 'true'
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, oci-runner]
     timeout-minutes: 45
     defaults:
       run:
@@ -605,7 +610,7 @@ jobs:
 
   repo-hygiene:
     name: Repo hygiene (shell / docker / markdown / json)
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, oci-runner]
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -692,7 +697,7 @@ jobs:
 
   secrets-scan:
     name: Secrets scan (gitleaks)
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, oci-runner]
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -778,7 +783,7 @@ jobs:
        needs.changes.outputs.backend == 'true' ||
        needs.changes.outputs.frontend == 'true' ||
        needs.changes.outputs.docker == 'true')
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, oci-runner]
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
