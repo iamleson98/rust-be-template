@@ -17,7 +17,7 @@ async function tokensEqual(a: string, b: string): Promise<boolean> {
 }
 
 /**
- * POST /api/jobs/tick — cron entry point driven by the container scheduler.
+ * POST /api/jobs/tick — cron entry point, driven by the Worker Cron Trigger (custom-worker.ts).
  * Auth: X-Cron-Token header matching CRON_SERVICE_TOKEN (service-to-service).
  */
 export async function POST(req: Request) {

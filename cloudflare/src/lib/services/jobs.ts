@@ -1,28 +1,36 @@
 /**
- * Jobs service — the cron EXECUTOR. The DRIVER is the container
- * (cloudflare/container), which ticks every minute and calls
- * POST /api/jobs/tick with the CRON_SERVICE_TOKEN.
+ * Jobs service — the cron EXECUTOR. The DRIVER is the Worker's Cron Trigger
+ * (every minute): custom-worker.ts `scheduled()` feeds a synthetic
+ * POST /api/jobs/tick through the Next.js handler. The same route is also
+ * callable with the CRON_SERVICE_TOKEN for manual runs.
  *
  * Cadences (port of the Rust scheduler + in-process timers):
  *  - holds.sweep   — fixed, every tick (60s): cancel expired pending bookings
  *  - trips.warm    — fixed, every 6h: materialize trip_session rows (14-day window)
- *  - coupons.expire / fts.reindex / jobs.retention / trips.prune —
+ *  - coupons.expire / jobs.retention / trips.prune —
  *    scheduled_job-table rows (daily/periodic, admin-editable via PATCH /api/admin/cron-jobs)
+ *
+ * Ticks may overlap (a slow run, a manual trigger): every table-driven job is
+ * CLAIMED with a compare-and-swap lease on `next_run_at` before it runs, so
+ * a job never executes twice for the same slot.
  *
  * All runs are recorded in job_run for the admin dashboard.
  */
 import { getDb } from "@/lib/db/client";
 import { jobRuns, scheduledJobs, coupons, seatInventory, tripSessions } from "@/lib/db/schema";
-import { and, desc, eq, inArray, isNotNull, lt, lte, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, isNull, lt, lte, sql } from "drizzle-orm";
 import { sweepExpiredHolds, warmTrips } from "./booking";
-import { reindexPlaces } from "./place-search";
-import { invalidatePlaces } from "./lookups";
 
 export interface JobOutcome {
   jobType: string;
   status: "succeeded" | "failed" | "skipped";
   detail?: string;
   error?: string;
+}
+
+/** ISO cutoff for job_run retention (timestamps are ISO-8601, so compare like with like). */
+function retentionCutoff(): string {
+  return new Date(Date.now() - 30 * 86_400_000).toISOString();
 }
 
 async function recordRun(jobType: string, status: string, detail?: string, error?: string) {
@@ -39,7 +47,7 @@ async function recordRun(jobType: string, status: string, detail?: string, error
     finishedAt: now,
   });
   // Retention prune (30 days) piggybacks on every write path.
-  await db.delete(jobRuns).where(lt(jobRuns.createdAt, sql`datetime('now', '-30 days')`));
+  await db.delete(jobRuns).where(lt(jobRuns.createdAt, retentionCutoff()));
 }
 
 async function runJob(jobType: string, fn: () => Promise<string>): Promise<JobOutcome> {
@@ -66,6 +74,33 @@ async function runFrequentJobs(): Promise<JobOutcome[]> {
   return outcomes;
 }
 
+/** A claimed job that has not finished is retried after this long (crash/failure retry). */
+const JOB_LEASE_MS = 10 * 60_000;
+
+/**
+ * Compare-and-swap claim of one job slot: moves `next_run_at` from the value
+ * we read to `to`. Exactly one concurrent tick wins (D1 serialises writes);
+ * the rest see zero changed rows and skip the job.
+ */
+async function claimSlot(
+  db: Awaited<ReturnType<typeof getDb>>,
+  id: string,
+  seen: string | null,
+  to: Date,
+): Promise<boolean> {
+  const r = await db
+    .update(scheduledJobs)
+    .set({ nextRunAt: to.toISOString(), updatedAt: new Date().toISOString() })
+    .where(
+      and(
+        eq(scheduledJobs.id, id),
+        seen === null ? isNull(scheduledJobs.nextRunAt) : eq(scheduledJobs.nextRunAt, seen),
+      ),
+    )
+    .run();
+  return r.meta.changes === 1;
+}
+
 /** Table-driven jobs: run when next_run_at is due, then advance it. */
 async function runDueScheduledJobs(): Promise<JobOutcome[]> {
   const db = await getDb();
@@ -74,27 +109,28 @@ async function runDueScheduledJobs(): Promise<JobOutcome[]> {
   const outcomes: JobOutcome[] = [];
   for (const job of rows) {
     // First tick after deployment: initialize next_run_at to the next slot.
-    let next = job.nextRunAt ? new Date(job.nextRunAt) : null;
-    if (!next) {
-      next = nextSlot(job.intervalDays, job.atHour, job.atMinute);
-      await db
-        .update(scheduledJobs)
-        .set({ nextRunAt: next.toISOString(), updatedAt: now.toISOString() })
-        .where(eq(scheduledJobs.id, job.id));
-      if (next.getTime() > now.getTime()) continue;
+    if (!job.nextRunAt) {
+      await claimSlot(db, job.id, null, nextSlot(job.intervalDays, job.atHour, job.atMinute));
+      continue;
     }
-    if (next.getTime() > now.getTime()) continue;
+    if (new Date(job.nextRunAt).getTime() > now.getTime()) continue;
 
-    const outcome = await runJob(job.jobType, async () => {
-      const detail = await executeJobBody(job.jobType);
-      // Advance to the next slot (missed slots are skipped, not replayed).
-      const upcoming = nextSlot(job.intervalDays, job.atHour, job.atMinute);
+    // Lease the slot first; on success move to the real next slot, on failure
+    // the lease simply expires and the job is retried.
+    const leased = await claimSlot(db, job.id, job.nextRunAt, new Date(Date.now() + JOB_LEASE_MS));
+    if (!leased) continue;
+
+    const outcome = await runJob(job.jobType, () => executeJobBody(job.jobType));
+    if (outcome.status === "succeeded") {
+      // Missed slots are skipped, not replayed.
       await db
         .update(scheduledJobs)
-        .set({ nextRunAt: upcoming.toISOString(), updatedAt: now.toISOString() })
+        .set({
+          nextRunAt: nextSlot(job.intervalDays, job.atHour, job.atMinute).toISOString(),
+          updatedAt: new Date().toISOString(),
+        })
         .where(eq(scheduledJobs.id, job.id));
-      return detail;
-    });
+    }
     outcomes.push(outcome);
   }
   return outcomes;
@@ -121,16 +157,8 @@ async function executeJobBody(jobType: string): Promise<string> {
         .run();
       return JSON.stringify({ expired: r.meta.changes });
     }
-    case "fts.reindex": {
-      const r = await reindexPlaces();
-      await invalidatePlaces();
-      return JSON.stringify(r);
-    }
     case "jobs.retention": {
-      const r = await db
-        .delete(jobRuns)
-        .where(lt(jobRuns.createdAt, sql`datetime('now', '-30 days')`))
-        .run();
+      const r = await db.delete(jobRuns).where(lt(jobRuns.createdAt, retentionCutoff())).run();
       return JSON.stringify({ pruned: r.meta.changes });
     }
     case "trips.prune": {
@@ -171,7 +199,7 @@ function nextSlot(intervalDays: number, atHour: number, atMinute: number): Date 
   return candidate;
 }
 
-/** Container entry point: POST /api/jobs/tick (service-token auth). */
+/** Cron entry point: POST /api/jobs/tick (service-token auth). */
 export async function tick(): Promise<{ ran: JobOutcome[] }> {
   const frequent = await runFrequentJobs();
   const scheduled = await runDueScheduledJobs();

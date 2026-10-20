@@ -1,5 +1,5 @@
 import { getDb, rawAll } from "@/lib/db/client";
-import { asc, sql } from "drizzle-orm";
+import { and, asc, eq, gt, sql } from "drizzle-orm";
 import { jobRuns, scheduledJobs } from "@/lib/db/schema";
 import { handleRouteError, requireStaff } from "@/lib/api";
 import { requirePermission } from "@/lib/auth/rbac";
@@ -7,8 +7,8 @@ import type { CronJobRunOut } from "@/lib/services/jobs";
 
 /**
  * `GET /api/admin/cron-jobs` — job registry with the latest run per job
- * (Rust `CronJobListResponse`). `schedulerEnabled` reports the container
- * cron driver heartbeat (last tick within 5 minutes).
+ * (Rust `CronJobListResponse`). `schedulerEnabled` reports the cron
+ * trigger heartbeat (a tick ran within 5 minutes).
  */
 export async function GET(req: Request) {
   try {
@@ -28,7 +28,7 @@ export async function GET(req: Request) {
       })
       .from(scheduledJobs)
       .orderBy(asc(scheduledJobs.jobType));
-    // The two fixed-cadence jobs (container driver) always exist in the registry.
+    // The two fixed-cadence jobs (run on every tick) always exist in the registry.
     const fixed = [
       { jobType: "holds.sweep", enabled: 1, intervalDays: 0, atHour: 0, atMinute: 0 },
       { jobType: "trips.warm", enabled: 1, intervalDays: 0, atHour: 6, atMinute: 0 },
@@ -42,19 +42,24 @@ export async function GET(req: Request) {
       })),
       ...jobs,
     ];
-    // Latest run per job: MAX(id) per group is a grouping trick with no
-    // builder equivalent — one parameterized statement, no user input.
+    // Latest run per job: a window function has no builder equivalent. (The
+    // ids are random UUIDs, so MAX(id) would pick an arbitrary run.)
     const lastRuns = await rawAll<CronJobRunOut>(sql`
-      SELECT id, job_type AS jobType, status, detail, error, started_at AS startedAt,
-             finished_at AS finishedAt, created_at AS createdAt
-      FROM job_run
-      WHERE id IN (SELECT MAX(id) FROM job_run GROUP BY job_type)
+      SELECT id, jobType, status, detail, error, startedAt, finishedAt, createdAt FROM (
+        SELECT id, job_type AS jobType, status, detail, error, started_at AS startedAt,
+               finished_at AS finishedAt, created_at AS createdAt,
+               ROW_NUMBER() OVER (PARTITION BY job_type ORDER BY created_at DESC, id) AS rn
+        FROM job_run
+      ) WHERE rn = 1
     `);
     const heartbeat = await db
       .select({ n: sql<number>`COUNT(*)` })
       .from(jobRuns)
       .where(
-        sql`${jobRuns.jobType} = 'holds.sweep' AND ${jobRuns.createdAt} > datetime('now', '-5 minutes')`,
+        and(
+          eq(jobRuns.jobType, "holds.sweep"),
+          gt(jobRuns.createdAt, new Date(Date.now() - 5 * 60_000).toISOString()),
+        ),
       );
     return Response.json({
       items: all.map((j) => ({

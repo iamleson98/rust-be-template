@@ -681,11 +681,15 @@ async function cancelExpiredChunk(db: Database, ids: string[], now: string): Pro
     db
       .update(tripSessions)
       .set({
-        // Give the freed seats back: + (seats on the cancelled bookings).
-        availableSeats: sql`${tripSessions.availableSeats} + (
+        // Give each trip back ITS freed seats: the bookings this batch just
+        // cancelled (matched by its own `now` stamp, so an overlapping sweep
+        // that lost the race for the same bookings adds nothing).
+        availableSeats: sql`MIN(${tripSessions.totalSeats}, ${tripSessions.availableSeats} + (
           SELECT COUNT(*) FROM ${bookingSeats} bs JOIN ${bookings} b ON b.id = bs.booking_id
-          WHERE b.id IN (${sqlIn(ids)})
-        )`,
+          WHERE b.trip_session_id = ${tripSessions.id}
+            AND b.status = 'cancelled' AND b.updated_at = ${now}
+            AND b.id IN (${sqlIn(ids)})
+        ))`,
         updatedAt: now,
       })
       .where(
@@ -694,7 +698,7 @@ async function cancelExpiredChunk(db: Database, ids: string[], now: string): Pro
           db
             .selectDistinct({ id: bookings.tripSessionId })
             .from(bookings)
-            .where(inArray(bookings.id, ids)),
+            .where(and(inArray(bookings.id, ids), eq(bookings.updatedAt, now))),
         ),
       ),
     // Their coupons go back to the owners while still valid, else expire

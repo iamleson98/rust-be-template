@@ -2,85 +2,25 @@
 // absent on a fresh clone, present after the first build — the expect-error
 // flavor would lie in one of the two states, this one never does.
 import { default as handler } from "./.open-next/worker.js";
-import { DurableObject } from "cloudflare:workers";
 import { ChatHub } from "./chat-hub";
 import { CallHub } from "./call-hub";
 
 /**
  * Custom OpenNext worker entry:
  *  - re-exports the generated Next.js handler
- *  - adds the `CronContainer` Durable Object that wraps the cron container
- *  - adds the `ChatHub` Durable Object that powers the SPA's `/ws` chat
- *    socket (messages, typing, presence fan-out — see chat-hub.ts)
- *  - adds a `scheduled` handler (Worker Cron Trigger) that acts as a HEARTBEAT:
- *    it pings the container's /health endpoint once a minute so the container
- *    never sleeps, letting its internal node-cron timers remain the OWNER of
- *    the schedule (per the migration plan: cron jobs live in the container).
+ *  - adds the `ChatHub` / `CallHub` Durable Objects that power the SPA's
+ *    `/ws` chat socket and `/ws-call` audio signalling
+ *  - adds a `scheduled` handler (Worker Cron Trigger, every minute) that runs
+ *    the job executor in-process: it feeds a synthetic `POST /api/jobs/tick`
+ *    through the Next.js handler, so the jobs run with the exact same
+ *    bindings and request context as any API route. No container, no
+ *    public round trip.
  *
  * Deploy-time wiring (wrangler.jsonc):
  *   main: "custom-worker.ts"
- *   containers: [{ class_name: "CronContainer", image: "./container/Dockerfile" }]
- *   durable_objects: CronContainer + ChatHub
+ *   durable_objects: ChatHub + CallHub
  *   triggers: { crons: ["* * * * *"] }
  */
-
-interface ContainerLike {
-  running: boolean;
-  start: (options?: { env?: Record<string, string>; enableInternet?: boolean }) => void;
-  setInactivityTimeout: (ms: number) => Promise<void>;
-  getTcpPort: (port: number) => { fetch: (req: Request) => Promise<Response> };
-}
-
-export class CronContainer extends DurableObject<CloudflareEnv> {
-  async fetch(request: Request): Promise<Response> {
-    const container = (this.ctx as unknown as { container: ContainerLike }).container;
-    if (!container) {
-      return new Response("container unavailable", { status: 500 });
-    }
-    await container.setInactivityTimeout(10 * 60 * 1000);
-    if (!container.running) {
-      // Containers have no dashboard env: everything the cron driver needs
-      // must be handed over here, from the Worker's own vars/secrets.
-      const { APP_URL, CRON_SERVICE_TOKEN } = this.env;
-      if (!APP_URL || !CRON_SERVICE_TOKEN) {
-        return new Response("APP_URL and CRON_SERVICE_TOKEN must be set on the Worker", {
-          status: 500,
-        });
-      }
-      container.start({
-        env: { APP_URL, CRON_SERVICE_TOKEN },
-        enableInternet: true,
-      });
-    }
-    const port = container.getTcpPort(8080);
-
-    // Poll the health endpoint until the app inside is ready.
-    let lastError: unknown = null;
-    for (let attempt = 0; attempt < 100; attempt++) {
-      try {
-        const res = await port.fetch(new Request("http://container/health"));
-        if (!res.ok) throw new Error(`health check returned ${res.status}`);
-        break;
-      } catch (e) {
-        lastError = e;
-        await new Promise((r) => setTimeout(r, 200));
-      }
-    }
-    if (lastError) {
-      return new Response(`container did not become ready: ${String(lastError)}`, {
-        status: 503,
-      });
-    }
-
-    // Forward the original request to the container.
-    const url = new URL(request.url);
-    url.protocol = "http:";
-    url.host = "container";
-    const forwarded = new Request(url, request);
-    forwarded.headers.delete("host");
-    return port.fetch(forwarded);
-  }
-}
 
 export { ChatHub, CallHub };
 
@@ -103,14 +43,25 @@ export default {
 
     return handler.fetch(request, env, ctx);
   },
-  async scheduled(_event: ScheduledController, env: CloudflareEnv, _ctx: ExecutionContext) {
-    // Heartbeat: keep the cron container awake (it owns the schedules).
-    const id = (
-      env as unknown as { CRON_CONTAINER: DurableObjectNamespace }
-    ).CRON_CONTAINER.idFromName("singleton");
-    const stub = (env as unknown as { CRON_CONTAINER: DurableObjectNamespace }).CRON_CONTAINER.get(
-      id,
+
+  async scheduled(_event: ScheduledController, env: CloudflareEnv, ctx: ExecutionContext) {
+    if (!env.CRON_SERVICE_TOKEN) {
+      console.error("[cron] CRON_SERVICE_TOKEN is not set; skipping tick");
+      return;
+    }
+    const res = await handler.fetch(
+      new Request("https://internal.invalid/api/jobs/tick", {
+        method: "POST",
+        headers: { "x-cron-token": env.CRON_SERVICE_TOKEN },
+      }),
+      env,
+      ctx,
     );
-    await stub.fetch(new Request("http://container/health"));
+    const body = await res.text();
+    if (!res.ok) {
+      // Throwing marks the cron invocation as failed in Workers observability.
+      throw new Error(`tick failed: HTTP ${res.status} ${body.slice(0, 300)}`);
+    }
+    console.log(`[cron] tick ok: ${body.slice(0, 300)}`);
   },
 } satisfies ExportedHandler<CloudflareEnv>;

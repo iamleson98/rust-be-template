@@ -3,9 +3,8 @@
  * background job queue. Ported from _000009_create_engagement_jobs
  * and _000019_create_background_job.
  *
- * On Cloudflare the cron DRIVER lives in the container (cloudflare/container),
- * which ticks every minute and calls POST /api/jobs/tick with a service token.
- * D1 remains the durable registry + history.
+ * On Cloudflare the cron DRIVER is the Worker's Cron Trigger, which runs the
+ * tick in-process (custom-worker.ts). D1 remains the durable registry + history.
  */
 import { isoNow } from "./now";
 import { sqliteTable, text, integer, index, uniqueIndex } from "drizzle-orm/sqlite-core";

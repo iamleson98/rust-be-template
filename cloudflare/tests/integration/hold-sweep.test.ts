@@ -8,11 +8,13 @@ import { getDb } from "@/lib/db/client";
 import { eq } from "drizzle-orm";
 import { sweepExpiredHolds } from "@/lib/services/booking";
 import {
+  bookingSeats,
   bookings,
   brands,
   busLayouts,
   routes,
   schedules,
+  seats,
   tripSessions,
   users,
 } from "@/lib/db/schema";
@@ -98,5 +100,72 @@ describe("sweepExpiredHolds", () => {
       .from(bookings)
       .where(eq(bookings.status, "pending"));
     expect(left).toHaveLength(0);
+  });
+
+  it("gives each trip back only its own freed seats, once", async () => {
+    const db = await getDb();
+    const past = new Date(Date.now() - 3_600_000).toISOString();
+    const now = new Date().toISOString();
+    const layoutId = (await db.select({ id: busLayouts.id }).from(busLayouts))[0].id;
+    const scheduleId = (await db.select({ id: schedules.id }).from(schedules))[0].id;
+    const seatIds: string[] = [];
+    for (let i = 0; i < 3; i++) {
+      const id = crypto.randomUUID();
+      seatIds.push(id);
+      await db
+        .insert(seats)
+        .values({ id, busLayoutId: layoutId, seatLabel: `S${i}`, rowNum: 1, colNum: i, floor: 1 });
+    }
+    const mkTrip = async (date: string, available: number) => {
+      const id = crypto.randomUUID();
+      await db.insert(tripSessions).values({
+        id,
+        scheduleId,
+        departureDate: date,
+        totalSeats: 4,
+        availableSeats: available,
+      });
+      return id;
+    };
+    const tripA = await mkTrip("2099-01-01", 2);
+    const tripB = await mkTrip("2099-01-02", 1);
+    const mkBooking = async (tripId: string, code: string, seatCount: number) => {
+      const id = crypto.randomUUID();
+      await db.insert(bookings).values({
+        id,
+        code,
+        userId: USER_ID,
+        tripSessionId: tripId,
+        subtotal: 1,
+        total: 1,
+        status: "pending",
+        expiresAt: past,
+        contactName: "x",
+        contactPhone: "0900000000",
+        createdAt: now,
+        updatedAt: now,
+      });
+      for (let i = 0; i < seatCount; i++) {
+        await db.insert(bookingSeats).values({
+          id: crypto.randomUUID(),
+          bookingId: id,
+          seatId: seatIds[i],
+          passengerName: "p",
+          price: 1,
+        });
+      }
+    };
+    await mkBooking(tripA, "TRIPA01", 1);
+    await mkBooking(tripB, "TRIPB01", 2);
+
+    // Drain the shared backlog first so only these two bookings matter below.
+    for (let run = 0; run < 3; run++) await sweepExpiredHolds();
+    // A second sweep must not double-count.
+    expect((await sweepExpiredHolds()).cancelled).toBe(0);
+
+    const a = (await db.select().from(tripSessions).where(eq(tripSessions.id, tripA)))[0];
+    const b = (await db.select().from(tripSessions).where(eq(tripSessions.id, tripB)))[0];
+    expect(a.availableSeats).toBe(3);
+    expect(b.availableSeats).toBe(3);
   });
 });
