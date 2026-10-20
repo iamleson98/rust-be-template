@@ -78,7 +78,9 @@
     "VIETQR_ENABLED": "true",
     "MOMO_ENABLED": "false",
     "ZALOPAY_ENABLED": "false",
-    "REALTIME_ENABLED": "false"
+    "REALTIME_ENABLED": "false",
+    "CALL_ALLOWED_COUNTRIES": "VN",
+    "AUDIO_CALL_RING_TIMEOUT_SECS": "60"
   },
   "observability": {
     "enabled": true

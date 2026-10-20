@@ -16,6 +16,21 @@ REALTIME_APP_ID=
 REALTIME_ACCOUNT_ID=
 REALTIME_API_TOKEN=
 
+# Calls: customers may only call from these countries (staff exempt). Local dev
+# has no edge country, so the gate is open there regardless.
+CALL_ALLOWED_COUNTRIES=VN
+AUDIO_CALL_RING_TIMEOUT_SECS=60
+
+# Device push so a CLOSED phone app still rings (all optional; unset = off).
+# FCM_CREDENTIALS_JSON = the Firebase service-account JSON (Android);
+# APNS_* = the .p8 key group (iOS VoIP / CallKit).
+FCM_CREDENTIALS_JSON=
+APNS_KEY_PEM=
+APNS_KEY_ID=
+APNS_TEAM_ID=
+APNS_TOPIC=
+APNS_SANDBOX=false
+
 # Cloudflare Calls TURN (managed relay for /ws-call audio) — leave empty
 # to fall back to public STUN (P2P works only on NAT-friendly networks).
 # Create a TURN key: Cloudflare dashboard → Realtime → TURN.

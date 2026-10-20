@@ -21,7 +21,7 @@ hibernation) and validated live with the smoke tests in `scripts/`.
 ## Cross-network & corporate-firewall call support (verified)
 
 - **ICE servers are server-pushed** in the `registered` frame (and rotated
-  hourly as `ice-servers` frames). With `TURN_KEY_ID` +
+  every 30 minutes as `ice-servers` frames). With `TURN_KEY_ID` +
   `TURN_KEY_API_TOKEN` configured, Cloudflare mints short-lived (TTL)
   credentials via `POST /v1/turn/keys/{id}/credentials/generate-ice-servers`
   — the exact API `src/lib/services/turn-credentials.ts` implements

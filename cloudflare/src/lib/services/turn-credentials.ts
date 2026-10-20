@@ -10,6 +10,9 @@
  *   turns: turn.cloudflare.com:5349/:443 (tcp+TLS)   ← passes HTTPS-only
  *                                                      corporate proxies
  *
+ * (Corporate IT may also need to allowlist Cloudflare's four TURN addresses —
+ * see the Realtime TURN FAQ; they can change, watch DNS for turn.cloudflare.com.)
+ *
  * Credentials are minted server-side (short-lived, TTL-bound) and pushed
  * to clients in the `registered` / `ice-servers` frames — they never
  * travel over an unauthenticated endpoint. Anycast routes each client to
@@ -17,8 +20,8 @@
  *
  * Config (secrets): TURN_KEY_ID + TURN_KEY_API_TOKEN (a Calls/TURN key
  * from the dashboard). Without them the hub falls back to public STUN.
- * Pricing: $0.05/GB egress (≈22 MB per audio-call hour; relays engage
- * only when a direct path fails).
+ * Pricing: $0.05/GB egress after a 1,000 GB free tier (≈22 MB per
+ * audio-call hour; relays engage only when a direct path fails).
  */
 
 import { z } from "zod";
@@ -51,6 +54,32 @@ const TurnApiResponse = z.object({
     )
     .min(1),
 });
+
+const TURN_HOST = "turn.cloudflare.com";
+
+/**
+ * Every transport Cloudflare's TURN listens on, ordered from "fast" to
+ * "gets through anything". The API's own answer is the starting point, but
+ * we make sure the firewall-friendly entries are present: corporate networks
+ * commonly allow outbound TCP 443/80 only, and a list without `turns:…:443`
+ * leaves exactly those users with no relay at all.
+ */
+export const TURN_FIREWALL_URLS = [
+  `turn:${TURN_HOST}:3478?transport=udp`,
+  `turn:${TURN_HOST}:443?transport=udp`,
+  `turn:${TURN_HOST}:3478?transport=tcp`,
+  `turn:${TURN_HOST}:80?transport=tcp`,
+  `turns:${TURN_HOST}:5349?transport=tcp`,
+  `turns:${TURN_HOST}:443?transport=tcp`,
+];
+
+/** Adds the firewall-friendly relay URLs to the credentialed TURN entry. */
+export function withFirewallFriendlyUrls(servers: IceServerConfig[]): IceServerConfig[] {
+  return servers.map((s) => {
+    const isTurn = !!s.username && s.urls.some((u) => /^turns?:/i.test(u));
+    return isTurn ? { ...s, urls: [...new Set([...s.urls, ...TURN_FIREWALL_URLS])] } : s;
+  });
+}
 
 /** Refresh when less than half the TTL remains. */
 function refreshAfter(issuedAt: number, ttlSeconds: number): number {
@@ -117,11 +146,13 @@ export async function fetchTurnIceServers(
     if (!res.ok) throw new Error(`TURN API ${res.status}`);
     const parsed = TurnApiResponse.safeParse(await res.json());
     if (!parsed.success) throw new Error("TURN API returned no usable iceServers");
-    const servers: IceServerConfig[] = parsed.data.iceServers.map((s) => ({
-      urls: Array.isArray(s.urls) ? s.urls : [s.urls],
-      username: s.username,
-      credential: s.credential,
-    }));
+    const servers = withFirewallFriendlyUrls(
+      parsed.data.iceServers.map((s) => ({
+        urls: Array.isArray(s.urls) ? s.urls : [s.urls],
+        username: s.username,
+        credential: s.credential,
+      })),
+    );
     cache.set(keyId, { servers, refreshAt: refreshAfter(Date.now(), ttl) });
     return servers;
   } catch {

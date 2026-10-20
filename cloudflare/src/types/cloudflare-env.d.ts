@@ -49,6 +49,25 @@ declare interface CloudflareEnv {
   ZALOPAY_KEY1?: string;
   ZALOPAY_KEY2?: string;
 
+  // Realtime calls / chat
+  /** Comma list; default "VN". `*` or empty disables the customer region gate. */
+  CALL_ALLOWED_COUNTRIES?: string;
+  AUDIO_CALL_RING_TIMEOUT_SECS?: string;
+  AUDIO_CALL_MAX_SECS?: string;
+  /** Extra origins allowed to open cookie-authenticated sockets. */
+  WS_ALLOWED_ORIGINS?: string;
+  TURN_KEY_ID?: string;
+  TURN_KEY_API_TOKEN?: string;
+  TURN_TTL_SECONDS?: string;
+
+  // Device push for incoming calls (all optional; unset = push disabled)
+  FCM_CREDENTIALS_JSON?: string;
+  APNS_KEY_PEM?: string;
+  APNS_KEY_ID?: string;
+  APNS_TEAM_ID?: string;
+  APNS_TOPIC?: string;
+  APNS_SANDBOX?: string;
+
   // Cloudflare Realtime (RealtimeKit)
   REALTIME_ENABLED?: string;
   REALTIME_APP_ID?: string;

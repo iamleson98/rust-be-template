@@ -1,4 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
+import { authenticateWs, type WsUser } from "./src/lib/realtime/ws-auth";
 
 /**
  * ChatHub — the WebSocket hub behind `/ws` (port of the Rust `ws::hub`).
@@ -38,26 +39,31 @@ interface Session {
   connectedAt: number;
 }
 
-interface ChatUser {
-  id: string;
-  fullName: string;
-  role: string;
-  status: string;
-}
-
-export class ChatHub extends DurableObject {
+export class ChatHub extends DurableObject<CloudflareEnv> {
   private presenceSeq = 0;
+  /** Staff on an answered call, pushed by the CallHub (persisted: survives hibernation). */
+  private inCall = new Set<string>();
+
+  constructor(ctx: DurableObjectState, env: CloudflareEnv) {
+    super(ctx, env);
+    // Liveness pings (the exact `{"type":"ping"}` frame) are answered by the
+    // platform without waking this DO; richer frames reach webSocketMessage.
+    ctx.setWebSocketAutoResponse(
+      new WebSocketRequestResponsePair('{"type":"ping"}', '{"type":"pong"}'),
+    );
+    ctx.blockConcurrencyWhile(async () => {
+      this.inCall = new Set((await ctx.storage.get<string[]>("inCall")) ?? []);
+    });
+  }
 
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
 
     // ── WebSocket upgrade ────────────────────────────────────────
     if (url.pathname === "/ws" && request.headers.get("Upgrade") === "websocket") {
-      const user = await this.authenticate(request, url);
-      if (!user) {
-        return new Response("unauthorized", { status: 401 });
-      }
-      return this.acceptSocket(user);
+      const auth = await authenticateWs(request, this.env);
+      if (!auth.ok) return new Response(auth.reason, { status: auth.status });
+      return this.acceptSocket(auth.user);
     }
 
     // ── REST-side lifecycle events (claim/release/close/read) ────
@@ -71,6 +77,15 @@ export class ChatHub extends DurableObject {
       return new Response("ok");
     }
 
+    // ── Staff-on-a-call set, pushed by the CallHub ───────────────
+    if (url.pathname === "/call-state" && request.method === "POST") {
+      const body = (await request.json()) as { inCall?: string[] };
+      this.inCall = new Set(body.inCall ?? []);
+      await this.ctx.storage.put("inCall", [...this.inCall]);
+      this.broadcastStaffPresence();
+      return new Response("ok");
+    }
+
     // ── Presence heartbeat from the REST layer ───────────────────
     if (url.pathname === "/seen" && request.method === "POST") {
       return new Response("ok");
@@ -79,55 +94,13 @@ export class ChatHub extends DurableObject {
     return new Response("not found", { status: 404 });
   }
 
-  /** JWT (Bearer / ?token= / access_token cookie) → active user row. */
-  private async authenticate(request: Request, url: URL): Promise<ChatUser | null> {
-    let token: string | null = url.searchParams.get("token");
-    if (!token) {
-      const authz = request.headers.get("authorization");
-      if (authz?.toLowerCase().startsWith("bearer ")) token = authz.slice(7).trim();
-    }
-    if (!token) {
-      const cookie = request.headers.get("cookie") ?? "";
-      const m = /(?:^|;\s*)access_token=([^;]+)/.exec(cookie);
-      if (m) token = decodeURIComponent(m[1]!);
-    }
-    if (!token) return null;
-    try {
-      const { jwtVerify } = await import("jose");
-      const secret = new TextEncoder().encode((this.env as CloudflareEnv).JWT_SECRET ?? "");
-      const { payload } = await jwtVerify(token, secret, { algorithms: ["HS256"] });
-      const userId = String(payload.sub ?? "");
-      if (!userId) return null;
-      const d1 = (this.env as CloudflareEnv).DB;
-      const row = (await d1
-        .prepare(`SELECT id, full_name, role, status FROM "user" WHERE id = ? LIMIT 1`)
-        .bind(userId)
-        .first<{ id: string; full_name: string; role: string; status: string }>()) as {
-        id: string;
-        full_name: string;
-        role: string;
-        status: string;
-      } | null;
-      if (!row || row.status !== "active") return null;
-      return { id: row.id, fullName: row.full_name, role: row.role, status: row.status };
-    } catch {
-      return null;
-    }
-  }
-
-  private acceptSocket(user: ChatUser): Response {
+  private acceptSocket(user: WsUser): Response {
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair) as [WebSocket, WebSocket];
     this.ctx.acceptWebSocket(server);
-    // Liveness pings (fixed `{"type":"ping"}`) are answered by the
-    // platform without waking this DO — same hibernation pattern as
-    // CallHub. Richer frames still go through webSocketMessage.
-    this.ctx.setWebSocketAutoResponse(
-      new WebSocketRequestResponsePair('{"type":"ping"}', '{"type":"pong"}'),
-    );
 
     // Session state rides on the socket — it survives DO eviction.
-    const isStaff = user.role === "employee" || user.role === "admin";
+    const isStaff = user.isStaff;
     server.serializeAttachment({
       connId: crypto.randomUUID(),
       userId: user.id,
@@ -203,6 +176,12 @@ export class ChatHub extends DurableObject {
       case "join": {
         const channelId = String(frame.channelId ?? "");
         if (!channelId) break;
+        // A customer may only listen to their OWN conversation: everything said
+        // in a joined channel is broadcast to every socket in it.
+        if (!state.isStaff && !(await this.ownsChannel(state.userId, channelId))) {
+          this.sendFrame(ws, { type: "error", message: "channel not found" });
+          break;
+        }
         state.channelId = channelId;
         ws.serializeAttachment(state);
         this.sendFrame(ws, { type: "joined", channelId, botActive: false });
@@ -309,6 +288,13 @@ export class ChatHub extends DurableObject {
       }
       this.broadcastStaffPresence();
     }
+  }
+
+  private async ownsChannel(userId: string, channelId: string): Promise<boolean> {
+    const row = await this.env.DB.prepare(`SELECT user_id FROM chat_channel WHERE id = ? LIMIT 1`)
+      .bind(channelId)
+      .first<{ user_id: string }>();
+    return row?.user_id === userId;
   }
 
   /** Staff joining a room auto-claims the open channel (Rust semantics). */
@@ -427,7 +413,10 @@ export class ChatHub extends DurableObject {
         name: s.state.name,
         role: s.state.role,
         online: true,
-        busy: !!s.state.channelId,
+        // "busy" = on an answered call (the web strip labels it "on call");
+        // the phone's team board reads `inCall`.
+        busy: this.inCall.has(s.state.userId),
+        inCall: this.inCall.has(s.state.userId),
         activeChats: s.state.channelId ? 1 : 0,
       })),
       offline: [] as Array<{ userId: string; name: string; role: string; lastSeenAt: string }>,

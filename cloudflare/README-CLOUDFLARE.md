@@ -194,7 +194,6 @@ with a healing fallback that derives permissions from `users.role` when the
 
 - OAuth start/callback implementations (Google/Facebook/Apple) once credentials exist
 - NullClaw AI assistant (status + exchange audit endpoints are stubbed)
-- Web push notifications (device registration endpoints optional)
 - Valhalla routing proxy (`/api/routing/*`) — map features currently degrade gracefully
 - Load-test + D1 read-replica evaluation at scale
 
@@ -256,37 +255,80 @@ nightly coupons.expire + lazy expiry at claim/wallet ─► expired + holder cle
 - The SPA already speaks this lifecycle (`reserved`, `released` statuses have
   i18n labels; the wallet's "on booking" chip keys off `status === 'reserved'`).
 
-## Realtime: chat + calls (corporate-network ready)
+## Realtime: chat + calls
 
-- **Chat (`/ws` → `ChatHub` DO)**: the SPA's exact JSON frame protocol,
-  messages persisted to D1 idempotently (clientMsgId), staff auto-claim,
-  presence fan-out; REST lifecycle bridge via `POST /emit`.
-- **Calls (`/ws-call` → `CallHub` DO)**: WebRTC signalling (offer/answer/ice/
-  renegotiate/hangup relay, `to: "agent"` routing, in-call tracking so a
-  socket blip mid-call doesn't kill live audio).
-- **TURN — the corporate-firewall lifeline**: direct P2P audio fails behind
-  symmetric NATs / UDP-blocking firewalls. The CallHub mints short-lived
-  **Cloudflare Calls TURN** credentials server-side
-  (`turn.cloudflare.com` — UDP 3478/443, TCP 3478/80, and **TLS over 443**
-  which passes HTTPS-only corporate proxies) and pushes them in the
-  `registered` frame + `ice-servers` rotation frames (the SPA client already
-  handles both). Anycast picks the nearest Cloudflare location per client.
-  Setup: create a TURN key in the dashboard (Realtime → TURN) and set the
-  `TURN_KEY_ID` + `TURN_KEY_API_TOKEN` secrets (`TURN_TTL_SECONDS` optional,
-  default 86400). Without them the hub falls back to public STUN — calls
-  still work on NAT-friendly networks. Cost: $0.05/GB relayed egress
-  (≈22 MB per audio-call hour; the relay engages only when direct fails).
-- **Hibernation-safe hubs**: session state rides on each WebSocket's
-  attachment (`serializeAttachment`), the live set always comes from
-  `ctx.getWebSockets()`, and call heartbeats are answered by the platform
-  (`setWebSocketAutoResponse`) without waking the DO — a hibernated +
-  evicted DO rehydrates instead of dropping every live socket, and
-  thousands of idle sockets cost ~nothing.
-- **Scale ceiling**: both hubs are single global DOs (Rust was a single
-  process too). With hibernation this comfortably serves tens of thousands
-  of concurrent sockets; the sharding path (per-channel DO ids + DO-to-DO
-  presence fan-out) is documented as a future step if staff presence ever
-  needs to stay global across shards.
+```text
+web customer ──┐                       ┌── ChatHub  (/ws)       one DO, hibernating sockets
+web agent    ──┼── wss (443) ── Worker ┤
+mobile agent ──┘                       └── CallHub  (/ws-call)  signalling + call sessions
+                                          media: peer to peer, relayed by Cloudflare TURN
+```
+
+**Why not RealtimeKit / the SFU?** Peer-to-peer WebRTC with a TURN fallback is the cheapest
+design that keeps working with the existing web and mobile clients: a 1:1 audio call costs
+nothing unless the media has to be relayed (TURN: ~22 MB per call-hour, free for the first
+1,000 GB/month, then $0.05/GB), versus RealtimeKit audio at $0.0005 per participant-minute
+(≈ $0.06 per 1:1 call-hour) plus a client rewrite. Switch only if you need group calls.
+
+### Call hub (`call-hub.ts`, `src/lib/calls/sessions.ts`)
+
+A port of the Rust `audio_call` module. The state machine is pure and unit-tested
+(`tests/unit/call-sessions.test.ts`); the Durable Object wires sockets to it.
+
+- **Identity and roles are the server's**: who a socket is comes from the verified JWT (a
+  client-supplied `userId` is ignored) and only staff may register as `agent`.
+- **A customer's call rings one free agent** — the one rung longest ago — regardless of what
+  chat channel the agent has open (an on-duty phone has none), and **escalates** to the next
+  agent on decline, busy or a 60 s ring timeout. A multi-device agent rings everywhere; the
+  device that answers wins and the rest get `answered-elsewhere`.
+- **Network switches don't kill calls**: an answered call outlives a dropped socket for 15 s;
+  `register {resume: true}` takes it over, and `registered.activeCall` tells the client the
+  truth. ICE-restart offers/answers are relayed as `renegotiate` (never a second ring).
+- **Survives hibernation and eviction**: sessions live in Durable Object storage and the ring /
+  grace / maximum-length timers are one storage alarm.
+- **Customers: Vietnam only** (`CALL_ALLOWED_COUNTRIES`, default `VN`; staff exempt) using the
+  edge-verified country; refused callers get `region-blocked` and close code 4403.
+- Heartbeats: the web client's exact frame is answered by the platform without waking the DO;
+  the mobile app's (`__client_ts` appended) by the hub — both with `pong`, which the app's
+  half-open-socket watchdog needs.
+- Cookie-authenticated upgrades are Origin-checked (`WS_ALLOWED_ORIGINS` for extra origins);
+  token-authenticated clients (mobile) skip it.
+
+### Corporate and restrictive networks
+
+ICE servers are pushed in `registered` and rotated every 30 min as `ice-servers`. With a TURN
+key (`wrangler secret put TURN_KEY_ID` / `TURN_KEY_API_TOKEN`, from Dashboard → Realtime →
+TURN) the list always includes the relay ports firewalls leave open — UDP 3478/443, TCP
+3478/80 and **TLS on 443/5349** (which passes HTTPS-only proxies); the server adds any of those
+the API omits. **Without the TURN key only public STUN is served and users behind corporate
+firewalls or symmetric NAT cannot get audio** — the hub logs a warning. Corporate IT may also
+need to allowlist Cloudflare's four TURN addresses (see the Realtime TURN FAQ; they can change).
+
+### Mobile (agent app)
+
+Logs in at `/api/auth/employee-login` with `X-Client: mobile`, connects with `?token=`,
+refreshes with `{refresh_token}` in the body and logs out the same way (both fixed: the TS
+routes used to read a different field name, which would have signed a duty-mode phone out
+every 15 minutes). A **closed** app is woken by device push: `POST /api/push/devices`
+registers an FCM (Android) or APNs-VoIP (iOS, CallKit) token and the hub pushes on every ring.
+Set `FCM_CREDENTIALS_JSON` and/or the `APNS_*` group to enable it; unset = off, and the
+WebSocket ring still covers foregrounded and reconnecting apps. The push code is covered by
+unit tests with real signing keys and mocked provider endpoints — **it has not been run
+against live FCM / APNs**, which needs your credentials and a device.
+
+### Chat hub (`chat-hub.ts`)
+
+Same JSON envelope as the Rust hub. A customer can only join **their own** channel (everything
+said in a joined channel is broadcast to its sockets). The staff board shows who is on a call
+(`inCall`, pushed by the call hub). Messages persist to D1 idempotently on `clientMsgId`.
+
+### Verification
+
+`scripts/realtime-e2e.mjs` drives the built Worker (`wrangler dev`) with a web customer, a web
+agent and a mobile-style agent: auth and Origin rules, role enforcement, mobile heartbeat,
+call → answer → ICE → ICE restart, resume after a socket drop, escalation, agent-initiated
+calls, channel isolation, mobile token refresh, and (with `SLOW=1`) ring timeout and grace
+expiry. Run it against `wrangler dev` or a preview deploy; all checks pass.
 
 ## Cache & retry for store lookups
 

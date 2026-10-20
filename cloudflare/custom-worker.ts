@@ -36,8 +36,12 @@ export default {
       const binding = url.pathname === "/ws" ? "CHAT_HUB" : "CALL_HUB";
       const ns = (env as unknown as Record<string, DurableObjectNamespace | undefined>)[binding];
       if (ns) {
+        // The edge knows the caller's country; the hub applies the policy.
+        // Overwrite (never trust) any header the client sent itself.
+        const headers = new Headers(request.headers);
+        headers.set("x-call-country", String(request.cf?.country ?? ""));
         const id = ns.idFromName("global");
-        return ns.get(id).fetch(request);
+        return ns.get(id).fetch(new Request(request, { headers }));
       }
     }
 

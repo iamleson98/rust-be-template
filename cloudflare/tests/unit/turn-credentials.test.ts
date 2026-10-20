@@ -5,6 +5,8 @@ import {
   iceServersFor,
   PUBLIC_ICE_SERVERS,
   turnConfigured,
+  TURN_FIREWALL_URLS,
+  withFirewallFriendlyUrls,
 } from "@/lib/services/turn-credentials";
 
 /**
@@ -115,5 +117,35 @@ describe("iceServersFor (what the hub hands clients)", () => {
   it("falls back to public STUN when TURN is not configured", async () => {
     const servers = await iceServersFor({}, vi.fn() as unknown as typeof fetch);
     expect(servers).toEqual(PUBLIC_ICE_SERVERS);
+  });
+});
+
+describe("firewall-friendly relay URLs", () => {
+  it("adds TCP 443/80 and TLS 443 when the API only returns the standard ports", async () => {
+    const minimal = [
+      { urls: ["stun:stun.cloudflare.com:3478"] },
+      {
+        urls: [
+          "turn:turn.cloudflare.com:3478?transport=udp",
+          "turn:turn.cloudflare.com:3478?transport=tcp",
+          "turns:turn.cloudflare.com:5349?transport=tcp",
+        ],
+        username: "u1",
+        credential: "c1",
+      },
+    ];
+    const servers = await iceServersFor(ENV, vi.fn().mockResolvedValue(cfResponse(minimal)));
+    const turn = servers.find((s) => s.username === "u1");
+    expect(turn?.urls).toEqual(expect.arrayContaining(TURN_FIREWALL_URLS));
+    expect(turn?.urls).toContain("turns:turn.cloudflare.com:443?transport=tcp");
+    expect(turn?.urls).toContain("turn:turn.cloudflare.com:80?transport=tcp");
+    // No duplicates, and the credential travels with the entry.
+    expect(new Set(turn?.urls).size).toBe(turn?.urls.length);
+    expect(turn?.credential).toBe("c1");
+  });
+
+  it("leaves STUN-only entries alone", () => {
+    const stun = [{ urls: ["stun:stun.cloudflare.com:3478"] }];
+    expect(withFirewallFriendlyUrls(stun)).toEqual(stun);
   });
 });
