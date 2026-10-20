@@ -613,6 +613,11 @@ jobs:
         # platform/build-tools the APK build needs.
         uses: android-actions/setup-android@v4
 
+      - name: Install Android platform (compileSdk 37)
+        # AGP 9 no longer auto-installs missing platforms from the SDK
+        # ("Failed to find target with hash string 'android-37'").
+        run: sdkmanager "platforms;android-37" >/dev/null
+
       - name: Build debug APK (smoke)
         run: flutter build apk --debug
 
