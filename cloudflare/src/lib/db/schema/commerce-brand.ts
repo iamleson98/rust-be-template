@@ -2,6 +2,7 @@
  * Brands — the transport operators. Split from commerce.ts to keep
  * module sizes manageable. Referenced by catalog + commerce tables.
  */
+import { isoNow } from "./now";
 import { sqliteTable, text, integer, real, index, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const brands = sqliteTable(
@@ -17,8 +18,8 @@ export const brands = sqliteTable(
     rating: real("rating"),
     status: text("status").notNull().default("active"),
     totalTrips: integer("total_trips").notNull().default(0),
-    createdAt: text("created_at").notNull().default("(datetime('now'))"),
-    updatedAt: text("updated_at").notNull().default("(datetime('now'))"),
+    createdAt: text("created_at").notNull().$defaultFn(isoNow),
+    updatedAt: text("updated_at").notNull().$defaultFn(isoNow),
     childMaxAge: integer("child_max_age"),
     childDiscountAmount: integer("child_discount_amount"),
   },

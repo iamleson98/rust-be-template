@@ -4,6 +4,7 @@
  * Ported from migrations _000007_create_bookings, _000006_create_promotions,
  * _000020_create_discount_campaigns, _000017_ad_conversions, etc.
  */
+import { isoNow } from "./now";
 import { sqliteTable, text, integer, index, uniqueIndex } from "drizzle-orm/sqlite-core";
 import { users } from "./auth";
 import { brands } from "./commerce-brand";
@@ -24,8 +25,8 @@ export const tripSessions = sqliteTable(
     status: text("status").notNull().default("scheduled"),
     totalSeats: integer("total_seats").notNull().default(0),
     availableSeats: integer("available_seats").notNull().default(0),
-    createdAt: text("created_at").notNull().default("(datetime('now'))"),
-    updatedAt: text("updated_at").notNull().default("(datetime('now'))"),
+    createdAt: text("created_at").notNull().$defaultFn(isoNow),
+    updatedAt: text("updated_at").notNull().$defaultFn(isoNow),
   },
   (t) => [
     index("idx_trip_schedule").on(t.scheduleId),
@@ -52,8 +53,8 @@ export const seatInventory = sqliteTable(
     currency: text("currency").notNull().default("VND"),
     heldUntil: text("held_until"),
     heldByBookingId: text("held_by_booking_id"),
-    createdAt: text("created_at").notNull().default("(datetime('now'))"),
-    updatedAt: text("updated_at").notNull().default("(datetime('now'))"),
+    createdAt: text("created_at").notNull().$defaultFn(isoNow),
+    updatedAt: text("updated_at").notNull().$defaultFn(isoNow),
   },
   (t) => [
     index("idx_si_trip").on(t.tripSessionId),
@@ -95,8 +96,8 @@ export const bookings = sqliteTable(
     contactName: text("contact_name"),
     contactPhone: text("contact_phone"),
     contactEmail: text("contact_email"),
-    createdAt: text("created_at").notNull().default("(datetime('now'))"),
-    updatedAt: text("updated_at").notNull().default("(datetime('now'))"),
+    createdAt: text("created_at").notNull().$defaultFn(isoNow),
+    updatedAt: text("updated_at").notNull().$defaultFn(isoNow),
     pickupName: text("pickup_name"),
     pickupAddress: text("pickup_address"),
     pickupLat: text("pickup_lat"),
@@ -127,7 +128,7 @@ export const bookingSeats = sqliteTable(
     passengerAge: integer("passenger_age"),
     passengerType: text("passenger_type"), // adult | child
     price: integer("price").notNull().default(0),
-    createdAt: text("created_at").notNull().default("(datetime('now'))"),
+    createdAt: text("created_at").notNull().$defaultFn(isoNow),
   },
   (t) => [
     index("idx_bs_booking").on(t.bookingId),
@@ -147,8 +148,8 @@ export const payments = sqliteTable(
     status: text("status").notNull().default("pending"), // pending|completed|failed|cancelled|refunded
     amount: integer("amount").notNull().default(0),
     currency: text("currency").notNull().default("VND"),
-    createdAt: text("created_at").notNull().default("(datetime('now'))"),
-    updatedAt: text("updated_at").notNull().default("(datetime('now'))"),
+    createdAt: text("created_at").notNull().$defaultFn(isoNow),
+    updatedAt: text("updated_at").notNull().$defaultFn(isoNow),
     providerTxnRef: text("provider_txn_ref"),
     providerTransId: text("provider_trans_id"),
     gatewayUrl: text("gateway_url"),
@@ -189,8 +190,8 @@ export const reviews = sqliteTable(
     helpfulCount: integer("helpful_count").notNull().default(0),
     reply: text("reply"),
     repliedAt: text("replied_at"),
-    createdAt: text("created_at").notNull().default("(datetime('now'))"),
-    updatedAt: text("updated_at").notNull().default("(datetime('now'))"),
+    createdAt: text("created_at").notNull().$defaultFn(isoNow),
+    updatedAt: text("updated_at").notNull().$defaultFn(isoNow),
   },
   (t) => [
     index("idx_review_created").on(t.createdAt),
@@ -212,8 +213,8 @@ export const campaigns = sqliteTable(
     startsAt: text("starts_at"),
     endsAt: text("ends_at"),
     status: text("status").notNull().default("active"),
-    createdAt: text("created_at").notNull().default("(datetime('now'))"),
-    updatedAt: text("updated_at").notNull().default("(datetime('now'))"),
+    createdAt: text("created_at").notNull().$defaultFn(isoNow),
+    updatedAt: text("updated_at").notNull().$defaultFn(isoNow),
   },
   (t) => [
     uniqueIndex("idx_campaign_code").on(t.code),
@@ -234,7 +235,7 @@ export const discountPrograms = sqliteTable(
     startsAt: text("starts_at"),
     endsAt: text("ends_at"),
     status: text("status").notNull().default("active"),
-    createdAt: text("created_at").notNull().default("(datetime('now'))"),
+    createdAt: text("created_at").notNull().$defaultFn(isoNow),
   },
   (t) => [index("idx_dp_brand").on(t.brandId), index("idx_dp_status").on(t.status)],
 );
@@ -251,8 +252,8 @@ export const discountCampaigns = sqliteTable(
     allBrands: integer("all_brands", { mode: "boolean" }).notNull().default(true),
     paused: integer("paused", { mode: "boolean" }).notNull().default(false),
     createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
-    createdAt: text("created_at").notNull().default("(datetime('now'))"),
-    updatedAt: text("updated_at").notNull().default("(datetime('now'))"),
+    createdAt: text("created_at").notNull().$defaultFn(isoNow),
+    updatedAt: text("updated_at").notNull().$defaultFn(isoNow),
   },
   (t) => [index("idx_dc_window").on(t.startsAt, t.endsAt)],
 );
@@ -281,7 +282,7 @@ export const discountTiers = sqliteTable(
     totalSlots: integer("total_slots").notNull(),
     claimedSlots: integer("claimed_slots").notNull().default(0),
     position: integer("position").notNull().default(0),
-    createdAt: text("created_at").notNull().default("(datetime('now'))"),
+    createdAt: text("created_at").notNull().$defaultFn(isoNow),
   },
   (t) => [index("idx_dt_campaign").on(t.campaignId)],
 );
@@ -315,7 +316,7 @@ export const coupons = sqliteTable(
     settledAt: text("settled_at"),
     settledBy: text("settled_by"),
     settlementNote: text("settlement_note"),
-    updatedAt: text("updated_at").notNull().default("(datetime('now'))"),
+    updatedAt: text("updated_at").notNull().$defaultFn(isoNow),
   },
   (t) => [
     index("idx_coupon_user").on(t.userId),

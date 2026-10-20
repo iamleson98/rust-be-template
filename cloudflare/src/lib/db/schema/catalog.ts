@@ -5,6 +5,7 @@
  * _000005_create_schedules, _000010_seed_defaults, _000012_route_pictures,
  * _000018_seat_class_fares, _000021/_000022 tweaks.
  */
+import { isoNow } from "./now";
 import { sqliteTable, text, integer, real, index, uniqueIndex } from "drizzle-orm/sqlite-core";
 import { brands } from "./commerce-brand";
 
@@ -23,7 +24,7 @@ export const places = sqliteTable(
     lat: real("lat").notNull(),
     lon: real("lon").notNull(),
     population: integer("population").notNull().default(0),
-    createdAt: text("created_at").notNull().default("(datetime('now'))"),
+    createdAt: text("created_at").notNull().$defaultFn(isoNow),
   },
   (t) => [
     uniqueIndex("idx_place_osm").on(t.osmId),
@@ -43,8 +44,8 @@ export const vehicleTypes = sqliteTable(
     totalSeats: integer("total_seats"),
     sortOrder: integer("sort_order").notNull().default(0),
     status: text("status").notNull().default("active"),
-    createdAt: text("created_at").notNull().default("(datetime('now'))"),
-    updatedAt: text("updated_at").notNull().default("(datetime('now'))"),
+    createdAt: text("created_at").notNull().$defaultFn(isoNow),
+    updatedAt: text("updated_at").notNull().$defaultFn(isoNow),
   },
   (t) => [uniqueIndex("idx_vt_code").on(t.code)],
 );
@@ -63,8 +64,8 @@ export const addresses = sqliteTable(
     province: text("province"),
     district: text("district"),
     ward: text("ward"),
-    createdAt: text("created_at").notNull().default("(datetime('now'))"),
-    updatedAt: text("updated_at").notNull().default("(datetime('now'))"),
+    createdAt: text("created_at").notNull().$defaultFn(isoNow),
+    updatedAt: text("updated_at").notNull().$defaultFn(isoNow),
   },
   (t) => [index("idx_address_brand").on(t.brandId), index("idx_address_geo").on(t.lat, t.lon)],
 );
@@ -78,8 +79,8 @@ export const routes = sqliteTable(
     startLocationId: text("start_location_id").notNull(), // city slug
     endLocationId: text("end_location_id").notNull(),
     status: text("status").notNull().default("active"),
-    createdAt: text("created_at").notNull().default("(datetime('now'))"),
-    updatedAt: text("updated_at").notNull().default("(datetime('now'))"),
+    createdAt: text("created_at").notNull().$defaultFn(isoNow),
+    updatedAt: text("updated_at").notNull().$defaultFn(isoNow),
   },
   (t) => [
     index("idx_route_brand").on(t.brandId),
@@ -102,7 +103,7 @@ export const pickupPoints = sqliteTable(
     lon: real("lon"),
     stopOrder: integer("stop_order").notNull().default(0),
     kind: text("kind"), // pickup | drop
-    createdAt: text("created_at").notNull().default("(datetime('now'))"),
+    createdAt: text("created_at").notNull().$defaultFn(isoNow),
   },
   (t) => [
     index("idx_pickup_route").on(t.routeId),
@@ -120,8 +121,8 @@ export const busLayouts = sqliteTable(
     vehicleType: text("vehicle_type"),
     totalSeats: integer("total_seats"),
     layoutData: text("layout_data"), // JSON seat plan
-    createdAt: text("created_at").notNull().default("(datetime('now'))"),
-    updatedAt: text("updated_at").notNull().default("(datetime('now'))"),
+    createdAt: text("created_at").notNull().$defaultFn(isoNow),
+    updatedAt: text("updated_at").notNull().$defaultFn(isoNow),
   },
   (t) => [index("idx_layout_brand").on(t.brandId)],
 );
@@ -139,7 +140,7 @@ export const seats = sqliteTable(
     colNum: integer("col_num"),
     isWindow: integer("is_window", { mode: "boolean" }).notNull().default(false),
     floor: integer("floor").notNull().default(1),
-    createdAt: text("created_at").notNull().default("(datetime('now'))"),
+    createdAt: text("created_at").notNull().$defaultFn(isoNow),
   },
   (t) => [
     index("idx_seat_layout").on(t.busLayoutId),
@@ -162,7 +163,7 @@ export const schedules = sqliteTable(
     basePriceAdult: integer("base_price_adult").notNull().default(0),
     basePriceChild: integer("base_price_child"),
     amenities: text("amenities"), // JSON array
-    createdAt: text("created_at").notNull().default("(datetime('now'))"),
+    createdAt: text("created_at").notNull().$defaultFn(isoNow),
     vehicleTypeId: text("vehicle_type_id").references(() => vehicleTypes.id, {
       onDelete: "set null",
     }),
@@ -187,7 +188,7 @@ export const schedulePoints = sqliteTable(
       .references(() => addresses.id, { onDelete: "cascade" }),
     stopOrder: integer("stop_order").notNull().default(0),
     kind: text("kind").notNull(),
-    createdAt: text("created_at").notNull().default("(datetime('now'))"),
+    createdAt: text("created_at").notNull().$defaultFn(isoNow),
     arrivalTime: text("arrival_time"),
   },
   (t) => [index("idx_sp_schedule").on(t.scheduleId), index("idx_sp_address").on(t.addressId)],
@@ -203,8 +204,8 @@ export const scheduleFares = sqliteTable(
     seatClass: text("seat_class").notNull(),
     priceAdult: integer("price_adult").notNull(),
     priceChild: integer("price_child"),
-    createdAt: text("created_at").notNull().default("(datetime('now'))"),
-    updatedAt: text("updated_at").notNull().default("(datetime('now'))"),
+    createdAt: text("created_at").notNull().$defaultFn(isoNow),
+    updatedAt: text("updated_at").notNull().$defaultFn(isoNow),
   },
   (t) => [uniqueIndex("idx_sf_schedule_class").on(t.scheduleId, t.seatClass)],
 );
@@ -226,8 +227,8 @@ export const routePictures = sqliteTable(
     width: integer("width"),
     height: integer("height"),
     altText: text("alt_text"),
-    createdAt: text("created_at").notNull().default("(datetime('now'))"),
-    updatedAt: text("updated_at").notNull().default("(datetime('now'))"),
+    createdAt: text("created_at").notNull().$defaultFn(isoNow),
+    updatedAt: text("updated_at").notNull().$defaultFn(isoNow),
   },
   (t) => [
     index("idx_rp_route_order").on(t.routeId, t.sortOrder),

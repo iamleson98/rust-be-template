@@ -7,6 +7,7 @@
  *  - Timestamps are ISO-8601 UTC TEXT (JSON-friendly).
  *  - Money is integer VND.
  */
+import { isoNow } from "./now";
 import { sqliteTable, text, integer, index, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const users = sqliteTable(
@@ -31,8 +32,8 @@ export const users = sqliteTable(
     lastLoginAt: text("last_login_at"),
     lastLoginIp: text("last_login_ip"),
     passwordChangedAt: text("password_changed_at"),
-    createdAt: text("created_at").notNull().default("(datetime('now'))"),
-    updatedAt: text("updated_at").notNull().default("(datetime('now'))"),
+    createdAt: text("created_at").notNull().$defaultFn(isoNow),
+    updatedAt: text("updated_at").notNull().$defaultFn(isoNow),
     oauthProvider: text("oauth_provider"),
     oauthSubject: text("oauth_subject"),
     isBot: integer("is_bot", { mode: "boolean" }).notNull().default(false),
@@ -55,8 +56,8 @@ export const posts = sqliteTable(
       .references(() => users.id, { onDelete: "cascade" }),
     title: text("title").notNull(),
     body: text("body").notNull(),
-    createdAt: text("created_at").notNull().default("(datetime('now'))"),
-    updatedAt: text("updated_at").notNull().default("(datetime('now'))"),
+    createdAt: text("created_at").notNull().$defaultFn(isoNow),
+    updatedAt: text("updated_at").notNull().$defaultFn(isoNow),
   },
   (t) => [index("idx_posts_author").on(t.authorId), index("idx_posts_created").on(t.createdAt)],
 );
@@ -69,7 +70,7 @@ export const refreshTokens = sqliteTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     tokenHash: text("token_hash").notNull(),
-    issuedAt: text("issued_at").notNull().default("(datetime('now'))"),
+    issuedAt: text("issued_at").notNull().$defaultFn(isoNow),
     expiresAt: text("expires_at").notNull(),
     revoked: integer("revoked", { mode: "boolean" }).notNull().default(false),
     userAgent: text("user_agent"),
@@ -108,7 +109,7 @@ export const auditLog = sqliteTable(
     metadata: text("metadata"),
     ip: text("ip"),
     userAgent: text("user_agent"),
-    createdAt: text("created_at").notNull().default("(datetime('now'))"),
+    createdAt: text("created_at").notNull().$defaultFn(isoNow),
   },
   (t) => [
     index("idx_audit_actor").on(t.actorId),
@@ -129,7 +130,7 @@ export const notifications = sqliteTable(
     body: text("body"),
     data: text("data"),
     read: integer("read", { mode: "boolean" }).notNull().default(false),
-    createdAt: text("created_at").notNull().default("(datetime('now'))"),
+    createdAt: text("created_at").notNull().$defaultFn(isoNow),
   },
   (t) => [index("idx_notif_user").on(t.userId), index("idx_notif_user_read").on(t.userId, t.read)],
 );
@@ -140,7 +141,7 @@ export const roles = sqliteTable(
     id: text("id").primaryKey(),
     name: text("name").notNull(),
     description: text("description"),
-    createdAt: text("created_at").notNull().default("(datetime('now'))"),
+    createdAt: text("created_at").notNull().$defaultFn(isoNow),
   },
   (t) => [uniqueIndex("idx_roles_name").on(t.name)],
 );
@@ -151,7 +152,7 @@ export const permissions = sqliteTable(
     id: text("id").primaryKey(),
     name: text("name").notNull(),
     description: text("description"),
-    createdAt: text("created_at").notNull().default("(datetime('now'))"),
+    createdAt: text("created_at").notNull().$defaultFn(isoNow),
   },
   (t) => [uniqueIndex("idx_perms_name").on(t.name)],
 );
@@ -165,7 +166,7 @@ export const userRoles = sqliteTable(
     roleId: text("role_id")
       .notNull()
       .references(() => roles.id, { onDelete: "cascade" }),
-    assignedAt: text("assigned_at").notNull().default("(datetime('now'))"),
+    assignedAt: text("assigned_at").notNull().$defaultFn(isoNow),
   },
   (t) => [index("idx_user_roles_user").on(t.userId), index("idx_user_roles_role").on(t.roleId)],
 );
@@ -179,7 +180,7 @@ export const rolePermissions = sqliteTable(
     permissionId: text("permission_id")
       .notNull()
       .references(() => permissions.id, { onDelete: "cascade" }),
-    assignedAt: text("assigned_at").notNull().default("(datetime('now'))"),
+    assignedAt: text("assigned_at").notNull().$defaultFn(isoNow),
   },
   (t) => [index("idx_role_perms_role").on(t.roleId)],
 );
@@ -193,8 +194,8 @@ export const pushDevices = sqliteTable(
       .references(() => users.id, { onDelete: "cascade" }),
     token: text("token").notNull(),
     platform: text("platform").notNull().default("android"),
-    createdAt: text("created_at").notNull().default("(datetime('now'))"),
-    updatedAt: text("updated_at").notNull().default("(datetime('now'))"),
+    createdAt: text("created_at").notNull().$defaultFn(isoNow),
+    updatedAt: text("updated_at").notNull().$defaultFn(isoNow),
     lastSeenAt: text("last_seen_at"),
   },
   (t) => [

@@ -7,6 +7,7 @@
  * which ticks every minute and calls POST /api/jobs/tick with a service token.
  * D1 remains the durable registry + history.
  */
+import { isoNow } from "./now";
 import { sqliteTable, text, integer, index, uniqueIndex } from "drizzle-orm/sqlite-core";
 import { routes } from "./catalog";
 import { users } from "./auth";
@@ -21,8 +22,8 @@ export const scheduledJobs = sqliteTable(
     atHour: integer("at_hour").notNull().default(0),
     atMinute: integer("at_minute").notNull().default(0),
     nextRunAt: text("next_run_at"),
-    createdAt: text("created_at").notNull().default("(datetime('now'))"),
-    updatedAt: text("updated_at").notNull().default("(datetime('now'))"),
+    createdAt: text("created_at").notNull().$defaultFn(isoNow),
+    updatedAt: text("updated_at").notNull().$defaultFn(isoNow),
   },
   (t) => [uniqueIndex("idx_sj_type").on(t.jobType)],
 );
@@ -37,7 +38,7 @@ export const jobRuns = sqliteTable(
     error: text("error"),
     startedAt: text("started_at"),
     finishedAt: text("finished_at"),
-    createdAt: text("created_at").notNull().default("(datetime('now'))"),
+    createdAt: text("created_at").notNull().$defaultFn(isoNow),
   },
   (t) => [
     index("idx_jr_type_created").on(t.jobType, t.createdAt),
@@ -59,8 +60,8 @@ export const backgroundJobs = sqliteTable(
     lockedUntil: text("locked_until"),
     uniqueKey: text("unique_key"),
     lastError: text("last_error"),
-    createdAt: text("created_at").notNull().default("(datetime('now'))"),
-    updatedAt: text("updated_at").notNull().default("(datetime('now'))"),
+    createdAt: text("created_at").notNull().$defaultFn(isoNow),
+    updatedAt: text("updated_at").notNull().$defaultFn(isoNow),
   },
   (t) => [
     index("idx_bj_state_runat").on(t.state, t.runAt),
@@ -80,7 +81,7 @@ export const adConversions = sqliteTable(
     wbraid: text("wbraid"),
     gbraid: text("gbraid"),
     status: text("status").notNull().default("pending"),
-    createdAt: text("created_at").notNull().default("(datetime('now'))"),
+    createdAt: text("created_at").notNull().$defaultFn(isoNow),
     uploadedAt: text("uploaded_at"),
   },
   (t) => [
@@ -101,7 +102,7 @@ export const priceAlerts = sqliteTable(
     targetPrice: integer("target_price"),
     frequency: text("frequency").notNull().default("daily"),
     status: text("status").notNull().default("active"),
-    createdAt: text("created_at").notNull().default("(datetime('now'))"),
+    createdAt: text("created_at").notNull().$defaultFn(isoNow),
     expiresAt: text("expires_at"),
     lastTriggeredAt: text("last_triggered_at"),
     userId: text("user_id").references(() => users.id, { onDelete: "set null" }),
