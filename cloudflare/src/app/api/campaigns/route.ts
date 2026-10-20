@@ -1,16 +1,17 @@
 import { handleRouteError } from "@/lib/api";
-import { listPublicCampaigns } from "@/lib/services/lookups";
+import { publicCampaigns } from "@/lib/services/campaign-public";
 
 /**
- * `GET /api/campaigns` — public, live coupon campaigns (Rust
- * `PublicCampaignListResponse`): running windows, not paused, with their
- * brand scope and per-tier remaining slots. Cache-first (30s TTL,
- * invalidated by admin campaign writes); `serverTime` stays fresh.
+ * `GET /api/campaigns` — public coupon campaigns (Rust
+ * `PublicCampaignListResponse`): every campaign that is not paused and has
+ * not ended — running and upcoming — with brand scope and per-tier slots
+ * left, biggest discount first. Served from the per-isolate copy / Workers
+ * Cache API (see `campaign-public.ts`); ended campaigns are trimmed and
+ * `serverTime` set on every read.
  */
 export async function GET() {
   try {
-    const items = await listPublicCampaigns();
-    return Response.json({ items, serverTime: new Date().toISOString() });
+    return Response.json(await publicCampaigns());
   } catch (e) {
     return handleRouteError(e);
   }

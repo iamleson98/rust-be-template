@@ -1,5 +1,5 @@
 import { getDb, atomicBatch, type AtomicStatement } from "@/lib/db/client";
-import { invalidateCampaigns } from "@/lib/services/lookups";
+import { invalidateCampaigns } from "@/lib/services/campaign-public";
 import { and, eq, notInArray, sql } from "drizzle-orm";
 import { discountCampaignBrands, discountCampaigns, discountTiers } from "@/lib/db/schema";
 import { handleRouteError, requireStaff, readJson, err } from "@/lib/api";

@@ -3,7 +3,7 @@
  * shapes the SPA SDK expects, assembled from the discount_campaign,
  * discount_campaign_brand, discount_tier and coupon tables.
  */
-import { getDb } from "@/lib/db/client";
+import { getDb, rawAll } from "@/lib/db/client";
 import {
   brands,
   coupons,
@@ -16,11 +16,14 @@ import { and, asc, eq, sql } from "drizzle-orm";
 /** The `discount_campaign` row as drizzle selects it (snake_case source). */
 export type CampaignRow = typeof discountCampaigns.$inferSelect;
 
-/** `state` — derived from the window and the pause flag. */
-function campaignState(c: CampaignRow, now: Date): string {
+/**
+ * `state` at `now` (Rust `state_of`): `ended` beats `paused` beats
+ * `upcoming`, else `running`. ISO strings compare chronologically.
+ */
+export function campaignState(c: CampaignRow, now: string): string {
+  if (c.endsAt <= now) return "ended";
   if (c.paused) return "paused";
-  if (now < new Date(c.startsAt)) return "scheduled";
-  if (now > new Date(c.endsAt)) return "ended";
+  if (now < c.startsAt) return "upcoming";
   return "running";
 }
 
@@ -106,7 +109,7 @@ export async function campaignOut(id: string) {
     allBrands: c.allBrands,
     brands: brandRows,
     paused: c.paused,
-    state: campaignState(c, new Date()),
+    state: campaignState(c, new Date().toISOString()),
     tiers: tierRows,
     totals: {
       budget: Number(budget),
@@ -121,5 +124,54 @@ export async function campaignOut(id: string) {
     },
     createdAt: c.createdAt,
     updatedAt: c.updatedAt,
+  };
+}
+
+/** `CouponOut` of one coupon (Rust `coupon_out`): campaign, scope, booking code. */
+export async function couponOut(couponId: string) {
+  const rows = await rawAll<{
+    id: string;
+    code: string;
+    campaign_id: string;
+    campaign_name: string;
+    amount: number;
+    status: string;
+    valid_until: string | null;
+    claimed_at: string;
+    all_brands: number;
+    booking_code: string | null;
+  }>(sql`
+    SELECT c.id, c.code, c.campaign_id, dc.name AS campaign_name, c.amount, c.status,
+           c.valid_until, c.claimed_at, dc.all_brands,
+           (SELECT b.code FROM booking b WHERE b.id = c.booking_id AND c.status = 'reserved') AS booking_code
+    FROM coupon c JOIN discount_campaign dc ON dc.id = c.campaign_id
+    WHERE c.id = ${couponId}
+  `);
+  const r = rows[0];
+  if (!r) return null;
+  const brandRows = await rawAll<{
+    id: string;
+    name: string;
+    slug: string;
+    logo_url: string | null;
+  }>(
+    sql`
+      SELECT br.id, br.name, br.slug, br.logo_url
+      FROM discount_campaign_brand dcb JOIN brand br ON br.id = dcb.brand_id
+      WHERE dcb.campaign_id = ${r.campaign_id}
+    `,
+  );
+  return {
+    id: r.id,
+    code: r.code,
+    campaignId: r.campaign_id,
+    campaignName: r.campaign_name,
+    amount: r.amount,
+    status: r.status,
+    validUntil: r.valid_until,
+    allBrands: !!r.all_brands,
+    brands: brandRows.map((b) => ({ id: b.id, name: b.name, slug: b.slug, logoUrl: b.logo_url })),
+    bookingCode: r.booking_code,
+    claimedAt: r.claimed_at,
   };
 }

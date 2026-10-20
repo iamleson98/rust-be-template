@@ -3,7 +3,7 @@ import { busLayouts } from "@/lib/db/schema";
 import { handleRouteError, requireStaff, readJson, err } from "@/lib/api";
 import { requirePermission } from "@/lib/auth/rbac";
 import { adminBusLayoutList, type SeatPlan } from "@/lib/services/admin-out";
-import { replaceSeatPlan, validateSeatPlan } from "@/lib/services/seat-plan";
+import { replaceSeatPlan, toStored, validateSeatPlan } from "@/lib/services/seat-plan";
 
 /** `GET /api/admin/bus-layouts?brandId=&limit=&offset=` — staff list (slim). */
 export async function GET(req: Request) {
@@ -61,7 +61,7 @@ export async function POST(req: Request) {
       name,
       vehicleType: body.vehicleType ?? null,
       totalSeats: body.totalSeats ?? null,
-      layoutData: plan ? JSON.stringify(plan) : (body.layoutData ?? null),
+      layoutData: plan ? toStored(plan) : (body.layoutData ?? null),
       createdAt: now,
       updatedAt: now,
     });

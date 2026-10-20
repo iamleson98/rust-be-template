@@ -1,14 +1,13 @@
-import { handleRouteError, requireUser, err } from "@/lib/api";
-import { bookingOut, loadBooking } from "@/lib/services/booking-out";
+import { handleRouteError, requireUser } from "@/lib/api";
+import { ownedBooking } from "@/lib/services/booking";
+import { bookingView } from "@/lib/services/booking-out";
 
-/** `GET /api/bookings/{id}` — one ticket as `BookingOut` (with boarding QR). */
+/** `GET /api/bookings/{id}` — one of the customer's tickets, by id or code, with its boarding QR. */
 export async function GET(req: Request, ctx: { params: Promise<{ idOrCode: string }> }) {
   try {
     const user = await requireUser(req);
     const { idOrCode } = await ctx.params;
-    const row = await loadBooking(idOrCode, user.id);
-    if (!row) return err(404, "not-found", "Booking not found");
-    return Response.json(await bookingOut(row, { withQr: true }));
+    return Response.json(await bookingView(await ownedBooking(user.id, idOrCode)));
   } catch (e) {
     return handleRouteError(e);
   }
