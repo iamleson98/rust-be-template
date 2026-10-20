@@ -1,19 +1,15 @@
-import { getDb } from "@/lib/db/client";
+import { handleRouteError, currentUser, readJson } from "@/lib/api";
 import { cancelPayment } from "@/lib/services/payment";
-import { handleRouteError, currentUser } from "@/lib/api";
 
+/** `POST /api/payments/{id}/cancel` — cancel a pending payment (the booking stays). */
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await ctx.params;
-    await currentUser(req); // any authenticated caller (owner check inside service)
-    const db = await getDb();
-    const result = await cancelPayment(db, id);
-    return Response.json({
-      paymentId: result.id,
-      status: result.status,
-      cancelledAt: result.updatedAt ?? new Date().toISOString(),
-      reason: null,
-    });
+    const user = await currentUser(req);
+    const body = await readJson<{ reason?: string | null }>(req).catch(() => ({
+      reason: undefined as string | null | undefined,
+    }));
+    return Response.json(await cancelPayment(id, user?.id ?? null, body.reason));
   } catch (e) {
     return handleRouteError(e);
   }

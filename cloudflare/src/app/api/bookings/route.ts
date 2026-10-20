@@ -1,50 +1,37 @@
 import { limitWrite } from "@/lib/rate-limit";
 import { handleRouteError, requireUser, readJson } from "@/lib/api";
 import { createBooking, type HoldRequest } from "@/lib/services/booking";
-import { bookingOut, loadBookings } from "@/lib/services/booking-out";
+import { bookingViews, listBookings } from "@/lib/services/booking-out";
 
-/** `GET /api/bookings` — own tickets (placed/confirmed only), newest first. */
+/**
+ * `GET /api/bookings` — the customer's tickets (bookings they placed or
+ * paid for, so cancelled and completed ones too; checkouts never finished
+ * are not tickets), newest first.
+ */
 export async function GET(req: Request) {
   try {
     const user = await requireUser(req);
     const url = new URL(req.url);
-    const limit = Math.min(parseInt(url.searchParams.get("limit") ?? "50", 10) || 50, 100);
-    const offset = Math.max(parseInt(url.searchParams.get("offset") ?? "0", 10) || 0, 0);
-    const rows = await loadBookings(user.id, limit, offset);
-    const items = await Promise.all(
-      rows
-        .filter((b) => b.status === "pending" || b.status === "confirmed")
-        .map((b) => bookingOut(b)),
-    );
-    return Response.json({ items });
+    const num = (key: string, fallback: number) => {
+      const n = Number(url.searchParams.get(key));
+      return url.searchParams.has(key) && Number.isInteger(n) && n >= 0 ? n : fallback;
+    };
+    const limit = Math.min(num("limit", 50), 200);
+    const rows = await listBookings({ userId: user.id, placed: true }, limit, num("offset", 0));
+    return Response.json({ items: await bookingViews(rows) });
   } catch (e) {
     return handleRouteError(e);
   }
 }
 
-/** `POST /api/bookings` — hold seats → pending booking (Rust `BookingHoldResponse`). */
+/** `POST /api/bookings` (and `/api/bookings/hold`) — hold seats → pending booking. */
 export async function POST(req: Request) {
   try {
     const user = await requireUser(req);
     await limitWrite("booking", user.id);
     const body = await readJson<HoldRequest>(req);
-    const result = await createBooking(user.id, body);
-    const out = await bookingOut(result.booking);
-    return Response.json(
-      {
-        bookingId: result.booking.id,
-        code: result.booking.code,
-        status: result.booking.status,
-        subtotal: result.booking.subtotal,
-        discount: result.booking.discount,
-        fees: result.booking.fees,
-        total: result.booking.total,
-        expiresAt: result.booking.expiresAt ?? new Date().toISOString(),
-        couponId: result.couponId ?? null,
-        seats: out.seats,
-      },
-      { status: 201 },
-    );
+    const held = await createBooking(user.id, body);
+    return Response.json({ ...held, couponId: held.couponId ?? undefined });
   } catch (e) {
     return handleRouteError(e);
   }
