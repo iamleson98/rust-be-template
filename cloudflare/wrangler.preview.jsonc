@@ -59,6 +59,18 @@
       "storage": "sqlite"
     }
   },
+  "ratelimits": [
+    {
+      "name": "IP_READ_LIMITER",
+      "namespace_id": "2003",
+      "simple": { "limit": 600, "period": 60 }
+    },
+    {
+      "name": "IP_STRICT_LIMITER",
+      "namespace_id": "2004",
+      "simple": { "limit": 100, "period": 60 }
+    }
+  ],
   "vars": {
     "APP_ENV": "production",
     "PAYMENT_COD_ENABLED": "true",

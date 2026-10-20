@@ -4,6 +4,13 @@
 import { default as handler } from "./.open-next/worker.js";
 import { ChatHub } from "./chat-hub";
 import { CallHub } from "./call-hub";
+import {
+  cachedPublicRead,
+  enforceIpLimit,
+  enforceOrigin,
+  isCacheablePublicRead,
+  withSecurityHeaders,
+} from "./src/lib/edge-guard";
 
 /**
  * Custom OpenNext worker entry:
@@ -26,6 +33,11 @@ export { ChatHub, CallHub };
 
 export default {
   async fetch(request: Request, env: CloudflareEnv, ctx: ExecutionContext) {
+    // Cheap rejections first: a limited or cross-origin request never reaches
+    // the socket hubs, Next.js, D1 or KV.
+    const rejected = (await enforceIpLimit(request, env)) ?? enforceOrigin(request, env);
+    if (rejected) return withSecurityHeaders(rejected);
+
     const url = new URL(request.url);
 
     // ── Chat socket upgrade — handled by the ChatHub DO, not Next.js ──
@@ -45,7 +57,11 @@ export default {
       }
     }
 
-    return handler.fetch(request, env, ctx);
+    const dynamic = () => handler.fetch(request, env, ctx) as Promise<Response>;
+    const response = isCacheablePublicRead(request)
+      ? await cachedPublicRead(request, ctx, dynamic)
+      : await dynamic();
+    return withSecurityHeaders(response);
   },
 
   async scheduled(_event: ScheduledController, env: CloudflareEnv, ctx: ExecutionContext) {
