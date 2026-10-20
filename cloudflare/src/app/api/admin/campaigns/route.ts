@@ -1,5 +1,5 @@
 import { rawAll, atomicBatch } from "@/lib/db/client";
-import { invalidateCampaigns } from "@/lib/services/lookups";
+import { invalidateCampaigns } from "@/lib/services/campaign-public";
 import { sql } from "drizzle-orm";
 import { handleRouteError, requireStaff, readJson, err } from "@/lib/api";
 import { isAdmin } from "@/lib/auth/rbac";

@@ -275,6 +275,12 @@ nightly coupons.expire + lazy expiry at claim/wallet ─► expired + holder cle
   `(campaign_id, user_id)`, `booking_id`) — the race-safe backstop for
   "one active coupon per account" and "one claim per campaign". It
   self-heals rows written by the pre-parity code before creating them.
+- Claim eligibility, atomicity, error codes and the public list follow Rust
+  `campaign_service.rs`: only active non-guest non-bot `user` accounts claim;
+  the claim is one D1 `batch()` (`campaign-claim.ts`); every coupon error's
+  `message` is the stable code the SPA translates (`campaign-codes.ts`);
+  a coupon is checked against the booking's operator both when pricing and
+  when reserved.
 - The SPA already speaks this lifecycle (`reserved`, `released` statuses have
   i18n labels; the wallet's "on booking" chip keys off `status === 'reserved'`).
 
@@ -362,8 +368,10 @@ expiry. Run it against `wrangler dev` or a preview deploy; all checks pass.
   (eventually consistent, ≤60s; best-effort, never throws). No binding →
   memory-only, automatically.
   Cached today: brands, brand detail, default routes page, vehicle-type
-  catalog, popular places, campaigns, review tags, homepage stats
-  (`src/lib/services/lookups.ts`). NEVER cached: seats, availability,
+  catalog, popular places, review tags, homepage stats
+  (`src/lib/services/lookups.ts`); the public campaign list has its own
+  cache — per-isolate copy + Workers Cache API, 10 s, claims write the exact
+  slot count through, no KV (`src/lib/services/campaign-public.ts`). NEVER cached: seats, availability,
   bookings, payments, auth — correctness-critical reads go straight to D1.
   Admin write routes call the matching `invalidate*` helper so changes
   surface immediately.

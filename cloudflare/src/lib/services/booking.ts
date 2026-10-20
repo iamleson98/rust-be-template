@@ -40,6 +40,7 @@ import {
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { ApiError } from "@/lib/auth/rbac";
 import { brandPrefix, genBookingCode } from "@/lib/format";
+import { CAMPAIGN_CODES, couponBadRequest, couponConflict } from "./campaign-codes";
 import { findCity } from "@/lib/services/trip-search";
 import {
   childPolicyOf,
@@ -187,10 +188,6 @@ export function validateHoldRequest(req: HoldRequest): void {
 
 // ── Coupon (Rust `campaign_service::coupon_discount`) ────────────
 
-export const COUPON_UNAVAILABLE = "coupon_unavailable";
-export const COUPON_EXPIRED = "coupon_expired";
-export const COUPON_WRONG_OPERATOR = "coupon_not_for_this_operator";
-
 /**
  * The discount `couponId` gives on a booking of `subtotal` with operator
  * `brandId`, after checking `userId` may use it there. Reserving it is the
@@ -205,12 +202,13 @@ export async function couponDiscount(
 ): Promise<number> {
   const coupon = (await db.select().from(coupons).where(eq(coupons.id, couponId)).limit(1))[0];
   if (!coupon || coupon.activeHolder !== userId || coupon.status !== "held")
-    throw badRequest(COUPON_UNAVAILABLE);
-  if (coupon.validUntil && coupon.validUntil <= nowIso()) throw badRequest(COUPON_EXPIRED);
+    throw couponBadRequest(CAMPAIGN_CODES.UNAVAILABLE);
+  if (coupon.validUntil && coupon.validUntil <= nowIso())
+    throw couponBadRequest(CAMPAIGN_CODES.EXPIRED);
   const campaign = (
     await db.select().from(discountCampaigns).where(eq(discountCampaigns.id, coupon.campaignId))
   )[0];
-  if (!campaign) throw badRequest(COUPON_UNAVAILABLE);
+  if (!campaign) throw couponBadRequest(CAMPAIGN_CODES.UNAVAILABLE);
   let covered = campaign.allBrands;
   if (!covered && brandId) {
     const row = await db
@@ -225,7 +223,7 @@ export async function couponDiscount(
       .limit(1);
     covered = row.length > 0;
   }
-  if (!covered) throw badRequest(COUPON_WRONG_OPERATOR);
+  if (!covered) throw couponBadRequest(CAMPAIGN_CODES.WRONG_OPERATOR);
   return Math.min(Math.max(coupon.amount, 0), Math.max(subtotal, 0));
 }
 
@@ -541,7 +539,7 @@ export async function createBooking(userId: string, req: HoldRequest): Promise<H
     if (reserved.meta.changes !== 1) {
       await releaseHeldSeats(db, bookingId);
       await db.delete(bookings).where(eq(bookings.id, bookingId));
-      throw conflict(COUPON_UNAVAILABLE);
+      throw couponConflict(CAMPAIGN_CODES.UNAVAILABLE);
     }
   }
 
