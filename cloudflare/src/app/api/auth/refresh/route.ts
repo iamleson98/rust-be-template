@@ -6,15 +6,22 @@ import { eq } from "drizzle-orm";
 import { sessionUserOut } from "@/lib/auth/session";
 import { accessTtlSecs } from "@/lib/auth/jwt";
 
-/** Refresh cookie first, body fallback (mobile raw-token clients). */
+/**
+ * Refresh cookie first, body fallback for raw-token clients. The mobile app
+ * sends `{"refresh_token": …}` (snake_case, as the Rust API accepted); the
+ * camelCase spelling is kept for anything already using it.
+ */
 export async function POST(req: Request) {
   try {
     const cookie = req.headers.get("cookie") ?? "";
     const m = /(?:^|;\s*)refresh_token=([^;]+)/.exec(cookie);
     let presented = m ? decodeURIComponent(m[1]) : null;
     if (!presented) {
-      const body = (await req.json().catch(() => ({}))) as { refreshToken?: string };
-      presented = body.refreshToken ?? null;
+      const body = (await req.json().catch(() => ({}))) as {
+        refresh_token?: string;
+        refreshToken?: string;
+      };
+      presented = body.refresh_token ?? body.refreshToken ?? null;
     }
     if (!presented) return err(401, "unauthorized", "refresh_token required");
 

@@ -3,10 +3,15 @@ import { handleRouteError, readJson, currentUser } from "@/lib/api";
 
 export async function POST(req: Request) {
   try {
-    const body = await readJson<{ all?: boolean }>(req).catch(() => ({ all: false }));
+    const body = await readJson<{ all?: boolean; refresh_token?: string }>(req).catch(
+      () => ({}) as { all?: boolean; refresh_token?: string },
+    );
     const cookie = req.headers.get("cookie") ?? "";
     const m = /(?:^|;\s*)refresh_token=([^;]+)/.exec(cookie);
-    const refreshToken = m ? decodeURIComponent(m[1]) : null;
+    // Browsers: the httpOnly cookie. The mobile app has no cookie jar and
+    // sends the token it holds in the body, so THIS device's session is the
+    // one revoked (not a no-op that leaves the token valid after "logout").
+    const refreshToken = m ? decodeURIComponent(m[1]) : (body.refresh_token ?? null);
 
     if (body.all) {
       const user = await currentUser(req);
