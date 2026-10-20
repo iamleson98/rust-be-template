@@ -54,4 +54,20 @@ ignore = [
   # i_tree 0.10, which requires i_overlay 7+ / geo 0.30+ — a major
   # bump of the geo stack (spatial code). Revisit: geo >0.29.
   "RUSTSEC-2025-0165",
+
+  # zip 3.0.0 — RUSTSEC-2026-0367 / -0368 / -0369 (SUID/SGID bit
+  # preservation, symlink-target escape and symlink-chmod during
+  # ZipArchive::extract). zip enters Cargo.lock ONLY as a BUILD
+  # dependency of utoipa-swagger-ui 9.0.2, whose build.rs extracts
+  # its own vendored swagger-ui dist archive — a trusted static asset
+  # bundled inside the crate, never attacker-controlled input. The
+  # vulnerable extract() paths are not reachable from our code, and
+  # the binary does not link zip at all. A fix would require
+  # utoipa 5→6 + utoipa-swagger-ui 9→10 (major API bump) — and even
+  # utoipa-swagger-ui 10.0.1 still pins zip ^8.6 (< 9.0.0, the first
+  # patched line), so the upgrade buys nothing today.
+  # Revisit: utoipa-swagger-ui release requiring zip >= 9.
+  "RUSTSEC-2026-0367",
+  "RUSTSEC-2026-0368",
+  "RUSTSEC-2026-0369",
 ]

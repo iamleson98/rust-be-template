@@ -28,6 +28,16 @@ src/push/fcm.rs:private-key:274
 b9c76adbb424e0d456b75990efdf089d4e2b1863:src/push/apns.rs:private-key:212
 src/push/apns.rs:private-key:224
 
+# ── FALSE POSITIVES in the Cloudflare deploy branch's HISTORY ─────────
+# CI's full-history scan reaches every remote branch, including the deploy
+# branch (feat/cloudflare-migration). Its history holds three reviewed false
+# positives — a test-fixture JWT secret and two documentation placeholders —
+# pinned on that branch too. Pinned here so master-based PRs see the same
+# verdict. None is a real credential (production secrets are `wrangler secret`).
+59a28e9aeebc177fb67a554faf78b61b8fa5bfb0:cloudflare/tests/helpers/context.ts:generic-api-key:16
+b2bb5a42195bddd9fe1e17192d309f066ac343e8:cloudflare/.dev.vars.example:generic-api-key:18
+b2bb5a42195bddd9fe1e17192d309f066ac343e8:cloudflare/README-CLOUDFLARE.md:curl-auth-header:24
+
 # ── HISTORICAL LEAKS (old repository lifecycle, live on stale branches) ─
 # These commits are reachable only via the old remote branches (improve*,
 # fix/**, feat/**, ...), not from master. All values were rotated when the
