@@ -1091,13 +1091,6 @@ export async function adminPaymentSummary() {
   return summary;
 }
 
-export async function adminGetPayment(id: string): Promise<AdminPaymentOut> {
-  const p = await findPayment(id);
-  const db = await getDb();
-  const b = (await db.select().from(bookings).where(eq(bookings.id, p.bookingId)).limit(1))[0];
-  return adminPaymentOut(p, b?.code);
-}
-
 /**
  * Manual override of a payment's status. Marking a payment `completed` also
  * confirms its booking (a failure to do so is written on the payment).

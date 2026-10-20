@@ -4,7 +4,6 @@ import { getDb } from "@/lib/db/client";
 import { bookings, payments } from "@/lib/db/schema";
 import { confirmAsSystem, sweepExpiredHolds } from "@/lib/services/booking";
 import {
-  adminGetPayment,
   adminListPayments,
   adminPaymentSummary,
   adminUpdatePaymentStatus,
@@ -280,7 +279,6 @@ describe("admin", () => {
     expect((await adminListPayments({ status: "pending" })).total).toBe(1);
     expect((await adminListPayments({ provider: "momo" })).total).toBe(0);
     expect((await adminListPayments({ limit: 1 })).items).toHaveLength(1);
-    expect((await adminGetPayment(all.items[0].id)).bookingCode).toBe(held.code);
   });
 
   it("money taken for a lost booking is flagged, not swallowed", async () => {
