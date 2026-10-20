@@ -68,6 +68,10 @@
       "simple": { "limit": 30, "period": 60 }
     }
   ],
+  "routes": [
+    { "pattern": "datxevui.com", "custom_domain": true },
+    { "pattern": "www.datxevui.com", "custom_domain": true }
+  ],
   "triggers": {
     "crons": ["* * * * *"]
   },
