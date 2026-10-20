@@ -1,6 +1,6 @@
 import { getDb } from "@/lib/db/client";
 import { users, userRoles, roles } from "@/lib/db/schema";
-import { verifyPassword } from "@/lib/auth/password";
+import { hashPassword, needsRehash, verifyPassword } from "@/lib/auth/password";
 import { issueSession, sessionCookies, sessionUserOut } from "@/lib/auth/session";
 import { handleRouteError, readJson, clientIp, err } from "@/lib/api";
 import { accessTtlSecs } from "@/lib/auth/jwt";
@@ -35,9 +35,12 @@ export async function POST(req: Request) {
       if (!staff) return err(403, "forbidden", "Not an employee");
     }
 
+    const upgraded = needsRehash(user.passwordHash)
+      ? { passwordHash: await hashPassword(password) }
+      : {};
     await db
       .update(users)
-      .set({ lastLoginAt: new Date().toISOString(), lastLoginIp: clientIp(req) })
+      .set({ ...upgraded, lastLoginAt: new Date().toISOString(), lastLoginIp: clientIp(req) })
       .where(eq(users.id, user.id));
 
     const tokens = await issueSession(user.id, {

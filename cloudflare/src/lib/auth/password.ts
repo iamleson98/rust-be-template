@@ -1,13 +1,16 @@
 /**
- * Password hashing — PBKDF2-SHA256 via WebCrypto.
+ * Password hashing — PBKDF2-SHA256 via WebCrypto for new hashes.
  *
- * The Rust backend used Argon2id (m=19MiB) which is impractical on Workers
- * CPU budgets. For this migration we use PBKDF2 with a high iteration count:
- * fast enough for a single login request, standard on edge runtimes.
+ * Workers' WebCrypto caps PBKDF2 at 100 000 iterations, so that is what new
+ * hashes use. Users imported from the Rust backend still carry Argon2id PHC
+ * hashes (`$argon2id$v=19$m=19456,t=2,p=1$<salt>$<hash>`); those are verified
+ * with a pure-JS Argon2 (Workers cannot compile WASM from bytes at runtime)
+ * and `needsRehash` tells the login route to upgrade them to PBKDF2 on the
+ * first successful sign-in, so the slower path runs once per legacy user.
  *
- * Self-describing PHC-ish format: pbkdf2$<iterations>$<saltB64>$<hashB64>
- * A future user-import path can verify Argon2 hashes offline and re-hash.
+ * Self-describing format for new hashes: pbkdf2$<iterations>$<saltB64>$<hashB64>
  */
+import { argon2idAsync } from "@noble/hashes/argon2.js";
 
 const ITERATIONS = 100_000;
 const KEY_LEN = 32;
@@ -52,8 +55,57 @@ export async function hashPassword(password: string): Promise<string> {
   return `pbkdf2$${ITERATIONS}$${toB64(salt)}$${toB64(hash)}`;
 }
 
+/** Constant-time equality for two byte strings of any length. */
+function timingSafeEqual(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
+  return diff === 0;
+}
+
+/** PHC base64 is standard base64 with the padding stripped. */
+function fromPhcB64(s: string): Uint8Array {
+  return fromB64(s + "=".repeat((4 - (s.length % 4)) % 4));
+}
+
+/** Upper bounds so a tampered/imported hash cannot burn the CPU budget. */
+const ARGON2_MAX_MEM_KIB = 64 * 1024;
+const ARGON2_MAX_TIME = 6;
+
+async function verifyArgon2id(password: string, stored: string): Promise<boolean> {
+  // ["", "argon2id", "v=19", "m=19456,t=2,p=1", salt, hash]
+  const parts = stored.split("$");
+  if (parts.length !== 6 || parts[1] !== "argon2id" || parts[2] !== "v=19") return false;
+  const params = Object.fromEntries(
+    parts[3].split(",").map((kv) => kv.split("=") as [string, string]),
+  );
+  const m = Number(params.m);
+  const t = Number(params.t);
+  const p = Number(params.p);
+  if (![m, t, p].every((n) => Number.isInteger(n) && n >= 1)) return false;
+  if (m > ARGON2_MAX_MEM_KIB || t > ARGON2_MAX_TIME || p > 4) return false;
+  const salt = fromPhcB64(parts[4]);
+  const expected = fromPhcB64(parts[5]);
+  const actual = await argon2idAsync(new TextEncoder().encode(password), salt, {
+    t,
+    m,
+    p,
+    dkLen: expected.length,
+  });
+  return timingSafeEqual(actual, expected);
+}
+
+/** True when `stored` is not a current-format hash and should be re-hashed on login. */
+export function needsRehash(stored: string | null): boolean {
+  if (!stored) return false;
+  if (stored.startsWith("$argon2")) return true;
+  const iterations = parseInt(stored.split("$")[1] ?? "", 10);
+  return stored.startsWith("pbkdf2$") && iterations < ITERATIONS;
+}
+
 export async function verifyPassword(password: string, stored: string | null): Promise<boolean> {
   if (!stored) return false;
+  if (stored.startsWith("$argon2id$")) return verifyArgon2id(password, stored);
   const parts = stored.split("$");
   if (parts.length !== 4 || parts[0] !== "pbkdf2") return false;
   const iterations = parseInt(parts[1], 10);
@@ -61,8 +113,5 @@ export async function verifyPassword(password: string, stored: string | null): P
   const salt = fromB64(parts[2]);
   const expected = fromB64(parts[3]);
   const actual = await pbkdf2(password, salt, iterations);
-  if (actual.length !== expected.length) return false;
-  let diff = 0;
-  for (let i = 0; i < actual.length; i++) diff |= actual[i] ^ expected[i];
-  return diff === 0;
+  return timingSafeEqual(actual, expected);
 }

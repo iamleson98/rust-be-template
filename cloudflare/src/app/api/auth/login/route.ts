@@ -1,6 +1,6 @@
 import { getDb } from "@/lib/db/client";
 import { users } from "@/lib/db/schema";
-import { verifyPassword } from "@/lib/auth/password";
+import { hashPassword, needsRehash, verifyPassword } from "@/lib/auth/password";
 import { issueSession, sessionCookies, sessionUserOut } from "@/lib/auth/session";
 import { handleRouteError, readJson, clientIp, err } from "@/lib/api";
 import { accessTtlSecs as accessTtl } from "@/lib/auth/jwt";
@@ -39,9 +39,14 @@ export async function POST(req: Request) {
     const ok = await verifyPassword(password, user.passwordHash);
     if (!ok) return err(401, "invalid-credentials", "Invalid credentials");
 
+    // Imported Argon2id (or weaker-PBKDF2) hashes upgrade to the current
+    // format now that the plaintext is in hand.
+    const upgraded = needsRehash(user.passwordHash)
+      ? { passwordHash: await hashPassword(password) }
+      : {};
     await db
       .update(users)
-      .set({ lastLoginAt: new Date().toISOString(), lastLoginIp: clientIp(req) })
+      .set({ ...upgraded, lastLoginAt: new Date().toISOString(), lastLoginIp: clientIp(req) })
       .where(eq(users.id, user.id));
 
     const tokens = await issueSession(user.id, {
