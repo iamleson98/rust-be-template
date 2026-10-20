@@ -50,6 +50,22 @@ for (const [path, body] of files) {
   if (size > largest.size) largest = { path, size };
 }
 
+// Workers static assets: 20,000 files per version on the Free plan, 100,000 on
+// Paid. The app's own build contributes roughly 3,000 of them.
+const FREE_PLAN_FILES = 20_000;
+const PAID_PLAN_FILES = 100_000;
+const APP_ASSET_FILES = 3_500;
+if (files.size + APP_ASSET_FILES > PAID_PLAN_FILES) {
+  console.error(`index has ${files.size} files: over the Paid-plan asset limit`);
+  process.exit(1);
+}
+if (files.size + APP_ASSET_FILES > FREE_PLAN_FILES) {
+  console.warn(
+    `note: ${files.size} index files + the app's assets exceed the Free plan's ` +
+      `${FREE_PLAN_FILES}-file limit; deploying needs Workers Paid (or a smaller --profile)`,
+  );
+}
+
 const mb = (n: number) => (n / 1024 / 1024).toFixed(2);
 console.log(
   `place index: ${raw.length} extracted (${dropped} outside served provinces) → ${manifest.count} unique places, ` +

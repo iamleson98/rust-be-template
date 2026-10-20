@@ -56,6 +56,20 @@ const KIND_BOOST: Record<string, number> = {
   hamlet: 1.0,
 };
 
+/** Generic `<key>_<value>` kinds rank by their key; unknown kinds score 1. */
+const GENERIC_BOOST: Array<[prefix: string, boost: number]> = [
+  ["amenity_", 1.3],
+  ["shop_", 1.2],
+  ["office_", 1.1],
+  ["landuse_", 1.1],
+  ["waterway_", 1.1],
+  ["public_transport_", 1.1],
+  ["building", 0.9],
+  ["address", 0.8],
+];
+const kindBoost = (kind: string) =>
+  KIND_BOOST[kind] ?? GENERIC_BOOST.find(([p]) => kind.startsWith(p))?.[1] ?? 1;
+
 const MAX_QUERY_TOKENS = 6;
 /** Query tokens whose shards are read (longest first); results are the union. */
 const MAX_LOOKUPS = 4;
@@ -298,7 +312,7 @@ export async function searchIndex(load: Loader, raw: string, limit = 10): Promis
       }
       if (!ok) continue;
       const nameFold = c.nameTokens.join(" ");
-      let score = (KIND_BOOST[rec[2]] ?? 1) + match / tokens.length;
+      let score = kindBoost(rec[2]) + match / tokens.length;
       if (compact(rec[1]) === compact(raw)) score += 6;
       // Exact on the meaningful words only: a lesser bonus when the query also
       // asked for a type ("ga hà nội" → the city is not the station).

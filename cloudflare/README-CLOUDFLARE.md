@@ -88,17 +88,21 @@ Geofabrik Vietnam .osm.pbf ──► tools/place-extract (Rust) ──► places
   `osm_reader` / `spatial` / `vn_text` by path. `--profile` picks the coverage (each
   includes the previous one); measured on the real 330 MB extract (~25–35 s, ~260 MB RAM):
 
-  | Profile                 | Adds                                                                                                | Unique places | Index (gzipped) | Files | Largest shard |
-  | ----------------------- | --------------------------------------------------------------------------------------------------- | ------------- | --------------- | ----- | ------------- |
-  | `travel`                | settlements, admin areas, intercity stations, airports, ferry terminals, attractions                | 22.8k         | 2.2 MB          | 2.7k  | 120 KB        |
-  | `landmarks`             | hospitals, universities, markets, malls, pagodas/churches, parks, stadiums, historic sites, beaches | 38.8k         | 4.6 MB          | 3.7k  | 240 KB        |
-  | **`full`** (CI default) | named streets, hotels / guesthouses                                                                 | 118k          | 11.9 MB         | 8.9k  | ~1 MB         |
+  | Profile                | Adds                                                                                                                                                                            | Unique places | Index (gzipped) | Files | Largest shard     |
+  | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- | --------------- | ----- | ----------------- |
+  | `travel`               | settlements, admin areas, intercity stations, airports, ferry terminals, attractions                                                                                            | 22.8k         | 2.2 MB          | 2.7k  | 120 KB            |
+  | `landmarks`            | hospitals, universities, markets, malls, pagodas/churches, parks, stadiums, historic sites, beaches                                                                             | 38.8k         | 4.6 MB          | 3.7k  | 240 KB            |
+  | `full`                 | named streets, hotels / guesthouses                                                                                                                                             | 118k          | 11.9 MB         | 8.9k  | ~1 MB             |
+  | **`all`** (CI default) | every named shop, restaurant, bank, school, fuel station, building, waterway, land-use area and bus stop, plus house-number addresses ("12 Lê Lợi") and numbered roads ("QL1A") | 304k          | 29.9 MB         | 16.4k | 2.6 MB ("Nguyễn") |
 
-  Static assets are free, and the Worker limit is 20,000 files (Free) / 100,000 (Paid), so
-  `full` fits; pick a smaller profile from the workflow dispatch input if you want a
-  lighter deploy. Alternative names (`alt_name`, `short_name`, `old_name`) are indexed too,
-  so "Sài Gòn" finds Hồ Chí Minh City. Not indexed: buildings (e.g. Landmark 81) and
-  places OSM does not map.
+  `all` is the same coverage class as the old Rust index (every named feature and address;
+  it drops unnamed benches and post boxes, railway lines and slip roads). Static assets are
+  free; the Worker limit is 20,000 files (Free) / 100,000 (Paid) and the app itself uses ~3,000,
+  so `all` fits the Free plan only barely — use Paid, or pick a smaller profile from the
+  workflow dispatch input. `build-place-shards` warns past the Free limit and fails past Paid.
+  Alternative names (`alt_name`, `short_name`, `old_name`) are indexed too, so "Sài Gòn" finds
+  Hồ Chí Minh City. Not indexed: whatever OSM does not map (Landmark 81 and Bến xe Mỹ Đình are
+  absent from the extract) and unnamed benches, post boxes and the like.
 
 - **Builder** (`src/lib/places/build.ts`): emits the SPA's existing `type` vocabulary
   (`bus_station`, `rail_station`, `road_primary`, `amenity_hospital`…) so every result already

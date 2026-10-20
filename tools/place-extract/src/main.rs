@@ -59,7 +59,7 @@ struct Args {
 struct Place {
     osm_id: i64,
     osm_type: &'static str,
-    kind: &'static str,
+    kind: String,
     name: String,
     /// Other names for the same place (searchable, never displayed).
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -207,6 +207,9 @@ fn main() -> Result<()> {
         let Some(kind) = travel::travel_kind(&rec.tags, args.profile) else {
             continue;
         };
+        let Some(name) = travel::place_name(&rec.tags) else {
+            continue;
+        };
         let h = hierarchy(&spatial, rec.lat, rec.lon, 0);
         emit(
             &mut out,
@@ -214,8 +217,8 @@ fn main() -> Result<()> {
                 osm_id: rec.id,
                 osm_type: "node",
                 kind,
-                name: rec.tags["name"].trim().to_string(),
-                alt_names: travel::alt_names(&rec.tags, rec.tags["name"].trim()),
+                alt_names: travel::alt_names(&rec.tags, &name),
+                name,
                 province: h.province,
                 district: h.district,
                 ward: h.ward,
@@ -231,6 +234,9 @@ fn main() -> Result<()> {
         let Some(kind) = travel::travel_kind(&rec.tags, args.profile) else {
             continue;
         };
+        let Some(name) = travel::place_name(&rec.tags) else {
+            continue;
+        };
         let Some((lat, lon)) = way_centroid(&rec.node_refs, &node_coords) else {
             continue;
         };
@@ -241,8 +247,8 @@ fn main() -> Result<()> {
                 osm_id: rec.id,
                 osm_type: "way",
                 kind,
-                name: rec.tags["name"].trim().to_string(),
-                alt_names: travel::alt_names(&rec.tags, rec.tags["name"].trim()),
+                alt_names: travel::alt_names(&rec.tags, &name),
+                name,
                 province: h.province,
                 district: h.district,
                 ward: h.ward,
@@ -274,7 +280,7 @@ fn main() -> Result<()> {
             &Place {
                 osm_id: rel.osm_id,
                 osm_type: "relation",
-                kind: rel.place_kind,
+                kind: rel.place_kind.to_string(),
                 name: rel.name.clone(),
                 alt_names: Vec::new(),
                 province: h.province,

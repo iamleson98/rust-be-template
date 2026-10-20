@@ -26,6 +26,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
+      "@spa": fileURLToPath(new URL("./src/spa", import.meta.url)),
       "@": fileURLToPath(new URL("./src", import.meta.url)),
     },
   },

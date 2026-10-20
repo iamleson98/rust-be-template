@@ -19,6 +19,9 @@ pub enum Profile {
     Landmarks,
     /// Adds named streets and lodging (hotels, guest houses).
     Full,
+    /// Everything with a name — shops, restaurants, banks, schools, fuel,
+    /// buildings, waterways, land use… — plus house-number addresses.
+    All,
 }
 
 fn has_name(tags: &Tags) -> bool {
@@ -34,7 +37,7 @@ fn is(tags: &Tags, key: &str, values: &[&str]) -> bool {
 /// Requires an explicit `name` tag: the importer's derived names ("fuel",
 /// "bench") are noise in an autocomplete. Administrative boundaries are
 /// relations and take a separate path.
-pub fn travel_kind(tags: &Tags, profile: Profile) -> Option<&'static str> {
+fn curated_kind(tags: &Tags, profile: Profile) -> Option<&'static str> {
     if !has_name(tags) {
         return None;
     }
@@ -178,6 +181,131 @@ fn street_or_lodging_kind(tags: &Tags) -> Option<&'static str> {
     None
 }
 
+/// Kind of a node/way worth indexing, or `None` to skip it.
+///
+/// Curated kinds use the SPA's existing vocabulary; under [`Profile::All`] any
+/// other named element gets a generic `<osm key>_<value>` slug (`shop_bakery`,
+/// `amenity_restaurant`, `building`…) and un-named house-number addresses
+/// become `address`.
+pub fn travel_kind(tags: &Tags, profile: Profile) -> Option<String> {
+    if let Some(kind) = curated_kind(tags, profile) {
+        return Some(kind.to_string());
+    }
+    if profile < Profile::All {
+        return None;
+    }
+    if has_name(tags) {
+        let kind = generic_kind(tags);
+        return (!is_noise(&kind)).then_some(kind);
+    }
+    if let Some(kind) = ref_road_kind(tags) {
+        return Some(kind.to_string());
+    }
+    has_address(tags).then(|| "address".to_string())
+}
+
+/// Numbered highways that carry no `name` (QL1, AH1, ĐT 741): the old index
+/// kept them so people could search a road number.
+fn ref_road_kind(tags: &Tags) -> Option<&'static str> {
+    if tags.get("ref").is_none_or(|r| r.trim().is_empty()) {
+        return None;
+    }
+    match tags.get("highway").map(String::as_str)? {
+        "motorway" => Some("road_motorway"),
+        "trunk" => Some("road_trunk"),
+        "primary" => Some("road_primary"),
+        "secondary" => Some("road_secondary"),
+        "tertiary" => Some("road_tertiary"),
+        _ => None,
+    }
+}
+
+/// Named things nobody searches for: railway lines, slip roads that repeat the
+/// main road's name, roads not built yet, survey markers.
+fn is_noise(kind: &str) -> bool {
+    matches!(
+        kind,
+        "railway_rail"
+            | "railway_abandoned"
+            | "railway_disused"
+            | "railway_preserved"
+            | "railway_construction"
+            | "highway_construction"
+            | "highway_proposed"
+            | "historic_boundary_stone"
+    ) || kind.ends_with("_link")
+}
+
+fn has_address(tags: &Tags) -> bool {
+    tags.get("addr:housenumber")
+        .is_some_and(|h| !h.trim().is_empty())
+        && tags
+            .get("addr:street")
+            .is_some_and(|s| !s.trim().is_empty())
+}
+
+/// What to call the place: its `name`, else (All profile) "<number> <street>".
+pub fn place_name(tags: &Tags) -> Option<String> {
+    if has_name(tags) {
+        return Some(tags["name"].trim().to_string());
+    }
+    if ref_road_kind(tags).is_some() {
+        return Some(format!("Đường {}", tags["ref"].trim()));
+    }
+    has_address(tags).then(|| {
+        format!(
+            "{} {}",
+            tags["addr:housenumber"].trim(),
+            tags["addr:street"].trim()
+        )
+    })
+}
+
+/// `amenity=restaurant` → "amenity_restaurant"; `building=yes` → "building".
+fn generic_kind(tags: &Tags) -> String {
+    const KEYS: [&str; 17] = [
+        "amenity",
+        "shop",
+        "tourism",
+        "leisure",
+        "historic",
+        "natural",
+        "waterway",
+        "landuse",
+        "railway",
+        "aeroway",
+        "public_transport",
+        "office",
+        "craft",
+        "healthcare",
+        "man_made",
+        "sport",
+        "highway",
+    ];
+    for key in KEYS {
+        if let Some(value) = tags.get(key) {
+            let clean: String = value
+                .chars()
+                .map(|c| {
+                    if c.is_ascii_alphanumeric() {
+                        c.to_ascii_lowercase()
+                    } else {
+                        '_'
+                    }
+                })
+                .collect();
+            if !clean.is_empty() && clean != "yes" {
+                return format!("{key}_{clean}");
+            }
+            return key.to_string();
+        }
+    }
+    if tags.contains_key("building") {
+        return "building".to_string();
+    }
+    "place_other".to_string()
+}
+
 /// Other names people use for the same place ("Hồ Gươm" for Hồ Hoàn Kiếm,
 /// "Sài Gòn" for Hồ Chí Minh City): `alt_name`, `short_name`, `old_name`,
 /// `official_name`, each possibly `;`-separated. Distinct from `name`, at most 3.
@@ -215,7 +343,7 @@ pub fn parse_population(tags: &Tags) -> i64 {
 mod tests {
     use super::*;
 
-    fn travel_kind_t(t: &Tags) -> Option<&'static str> {
+    fn travel_kind_t(t: &Tags) -> Option<String> {
         travel_kind(t, Profile::Travel)
     }
 
@@ -230,11 +358,11 @@ mod tests {
     fn keeps_settlements_with_a_name() {
         assert_eq!(
             travel_kind_t(&tags(&[("place", "city"), ("name", "Hà Nội")])),
-            Some("city")
+            Some("city".to_string())
         );
         assert_eq!(
             travel_kind_t(&tags(&[("place", "town"), ("name", "Sa Pa")])),
-            Some("town")
+            Some("town".to_string())
         );
         assert_eq!(
             travel_kind_t(&tags(&[("place", "locality"), ("name", "x")])),
@@ -247,7 +375,7 @@ mod tests {
     fn keeps_intercity_transport_only() {
         assert_eq!(
             travel_kind_t(&tags(&[("railway", "station"), ("name", "Ga Hà Nội")])),
-            Some("rail_station")
+            Some("rail_station".to_string())
         );
         assert_eq!(
             travel_kind_t(&tags(&[
@@ -262,11 +390,11 @@ mod tests {
                 ("amenity", "bus_station"),
                 ("name", "Bến xe Mỹ Đình")
             ])),
-            Some("bus_station")
+            Some("bus_station".to_string())
         );
         assert_eq!(
             travel_kind_t(&tags(&[("aeroway", "aerodrome"), ("name", "Nội Bài")])),
-            Some("airport")
+            Some("airport".to_string())
         );
         assert_eq!(
             travel_kind_t(&tags(&[
@@ -307,19 +435,22 @@ mod tests {
         assert_eq!(travel_kind(&hospital, Profile::Travel), None);
         assert_eq!(
             travel_kind(&hospital, Profile::Landmarks),
-            Some("amenity_hospital")
+            Some("amenity_hospital".to_string())
         );
         let street = tags(&[("highway", "residential"), ("name", "Lê Lợi")]);
         assert_eq!(travel_kind(&street, Profile::Landmarks), None);
         assert_eq!(
             travel_kind(&street, Profile::Full),
-            Some("road_residential")
+            Some("road_residential".to_string())
         );
         let service = tags(&[("highway", "service"), ("name", "Lối vào")]);
         assert_eq!(travel_kind(&service, Profile::Full), None);
         let hotel = tags(&[("tourism", "hotel"), ("name", "Rex")]);
         assert_eq!(travel_kind(&hotel, Profile::Landmarks), None);
-        assert_eq!(travel_kind(&hotel, Profile::Full), Some("lodging"));
+        assert_eq!(
+            travel_kind(&hotel, Profile::Full),
+            Some("lodging".to_string())
+        );
     }
 
     #[test]
@@ -345,5 +476,56 @@ mod tests {
         );
         assert_eq!(parse_population(&tags(&[("population", "~5,000")])), 5000);
         assert_eq!(parse_population(&tags(&[])), 0);
+    }
+
+    #[test]
+    fn all_profile_keeps_any_named_element_and_addresses() {
+        let shop = tags(&[("shop", "bakery"), ("name", "Tiệm bánh Hòa")]);
+        assert_eq!(travel_kind(&shop, Profile::Full), None);
+        assert_eq!(
+            travel_kind(&shop, Profile::All),
+            Some("shop_bakery".to_string())
+        );
+        let building = tags(&[("building", "yes"), ("name", "Landmark 81")]);
+        assert_eq!(
+            travel_kind(&building, Profile::All),
+            Some("building".to_string())
+        );
+        let cafe = tags(&[("amenity", "cafe"), ("name", "Cà phê Muối")]);
+        assert_eq!(
+            travel_kind(&cafe, Profile::All),
+            Some("amenity_cafe".to_string())
+        );
+        // Un-named, but a full postal address.
+        let house = tags(&[("addr:housenumber", "12A"), ("addr:street", "Lê Lợi")]);
+        assert_eq!(travel_kind(&house, Profile::Full), None);
+        assert_eq!(
+            travel_kind(&house, Profile::All),
+            Some("address".to_string())
+        );
+        assert_eq!(place_name(&house).as_deref(), Some("12A Lê Lợi"));
+        // Named, but nobody searches for it.
+        let rails = tags(&[("railway", "rail"), ("name", "Tuyến Bắc Nam")]);
+        assert_eq!(travel_kind(&rails, Profile::All), None);
+        let slip = tags(&[("highway", "trunk_link"), ("name", "Nguyễn Hữu Thọ")]);
+        assert_eq!(travel_kind(&slip, Profile::All), None);
+        // A numbered road with no name is still a road people look up.
+        let ql1 = tags(&[("highway", "trunk"), ("ref", "QL1A")]);
+        assert_eq!(
+            travel_kind(&ql1, Profile::All),
+            Some("road_trunk".to_string())
+        );
+        assert_eq!(place_name(&ql1).as_deref(), Some("Đường QL1A"));
+        // Neither a name nor an address: nothing to search for.
+        assert_eq!(
+            travel_kind(&tags(&[("amenity", "bench")]), Profile::All),
+            None
+        );
+        // Curated kinds still win over the generic slug.
+        let hospital = tags(&[("amenity", "hospital"), ("name", "BV X")]);
+        assert_eq!(
+            travel_kind(&hospital, Profile::All),
+            Some("amenity_hospital".to_string())
+        );
     }
 }

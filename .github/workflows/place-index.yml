@@ -35,10 +35,10 @@ on:
         type: boolean
         default: true
       profile:
-        description: 'How much of OSM to ship: travel (22k places) | landmarks (39k) | full (118k, adds streets + hotels)'
+        description: 'How much of OSM to ship: travel (23k places) | landmarks (39k) | full (118k, + streets, hotels) | all (304k, + every named shop/restaurant/bank/building and house-number addresses)'
         type: choice
-        options: [full, landmarks, travel]
-        default: full
+        options: [all, full, landmarks, travel]
+        default: all
   pull_request:
     paths:
       - 'tools/place-extract/**'
@@ -63,7 +63,7 @@ env:
   OSM_URL: https://download.geofabrik.de/asia/vietnam-latest.osm.pbf
   # The real extract is ~330 MB; anything far below is an error page.
   OSM_MIN_BYTES: '150000000'
-  # Healthy `travel` output is ~22k unique places (`full` ~118k); far fewer
+  # Healthy `travel` output is ~23k unique places (`all` ~304k); far fewer
   # means the pipeline broke.
   MIN_PLACES: '15000'
 
@@ -113,7 +113,7 @@ jobs:
         run: |
           tools/place-extract/target/release/place-extract vietnam-latest.osm.pbf \
             --out places.ndjson --tmp-dir "$RUNNER_TEMP/place-extract" \
-            --profile "${PROFILE:-full}"
+            --profile "${PROFILE:-all}"
           wc -l places.ndjson
 
       - uses: oven-sh/setup-bun@v2

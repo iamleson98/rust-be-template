@@ -64,6 +64,22 @@ export const NON_KEY_WORDS = new Set([
   "khu",
   "kp",
   "to",
+  // Type words of businesses and institutions ("Trường X", "Nhà thờ Y",
+  // "Công ty Z", "Bệnh viện W"): the same reason, one shard per word otherwise.
+  "so",
+  "truong",
+  "nha",
+  "cong",
+  "cho",
+  "chua",
+  "benh",
+  "vien",
+  "cua",
+  "hang",
+  "khach",
+  "dai",
+  "hoc",
+  "ngan",
 ]);
 
 /**

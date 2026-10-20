@@ -16,7 +16,8 @@ import {
 
 /** A key with more records than this is split by one more character. */
 export const MAX_SHARD_RECORDS = 1200;
-const MAX_KEY_LEN = 4;
+/** Longest shard key; a bigger shard is split one character at a time up to here. */
+const MAX_KEY_LEN = 6;
 const POPULAR_LIMIT = 50;
 /** Two entries with the same name closer than this are the same place. */
 const DUPLICATE_DEG = 0.1;
@@ -57,7 +58,19 @@ const KIND_PRIORITY: Record<string, number> = {
   village: 2,
   hamlet: 1,
 };
-const priority = (kind: string) => KIND_PRIORITY[kind] ?? 0;
+/** Curated kinds rank by the table; the generic `<key>_<value>` kinds by their key. */
+const GENERIC_PRIORITY: Array<[prefix: string, rank: number]> = [
+  ["amenity_", 2],
+  ["shop_", 1.5],
+  ["office_", 1.5],
+  ["landuse_", 1.5],
+  ["waterway_", 1.5],
+  ["public_transport_", 1],
+  ["building", 1],
+  ["address", 0.5],
+];
+const priority = (kind: string) =>
+  KIND_PRIORITY[kind] ?? GENERIC_PRIORITY.find(([p]) => kind.startsWith(p))?.[1] ?? 0;
 
 /** Settlements and admin areas describe the same place; stations etc. do not. */
 const AREA_KINDS = new Set([
@@ -211,7 +224,12 @@ export function buildIndex(raw: RawPlace[], builtAt = new Date().toISOString()):
   };
   for (const rec of records) for (const k of keysOf(rec[1], rec[9], BASE_KEY_LEN)) add(k, rec);
 
-  for (const [key, list] of [...byKey]) {
+  // Split oversized shards one character deeper, repeatedly, until each fits
+  // (or the key reaches MAX_KEY_LEN — a whole-word key cannot be split further).
+  const pending = [...byKey.keys()];
+  while (pending.length > 0) {
+    const key = pending.pop()!;
+    const list = byKey.get(key)!;
     if (list.length <= MAX_SHARD_RECORDS || key.length >= MAX_KEY_LEN) continue;
     // Tokens exactly as long as the key have no longer prefix: they stay.
     const stay: PlaceRecord[] = [];
@@ -233,7 +251,10 @@ export function buildIndex(raw: RawPlace[], builtAt = new Date().toISOString()):
     }
     byKey.delete(key);
     if (stay.length) byKey.set(key, stay);
-    for (const [sub, recs] of split) byKey.set(sub, recs);
+    for (const [sub, recs] of split) {
+      byKey.set(sub, recs);
+      pending.push(sub);
+    }
   }
 
   const files = new Map<string, string>();
