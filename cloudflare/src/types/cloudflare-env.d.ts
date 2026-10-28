@@ -21,6 +21,8 @@ declare interface CloudflareEnv {
   JWT_ACCESS_TTL_SECS?: string;
   JWT_REFRESH_TTL_SECS?: string;
   CRON_SERVICE_TOKEN?: string;
+  /** Wall-clock offset of job schedules, minutes east of UTC (default 420, Vietnam). */
+  SCHEDULER_TZ_OFFSET_MINUTES?: string;
   /** Workers Rate Limiting bindings (wrangler `ratelimits`); absent → limiting is off. */
   AUTH_LIMITER?: RateLimit;
   WRITE_LIMITER?: RateLimit;

@@ -16,10 +16,39 @@
  *
  * All runs are recorded in job_run for the admin dashboard.
  */
-import { getDb } from "@/lib/db/client";
+import { getDb, getEnv } from "@/lib/db/client";
 import { jobRuns, scheduledJobs, coupons, seatInventory, tripSessions } from "@/lib/db/schema";
-import { and, desc, eq, inArray, isNotNull, isNull, lt, lte } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, lte } from "drizzle-orm";
+import { catchUp, DEFAULT_TZ_OFFSET_MINUTES, nextOccurrence } from "@/lib/scheduler";
+import { badRequest, conflict, notFound } from "@/lib/services/http-errors";
 import { sweepExpiredHolds, warmTrips } from "./booking";
+
+/**
+ * The job catalog (Rust `jobs::catalog`). Rust ships `osm.import` (place
+ * index refresh: nothing to refresh on Workers, the shards are built at
+ * deploy time) and `coupons.expire`; `holds.sweep` and `trips.warm` ran as
+ * in-process timers there and run on every cron tick here.
+ */
+export const JOB_CATALOG: readonly { kind: string; description: string }[] = [
+  { kind: "holds.sweep", description: "Cancel pending bookings whose seat hold expired (every tick)." },
+  { kind: "trips.warm", description: "Materialise trip sessions and seat inventory for the sales window (every 6 hours)." },
+  {
+    kind: "coupons.expire",
+    description:
+      "Expire unused discount coupons whose campaign window passed (also enforced on every read; this tidies the rest).",
+  },
+  { kind: "jobs.retention", description: "Delete job run history older than 30 days." },
+  { kind: "trips.prune", description: "Drop unsold seat inventory of trips that already departed." },
+];
+
+const describe = (jobType: string) => JOB_CATALOG.find((j) => j.kind === jobType)?.description;
+
+/** The wall clock job schedules are written in (minutes east of UTC). */
+async function tzOffset(): Promise<number> {
+  const raw = (await getEnv()).SCHEDULER_TZ_OFFSET_MINUTES;
+  const minutes = Number(raw);
+  return raw && Number.isInteger(minutes) ? minutes : DEFAULT_TZ_OFFSET_MINUTES;
+}
 
 export interface JobOutcome {
   jobType: string;
@@ -65,12 +94,7 @@ async function runJob(jobType: string, fn: () => Promise<string>): Promise<JobOu
 /** Fixed frequent jobs — always run on tick. */
 async function runFrequentJobs(): Promise<JobOutcome[]> {
   const outcomes: JobOutcome[] = [];
-  outcomes.push(
-    await runJob("holds.sweep", async () => {
-      const r = await sweepExpiredHolds();
-      return JSON.stringify({ cancelled: r.cancelled });
-    }),
-  );
+  outcomes.push(await runJob("holds.sweep", () => executeJobBody("holds.sweep")));
   return outcomes;
 }
 
@@ -105,12 +129,13 @@ async function claimSlot(
 async function runDueScheduledJobs(): Promise<JobOutcome[]> {
   const db = await getDb();
   const now = new Date();
+  const offset = await tzOffset();
   const rows = await db.select().from(scheduledJobs).where(eq(scheduledJobs.enabled, true));
   const outcomes: JobOutcome[] = [];
   for (const job of rows) {
     // First tick after deployment: initialize next_run_at to the next slot.
     if (!job.nextRunAt) {
-      await claimSlot(db, job.id, null, nextSlot(job.intervalDays, job.atHour, job.atMinute));
+      await claimSlot(db, job.id, null, nextOccurrence(now, job.atHour, job.atMinute, offset));
       continue;
     }
     if (new Date(job.nextRunAt).getTime() > now.getTime()) continue;
@@ -122,13 +147,18 @@ async function runDueScheduledJobs(): Promise<JobOutcome[]> {
 
     const outcome = await runJob(job.jobType, () => executeJobBody(job.jobType));
     if (outcome.status === "succeeded") {
-      // Missed slots are skipped, not replayed.
+      // Missed slots are skipped, not replayed (Rust `catch_up`).
+      const next = catchUp(
+        new Date(job.nextRunAt),
+        Math.max(job.intervalDays, 1),
+        Math.max(job.atHour, 0),
+        Math.max(job.atMinute, 0),
+        offset,
+        new Date(),
+      );
       await db
         .update(scheduledJobs)
-        .set({
-          nextRunAt: nextSlot(job.intervalDays, job.atHour, job.atMinute).toISOString(),
-          updatedAt: new Date().toISOString(),
-        })
+        .set({ nextRunAt: next.toISOString(), updatedAt: new Date().toISOString() })
         .where(eq(scheduledJobs.id, job.id));
     }
     outcomes.push(outcome);
@@ -139,6 +169,10 @@ async function runDueScheduledJobs(): Promise<JobOutcome[]> {
 async function executeJobBody(jobType: string): Promise<string> {
   const db = await getDb();
   switch (jobType) {
+    case "holds.sweep": {
+      const r = await sweepExpiredHolds();
+      return JSON.stringify({ cancelled: r.cancelled });
+    }
     case "coupons.expire": {
       // Rust `expire_held`: unused coupons whose window passed become
       // expired AND release their holder slot, freeing the owner to
@@ -184,20 +218,13 @@ async function executeJobBody(jobType: string): Promise<string> {
       return JSON.stringify(r);
     }
     default:
-      return JSON.stringify({ note: `unknown job type ${jobType} skipped` });
+      throw new Error(`no job body for ${jobType}`);
   }
 }
 
-/** Next occurrence of "every intervalDays at HH:MM" (UTC). */
-function nextSlot(intervalDays: number, atHour: number, atMinute: number): Date {
-  const now = new Date();
-  const candidate = new Date(now);
-  candidate.setUTCHours(atHour, atMinute, 0, 0);
-  if (candidate.getTime() <= now.getTime()) {
-    candidate.setUTCDate(candidate.getUTCDate() + Math.max(1, intervalDays));
-  }
-  return candidate;
-}
+/** Run one job now and record the run. */
+export const triggerJob = (jobType: string): Promise<JobOutcome> =>
+  runJob(jobType, () => executeJobBody(jobType));
 
 /** Cron entry point: POST /api/jobs/tick (service-token auth). */
 export async function tick(): Promise<{ ran: JobOutcome[] }> {
@@ -219,78 +246,202 @@ export async function tick(): Promise<{ ran: JobOutcome[] }> {
   return { ran: [...frequent, ...scheduled] };
 }
 
-/** CronJobRunOut — the SPA SDK's run row shape. */
+// ── Admin API (`/api/admin/cron-jobs`) ──────────────────────────
+
+/** `CronJobRunOut`: `detail` is the stored JSON, parsed. */
 export interface CronJobRunOut {
   id: string;
   jobType: string;
   status: string;
-  detail?: string | null;
-  error?: string | null;
-  startedAt?: string | null;
-  finishedAt?: string | null;
+  detail?: unknown;
+  error: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
   createdAt: string;
+}
+
+function runOut(r: typeof jobRuns.$inferSelect): CronJobRunOut {
+  let detail: unknown;
+  try {
+    detail = r.detail === null ? undefined : JSON.parse(r.detail);
+  } catch {
+    detail = undefined;
+  }
+  return {
+    id: r.id,
+    jobType: r.jobType,
+    status: r.status,
+    ...(detail !== undefined && { detail }),
+    error: r.error,
+    startedAt: r.startedAt,
+    finishedAt: r.finishedAt,
+    createdAt: r.createdAt,
+  };
 }
 
 async function latestRun(jobType: string): Promise<CronJobRunOut | null> {
   const db = await getDb();
-  const rows = await db
-    .select({
-      id: jobRuns.id,
-      jobType: jobRuns.jobType,
-      status: jobRuns.status,
-      detail: jobRuns.detail,
-      error: jobRuns.error,
-      startedAt: jobRuns.startedAt,
-      finishedAt: jobRuns.finishedAt,
-      createdAt: jobRuns.createdAt,
-    })
-    .from(jobRuns)
-    .where(eq(jobRuns.jobType, jobType))
-    .orderBy(desc(jobRuns.createdAt))
-    .limit(1);
-  return rows[0] ?? null;
+  const row = (
+    await db
+      .select()
+      .from(jobRuns)
+      .where(eq(jobRuns.jobType, jobType))
+      .orderBy(desc(jobRuns.createdAt))
+      .limit(1)
+  )[0];
+  return row ? runOut(row) : null;
 }
 
-/** Admin: manual trigger (POST /api/admin/cron-jobs/{jobType}/trigger). */
-export async function triggerJob(jobType: string): Promise<JobOutcome> {
-  if (jobType === "holds.sweep") {
-    return runJob("holds.sweep", async () => JSON.stringify(await sweepExpiredHolds()));
-  }
-  if (jobType === "trips.warm") {
-    return runJob("trips.warm", async () => JSON.stringify(await warmTrips()));
-  }
-  return runJob(jobType, async () => executeJobBody(jobType));
+function scheduleOut(s: typeof scheduledJobs.$inferSelect, lastRun: CronJobRunOut | null) {
+  return {
+    jobType: s.jobType,
+    description: describe(s.jobType) ?? null,
+    enabled: s.enabled,
+    intervalDays: s.intervalDays,
+    atHour: s.atHour,
+    atMinute: s.atMinute,
+    nextRunAt: s.nextRunAt,
+    lastRun,
+    updatedAt: s.updatedAt,
+  };
 }
 
-/** Admin: latest run for the trigger response (Rust returns CronJobRunOut). */
-export async function triggerJobRunOut(jobType: string): Promise<CronJobRunOut> {
-  await triggerJob(jobType);
-  const run = await latestRun(jobType);
-  return (
-    run ?? {
-      id: crypto.randomUUID(),
-      jobType,
-      status: "succeeded",
-      createdAt: new Date().toISOString(),
-    }
-  );
-}
-
-/** Admin: cancel an in-flight run (interrupted marker). */
-export async function cancelRun(jobType: string): Promise<CronJobRunOut> {
+/**
+ * `GET /api/admin/cron-jobs`: the schedule rows, plus the two fixed-cadence
+ * jobs that have no row. `schedulerEnabled` is the cron trigger's heartbeat:
+ * `holds.sweep` ran within the last five minutes.
+ */
+export async function listCronJobs() {
   const db = await getDb();
+  const rows = await db.select().from(scheduledJobs).orderBy(asc(scheduledJobs.jobType));
+  const runs = await Promise.all(
+    [...rows.map((r) => r.jobType), "holds.sweep", "trips.warm"].map(
+      async (t) => [t, await latestRun(t)] as const,
+    ),
+  );
+  const last = new Map(runs);
+  const fixed = ["holds.sweep", "trips.warm"].map((jobType) => ({
+    jobType,
+    description: describe(jobType) ?? null,
+    enabled: true,
+    intervalDays: 0,
+    atHour: jobType === "trips.warm" ? 6 : 0,
+    atMinute: 0,
+    nextRunAt: null,
+    lastRun: last.get(jobType) ?? null,
+    updatedAt: new Date().toISOString(),
+  }));
+  const heartbeat = last.get("holds.sweep")?.createdAt;
+  return {
+    items: [...fixed, ...rows.map((r) => scheduleOut(r, last.get(r.jobType) ?? null))],
+    schedulerEnabled: !!heartbeat && Date.now() - new Date(heartbeat).getTime() < 5 * 60_000,
+  };
+}
+
+/** `GET /api/admin/cron-jobs/runs`: newest first, 20 by default, at most 100. */
+export async function listCronRuns(jobType: string | null, limit: number) {
+  const db = await getDb();
+  const rows = await db
+    .select()
+    .from(jobRuns)
+    .where(jobType ? eq(jobRuns.jobType, jobType) : undefined)
+    .orderBy(desc(jobRuns.createdAt))
+    .limit(Math.min(Math.max(limit, 1), 100));
+  return { items: rows.map(runOut) };
+}
+
+export interface UpdateCronJobBody {
+  enabled?: boolean | null;
+  intervalDays?: number | null;
+  atHour?: number | null;
+  atMinute?: number | null;
+  resetNextRun?: boolean | null;
+}
+
+/** `UpdateCronJobRequest`'s `validator` ranges. */
+export function validateUpdateCronJob(b: UpdateCronJobBody): void {
+  if (typeof b !== "object" || b === null) throw badRequest("invalid request body");
+  const inRange = (v: unknown, min: number, max: number) =>
+    v == null || (typeof v === "number" && Number.isInteger(v) && v >= min && v <= max);
+  if (!inRange(b.intervalDays, 1, 365)) throw badRequest("interval days is outside 1..365");
+  if (!inRange(b.atHour, 0, 23)) throw badRequest("at hour is outside 0..23");
+  if (!inRange(b.atMinute, 0, 59)) throw badRequest("at minute is outside 0..59");
+  for (const f of [b.enabled, b.resetNextRun])
+    if (f != null && typeof f !== "boolean") throw badRequest("invalid request body");
+}
+
+/** `PATCH /api/admin/cron-jobs/{jobType}`: a new cadence (or `resetNextRun`) re-arms the next run from now. */
+export async function updateCronJob(jobType: string, body: UpdateCronJobBody) {
+  const db = await getDb();
+  const model = (
+    await db.select().from(scheduledJobs).where(eq(scheduledJobs.jobType, jobType)).limit(1)
+  )[0];
+  if (!model) throw notFound(`no schedule for job "${jobType}"`);
+
+  const cadenceChanged = body.intervalDays != null || body.atHour != null || body.atMinute != null;
+  const atHour = body.atHour ?? model.atHour;
+  const atMinute = body.atMinute ?? model.atMinute;
   const now = new Date().toISOString();
   await db
+    .update(scheduledJobs)
+    .set({
+      enabled: body.enabled ?? model.enabled,
+      intervalDays: body.intervalDays ?? model.intervalDays,
+      atHour,
+      atMinute,
+      ...((body.resetNextRun || cadenceChanged) && {
+        nextRunAt: nextOccurrence(
+          new Date(),
+          Math.max(atHour, 0),
+          Math.max(atMinute, 0),
+          await tzOffset(),
+        ).toISOString(),
+      }),
+      updatedAt: now,
+    })
+    .where(eq(scheduledJobs.jobType, jobType));
+  const updated = (
+    await db.select().from(scheduledJobs).where(eq(scheduledJobs.jobType, jobType)).limit(1)
+  )[0]!;
+  return scheduleOut(updated, await latestRun(jobType));
+}
+
+/**
+ * `POST /api/admin/cron-jobs/{jobType}/trigger`. DELIBERATE: the run happens
+ * inside the request (there is no background queue on Workers), so the
+ * answer is the finished run, not a `queued` one.
+ */
+export async function triggerCronJob(jobType: string): Promise<CronJobRunOut> {
+  if (!JOB_CATALOG.some((j) => j.kind === jobType)) throw notFound(`no job "${jobType}"`);
+  const db = await getDb();
+  const live = (
+    await db
+      .select({ id: jobRuns.id })
+      .from(jobRuns)
+      .where(and(eq(jobRuns.jobType, jobType), inArray(jobRuns.status, ["queued", "running"])))
+      .limit(1)
+  )[0];
+  if (live)
+    throw conflict(`${jobType} is already queued or running (run ${live.id}) — wait for it to finish`);
+  await triggerJob(jobType);
+  return (await latestRun(jobType))!;
+}
+
+/** `POST /api/admin/cron-jobs/{jobType}/cancel`: only a run that is still queued or running can be cancelled. */
+export async function cancelCronJob(jobType: string): Promise<CronJobRunOut> {
+  const db = await getDb();
+  const live = (
+    await db
+      .select()
+      .from(jobRuns)
+      .where(and(eq(jobRuns.jobType, jobType), inArray(jobRuns.status, ["queued", "running"])))
+      .orderBy(desc(jobRuns.createdAt))
+      .limit(1)
+  )[0];
+  if (!live) throw notFound(`${jobType} has no queued or running run`);
+  await db
     .update(jobRuns)
-    .set({ status: "cancelled", finishedAt: now, error: "cancelled by admin" })
-    .where(and(eq(jobRuns.jobType, jobType), eq(jobRuns.status, "running")));
-  const run = await latestRun(jobType);
-  return (
-    run ?? {
-      id: crypto.randomUUID(),
-      jobType,
-      status: "cancelled",
-      createdAt: now,
-    }
-  );
+    .set({ status: "cancelled", finishedAt: new Date().toISOString() })
+    .where(eq(jobRuns.id, live.id));
+  return (await latestRun(jobType))!;
 }
