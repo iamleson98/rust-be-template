@@ -2,6 +2,8 @@
 // absent on a fresh clone, present after the first build — the expect-error
 // flavor would lie in one of the two states, this one never does.
 import { default as handler } from "./.open-next/worker.js";
+// @ts-ignore Generated at build time too (same reason): OpenNext's request-context runner.
+import { runWithCloudflareRequestContext } from "./.open-next/cloudflare/init.js";
 import { ChatHub } from "./chat-hub";
 import { CallHub } from "./call-hub";
 import {
@@ -18,10 +20,9 @@ import {
  *  - adds the `ChatHub` / `CallHub` Durable Objects that power the SPA's
  *    `/ws` chat socket and `/ws-call` audio signalling
  *  - adds a `scheduled` handler (Worker Cron Trigger, every minute) that runs
- *    the job executor in-process: it feeds a synthetic `POST /api/jobs/tick`
- *    through the Next.js handler, so the jobs run with the exact same
- *    bindings and request context as any API route. No container, no
- *    public round trip.
+ *    the job executor in-process, in OpenNext's request context so it sees the
+ *    exact same bindings as any API route. No container, no public round
+ *    trip, and no Next.js render on the way (Free plan: 10 ms CPU).
  *
  * Deploy-time wiring (wrangler.jsonc):
  *   main: "custom-worker.ts"
@@ -65,23 +66,15 @@ export default {
   },
 
   async scheduled(_event: ScheduledController, env: CloudflareEnv, ctx: ExecutionContext) {
-    if (!env.CRON_SERVICE_TOKEN) {
-      console.error("[cron] CRON_SERVICE_TOKEN is not set; skipping tick");
-      return;
-    }
-    const res = await handler.fetch(
-      new Request("https://internal.invalid/api/jobs/tick", {
-        method: "POST",
-        headers: { "x-cron-token": env.CRON_SERVICE_TOKEN },
-      }),
+    // Straight to the job executor (see `src/lib/cron.ts`), loaded lazily so a
+    // normal request never pays for it.
+    const { runCron } = await import("./src/lib/cron");
+    const summary = await runWithCloudflareRequestContext(
+      new Request("https://internal.invalid/cron"),
       env,
       ctx,
+      runCron,
     );
-    const body = await res.text();
-    if (!res.ok) {
-      // Throwing marks the cron invocation as failed in Workers observability.
-      throw new Error(`tick failed: HTTP ${res.status} ${body.slice(0, 300)}`);
-    }
-    console.info(`[cron] tick ok: ${body.slice(0, 300)}`);
+    console.info(`[cron] ${summary}`);
   },
 } satisfies ExportedHandler<CloudflareEnv>;
