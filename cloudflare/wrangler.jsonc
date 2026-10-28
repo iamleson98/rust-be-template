@@ -6,84 +6,87 @@
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "assets": {
     "directory": ".open-next/assets",
-    "binding": "ASSETS"
+    "binding": "ASSETS",
   },
   "services": [
     {
       "binding": "WORKER_SELF_REFERENCE",
-      "service": "datxevui"
-    }
+      "service": "datxevui",
+    },
   ],
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "datxevui",
       "database_id": "2b6b3103-eecf-4580-84bf-fc556f45b906",
-      "migrations_dir": "migrations"
-    }
+      "migrations_dir": "migrations",
+    },
   ],
   "kv_namespaces": [
     {
       "binding": "CACHE_KV",
-      "id": "afdcb1c28727427a9934b66f5fb3b6f7"
-    }
+      "id": "afdcb1c28727427a9934b66f5fb3b6f7",
+    },
   ],
   "r2_buckets": [
     {
       "binding": "UPLOADS",
-      "bucket_name": "datxevui-uploads"
-    }
+      "bucket_name": "datxevui-uploads",
+    },
   ],
+  "images": {
+    "binding": "IMAGES",
+  },
   "durable_objects": {
     "bindings": [
       {
         "class_name": "ChatHub",
-        "name": "CHAT_HUB"
+        "name": "CHAT_HUB",
       },
       {
         "class_name": "CallHub",
-        "name": "CALL_HUB"
-      }
-    ]
+        "name": "CALL_HUB",
+      },
+    ],
   },
   "exports": {
     "ChatHub": {
       "type": "durable-object",
-      "storage": "sqlite"
+      "storage": "sqlite",
     },
     "CallHub": {
       "type": "durable-object",
-      "storage": "sqlite"
-    }
+      "storage": "sqlite",
+    },
   },
   "ratelimits": [
     {
       "name": "AUTH_LIMITER",
       "namespace_id": "1001",
-      "simple": { "limit": 10, "period": 60 }
+      "simple": { "limit": 10, "period": 60 },
     },
     {
       "name": "WRITE_LIMITER",
       "namespace_id": "1002",
-      "simple": { "limit": 30, "period": 60 }
+      "simple": { "limit": 30, "period": 60 },
     },
     {
       "name": "IP_READ_LIMITER",
       "namespace_id": "1003",
-      "simple": { "limit": 600, "period": 60 }
+      "simple": { "limit": 600, "period": 60 },
     },
     {
       "name": "IP_STRICT_LIMITER",
       "namespace_id": "1004",
-      "simple": { "limit": 100, "period": 60 }
-    }
+      "simple": { "limit": 100, "period": 60 },
+    },
   ],
   "routes": [
     { "pattern": "datxevui.com", "custom_domain": true },
-    { "pattern": "www.datxevui.com", "custom_domain": true }
+    { "pattern": "www.datxevui.com", "custom_domain": true },
   ],
   "triggers": {
-    "crons": ["* * * * *"]
+    "crons": ["* * * * *"],
   },
   "vars": {
     "APP_ENV": "production",
@@ -94,9 +97,9 @@
     "ZALOPAY_ENABLED": "false",
     "REALTIME_ENABLED": "false",
     "CALL_ALLOWED_COUNTRIES": "VN",
-    "AUDIO_CALL_RING_TIMEOUT_SECS": "60"
+    "AUDIO_CALL_RING_TIMEOUT_SECS": "60",
   },
   "observability": {
-    "enabled": true
-  }
+    "enabled": true,
+  },
 }

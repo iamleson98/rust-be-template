@@ -1,14 +1,14 @@
 import { handleRouteError, requireUser } from "@/lib/api";
+import { uuidParam } from "@/lib/services/http-errors";
 import { closeChannel } from "@/lib/services/chat";
-import { emitChatEvent } from "@/lib/services/chat-hub-bridge";
 
+/** `POST /api/chat/channels/{id}/close` — staff closes the channel. */
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   try {
     const user = await requireUser(req);
-    const { id } = await ctx.params;
-    const channel = await closeChannel(user, id);
-    await emitChatEvent({ type: "channel_closed", channelId: id });
-    return Response.json({ ok: true, channel });
+    return Response.json(
+      await closeChannel(user, uuidParam("id", (await ctx.params).id) as string),
+    );
   } catch (e) {
     return handleRouteError(e);
   }

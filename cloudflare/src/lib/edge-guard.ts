@@ -36,7 +36,9 @@ export function isExempt(pathname: string): boolean {
     pathname === "/api/health" ||
     pathname === "/sitemap.xml" ||
     pathname === "/robots.txt" ||
-    pathname.startsWith("/api/payments/ipn/")
+    pathname.startsWith("/api/payments/ipn/") ||
+    // Chat-bot platforms call with a signature, not a browser Origin.
+    pathname.startsWith("/api/webhooks/")
   );
 }
 

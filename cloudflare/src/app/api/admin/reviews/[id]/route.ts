@@ -1,41 +1,30 @@
-import { rawAll, rawRun } from "@/lib/db/client";
-import { invalidateReviews } from "@/lib/services/lookups";
-import { sql } from "drizzle-orm";
-import { handleRouteError, requireStaff, readJson, err } from "@/lib/api";
+import { handleRouteError, requireStaff, readJson } from "@/lib/api";
 import { requirePermission } from "@/lib/auth/rbac";
+import { uuidParam } from "@/lib/services/http-errors";
+import { moderateReview, removeReview } from "@/lib/services/reviews";
 
 type Params = { params: Promise<{ id: string }> };
 
-/**
- * `PATCH /api/admin/reviews/{id}` — moderate: publish/reject/hide and
- * optionally leave the brand's reply (Rust `ModerateReviewResponse`).
- */
+/** `PATCH /api/admin/reviews/{id}` — set the status and/or the brand's reply. */
 export async function PATCH(req: Request, ctx: Params) {
   try {
     const staff = await requireStaff(req);
+    const id = uuidParam("id", (await ctx.params).id) as string;
+    const body = await readJson<{ status?: string | null; brandReply?: string | null }>(req);
     await requirePermission(staff, "admin:reviews:moderate");
-    const { id } = await ctx.params;
-    const body = await readJson<{ status?: string; brandReply?: string | null }>(req);
-    const status = body.status;
-    if (status && !["pending", "published", "rejected", "hidden"].includes(status)) {
-      return err(400, "validation", "unsupported status");
-    }
-    const rows = await rawAll<{ id: string; replied_at: string | null }>(
-      sql`SELECT id, replied_at FROM review WHERE id = ${id} LIMIT 1`,
-    );
-    if (!rows[0]) return err(404, "not-found", "review not found");
+    return Response.json(await moderateReview(id, body));
+  } catch (e) {
+    return handleRouteError(e);
+  }
+}
 
-    const now = new Date().toISOString();
-    await rawRun(sql`
-      UPDATE review
-      SET status = COALESCE(${status ?? null}, status),
-          reply = ${body.brandReply ?? null},
-          replied_at = CASE WHEN ${body.brandReply ?? null} IS NOT NULL THEN ${now} ELSE replied_at END,
-          updated_at = ${now}
-      WHERE id = ${id}
-    `);
-    await invalidateReviews();
-    return Response.json({ id });
+/** `DELETE /api/admin/reviews/{id}` — remove any review (empty 200, as Rust). */
+export async function DELETE(req: Request, ctx: Params) {
+  try {
+    const staff = await requireStaff(req);
+    await requirePermission(staff, "admin:reviews:moderate");
+    await removeReview(uuidParam("id", (await ctx.params).id) as string, null);
+    return new Response(null, { status: 200 });
   } catch (e) {
     return handleRouteError(e);
   }

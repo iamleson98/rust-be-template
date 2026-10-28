@@ -12,6 +12,8 @@ declare interface CloudflareEnv {
   UPLOADS: R2Bucket;
   ASSETS: Fetcher;
   WORKER_SELF_REFERENCE: Fetcher;
+  /** Cloudflare Images binding: route picture thumbnails (absent → originals only). */
+  IMAGES?: ImagesBinding;
   CHAT_HUB?: DurableObjectNamespace;
   CALL_HUB?: DurableObjectNamespace;
 
@@ -25,6 +27,8 @@ declare interface CloudflareEnv {
   /** `iss` claim of the access token (default "backend"). */
   JWT_ISSUER?: string;
   CRON_SERVICE_TOKEN?: string;
+  /** Wall-clock offset of job schedules, minutes east of UTC (default 420, Vietnam). */
+  SCHEDULER_TZ_OFFSET_MINUTES?: string;
   /** Workers Rate Limiting bindings (wrangler `ratelimits`); absent → limiting is off. */
   AUTH_LIMITER?: RateLimit;
   WRITE_LIMITER?: RateLimit;
@@ -100,6 +104,29 @@ declare interface CloudflareEnv {
   OAUTH_FACEBOOK_CLIENT_ID?: string;
   OAUTH_FACEBOOK_CLIENT_SECRET?: string;
   OAUTH_FACEBOOK_SCOPES?: string;
+
+  // Google Ads server-side conversion upload (all of the first five, else record-only)
+  GOOGLE_ADS_DEVELOPER_TOKEN?: string;
+  GOOGLE_ADS_CUSTOMER_ID?: string;
+  GOOGLE_ADS_LOGIN_CUSTOMER_ID?: string;
+  GOOGLE_ADS_CLIENT_ID?: string;
+  GOOGLE_ADS_CLIENT_SECRET?: string;
+  GOOGLE_ADS_REFRESH_TOKEN?: string;
+  /** Google Ads REST version, e.g. `v21` (default `v21`). */
+  GOOGLE_ADS_API_VERSION?: string;
+  /** JSON: event name → conversion action resource name. */
+  GOOGLE_ADS_CONVERSION_ACTIONS?: string;
+
+  /** Valhalla routing server base URL for /api/routing/* (absent → routing answers "not configured"). */
+  VALHALLA_URL?: string;
+
+  // Chat-bot platform webhooks (a missing secret rejects that platform's calls)
+  TELEGRAM_WEBHOOK_SECRET?: string;
+  MESSENGER_APP_SECRET?: string;
+  MESSENGER_VERIFY_TOKEN?: string;
+  ZALO_OA_SECRET?: string;
+  /** Hex Ed25519 public key of the Discord application. */
+  DISCORD_PUBLIC_KEY?: string;
 
   // NullClaw AI chat assistant (optional)
   NULLCLAW_ENABLED?: string;

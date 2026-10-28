@@ -11,11 +11,11 @@
  *
  * NEVER cached: seat maps, availability, booking/payment/auth state.
  */
-import { getDb, inList, rawAll } from "@/lib/db/client";
-import { and, asc, count, desc, eq, gte, min, sql } from "drizzle-orm";
+import { getDb, inList } from "@/lib/db/client";
+import { and, asc, count, desc, eq, gte, min } from "drizzle-orm";
 import { brands, routes, schedules, tripSessions } from "@/lib/db/schema";
 import { countOf, groupedCounts } from "@/lib/db/counts";
-import { cacheFirst, cacheInvalidatePrefix } from "@/lib/db/cache";
+import { cacheInvalidatePrefix } from "@/lib/db/cache";
 import { withRetry } from "@/lib/db/retry";
 import { findCity, nameForSlug } from "@/lib/city-match";
 import { localToday } from "./trip-time";
@@ -178,28 +178,6 @@ export async function homeStats(): Promise<HomeStats> {
     routes: Number(routeCount?.n ?? 0),
     trips: Number(tripCount?.n ?? 0),
   };
-}
-
-// ── Review tags ─────────────────────────────────────────────────
-
-/** `GET /api/reviews/tags` — tags that appear on approved reviews.
- * (json_each lateral + DISTINCT LOWER — SQL semantics drizzle has no
- * builder for; kept as a parameterized template on purpose.) */
-export async function reviewTags(limit: number): Promise<string[]> {
-  return cacheFirst(
-    `lookups:review-tags:${limit}`,
-    () =>
-      withRetry(async () => {
-        const rows = await rawAll<{ tag: string }>(sql`
-          SELECT DISTINCT LOWER(TRIM(je.value)) AS tag
-          FROM review r, json_each(COALESCE(r.tags, '[]')) je
-          WHERE r.status = 'approved' AND TRIM(je.value) != ''
-          ORDER BY tag LIMIT ${limit}
-        `);
-        return rows.map((r) => r.tag);
-      }),
-    { ttlMs: 120_000 },
-  );
 }
 
 // ── Invalidation hooks (call from admin write routes) ───────────

@@ -1,5 +1,5 @@
 import { handleRouteError, requireUser, readJson } from "@/lib/api";
-import { ensureCustomerChannel } from "@/lib/services/chat";
+import { createChannel } from "@/lib/services/chat";
 import { mintChannelToken, realtimeConfig } from "@/lib/realtime";
 
 /**
@@ -16,8 +16,7 @@ export async function POST(req: Request) {
     ).catch(() => ({}) as { channelId?: string; brandId?: string; topic?: string });
     let channelId = body.channelId;
     if (!channelId) {
-      const ch = await ensureCustomerChannel(user.id, body.brandId, body.topic);
-      channelId = ch.id;
+      channelId = (await createChannel(user.id, { brandId: body.brandId, topic: body.topic })).id;
     }
     const cfg = await realtimeConfig();
     if (!cfg.enabled) {

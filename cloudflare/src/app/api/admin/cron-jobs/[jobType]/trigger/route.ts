@@ -1,17 +1,12 @@
 import { handleRouteError, requireStaff } from "@/lib/api";
 import { requirePermission } from "@/lib/auth/rbac";
-import { triggerJobRunOut } from "@/lib/services/jobs";
+import { triggerCronJob } from "@/lib/services/jobs";
 
-type Params = { params: Promise<{ jobType: string }> };
-
-/** `POST /api/admin/cron-jobs/{jobType}/trigger` — run a job now (Rust `CronJobRunOut`). */
-export async function POST(req: Request, ctx: Params) {
+/** `POST /api/admin/cron-jobs/{jobType}/trigger` — run a job now and answer the finished run. */
+export async function POST(req: Request, ctx: { params: Promise<{ jobType: string }> }) {
   try {
-    const staff = await requireStaff(req);
-    await requirePermission(staff, "admin:cron-jobs:write");
-    const { jobType } = await ctx.params;
-    const run = await triggerJobRunOut(jobType);
-    return Response.json(run);
+    await requirePermission(await requireStaff(req), "admin:cron-jobs:write");
+    return Response.json(await triggerCronJob((await ctx.params).jobType));
   } catch (e) {
     return handleRouteError(e);
   }

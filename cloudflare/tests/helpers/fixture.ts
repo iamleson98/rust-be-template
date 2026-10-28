@@ -31,6 +31,7 @@ import {
   users,
 } from "@/lib/db/schema";
 import { createBooking, type HoldRequest, type HoldResult } from "@/lib/services/booking";
+import type { SessionUser } from "@/lib/auth/session";
 
 export const STANDARD_FARE = 350_000;
 
@@ -137,7 +138,7 @@ export async function fixture(n: number): Promise<Fixture> {
 }
 
 /** A fresh customer account (or staff when `role` says so). */
-export async function owner(role: "user" | "admin" = "user"): Promise<string> {
+export async function owner(role: "user" | "employee" | "admin" = "user"): Promise<string> {
   const db = await getDb();
   const id = crypto.randomUUID();
   await db.insert(users).values({
@@ -242,4 +243,22 @@ export async function rejection(p: Promise<unknown>): Promise<{ status: number; 
     return { status: err.status ?? 0, message: err.message ?? String(e) };
   }
   throw new Error("expected the promise to reject");
+}
+
+/** The session of a user the fixture created. */
+export async function sessionOf(userId: string): Promise<SessionUser> {
+  const db = await getDb();
+  const u = (await db.select().from(users).where(eq(users.id, userId)))[0]!;
+  return {
+    id: u.id,
+    fullName: u.fullName,
+    email: u.email,
+    phone: u.phone,
+    role: u.role,
+    status: u.status,
+    avatarUrl: u.avatarUrl,
+    brandId: u.brandId,
+    locale: u.locale,
+    hasPassword: u.passwordHash !== null,
+  };
 }

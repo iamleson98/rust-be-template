@@ -2,6 +2,7 @@ import { getDb } from "@/lib/db/client";
 import { routes } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { handleRouteError, requireStaff, readJson, err } from "@/lib/api";
+import { purgeRoute } from "@/lib/services/route-media";
 import { requirePermission } from "@/lib/auth/rbac";
 
 type Params = { params: Promise<{ id: string }> };
@@ -54,6 +55,9 @@ export async function DELETE(req: Request, ctx: Params) {
       await db.select({ id: routes.id }).from(routes).where(eq(routes.id, id)).limit(1)
     )[0];
     if (!existing) return err(404, "not-found", "route not found");
+    // Purge the gallery's objects BEFORE the row cascade makes their keys
+    // unrecoverable; a storage hiccup must not block the deletion.
+    await purgeRoute(id).catch((e: unknown) => console.warn("route-picture GC failed", e));
     await db.delete(routes).where(eq(routes.id, id));
     return Response.json({ id });
   } catch (e) {

@@ -1,17 +1,12 @@
 import { handleRouteError, requireStaff } from "@/lib/api";
 import { requirePermission } from "@/lib/auth/rbac";
-import { cancelRun } from "@/lib/services/jobs";
+import { cancelCronJob } from "@/lib/services/jobs";
 
-type Params = { params: Promise<{ jobType: string }> };
-
-/** `POST /api/admin/cron-jobs/{jobType}/cancel` — mark an in-flight run cancelled. */
-export async function POST(req: Request, ctx: Params) {
+/** `POST /api/admin/cron-jobs/{jobType}/cancel` — cancel a queued or running run. */
+export async function POST(req: Request, ctx: { params: Promise<{ jobType: string }> }) {
   try {
-    const staff = await requireStaff(req);
-    await requirePermission(staff, "admin:cron-jobs:write");
-    const { jobType } = await ctx.params;
-    const run = await cancelRun(jobType);
-    return Response.json(run);
+    await requirePermission(await requireStaff(req), "admin:cron-jobs:write");
+    return Response.json(await cancelCronJob((await ctx.params).jobType));
   } catch (e) {
     return handleRouteError(e);
   }

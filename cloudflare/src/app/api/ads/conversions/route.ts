@@ -1,41 +1,14 @@
-import { getDb } from "@/lib/db/client";
-import { adConversions } from "@/lib/db/schema";
 import { handleRouteError, readJson } from "@/lib/api";
+import { reportConversion, type ReportConversionBody } from "@/lib/services/ads";
 
 /**
- * `POST /api/ads/conversions` — Google Ads conversion report (client side).
- * Stored locally; the server-side upload needs the Ads API credentials
- * (documented in docs/GOOGLE_ADS.md) and stays off by default.
+ * `POST /api/ads/conversions` — record a conversion (beacon), no session
+ * needed: the beacon fires seconds after the money moment, when the booking
+ * session may already have expired, and carries no personal data.
  */
 export async function POST(req: Request) {
   try {
-    const body = await readJson<{
-      event?: string;
-      transactionId?: string | null;
-      value?: string | null;
-      currency?: string | null;
-      clickIds?: Record<string, string>;
-    }>(req);
-    const event = (body.event ?? "").trim();
-    if (!event) return new Response(null, { status: 204 });
-    const db = await getDb();
-    const clickIds = body.clickIds ?? {};
-    await db.insert(adConversions).values({
-      id: crypto.randomUUID(),
-      event,
-      transactionId: body.transactionId ?? crypto.randomUUID(),
-      conversionValue: body.value ?? null,
-      currency: body.currency ?? "VND",
-      gclid: clickIds.gclid ?? null,
-      wbraid: clickIds.wbraid ?? null,
-      gbraid: clickIds.gbraid ?? null,
-    });
-    return Response.json({
-      ok: true,
-      stored: true,
-      uploadAttempted: false,
-      serverUploadEnabled: false,
-    });
+    return Response.json(await reportConversion(await readJson<ReportConversionBody>(req)));
   } catch (e) {
     return handleRouteError(e);
   }

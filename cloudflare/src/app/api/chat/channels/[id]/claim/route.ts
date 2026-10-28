@@ -1,20 +1,14 @@
-import { handleRouteError, requireStaff } from "@/lib/api";
+import { handleRouteError, requireUser } from "@/lib/api";
+import { uuidParam } from "@/lib/services/http-errors";
 import { claimChannel } from "@/lib/services/chat";
-import { emitChatEvent } from "@/lib/services/chat-hub-bridge";
 
-/** `POST /api/chat/channels/{id}/claim` — staff takes the channel. */
+/** `POST /api/chat/channels/{id}/claim` — staff takes over the channel. */
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   try {
-    const staff = await requireStaff(req);
-    const { id } = await ctx.params;
-    const channel = await claimChannel(staff, id);
-    await emitChatEvent({
-      type: "channel_assigned",
-      channelId: id,
-      employeeId: staff.id,
-      employeeName: staff.fullName,
-    });
-    return Response.json({ ok: true, channel });
+    const user = await requireUser(req);
+    return Response.json(
+      await claimChannel(user, uuidParam("id", (await ctx.params).id) as string),
+    );
   } catch (e) {
     return handleRouteError(e);
   }
