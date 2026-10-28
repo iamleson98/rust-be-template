@@ -33,18 +33,20 @@ async function userById(id: string): Promise<UserRow | undefined> {
 
 /**
  * Rust looks emails up exactly as typed. Accounts made here are stored in
- * lower case, so an exact match comes first and the lower-cased form second:
- * a Rust account "Ann@Mail.com" still signs in with what it registered, and a
- * port account with whatever case the person types.
+ * lower case, so: an exact match first (a Rust account "Ann@Mail.com" signs in
+ * with what it registered, and each of two accounts differing only in case
+ * keeps its own), then the case-insensitive match when it is unambiguous.
  */
 export async function findUserByEmail(email: string): Promise<UserRow | undefined> {
-  const lower = email.toLowerCase();
   const db = await getDb();
-  const rows = await db
+  const exact = (await db.select().from(users).where(eq(users.email, email)).limit(1))[0];
+  if (exact) return exact;
+  const loose = await db
     .select()
     .from(users)
-    .where(inArray(users.email, lower === email ? [email] : [email, lower]));
-  return rows.find((u) => u.email === email) ?? rows[0];
+    .where(sql`lower(${users.email}) = ${email.toLowerCase()}`)
+    .limit(2);
+  return loose.length === 1 ? loose[0] : undefined;
 }
 
 /** Phone sign-in (port feature): the stored number in any common spelling, or a legacy phone-as-email row. */

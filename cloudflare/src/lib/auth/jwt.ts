@@ -59,16 +59,18 @@ async function issuer(): Promise<string> {
 export async function signAccessToken(userId: string): Promise<string> {
   const ttl = await accessTtlSecs();
   const now = Math.floor(Date.now() / 1000);
-  return new SignJWT({ typ: "access" })
-    .setProtectedHeader({ alg: "HS256", typ: "JWT" })
-    .setSubject(userId)
-    .setIssuer(await issuer())
-    .setIssuedAt(now)
-    .setExpirationTime(now + ttl)
-    // Not in the Rust token: without it two tokens minted in the same second are
-    // byte-identical, and revoking one device's would revoke the other's.
-    .setJti(crypto.randomUUID())
-    .sign(await getJwtSecret());
+  return (
+    new SignJWT({ typ: "access" })
+      .setProtectedHeader({ alg: "HS256", typ: "JWT" })
+      .setSubject(userId)
+      .setIssuer(await issuer())
+      .setIssuedAt(now)
+      .setExpirationTime(now + ttl)
+      // Not in the Rust token: without it two tokens minted in the same second are
+      // byte-identical, and revoking one device's would revoke the other's.
+      .setJti(crypto.randomUUID())
+      .sign(await getJwtSecret())
+  );
 }
 
 export async function verifyAccessToken(token: string): Promise<AccessClaims | null> {

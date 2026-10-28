@@ -15,7 +15,11 @@ export const normalizePlatform = (p: string | undefined): string => {
   return PLATFORMS.has(v) ? v : "android";
 };
 
-/** Idempotent: a known (user, token) pair only refreshes its platform and `updated_at`. */
+/**
+ * Idempotent: a known (user, token) pair only refreshes its platform and
+ * `updated_at`. `last_seen_at` stays empty, as in Rust (the D1 column
+ * `updated_at` is NOT NULL, so a new row carries its creation time there).
+ */
 export async function upsertDevice(
   db: D1Database,
   userId: string,
@@ -25,10 +29,10 @@ export async function upsertDevice(
   const now = new Date().toISOString();
   await db
     .prepare(
-      `INSERT INTO push_device (id, user_id, token, platform, created_at)
-       VALUES (?, ?, ?, ?, ?)
+      `INSERT INTO push_device (id, user_id, token, platform, created_at, updated_at, last_seen_at)
+       VALUES (?, ?, ?, ?, ?, ?, NULL)
        ON CONFLICT (user_id, token) DO UPDATE SET
-         platform = excluded.platform, updated_at = ?`,
+         platform = excluded.platform, updated_at = excluded.updated_at`,
     )
     .bind(crypto.randomUUID(), userId, token, platform, now, now)
     .run();

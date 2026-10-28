@@ -43,9 +43,12 @@ export const PERMISSIONS: Record<string, string> = {
   "admin:export": "Admin: export bookings as CSV",
   "admin:nullclaw:read": "Admin: view NullClaw AI exchange audit log",
   "admin:users:manage-roles": "Admin: grant/revoke user, employee and admin roles",
+  "admin:campaigns:manage":
+    "Admin: create/edit discount campaigns, review and settle coupon payouts",
 };
 
 export const ADMIN_ONLY_PERMS = [
+  "admin:campaigns:manage",
   "users:write",
   "users:delete",
   "admin:users:manage-roles",
