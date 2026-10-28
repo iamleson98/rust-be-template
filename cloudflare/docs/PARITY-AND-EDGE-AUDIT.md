@@ -1,5 +1,7 @@
 # Parity and edge audit (2026-10-20)
 
+> The Rust source this audit compares against was removed from the tree; read it at commit `2d41c84` (`git show 2d41c84:src/...`).
+
 What this is: a check of the TypeScript/Cloudflare port against the Rust backend it replaced,
 plus a check of how well the deployment uses Cloudflare (caching, bandwidth, SEO, abuse
 protection, cost). Everything below was read from the code or measured against the live site

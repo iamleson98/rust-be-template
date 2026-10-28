@@ -43,9 +43,6 @@ on:
   pull_request:
     paths:
       - 'tools/place-extract/**'
-      - 'src/osm/osm_reader.rs'
-      - 'src/osm/spatial.rs'
-      - 'src/osm/vn_text.rs'
       - 'cloudflare/src/lib/places/**'
       - 'cloudflare/src/lib/cities.ts'
       - 'cloudflare/scripts/build-place-shards.ts'
