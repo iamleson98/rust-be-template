@@ -1,8 +1,9 @@
 /**
  * API helpers — JSON envelope, error mapping, guards for route handlers.
  */
+import { errorResponse } from "./error-envelope";
 import { ApiError } from "./auth/rbac";
-import { currentUser, type SessionUser } from "./auth/session";
+import { accessTokenOf, currentUser, type SessionUser } from "./auth/session";
 import { isStaff } from "./auth/rbac";
 
 export { currentUser };
@@ -12,33 +13,36 @@ export function json(data: unknown, init?: ResponseInit): Response {
   return Response.json(data, init);
 }
 
+/**
+ * An error response in the Rust envelope `{ error: <kind>, message }` (see
+ * `error-envelope.ts`). `code` is a Rust kind or one of the port's older names.
+ */
 export function err(status: number, code: string, message: string, retryAfter?: number): Response {
-  return Response.json(
-    { error: { code, message } },
-    {
-      status,
-      headers: retryAfter ? { "retry-after": String(Math.max(1, Math.ceil(retryAfter))) } : {},
-    },
-  );
+  return errorResponse(status, code, message, { retryAfter });
 }
 
 /** Convert thrown values into the standard error envelope. */
 export function handleRouteError(e: unknown): Response {
   if (e instanceof ApiError) return err(e.status, e.code, e.message, e.retryAfter);
-  const message = e instanceof Error ? e.message : "Internal error";
   console.error("[api]", e);
-  return err(500, "internal", message);
+  return err(500, "internal_error", e instanceof Error ? e.message : "unknown error");
 }
 
+/** Rust `AuthUser`: 401 "missing access token" / "invalid or expired token". */
 export async function requireUser(req: Request): Promise<SessionUser> {
   const user = await currentUser(req);
-  if (!user) throw new ApiError(401, "unauthorized", "Authentication required");
-  return user;
+  if (user) return user;
+  throw new ApiError(
+    401,
+    "unauthorized",
+    accessTokenOf(req) ? "invalid or expired token" : "missing access token",
+  );
 }
 
+/** Rust `AdminUser`: 403 for an authenticated caller who is not staff. */
 export async function requireStaff(req: Request): Promise<SessionUser> {
   const user = await requireUser(req);
-  if (!isStaff(user)) throw new ApiError(403, "forbidden", "Staff access required");
+  if (!isStaff(user)) throw new ApiError(403, "forbidden", "staff access required");
   return user;
 }
 
@@ -77,5 +81,16 @@ export async function readJson<T>(req: Request): Promise<T> {
     return (await req.json()) as T;
   } catch {
     throw new ApiError(400, "bad-json", "Request body must be valid JSON");
+  }
+}
+
+/** Like `readJson`, but an empty body is `{}` — only malformed JSON is an error. */
+export async function readOptionalJson<T extends object>(req: Request): Promise<Partial<T>> {
+  const text = await req.text();
+  if (!text.trim()) return {};
+  try {
+    return JSON.parse(text) as Partial<T>;
+  } catch {
+    throw new ApiError(400, "bad_request", "Request body must be valid JSON");
   }
 }

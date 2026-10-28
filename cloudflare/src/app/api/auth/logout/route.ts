@@ -1,25 +1,38 @@
-import { clearSessionCookies, revokeAllSessions, revokeSession } from "@/lib/auth/session";
-import { handleRouteError, readJson, currentUser } from "@/lib/api";
+import { handleRouteError } from "@/lib/api";
+import { REFRESH_COOKIE } from "@/lib/auth/jwt";
+import {
+  accessTokenOf,
+  clearSessionCookies,
+  currentUser,
+  logoutSession,
+  readCookie,
+} from "@/lib/auth/session";
 
+/**
+ * `POST /api/auth/logout` — revoke THIS device's session (default) or every
+ * session of the user (`{"all": true}`), then clear the cookies. One user may be
+ * signed in on several devices at once; signing out of one must not end the
+ * others. Always 204: a failing revocation must not keep a browser signed in.
+ */
 export async function POST(req: Request) {
   try {
-    const body = await readJson<{ all?: boolean; refresh_token?: string }>(req).catch(
-      () => ({}) as { all?: boolean; refresh_token?: string },
-    );
-    const cookie = req.headers.get("cookie") ?? "";
-    const m = /(?:^|;\s*)refresh_token=([^;]+)/.exec(cookie);
-    // Browsers: the httpOnly cookie. The mobile app has no cookie jar and
-    // sends the token it holds in the body, so THIS device's session is the
-    // one revoked (not a no-op that leaves the token valid after "logout").
-    const refreshToken = m ? decodeURIComponent(m[1]) : (body.refresh_token ?? null);
-
-    if (body.all) {
-      const user = await currentUser(req);
-      if (user) await revokeAllSessions(user.id);
-    } else {
-      await revokeSession(refreshToken);
+    // The body is optional (browsers POST with no payload), so parse it leniently.
+    const body = (await req.json().catch(() => ({}))) as {
+      refresh_token?: unknown;
+      all?: unknown;
+    } | null;
+    const fromBody = typeof body?.refresh_token === "string" ? body.refresh_token : null;
+    try {
+      await logoutSession({
+        userId: (await currentUser(req))?.id ?? null,
+        // Mobile has no cookie jar and sends the token it holds; browsers use the cookie.
+        refreshToken: fromBody ?? readCookie(req, REFRESH_COOKIE),
+        accessToken: accessTokenOf(req),
+        all: body?.all === true,
+      });
+    } catch (e) {
+      console.warn("[auth] logout token revocation failed; clearing cookies anyway", e);
     }
-
     const headers = new Headers();
     for (const c of await clearSessionCookies(req)) headers.append("set-cookie", c);
     return new Response(null, { status: 204, headers });

@@ -1,6 +1,6 @@
 import { rawAll } from "@/lib/db/client";
 import { sql } from "drizzle-orm";
-import { handleRouteError, requireStaff } from "@/lib/api";
+import { handleRouteError, requireStaff, err } from "@/lib/api";
 import { isAdmin } from "@/lib/auth/rbac";
 import { getEnv } from "@/lib/db/client";
 
@@ -26,11 +26,7 @@ function humanUptime(secs: number): string {
 export async function GET(req: Request) {
   try {
     const staff = await requireStaff(req);
-    if (!isAdmin(staff))
-      return Response.json(
-        { error: { code: "forbidden", message: "Admin access required" } },
-        { status: 403 },
-      );
+    if (!isAdmin(staff)) return err(403, "forbidden", "admin access required");
     const env = await getEnv();
     const seconds = Math.floor((Date.now() - BOOT) / 1000);
 

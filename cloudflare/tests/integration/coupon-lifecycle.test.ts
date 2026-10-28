@@ -234,8 +234,8 @@ describe("claim → held (one per account, one per campaign)", () => {
   it("rejects a second concurrent coupon (already-held)", async () => {
     const res = await claim(CAMPAIGN_B, TIER_B);
     expect(res.status).toBe(409);
-    expect(((await res.json()) as { error: { message: string } }).error.message).toBe(
-      "coupon_already_held",
+    expect(((await res.json()) as { message: string }).message).toBe(
+      "conflict: coupon_already_held",
     );
   });
 
@@ -247,8 +247,8 @@ describe("claim → held (one per account, one per campaign)", () => {
       .where(eq(coupons.activeHolder, USER_ID));
     const res = await claim(CAMPAIGN_A, TIER_A);
     expect(res.status).toBe(409);
-    expect(((await res.json()) as { error: { message: string } }).error.message).toBe(
-      "campaign_already_claimed",
+    expect(((await res.json()) as { message: string }).message).toBe(
+      "conflict: campaign_already_claimed",
     );
   });
 });

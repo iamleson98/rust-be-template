@@ -1,18 +1,13 @@
-import { getEnv } from "@/lib/db/client";
 import { handleRouteError } from "@/lib/api";
+import { enabledProviderNames } from "@/lib/auth/oauth";
 
 /**
- * `GET /api/auth/oauth/providers` — the OAuth providers this deployment
- * has credentials for. Unset → empty list → the SPA renders no buttons.
+ * `GET /api/auth/oauth/providers` — the social sign-ins that work right now,
+ * so the login page shows no button that would end in an error.
  */
 export async function GET() {
   try {
-    const env = await getEnv();
-    const providers: string[] = [];
-    if (env.OAUTH_GOOGLE_CLIENT_ID) providers.push("google");
-    if (env.OAUTH_FACEBOOK_CLIENT_ID) providers.push("facebook");
-    if (env.OAUTH_APPLE_CLIENT_ID) providers.push("apple");
-    return Response.json({ providers });
+    return Response.json({ providers: await enabledProviderNames() });
   } catch (e) {
     return handleRouteError(e);
   }

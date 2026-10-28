@@ -20,6 +20,10 @@ declare interface CloudflareEnv {
   JWT_SECRET: string;
   JWT_ACCESS_TTL_SECS?: string;
   JWT_REFRESH_TTL_SECS?: string;
+  /** Refresh lifetime of `X-Client: mobile` sessions (default 90 days). */
+  JWT_MOBILE_REFRESH_TTL_SECS?: string;
+  /** `iss` claim of the access token (default "backend"). */
+  JWT_ISSUER?: string;
   CRON_SERVICE_TOKEN?: string;
   /** Workers Rate Limiting bindings (wrangler `ratelimits`); absent → limiting is off. */
   AUTH_LIMITER?: RateLimit;
@@ -27,8 +31,12 @@ declare interface CloudflareEnv {
   /** Per-IP edge buckets (custom-worker.ts → lib/edge-guard.ts): reads, and auth/upload/search/sockets. */
   IP_READ_LIMITER?: RateLimit;
   IP_STRICT_LIMITER?: RateLimit;
-  /** "lax" (default, first-party production) | "none" (cross-site-capable preview). */
+  /** "lax" (default, first-party production) | "strict" | "none" (cross-site-capable preview). */
   COOKIE_SAMESITE?: string;
+  /** `true` / `false` forces the Secure attribute; unset → Secure on HTTPS requests. */
+  COOKIE_SECURE?: string;
+  /** Optional cookie Domain (cross-subdomain sessions); unset → host-only cookies. */
+  COOKIE_DOMAIN?: string;
   /** Optional cross-isolate cache tier; absent → memory-only caching. */
   CACHE_KV?: KVNamespace;
 
@@ -82,11 +90,16 @@ declare interface CloudflareEnv {
   REALTIME_API_TOKEN?: string;
 
   // OAuth (optional — unset ⇒ the SPA hides the social sign-in buttons)
+  OAUTH_REDIRECT_BASE_URL?: string;
+  OAUTH_FRONTEND_URL?: string;
+  OAUTH_GOOGLE_ENABLED?: string;
   OAUTH_GOOGLE_CLIENT_ID?: string;
   OAUTH_GOOGLE_CLIENT_SECRET?: string;
+  OAUTH_GOOGLE_SCOPES?: string;
+  OAUTH_FACEBOOK_ENABLED?: string;
   OAUTH_FACEBOOK_CLIENT_ID?: string;
   OAUTH_FACEBOOK_CLIENT_SECRET?: string;
-  OAUTH_APPLE_CLIENT_ID?: string;
+  OAUTH_FACEBOOK_SCOPES?: string;
 
   // NullClaw AI chat assistant (optional)
   NULLCLAW_ENABLED?: string;

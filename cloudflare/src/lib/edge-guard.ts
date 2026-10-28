@@ -11,6 +11,7 @@
  * workerd without the generated OpenNext bundle. Limiting fails open: with no
  * binding (tests, `next dev`) or no `CF-Connecting-IP` nothing is limited.
  */
+import { errorResponse } from "@/lib/error-envelope";
 import { originAllowed } from "@/lib/realtime/ws-auth";
 
 export type LimitClass = "read" | "strict";
@@ -120,18 +121,10 @@ export function ipKey(ip: string): string {
 
 /** 429 for a limited client, in the app's standard error envelope. */
 export function tooManyRequests(): Response {
-  return Response.json(
-    {
-      error: {
-        code: "rate-limited",
-        message: "Too many requests — please slow down and try again shortly",
-      },
-    },
-    {
-      status: 429,
-      headers: { "retry-after": String(LIMIT_PERIOD_SECS), "cache-control": "no-store" },
-    },
-  );
+  return errorResponse(429, "too_many_requests", "please slow down and try again shortly", {
+    retryAfter: LIMIT_PERIOD_SECS,
+    headers: { "cache-control": "no-store" },
+  });
 }
 
 /** Applies the per-IP limit; returns a 429 to send, or `null` to carry on. */
@@ -169,10 +162,9 @@ export function enforceOrigin(request: Request, env: GuardEnv): Response | null 
 
   const source = request.headers.get("origin") ?? request.headers.get("referer");
   if (source && originAllowed(source, url, env.WS_ALLOWED_ORIGINS)) return null;
-  return Response.json(
-    { error: { code: "forbidden", message: "Access denied: invalid request origin." } },
-    { status: 403, headers: { "cache-control": "no-store" } },
-  );
+  return errorResponse(403, "forbidden", "Access denied: invalid request origin.", {
+    headers: { "cache-control": "no-store" },
+  });
 }
 
 /** Same values as the Rust build (`routes/router.rs`), also in `public/_headers`. */

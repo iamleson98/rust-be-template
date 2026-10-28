@@ -1,50 +1,23 @@
-import { getDb } from "@/lib/db/client";
-import { users } from "@/lib/db/schema";
-import { hashPassword } from "@/lib/auth/password";
+import { clientIp, handleRouteError, readJson, requireUser } from "@/lib/api";
+import { changePassword, parsePasswordChange } from "@/lib/auth/auth-service";
+import { authResponse, issueSession, sessionKindOf } from "@/lib/auth/session";
 import { rateLimit } from "@/lib/rate-limit";
-import { handleRouteError, readJson, requireUser, err } from "@/lib/api";
-import { eq } from "drizzle-orm";
 
-/** `POST /api/auth/password` — change the signed-in account's password. */
+/**
+ * `POST /api/auth/password` — change the signed-in user's password. Every other
+ * device is signed out; this one gets a fresh session (Rust `change_password`).
+ */
 export async function POST(req: Request) {
   try {
-    const user = await requireUser(req);
-    await rateLimit("AUTH", "password", user.id);
-    const body = await readJson<{ currentPassword?: string | null; newPassword?: string }>(req);
-    const newPassword = body.newPassword ?? "";
-    if (newPassword.length < 8)
-      return err(400, "validation", "newPassword must be at least 8 characters");
-
-    const db = await getDb();
-    const current = (await db.select().from(users).where(eq(users.id, user.id)).limit(1))[0];
-    if (!current) return err(404, "not-found", "User not found");
-
-    // Accounts with an existing password must confirm the current one.
-    if (current.passwordHash) {
-      const { verifyPassword } = await import("@/lib/auth/password");
-      const given = body.currentPassword ?? "";
-      const ok = given !== "" && (await verifyPassword(given, current.passwordHash));
-      if (!ok) return err(400, "invalid-credentials", "currentPassword is incorrect");
-    }
-
-    const passwordHash = await hashPassword(newPassword);
-    await db
-      .update(users)
-      .set({
-        passwordHash,
-        failedLoginAttempts: 0,
-        lockedUntil: null,
-        passwordChangedAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      })
-      .where(eq(users.id, user.id));
-    // Rust returns the fresh session envelope after a password change.
-    const row = (await db.select().from(users).where(eq(users.id, user.id)).limit(1))[0];
-    const { sessionUserOut } = await import("@/lib/auth/session");
-    return Response.json({
-      user: sessionUserOut(row),
-      expires_at: new Date(Date.now() + 900 * 1000).toISOString(),
+    const caller = await requireUser(req);
+    await rateLimit("AUTH", "password", caller.id);
+    const user = await changePassword(caller.id, parsePasswordChange(await readJson<unknown>(req)));
+    const session = await issueSession(user.id, {
+      userAgent: req.headers.get("user-agent"),
+      ip: clientIp(req),
+      kind: sessionKindOf(req),
     });
+    return await authResponse(req, user, session);
   } catch (e) {
     return handleRouteError(e);
   }

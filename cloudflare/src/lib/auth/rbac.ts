@@ -3,8 +3,8 @@
  * (m20260905_000010_seed_defaults). Roles: admin / employee / user.
  * Employee = everything except ADMIN_ONLY; user = USER_PERMS.
  */
-import { and, eq } from "drizzle-orm";
-import { getDb } from "@/lib/db/client";
+import { and, eq, sql } from "drizzle-orm";
+import { atomicBatch, getDb } from "@/lib/db/client";
 import { permissions, rolePermissions, roles, userRoles, users } from "@/lib/db/schema";
 import type { SessionUser } from "./session";
 
@@ -113,8 +113,62 @@ export async function userHasPermission(userId: string, perm: string): Promise<b
   return rolePermissionsFor(user.role).includes(perm);
 }
 
-/** Require a permission; throws ApiError(403) when missing. */
+/**
+ * Require a permission; throws the Rust `RbacChecker::require` failure:
+ * 403 `store_error` / "store error: forbidden: missing permission: <perm>".
+ */
 export async function requirePermission(user: SessionUser, perm: string): Promise<void> {
   const ok = await userHasPermission(user.id, perm);
-  if (!ok) throw new ApiError(403, "forbidden", `Missing permission: ${perm}`);
+  if (!ok) throw new ApiError(403, "store_error", `forbidden: missing permission: ${perm}`);
+}
+
+/**
+ * Names of the roles a user holds (Rust `get_user_permissions().role_names`).
+ * Accounts with no grant rows at all fall back to the `user.role` column, the
+ * same healing `userHasPermission` applies.
+ */
+export async function roleNamesOf(userId: string): Promise<string[]> {
+  const db = await getDb();
+  const rows = await db
+    .select({ name: roles.name })
+    .from(userRoles)
+    .innerJoin(roles, eq(roles.id, userRoles.roleId))
+    .where(eq(userRoles.userId, userId));
+  if (rows.length > 0) return rows.map((r) => r.name);
+  const user = (
+    await db.select({ role: users.role }).from(users).where(eq(users.id, userId)).limit(1)
+  )[0];
+  return user ? [user.role] : [];
+}
+
+/**
+ * Grant `roleName` unless the user already holds it (`user_roles` has no unique
+ * key, so the guard is in the statement). Unknown role names grant nothing.
+ */
+function grantStatement(userId: string, roleName: string) {
+  return sql`INSERT INTO user_roles (user_id, role_id, assigned_at)
+    SELECT ${userId}, r.id, ${new Date().toISOString()} FROM roles r
+    WHERE r.name = ${roleName}
+      AND NOT EXISTS (SELECT 1 FROM user_roles ur WHERE ur.user_id = ${userId} AND ur.role_id = r.id)`;
+}
+
+/** Rust `RbacStore::assign_role`. */
+export async function assignRole(userId: string, roleName: string): Promise<void> {
+  await atomicBatch([grantStatement(userId, roleName)]);
+}
+
+/**
+ * Rust `UserService::set_role` step 2: drop every grant and give the one role,
+ * in one transaction so no reader sees the user without a role.
+ */
+export async function replaceRole(userId: string, roleName: string): Promise<void> {
+  await atomicBatch([
+    sql`DELETE FROM user_roles WHERE user_id = ${userId}`,
+    grantStatement(userId, roleName),
+  ]);
+}
+
+/** Rust `AuthService::is_employee`: holds any role other than `user`. */
+export async function isEmployeeAccount(userId: string): Promise<boolean> {
+  return (await roleNamesOf(userId)).some((name) => name !== "user");
 }

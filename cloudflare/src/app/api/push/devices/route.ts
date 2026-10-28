@@ -1,6 +1,6 @@
 import { getEnv } from "@/lib/db/client";
 import { handleRouteError, readJson, requireUser, err } from "@/lib/api";
-import { normalizePlatform, upsertDevice } from "@/lib/push/devices";
+import { MAX_TOKEN_LENGTH, normalizePlatform, upsertDevice } from "@/lib/push/devices";
 import { pushEnabled } from "@/lib/push/notify";
 
 /**
@@ -13,8 +13,10 @@ export async function POST(req: Request) {
     const user = await requireUser(req);
     const body = await readJson<{ token?: string; platform?: string }>(req);
     const token = (body.token ?? "").trim();
-    if (!token) return err(400, "validation", "token cannot be empty");
-    if (token.length > 4096) return err(400, "validation", "token too long");
+    if (!token) return err(400, "bad_request", "token cannot be empty");
+    if (token.length > MAX_TOKEN_LENGTH) {
+      return err(400, "store_error", "validation error: invalid push token");
+    }
     const env = await getEnv();
     await upsertDevice(env.DB, user.id, token, normalizePlatform(body.platform));
     return Response.json({ ok: true, pushEnabled: pushEnabled(env) });

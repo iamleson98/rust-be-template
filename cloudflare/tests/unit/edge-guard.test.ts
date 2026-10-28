@@ -105,7 +105,10 @@ describe("enforceIpLimit", () => {
     expect(res?.status).toBe(429);
     expect(res?.headers.get("retry-after")).toBe("60");
     expect(res?.headers.get("cache-control")).toBe("no-store");
-    expect(await res?.json()).toMatchObject({ error: { code: "rate-limited" } });
+    expect(await res?.json()).toEqual({
+      error: "too_many_requests",
+      message: "too many requests: please slow down and try again shortly",
+    });
   });
 
   it("keys IPv6 clients on their /64 and uses separate buckets per class", async () => {
