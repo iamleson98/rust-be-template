@@ -7,7 +7,7 @@ import migration6 from "../../migrations/0006_drop_fts_reindex_job.sql?raw";
 import { setCloudflareContext } from "../helpers/context";
 import { applyMigrations } from "../helpers/migrate";
 import { getDb } from "@/lib/db/client";
-import { and, eq } from "drizzle-orm";
+import { and, eq, lt } from "drizzle-orm";
 import { tick } from "@/lib/services/jobs";
 import { jobRuns, scheduledJobs } from "@/lib/db/schema";
 
@@ -67,5 +67,38 @@ describe("scheduled job claims", () => {
       .from(scheduledJobs)
       .where(and(eq(scheduledJobs.jobType, "fts.reindex")));
     expect(rows).toHaveLength(0);
+  });
+});
+
+/**
+ * D1's Free plan allows 5M rows read per day and the cron fires 1,440 times a
+ * day, so the tick may not scan job_run. (Production burned 41M reads in a week
+ * on `DELETE ... WHERE created_at < ?` and an unindexed `status` lookup.)
+ */
+describe("tick cost on the free plan", () => {
+  it("writes one heartbeat for a stretch of idle sweeps, not one row per tick", async () => {
+    const db = await getDb();
+    await db.delete(jobRuns).where(eq(jobRuns.jobType, "holds.sweep"));
+    for (let i = 0; i < 5; i++) await tick();
+    expect(await runsOf("holds.sweep")).toBe(1);
+  });
+
+  it("never prunes job_run on the hot path (the daily retention job does)", async () => {
+    const db = await getDb();
+    const old = new Date(Date.now() - 45 * 86_400_000).toISOString();
+    await db.insert(jobRuns).values({
+      id: crypto.randomUUID(),
+      jobType: "holds.sweep",
+      status: "succeeded",
+      createdAt: old,
+      startedAt: old,
+      finishedAt: old,
+    });
+    await tick();
+    const left = await db
+      .select()
+      .from(jobRuns)
+      .where(lt(jobRuns.createdAt, old + "~"));
+    expect(left.some((r) => r.createdAt === old)).toBe(true);
   });
 });
