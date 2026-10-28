@@ -204,12 +204,13 @@ describe("one coupon held at a time and one per campaign", () => {
     const nothing = await giveUp();
     expect(nothing.status).toBe(404);
     expect(await nothing.json()).toEqual({
-      error: { code: "not_found", message: "no unused coupon to give up" },
+      error: "not_found",
+      message: "resource not found: no unused coupon to give up",
     });
     expect(await claimedSlots(second.tierIds[0])).toBe(1);
   });
 
-  it("answers the claim route with the {error:{code,message}} envelope", async () => {
+  it("answers the claim route with the Rust error envelope", async () => {
     const { id, tierIds } = await campaign();
     const staff = await user("employee");
     const { POST } = await import("../../src/app/api/campaigns/[id]/tiers/[tierId]/claim/route");
@@ -221,7 +222,10 @@ describe("one coupon held at a time and one per campaign", () => {
       { params: Promise.resolve({ id, tierId: tierIds[0] }) },
     );
     expect(res.status).toBe(403);
-    expect(await res.json()).toEqual({ error: { code: "forbidden", message: "customers_only" } });
+    expect(await res.json()).toEqual({
+      error: "forbidden",
+      message: "forbidden: missing permission: customers_only",
+    });
   });
 });
 

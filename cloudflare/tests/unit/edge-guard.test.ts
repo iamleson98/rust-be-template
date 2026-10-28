@@ -105,7 +105,10 @@ describe("enforceIpLimit", () => {
     expect(res?.status).toBe(429);
     expect(res?.headers.get("retry-after")).toBe("60");
     expect(res?.headers.get("cache-control")).toBe("no-store");
-    expect(await res?.json()).toMatchObject({ error: { code: "rate-limited" } });
+    expect(await res?.json()).toEqual({
+      error: "too_many_requests",
+      message: "too many requests: please slow down and try again shortly",
+    });
   });
 
   it("keys IPv6 clients on their /64 and uses separate buckets per class", async () => {
@@ -173,6 +176,43 @@ describe("enforceOrigin", () => {
     expect(enforceOrigin(post("/api/vitals"), {})).toBeNull();
     expect(enforceOrigin(post("/api/jobs/tick"), {})).toBeNull();
     expect(enforceOrigin(post("/api/bookings", { "x-client": "Mobile" }), {})).toBeNull();
+  });
+
+  // Rust anti_scraping.rs unit tests: is_allowed_referer_* and is_mobile_client_*.
+  it("matches an allowed origin by its host, not by string prefix", () => {
+    const env = { WS_ALLOWED_ORIGINS: "http://localhost:5173" };
+    expect(
+      enforceOrigin(post("/api/bookings", { referer: "http://localhost:5173/search" }), env),
+    ).toBeNull();
+    expect(
+      enforceOrigin(post("/api/bookings", { referer: "https://evil.com/api/steal" }), env)?.status,
+    ).toBe(403);
+    // Rust's `starts_with` would let these through.
+    for (const origin of ["https://datxevui.com.evil.net", "https://datxevui.community"]) {
+      expect(enforceOrigin(post("/api/bookings", { origin }), {})?.status, origin).toBe(403);
+    }
+  });
+
+  it("refuses with the Rust envelope", async () => {
+    const res = enforceOrigin(post("/api/bookings"), {})!;
+    expect(await res.json()).toEqual({
+      error: "forbidden",
+      message: "forbidden: missing permission: Access denied: invalid request origin.",
+    });
+  });
+
+  it("recognises the mobile client by a trimmed, case-insensitive X-Client only", () => {
+    for (const value of [" mobile ", "Mobile", "MOBILE"]) {
+      expect(enforceOrigin(post("/api/bookings", { "x-client": value }), {}), value).toBeNull();
+    }
+    expect(enforceOrigin(post("/api/bookings", { "x-client": "web" }), {})?.status).toBe(403);
+  });
+
+  it("covers every mutating method, and the exemptions are `/ipn/` and `/vitals` paths", () => {
+    for (const method of ["POST", "PUT", "PATCH", "DELETE"]) {
+      expect(enforceOrigin(req("/api/users/1", { method }), {})?.status, method).toBe(403);
+    }
+    expect(enforceOrigin(req("/api/payments/ipn/momo", { method: "POST" }), {})).toBeNull();
   });
 
   it("ignores reads and non-API paths", () => {

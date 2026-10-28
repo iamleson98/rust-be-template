@@ -6,7 +6,8 @@ import migration5 from "../../migrations/0005_repair_literal_timestamps.sql?raw"
 import { setCloudflareContext } from "../helpers/context";
 import { applyMigrations } from "../helpers/migrate";
 import { getDb } from "@/lib/db/client";
-import { users } from "@/lib/db/schema";
+import { refreshTokens, users } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 import { hashPassword } from "@/lib/auth/password";
 import { POST as employeeLogin } from "@/app/api/auth/employee-login/route";
 import { POST as refresh } from "@/app/api/auth/refresh/route";
@@ -83,8 +84,36 @@ describe("mobile raw-token session", () => {
     expect((await refresh(post({ refresh_token: t.refresh_token }))).status).toBe(401);
   });
 
-  it("rejects a missing or bogus refresh token", async () => {
+  it("rejects a missing, malformed or forged refresh token like Rust", async () => {
     expect((await refresh(post({}))).status).toBe(401);
-    expect((await refresh(post({ refresh_token: "nope" }))).status).toBe(401);
+    // Not `<uuid>.<secret>`: BadRequest, not Unauthorized.
+    expect((await refresh(post({ refresh_token: "nope" }))).status).toBe(400);
+    const forged = `${crypto.randomUUID()}.${"0".repeat(64)}`;
+    expect((await refresh(post({ refresh_token: forged }))).status).toBe(401);
+  });
+
+  it("caps the body token at 4096 characters", async () => {
+    expect((await refresh(post({ refresh_token: "a".repeat(4097) }))).status).toBe(400);
+  });
+
+  it("gives the app the 90-day refresh lifetime, a browser the 7-day one", async () => {
+    const t = await login();
+    const row = async (token: string) => {
+      const db = await getDb();
+      const id = token.split(".")[0]!;
+      return (await db.select().from(refreshTokens).where(eq(refreshTokens.id, id)))[0]!;
+    };
+    const span = (r: { issuedAt: string; expiresAt: string }) =>
+      Math.round((Date.parse(r.expiresAt) - Date.parse(r.issuedAt)) / 86_400_000);
+    expect(span(await row(t.refresh_token))).toBe(90);
+    // Rotation keeps the long lifetime for the app (it renews on every refresh).
+    const next = (await (await refresh(post({ refresh_token: t.refresh_token }))).json()) as Tokens;
+    expect(span(await row(next.tokens.refresh_token))).toBe(90);
+    const web = await employeeLogin(
+      post({ email: EMAIL, password: PASSWORD }, { "x-client": "web" }),
+    );
+    const cookie = web.headers.getSetCookie().find((c) => c.startsWith("refresh_token="))!;
+    const webToken = decodeURIComponent(cookie.split(";")[0]!.split("=")[1]!);
+    expect(span(await row(webToken))).toBe(7);
   });
 });

@@ -314,7 +314,8 @@ describe("filters, facets, sort and paging", () => {
     ] as const) {
       const res = await searchRoute(new Request(`https://datxevui.com/api/search?${qs}`));
       expect(res.status, qs).toBe(400);
-      expect((await res.json()).error.message, qs).toBe(message);
+      // The Rust envelope prefixes the text with the kind ("validation failed: …").
+      expect((await res.json()).message, qs).toBe(`validation failed: ${message}`);
     }
   });
 });

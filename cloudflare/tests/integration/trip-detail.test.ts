@@ -60,7 +60,7 @@ describe("trip detail", () => {
   it("answers 404 for an unknown trip and 400 for something that is not an id", async () => {
     const res = await get(crypto.randomUUID());
     expect(res.status).toBe(404);
-    expect((await res.json()).error.message).toBe("trip not found");
+    expect((await res.json()).message).toBe("resource not found: trip not found");
     expect((await get("not-a-uuid")).status).toBe(400);
   });
 

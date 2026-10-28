@@ -440,6 +440,20 @@ Secure; Partitioned` — the CHIPS combination. The preview is served on a
   survive third-party cookie blocking while staying double-keyed to the
   embedding site.
 
+Also read, with the Rust names and defaults: `COOKIE_SAMESITE=strict`,
+`COOKIE_SECURE=true|false` (unset → Secure on HTTPS requests), `COOKIE_DOMAIN`
+(unset → host-only cookies), `JWT_ISSUER` (`backend`), `JWT_ACCESS_TTL_SECS`
+(900), `JWT_REFRESH_TTL_SECS` (7 days) and `JWT_MOBILE_REFRESH_TTL_SECS` (90
+days, `X-Client: mobile`). Cookie lifetimes follow the token lifetimes.
+
+## Social sign-in (Google, Facebook)
+
+A provider is offered when `OAUTH_<GOOGLE|FACEBOOK>_ENABLED=true` **and** its
+`_CLIENT_ID` and `_CLIENT_SECRET` are set (optional `_SCOPES`). Also set
+`OAUTH_REDIRECT_BASE_URL` (the public origin; the provider's redirect URI is
+`{base}/api/auth/oauth/{provider}/callback`) and, when the SPA lives elsewhere,
+`OAUTH_FRONTEND_URL`. Failures redirect to `{frontend}/login?oauth_error=…`.
+
 ## Tests
 
 `bun run test` — vitest inside **workerd** via `@cloudflare/vitest-plugin`,

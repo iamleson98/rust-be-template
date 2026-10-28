@@ -7,12 +7,19 @@ export interface PushDevice {
 
 const PLATFORMS = new Set(["ios", "android", "web"]);
 
+/** Longest token the store accepts (Rust `DbPushDeviceStore::upsert`). */
+export const MAX_TOKEN_LENGTH = 4096;
+
 export const normalizePlatform = (p: string | undefined): string => {
   const v = (p ?? "").trim().toLowerCase();
   return PLATFORMS.has(v) ? v : "android";
 };
 
-/** Idempotent: a known (user, token) pair only refreshes its timestamps. */
+/**
+ * Idempotent: a known (user, token) pair only refreshes its platform and
+ * `updated_at`. `last_seen_at` stays empty, as in Rust (the D1 column
+ * `updated_at` is NOT NULL, so a new row carries its creation time there).
+ */
 export async function upsertDevice(
   db: D1Database,
   userId: string,
@@ -23,12 +30,11 @@ export async function upsertDevice(
   await db
     .prepare(
       `INSERT INTO push_device (id, user_id, token, platform, created_at, updated_at, last_seen_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)
+       VALUES (?, ?, ?, ?, ?, ?, NULL)
        ON CONFLICT (user_id, token) DO UPDATE SET
-         platform = excluded.platform, updated_at = excluded.updated_at,
-         last_seen_at = excluded.last_seen_at`,
+         platform = excluded.platform, updated_at = excluded.updated_at`,
     )
-    .bind(crypto.randomUUID(), userId, token, platform, now, now, now)
+    .bind(crypto.randomUUID(), userId, token, platform, now, now)
     .run();
 }
 

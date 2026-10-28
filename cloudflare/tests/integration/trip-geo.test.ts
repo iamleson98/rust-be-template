@@ -172,6 +172,6 @@ describe("coordinate search", () => {
       ),
     );
     expect(res.status).toBe(400);
-    expect((await res.json()).error.message).toContain("toLon: missing field");
+    expect((await res.json()).message).toContain("toLon: missing field");
   });
 });

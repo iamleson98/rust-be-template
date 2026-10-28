@@ -74,7 +74,7 @@ describe("brands", () => {
         params: Promise.resolve({ slug }),
       });
       expect(res.status).toBe(404);
-      expect((await res.json()).error.message).toBe("brand not found");
+      expect((await res.json()).message).toBe("resource not found: brand not found");
     }
   });
 

@@ -33,8 +33,8 @@ export async function rateLimit(limiter: Limiter, action: string, id: string): P
   if (!success) {
     throw new ApiError(
       429,
-      "rate-limited",
-      "Too many requests — please slow down and try again shortly",
+      "too_many_requests",
+      "please slow down and try again shortly",
       PERIOD_SECS[limiter],
     );
   }

@@ -11,6 +11,7 @@
  * Self-describing format for new hashes: pbkdf2$<iterations>$<saltB64>$<hashB64>
  */
 import { argon2idAsync } from "@noble/hashes/argon2.js";
+import { timingSafeEqual } from "./crypto";
 
 const ITERATIONS = 100_000;
 const KEY_LEN = 32;
@@ -53,14 +54,6 @@ export async function hashPassword(password: string): Promise<string> {
   crypto.getRandomValues(salt);
   const hash = await pbkdf2(password, salt, ITERATIONS);
   return `pbkdf2$${ITERATIONS}$${toB64(salt)}$${toB64(hash)}`;
-}
-
-/** Constant-time equality for two byte strings of any length. */
-function timingSafeEqual(a: Uint8Array, b: Uint8Array): boolean {
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
-  return diff === 0;
 }
 
 /** PHC base64 is standard base64 with the padding stripped. */
@@ -114,4 +107,12 @@ export async function verifyPassword(password: string, stored: string | null): P
   const expected = fromB64(parts[3]);
   const actual = await pbkdf2(password, salt, iterations);
   return timingSafeEqual(actual, expected);
+}
+
+let decoy: Promise<string> | undefined;
+
+/** Run one verification against a throwaway hash (the unknown-account path of a login). */
+export async function spendVerifyTime(password: string): Promise<void> {
+  decoy ??= hashPassword(crypto.randomUUID());
+  await verifyPassword(password, await decoy);
 }
