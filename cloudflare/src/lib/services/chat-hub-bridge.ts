@@ -38,7 +38,10 @@ async function callHub<T>(path: string, init?: { body: unknown }): Promise<T | n
 export type EmitScope = "all" | "staff" | "room";
 
 /** Push a lifecycle frame (channel_created / assigned / released / closed …). */
-export async function emitChatEvent(frame: Record<string, unknown>, scope: EmitScope): Promise<void> {
+export async function emitChatEvent(
+  frame: Record<string, unknown>,
+  scope: EmitScope,
+): Promise<void> {
   await callHub("/emit", { body: { frame, scope } });
 }
 
@@ -57,10 +60,12 @@ export async function hubRoute(channelId: string): Promise<RoutingOutcome | null
 
 /** The customers connected right now, ordered by a sequence number (`/channels/online`). */
 export async function hubBrowse(): Promise<{ seq: number; userIds: string[] }> {
-  return (await callHub<{ seq: number; userIds: string[] }>("/online-customers")) ?? {
-    seq: 0,
-    userIds: [],
-  };
+  return (
+    (await callHub<{ seq: number; userIds: string[] }>("/online-customers")) ?? {
+      seq: 0,
+      userIds: [],
+    }
+  );
 }
 
 /** `GET /api/presence/staff`: live staff plus the recently-active offline roster. */

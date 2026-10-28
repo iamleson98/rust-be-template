@@ -39,7 +39,11 @@ export function sniffFormat(b: Uint8Array): SniffedFormat | null {
   if (startsWith(b, [0xff, 0xd8, 0xff])) return { ext: "jpg", mime: "image/jpeg" };
   if (startsWith(b, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
     return { ext: "png", mime: "image/png" };
-  if (b.length >= 12 && startsWith(b, [0x52, 0x49, 0x46, 0x46]) && startsWith(b.subarray(8), [0x57, 0x45, 0x42, 0x50]))
+  if (
+    b.length >= 12 &&
+    startsWith(b, [0x52, 0x49, 0x46, 0x46]) &&
+    startsWith(b.subarray(8), [0x57, 0x45, 0x42, 0x50])
+  )
     return { ext: "webp", mime: "image/webp" };
   return null;
 }
@@ -47,19 +51,27 @@ export function sniffFormat(b: Uint8Array): SniffedFormat | null {
 // ── Dimensions (header parsing, for when no Images binding decodes) ─
 
 /** Width and height read from the file header, or null when it is truncated or malformed. */
-export function readDimensions(b: Uint8Array, ext: SniffedFormat["ext"]): { width: number; height: number } | null {
+export function readDimensions(
+  b: Uint8Array,
+  ext: SniffedFormat["ext"],
+): { width: number; height: number } | null {
   const v = new DataView(b.buffer, b.byteOffset, b.byteLength);
-  const dims = (width: number, height: number) => (width > 0 && height > 0 ? { width, height } : null);
+  const dims = (width: number, height: number) =>
+    width > 0 && height > 0 ? { width, height } : null;
   if (ext === "png") return b.length >= 24 ? dims(v.getUint32(16), v.getUint32(20)) : null;
   if (ext === "webp") {
     const tag = String.fromCharCode(...b.subarray(12, 16));
     if (tag === "VP8X" && b.length >= 30)
-      return dims(1 + (b[24]! | (b[25]! << 8) | (b[26]! << 16)), 1 + (b[27]! | (b[28]! << 8) | (b[29]! << 16)));
+      return dims(
+        1 + (b[24]! | (b[25]! << 8) | (b[26]! << 16)),
+        1 + (b[27]! | (b[28]! << 8) | (b[29]! << 16)),
+      );
     if (tag === "VP8L" && b.length >= 25) {
       const bits = v.getUint32(21, true);
       return dims((bits & 0x3fff) + 1, ((bits >> 14) & 0x3fff) + 1);
     }
-    if (tag === "VP8 " && b.length >= 30) return dims(v.getUint16(26, true) & 0x3fff, v.getUint16(28, true) & 0x3fff);
+    if (tag === "VP8 " && b.length >= 30)
+      return dims(v.getUint16(26, true) & 0x3fff, v.getUint16(28, true) & 0x3fff);
     return null;
   }
   // JPEG: walk the segments to a start-of-frame marker.
@@ -109,7 +121,11 @@ export function contentTypeOf(k: ParsedMediaKey): string {
   return k.ext === "png" ? "image/png" : k.ext === "webp" ? "image/webp" : "image/jpeg";
 }
 
-export function keysFor(routeId: string, hash16: string, ext: string): { key: string; thumbKey: string } {
+export function keysFor(
+  routeId: string,
+  hash16: string,
+  ext: string,
+): { key: string; thumbKey: string } {
   const base = `routes/${routeId}`;
   return { key: `${base}/${hash16}.${ext}`, thumbKey: `${base}/t${hash16}.jpg` };
 }
@@ -179,11 +195,16 @@ async function makeThumbnail(
   } catch (e) {
     throw badRequest(`image failed to decode (corrupt or unsupported): ${String(e)}`);
   }
-  if (!("width" in info)) throw badRequest("image failed to decode (corrupt or unsupported): not a raster image");
+  if (!("width" in info))
+    throw badRequest("image failed to decode (corrupt or unsupported): not a raster image");
   const out = await env.IMAGES.input(stream())
     .transform({ width: THUMB_LONG_EDGE, height: THUMB_LONG_EDGE, fit: "scale-down" })
     .output({ format: "image/jpeg", quality: THUMB_JPEG_QUALITY });
-  return { bytes: new Uint8Array(await out.response().arrayBuffer()), width: info.width, height: info.height };
+  return {
+    bytes: new Uint8Array(await out.response().arrayBuffer()),
+    width: info.width,
+    height: info.height,
+  };
 }
 
 export interface UploadResult {
@@ -199,7 +220,9 @@ export async function uploadPicture(
   altText: string | null,
 ): Promise<UploadResult> {
   const db = await getDb();
-  const route = (await db.select({ id: routes.id }).from(routes).where(eq(routes.id, routeId)).limit(1))[0];
+  const route = (
+    await db.select({ id: routes.id }).from(routes).where(eq(routes.id, routeId)).limit(1)
+  )[0];
   if (!route) throw notFound(`route ${routeId} not found`);
   if (data.length > MAX_PICTURE_BYTES)
     throw badRequest(`picture is ${data.length} bytes; limit is ${MAX_PICTURE_BYTES} bytes`);
@@ -222,7 +245,10 @@ export async function uploadPicture(
   )[0];
   if (existing) return { ok: true, deduped: true, picture: pictureOut(existing) };
 
-  const total = (await db.select({ n: count() }).from(routePictures).where(eq(routePictures.routeId, routeId)))[0]?.n ?? 0;
+  const total =
+    (
+      await db.select({ n: count() }).from(routePictures).where(eq(routePictures.routeId, routeId))
+    )[0]?.n ?? 0;
   if (total >= MAX_PICTURES_PER_ROUTE)
     throw badRequest(`route already has ${total} pictures (max ${MAX_PICTURES_PER_ROUTE})`);
 
@@ -235,7 +261,12 @@ export async function uploadPicture(
   await put(key, data, format.mime);
   if (thumb) await put(thumbKey, thumb.bytes, "image/jpeg");
 
-  const next = (await db.select({ top: max(routePictures.sortOrder) }).from(routePictures).where(eq(routePictures.routeId, routeId)))[0]?.top;
+  const next = (
+    await db
+      .select({ top: max(routePictures.sortOrder) })
+      .from(routePictures)
+      .where(eq(routePictures.routeId, routeId))
+  )[0]?.top;
   const row: PictureRow = {
     id: crypto.randomUUID(),
     routeId,
@@ -288,7 +319,10 @@ export async function patchPicture(routeId: string, pictureId: string, body: Pat
     ordered.splice(at, 0, existing);
     for (const [idx, p] of ordered.entries()) {
       if (p.id !== pictureId && p.sortOrder !== idx)
-        await db.update(routePictures).set({ sortOrder: idx, updatedAt: now }).where(eq(routePictures.id, p.id));
+        await db
+          .update(routePictures)
+          .set({ sortOrder: idx, updatedAt: now })
+          .where(eq(routePictures.id, p.id));
     }
     position = at;
   }
@@ -309,7 +343,9 @@ export async function patchPicture(routeId: string, pictureId: string, body: Pat
 async function collectGarbage(rows: PictureRow[]): Promise<void> {
   const bucket = await getR2();
   const keys = rows.flatMap((r) => (r.thumbKey ? [r.storageKey, r.thumbKey] : [r.storageKey]));
-  await bucket.delete(keys).catch((e: unknown) => console.warn("route-picture object GC failed", e));
+  await bucket
+    .delete(keys)
+    .catch((e: unknown) => console.warn("route-picture object GC failed", e));
 }
 
 export async function deletePicture(routeId: string, pictureId: string) {

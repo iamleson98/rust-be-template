@@ -11,7 +11,9 @@ interface DiscordInteraction {
     content?: string | null;
     options?: { name: string; value?: string | null }[] | null;
   } | null;
-  member?: { user?: { id: string; username?: string | null; global_name?: string | null } | null } | null;
+  member?: {
+    user?: { id: string; username?: string | null; global_name?: string | null } | null;
+  } | null;
 }
 
 const RECEIVED = "Tin nhắn của bạn đã được ghi nhận. Nhân viên sẽ phản hồi sớm.";

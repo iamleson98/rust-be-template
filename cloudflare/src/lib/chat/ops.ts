@@ -169,7 +169,9 @@ export async function upsertAssignment(
 ): Promise<void> {
   const now = new Date().toISOString();
   const existing = await d1
-    .prepare(`SELECT id FROM chat_assignment WHERE channel_id = ? ORDER BY assigned_at DESC LIMIT 1`)
+    .prepare(
+      `SELECT id FROM chat_assignment WHERE channel_id = ? ORDER BY assigned_at DESC LIMIT 1`,
+    )
     .bind(channelId)
     .first<{ id: string }>();
   await d1.batch([

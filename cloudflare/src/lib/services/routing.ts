@@ -75,7 +75,10 @@ export async function directions(costing: string, language: string, locations: L
     locations: locations.map(point),
     directions_options: { units: "kilometers" },
   });
-  const trip = (v.trip ?? null) as { summary?: { length?: unknown; time?: unknown }; shape?: unknown } | null;
+  const trip = (v.trip ?? null) as {
+    summary?: { length?: unknown; time?: unknown };
+    shape?: unknown;
+  } | null;
   return {
     valhalla: trip,
     ...(typeof trip?.shape === "string" && { shape: trip.shape }),
@@ -94,7 +97,9 @@ export async function matrix(costing: string, sources: LatLon[], targets: LatLon
     units: "kilometers",
   });
   const rows = Array.isArray(v.sources_to_targets) ? (v.sources_to_targets as unknown[]) : [];
-  const cells = rows.map((row) => (Array.isArray(row) ? (row as { time?: unknown; distance?: unknown }[]) : []));
+  const cells = rows.map((row) =>
+    Array.isArray(row) ? (row as { time?: unknown; distance?: unknown }[]) : [],
+  );
   return {
     timesMin: cells.map((row) => row.map((c) => (num(c.time) === null ? null : num(c.time)! / 60))),
     distancesKm: cells.map((row) => row.map((c) => num(c.distance))),

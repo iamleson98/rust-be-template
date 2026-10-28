@@ -21,10 +21,16 @@ export interface PlatformMessage {
 }
 
 /** Find or create the account of a platform user. It has no password, so it cannot log in. */
-async function platformUser(platform: string, platformUserId: string, name: string): Promise<string> {
+async function platformUser(
+  platform: string,
+  platformUserId: string,
+  name: string,
+): Promise<string> {
   const db = await getDb();
   const email = `${platform}:${platformUserId}`;
-  const existing = (await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1))[0];
+  const existing = (
+    await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1)
+  )[0];
   if (existing) return existing.id;
   const id = crypto.randomUUID();
   await db.insert(users).values({ id, email, fullName: name, passwordHash: null, role: "user" });

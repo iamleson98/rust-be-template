@@ -7,7 +7,11 @@ import { handlePlatformMessage } from "@/lib/services/platform-chat";
 interface TelegramUpdate {
   message?: {
     message_id: number;
-    from?: { first_name?: string | null; last_name?: string | null; username?: string | null } | null;
+    from?: {
+      first_name?: string | null;
+      last_name?: string | null;
+      username?: string | null;
+    } | null;
     chat: { id: number };
     text?: string | null;
   } | null;
@@ -20,7 +24,8 @@ export async function POST(req: Request) {
     let update: TelegramUpdate;
     try {
       update = (await req.json()) as TelegramUpdate;
-      if (update.message && typeof update.message.chat?.id !== "number") throw new Error("missing chat.id");
+      if (update.message && typeof update.message.chat?.id !== "number")
+        throw new Error("missing chat.id");
     } catch (e) {
       throw badRequest(`telegram payload parse failed: ${String(e)}`);
     }

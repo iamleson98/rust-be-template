@@ -6,7 +6,9 @@ import { claimChannel } from "@/lib/services/chat";
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   try {
     const user = await requireUser(req);
-    return Response.json(await claimChannel(user, uuidParam("id", (await ctx.params).id) as string));
+    return Response.json(
+      await claimChannel(user, uuidParam("id", (await ctx.params).id) as string),
+    );
   } catch (e) {
     return handleRouteError(e);
   }

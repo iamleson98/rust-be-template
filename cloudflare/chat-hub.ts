@@ -373,7 +373,9 @@ export class ChatHub extends DurableObject<CloudflareEnv> {
   private announceRoomPresence(channelId: string, state: Session, online: boolean) {
     const stillThere = this.liveSessions().some(
       (s) =>
-        s.connId !== state.connId && s.state.userId === state.userId && s.state.channelId === channelId,
+        s.connId !== state.connId &&
+        s.state.userId === state.userId &&
+        s.state.channelId === channelId,
     );
     if (stillThere) return;
     this.broadcastFrame(
@@ -507,7 +509,11 @@ export class ChatHub extends DurableObject<CloudflareEnv> {
   private async route(channelId: string): Promise<RoutingOutcome> {
     const outcome = await routeUserMessage(this.env.DB, channelId, await this.roster());
     const picked =
-      outcome.kind === "assigned" ? outcome.employeeId : outcome.kind === "admin" ? outcome.adminId : null;
+      outcome.kind === "assigned"
+        ? outcome.employeeId
+        : outcome.kind === "admin"
+          ? outcome.adminId
+          : null;
     if (picked) this.lastAssigned.set(picked, Date.now());
     if (outcome.kind === "admin")
       this.adminLoad.set(outcome.adminId, (this.adminLoad.get(outcome.adminId) ?? 0) + 1);
@@ -602,7 +608,15 @@ export class ChatHub extends DurableObject<CloudflareEnv> {
            last_seen_at = excluded.last_seen_at,
            last_online_at = CASE WHEN excluded.online = 1 THEN excluded.last_online_at ELSE last_online_at END`,
       )
-        .bind(user.id, user.fullName, user.role, user.brandId, online ? 1 : 0, now, online ? now : null)
+        .bind(
+          user.id,
+          user.fullName,
+          user.role,
+          user.brandId,
+          online ? 1 : 0,
+          now,
+          online ? now : null,
+        )
         .run();
     } catch (e) {
       console.warn("[chat] presence write failed", e);

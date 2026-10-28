@@ -8,7 +8,8 @@ export async function GET(req: Request) {
     const q = new URL(req.url).searchParams;
     const sources = q.get("sources");
     const targets = q.get("targets");
-    if (sources === null || targets === null) throw badRequest("missing field `sources` or `targets`");
+    if (sources === null || targets === null)
+      throw badRequest("missing field `sources` or `targets`");
     return Response.json(
       await matrix(q.get("costing") ?? "auto", parseLocations(sources), parseLocations(targets)),
     );

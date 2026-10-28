@@ -30,15 +30,25 @@ import { sweepExpiredHolds, warmTrips } from "./booking";
  * in-process timers there and run on every cron tick here.
  */
 export const JOB_CATALOG: readonly { kind: string; description: string }[] = [
-  { kind: "holds.sweep", description: "Cancel pending bookings whose seat hold expired (every tick)." },
-  { kind: "trips.warm", description: "Materialise trip sessions and seat inventory for the sales window (every 6 hours)." },
+  {
+    kind: "holds.sweep",
+    description: "Cancel pending bookings whose seat hold expired (every tick).",
+  },
+  {
+    kind: "trips.warm",
+    description:
+      "Materialise trip sessions and seat inventory for the sales window (every 6 hours).",
+  },
   {
     kind: "coupons.expire",
     description:
       "Expire unused discount coupons whose campaign window passed (also enforced on every read; this tidies the rest).",
   },
   { kind: "jobs.retention", description: "Delete job run history older than 30 days." },
-  { kind: "trips.prune", description: "Drop unsold seat inventory of trips that already departed." },
+  {
+    kind: "trips.prune",
+    description: "Drop unsold seat inventory of trips that already departed.",
+  },
 ];
 
 const describe = (jobType: string) => JOB_CATALOG.find((j) => j.kind === jobType)?.description;
@@ -389,7 +399,7 @@ export async function updateCronJob(jobType: string, body: UpdateCronJobBody) {
       intervalDays: body.intervalDays ?? model.intervalDays,
       atHour,
       atMinute,
-      ...((body.resetNextRun || cadenceChanged) && {
+      ...((body.resetNextRun === true || cadenceChanged) && {
         nextRunAt: nextOccurrence(
           new Date(),
           Math.max(atHour, 0),
@@ -422,7 +432,9 @@ export async function triggerCronJob(jobType: string): Promise<CronJobRunOut> {
       .limit(1)
   )[0];
   if (live)
-    throw conflict(`${jobType} is already queued or running (run ${live.id}) — wait for it to finish`);
+    throw conflict(
+      `${jobType} is already queued or running (run ${live.id}) — wait for it to finish`,
+    );
   await triggerJob(jobType);
   return (await latestRun(jobType))!;
 }

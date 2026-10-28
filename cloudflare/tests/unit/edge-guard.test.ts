@@ -288,5 +288,4 @@ describe("static files", () => {
       /\/_next\/static\/\*\n\s+Cache-Control: public,max-age=31536000,immutable/,
     );
   });
-
 });

@@ -5,14 +5,21 @@ import { badRequest } from "@/lib/services/http-errors";
 import { handlePlatformMessage } from "@/lib/services/platform-chat";
 
 interface MessengerPayload {
-  entry: { messaging: { sender: { id: string }; message?: { text?: string | null; mid?: string | null } | null }[] }[];
+  entry: {
+    messaging: {
+      sender: { id: string };
+      message?: { text?: string | null; mid?: string | null } | null;
+    }[];
+  }[];
 }
 
 /** `GET /api/webhooks/messenger` — Meta's subscription handshake: echo `hub.challenge` for the right verify token. */
 export async function GET(req: Request) {
   try {
     const q = new URL(req.url).searchParams;
-    const [mode, token, challenge] = ["hub.mode", "hub.verify_token", "hub.challenge"].map((k) => q.get(k));
+    const [mode, token, challenge] = ["hub.mode", "hub.verify_token", "hub.challenge"].map((k) =>
+      q.get(k),
+    );
     if (mode === null || token === null || challenge === null)
       throw badRequest("missing hub.mode, hub.verify_token or hub.challenge");
     if (mode !== "subscribe") throw badRequest("invalid hub.mode");

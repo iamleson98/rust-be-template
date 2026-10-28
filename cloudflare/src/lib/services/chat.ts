@@ -316,11 +316,7 @@ export async function createChannel(
     await db.select({ id: users.id }).from(users).where(eq(users.id, userId)).limit(1)
   )[0];
   if (!exists)
-    throw new ApiError(
-      401,
-      "unauthorized",
-      "authentication token references a non-existent user",
-    );
+    throw new ApiError(401, "unauthorized", "authentication token references a non-existent user");
   if (brandId) {
     const brand = (
       await db.select({ id: brands.id }).from(brands).where(eq(brands.id, brandId)).limit(1)

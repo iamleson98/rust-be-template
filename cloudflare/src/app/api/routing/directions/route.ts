@@ -9,7 +9,11 @@ export async function GET(req: Request) {
     const locations = q.get("locations");
     if (locations === null) throw badRequest("missing field `locations`");
     return Response.json(
-      await directions(q.get("costing") ?? "auto", q.get("language") ?? "vi", parseLocations(locations)),
+      await directions(
+        q.get("costing") ?? "auto",
+        q.get("language") ?? "vi",
+        parseLocations(locations),
+      ),
     );
   } catch (e) {
     return handleRouteError(e);
