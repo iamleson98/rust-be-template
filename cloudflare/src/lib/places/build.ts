@@ -227,9 +227,9 @@ export function buildIndex(raw: RawPlace[], builtAt = new Date().toISOString()):
   // Split oversized shards one character deeper, repeatedly, until each fits
   // (or the key reaches MAX_KEY_LEN — a whole-word key cannot be split further).
   const pending = [...byKey.keys()];
-  while (pending.length > 0) {
-    const key = pending.pop()!;
-    const list = byKey.get(key)!;
+  let key: string | undefined;
+  while ((key = pending.pop()) !== undefined) {
+    const list = byKey.get(key) ?? [];
     if (list.length <= MAX_SHARD_RECORDS || key.length >= MAX_KEY_LEN) continue;
     // Tokens exactly as long as the key have no longer prefix: they stay.
     const stay: PlaceRecord[] = [];

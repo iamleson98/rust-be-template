@@ -9,7 +9,7 @@ import { handleMomoIpn } from "@/lib/services/payment";
 export async function POST(req: Request) {
   let body: Record<string, unknown>;
   try {
-    body = (await req.json()) as Record<string, unknown>;
+    body = await req.json();
     if (body === null || typeof body !== "object" || Array.isArray(body))
       throw new Error("not an object");
   } catch {

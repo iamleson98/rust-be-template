@@ -2,8 +2,8 @@
 
 import { useMutation } from "@tanstack/react-query";
 import { adminBrandsCreateMutation, adminBrandsUpdateMutation } from "@spa/api";
-import { useEffect, useMemo, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useEffect, useMemo } from "react";
+import { useForm, useFormState, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import {
@@ -100,7 +100,6 @@ export function BrandFormDialog({
 }) {
   const t = useT();
   const isEdit = !!brand;
-  const [slugTouched, setSlugTouched] = useState(false);
   const createMutation = useMutation(adminBrandsCreateMutation());
   const updateMutation = useMutation(adminBrandsUpdateMutation());
   const saving = createMutation.isPending || updateMutation.isPending;
@@ -123,13 +122,14 @@ export function BrandFormDialog({
     },
   });
 
-  const nameValue = form.watch("name");
-  const childFare = form.watch("childFare");
+  const nameValue = useWatch({ control: form.control, name: "name" });
+  const childFare = useWatch({ control: form.control, name: "childFare" });
+  // The slug follows the name until the user edits it; `reset` below clears the flag.
+  const slugTouched = useFormState({ control: form.control, name: "slug" }).dirtyFields.slug;
 
   // Populate form when dialog opens / record changes
   useEffect(() => {
     if (open) {
-      setSlugTouched(false);
       form.reset({
         name: brand?.name ?? "",
         slug: brand?.slug ?? "",
@@ -217,7 +217,6 @@ export function BrandFormDialog({
                       className="font-mono text-base md:text-xs"
                       onChange={(e) => {
                         field.onChange(e);
-                        setSlugTouched(true);
                       }}
                     />
                   </FormControl>

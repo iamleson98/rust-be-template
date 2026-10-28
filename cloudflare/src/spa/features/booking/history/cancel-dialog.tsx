@@ -4,7 +4,7 @@ import { bookingsCancelMutation } from "@spa/api";
 import { useMutation } from "@tanstack/react-query";
 import { useUi } from "@spa/stores/ui";
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useT } from "@spa/lib/i18n";
 import {
@@ -44,8 +44,8 @@ export function CancelDialog() {
     },
   });
 
-  const selectedReason = form.watch("selectedReason");
-  const agreed = form.watch("agreed");
+  const selectedReason = useWatch({ control: form.control, name: "selectedReason" });
+  const agreed = useWatch({ control: form.control, name: "agreed" });
 
   // POST /api/bookings/:id/cancel. The mutation cache refreshes the ticket
   // lists; the response says what, if anything, is refunded.

@@ -623,3 +623,45 @@ Invalid path/query values answer 400 like axum's extractors (Rust answers 422 fo
 - A test of the ChatHub Durable Object itself (needs the DO binding in the workerd test config).
 - Wire `IMAGES` in the staging/preview wrangler configs if thumbnails are wanted there.
 - The Rust-only operator surfaces (`src/cli`, OSM import) have no Workers equivalent by design.
+
+## 6. Production-readiness pass (2026-10-28)
+
+A cross-cutting read of the whole `cloudflare/` tree (routes, shared helpers, config, dependencies,
+CI), separate from the per-domain audits above.
+
+### Fixed
+
+1. **Three reads answered anonymous callers; Rust guards all of them.**
+   `GET /api/nullclaw/exchanges` returned customers' chat prompts and AI replies (phone numbers,
+   booking codes, travel plans; Rust needs `admin:nullclaw:read`, `routes/nullclaw.rs:40`),
+   `GET /api/chat/channels/online` returned customer ids and their open channels (staff only,
+   brand-scoped, `routes/chat.rs:180`), `GET /api/presence/staff` returned the staff roster
+   (`routes/presence.rs:36`). Now 401 for anonymous, 403 for customers (and for employees on the
+   audit log), covered by `tests/integration/staff-only-routes.test.ts`. `GET /api/nullclaw/status`
+   stays public like Rust. **Everything that was reachable before the fix should be assumed read by
+   a crawler**: if the assistant was ever enabled, review the `nullclaw_exchange` table's exposure.
+2. **500 responses leaked internals.** `handleRouteError` echoed the exception text (SQL, gateway
+   response bodies from `payment.ts`). Rust answers `internal server error` and logs the detail
+   (`error.rs:134`). Now the same; 4xx and 503 keep their messages (`tests/unit/api-errors.test.ts`).
+3. **Staff check written six ways.** `isStaff(user)` from `lib/auth/rbac.ts` is now the only
+   definition in the routes and services; the chat queue filter is one function
+   (`staffQueueWhere`) shared by the channel list and the online list.
+4. **Dependencies.** 39 packages that nothing imports (all `@radix-ui/*` but three, `@dnd-kit/*`,
+   `@mdxeditor/editor`, `recharts`, `framer-motion`, `next-auth`, `next-intl`, `react-markdown`,
+   `react-syntax-highlighter`, `cmdk`, `embla-carousel-react`, `@reactuses/core`,
+   `tailwindcss-animate`, `z-ai-web-dev-sdk`, `eslint-plugin-prettier`) were removed; `next build`
+   and `opennextjs-cloudflare build` still succeed. Fewer packages to patch and audit.
+5. **Lint is now a gate.** 58 warnings cleared (`useWatch` instead of `watch`, no state-setting
+   effects, no non-null assertions, `<img>` rule switched off because `images.unoptimized` is set),
+   and CI runs `eslint --max-warnings 0`.
+
+### Open, deliberately not changed here
+
+- **Error envelope.** Rust `{ "error": "<kind>", "message": "<kind>: <text>" }` vs the port's
+  `{ "error": { "code", "message" } }`. Assigned to the auth/users audit.
+- **Other users of `window.console` patching** (`spa/lib/console-protection.ts`) and the
+  `VeXeVN` banner text are carried over from the Rust frontend as is.
+- **D1 placement.** If latency to D1 dominates, `placement.mode = "smart"` in `wrangler.jsonc` and
+  D1 read replication are one-line experiments; measure before enabling.
+- **Workers Logs volume.** `observability.enabled` logs every invocation; set
+  `head_sampling_rate` once traffic grows.

@@ -14,7 +14,11 @@
  * CLAIMED with a compare-and-swap lease on `next_run_at` before it runs, so
  * a job never executes twice for the same slot.
  *
- * All runs are recorded in job_run for the admin dashboard.
+ * Runs are recorded in job_run for the admin dashboard. Free-plan budget (D1
+ * allows 5M rows read and 100k rows written per day): the cron fires 1,440
+ * times a day, so a tick may only touch indexed rows and an idle sweep writes
+ * a heartbeat row every `SWEEP_HEARTBEAT_MS`, not every minute. Old rows are
+ * removed by the daily `jobs.retention` job, never on the hot path.
  */
 import { getDb, getEnv } from "@/lib/db/client";
 import { jobRuns, scheduledJobs, coupons, seatInventory, tripSessions } from "@/lib/db/schema";
@@ -75,9 +79,8 @@ function retentionCutoff(): string {
 async function recordRun(jobType: string, status: string, detail?: string, error?: string) {
   const db = await getDb();
   const now = new Date().toISOString();
-  const id = crypto.randomUUID();
   await db.insert(jobRuns).values({
-    id,
+    id: crypto.randomUUID(),
     jobType,
     status,
     detail: detail ?? null,
@@ -85,14 +88,21 @@ async function recordRun(jobType: string, status: string, detail?: string, error
     startedAt: now,
     finishedAt: now,
   });
-  // Retention prune (30 days) piggybacks on every write path.
-  await db.delete(jobRuns).where(lt(jobRuns.createdAt, retentionCutoff()));
 }
 
-async function runJob(jobType: string, fn: () => Promise<string>): Promise<JobOutcome> {
+interface RunOptions {
+  /** Whether a successful run is worth a job_run row; failures are always recorded. */
+  record?: (detail: string) => boolean | Promise<boolean>;
+}
+
+async function runJob(
+  jobType: string,
+  fn: () => Promise<string>,
+  opts: RunOptions = {},
+): Promise<JobOutcome> {
   try {
     const detail = await fn();
-    await recordRun(jobType, "succeeded", detail);
+    if (!opts.record || (await opts.record(detail))) await recordRun(jobType, "succeeded", detail);
     return { jobType, status: "succeeded", detail };
   } catch (e) {
     const error = e instanceof Error ? e.message : String(e);
@@ -101,10 +111,36 @@ async function runJob(jobType: string, fn: () => Promise<string>): Promise<JobOu
   }
 }
 
+/**
+ * The admin console reads the sweep's rows as the scheduler heartbeat
+ * (`schedulerEnabled`, which looks back `HEARTBEAT_WINDOW_MS`): an idle sweep
+ * leaves one row per interval instead of 1,440 a day.
+ */
+export const SWEEP_HEARTBEAT_MS = 10 * 60_000;
+export const HEARTBEAT_WINDOW_MS = 15 * 60_000;
+
+/** Is the newest run of `jobType` older than `maxAgeMs`? (indexed: job_type, created_at) */
+async function lastRunOlderThan(jobType: string, maxAgeMs: number): Promise<boolean> {
+  const db = await getDb();
+  const [last] = await db
+    .select({ createdAt: jobRuns.createdAt })
+    .from(jobRuns)
+    .where(eq(jobRuns.jobType, jobType))
+    .orderBy(desc(jobRuns.createdAt))
+    .limit(1);
+  return !last || Date.now() - new Date(last.createdAt).getTime() >= maxAgeMs;
+}
+
 /** Fixed frequent jobs — always run on tick. */
 async function runFrequentJobs(): Promise<JobOutcome[]> {
   const outcomes: JobOutcome[] = [];
-  outcomes.push(await runJob("holds.sweep", () => executeJobBody("holds.sweep")));
+  outcomes.push(
+    await runJob("holds.sweep", () => executeJobBody("holds.sweep"), {
+      record: async (detail) =>
+        (JSON.parse(detail) as { cancelled: number }).cancelled > 0 ||
+        (await lastRunOlderThan("holds.sweep", SWEEP_HEARTBEAT_MS)),
+    }),
+  );
   return outcomes;
 }
 
@@ -240,17 +276,9 @@ export const triggerJob = (jobType: string): Promise<JobOutcome> =>
 export async function tick(): Promise<{ ran: JobOutcome[] }> {
   const frequent = await runFrequentJobs();
   const scheduled = await runDueScheduledJobs();
-  // trips.warm every 6h: gate on the last successful run.
-  const db = await getDb();
-  const lastWarmRows = await db
-    .select({ finishedAt: jobRuns.finishedAt })
-    .from(jobRuns)
-    .where(and(eq(jobRuns.jobType, "trips.warm"), eq(jobRuns.status, "succeeded")))
-    .orderBy(desc(jobRuns.finishedAt))
-    .limit(1);
-  const lastWarm = lastWarmRows[0]?.finishedAt ?? null;
-  const sixHours = 6 * 3600_000;
-  if (!lastWarm || Date.now() - new Date(lastWarm).getTime() >= sixHours) {
+  // trips.warm every 6h: gate on the newest run. Ordered by created_at so the
+  // (job_type, created_at) index answers it without scanning the table.
+  if (await lastRunOlderThan("trips.warm", 6 * 3600_000)) {
     scheduled.push(await runJob("trips.warm", async () => JSON.stringify(await warmTrips())));
   }
   return { ran: [...frequent, ...scheduled] };
@@ -289,7 +317,7 @@ function runOut(r: typeof jobRuns.$inferSelect): CronJobRunOut {
   };
 }
 
-async function latestRun(jobType: string): Promise<CronJobRunOut | null> {
+export async function latestRun(jobType: string): Promise<CronJobRunOut | null> {
   const db = await getDb();
   const row = (
     await db
@@ -319,7 +347,7 @@ function scheduleOut(s: typeof scheduledJobs.$inferSelect, lastRun: CronJobRunOu
 /**
  * `GET /api/admin/cron-jobs`: the schedule rows, plus the two fixed-cadence
  * jobs that have no row. `schedulerEnabled` is the cron trigger's heartbeat:
- * `holds.sweep` ran within the last five minutes.
+ * `holds.sweep` ran within the last `HEARTBEAT_WINDOW_MS`.
  */
 export async function listCronJobs() {
   const db = await getDb();
@@ -344,7 +372,8 @@ export async function listCronJobs() {
   const heartbeat = last.get("holds.sweep")?.createdAt;
   return {
     items: [...fixed, ...rows.map((r) => scheduleOut(r, last.get(r.jobType) ?? null))],
-    schedulerEnabled: !!heartbeat && Date.now() - new Date(heartbeat).getTime() < 5 * 60_000,
+    schedulerEnabled:
+      !!heartbeat && Date.now() - new Date(heartbeat).getTime() < HEARTBEAT_WINDOW_MS,
   };
 }
 

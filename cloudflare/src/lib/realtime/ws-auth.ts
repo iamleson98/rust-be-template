@@ -45,7 +45,7 @@ function credential(request: Request, url: URL): { token: string; viaToken: bool
     return { token: authz.slice(7).trim(), viaToken: true };
   }
   const m = /(?:^|;\s*)access_token=([^;]+)/.exec(request.headers.get("cookie") ?? "");
-  return m ? { token: decodeURIComponent(m[1]!), viaToken: false } : null;
+  return m ? { token: decodeURIComponent(m[1]), viaToken: false } : null;
 }
 
 /** Is a browser-sent Origin one this deployment serves? */
