@@ -63,7 +63,7 @@ export function classify(pathname: string, isUpgrade: boolean): LimitClass | nul
 
 /** Expand an IPv6 literal to its eight 16-bit groups; `null` when malformed. */
 function ipv6Groups(ip: string): number[] | null {
-  const addr = ip.split("%")[0]!; // zone id
+  const addr = ip.split("%")[0]; // zone id
   let head = addr;
   let tail = "";
   const gap = addr.indexOf("::");
@@ -77,12 +77,12 @@ function ipv6Groups(ip: string): number[] | null {
     const out: number[] = [];
     const parts = s.split(":");
     for (let i = 0; i < parts.length; i++) {
-      const part = parts[i]!;
+      const part = parts[i];
       if (i === parts.length - 1 && part.includes(".")) {
         const v4 = part.split(".").map(Number);
         if (v4.length !== 4 || v4.some((n) => !Number.isInteger(n) || n < 0 || n > 255))
           return null;
-        out.push((v4[0]! << 8) | v4[1]!, (v4[2]! << 8) | v4[3]!);
+        out.push((v4[0] << 8) | v4[1], (v4[2] << 8) | v4[3]);
       } else if (/^[0-9a-f]{1,4}$/i.test(part)) {
         out.push(parseInt(part, 16));
       } else {
@@ -111,7 +111,7 @@ export function ipKey(ip: string): string {
   const g = ipv6Groups(ip.trim());
   if (!g) return ip;
   if (g.slice(0, 5).every((n) => n === 0) && g[5] === 0xffff) {
-    return `${g[6]! >> 8}.${g[6]! & 255}.${g[7]! >> 8}.${g[7]! & 255}`;
+    return `${g[6] >> 8}.${g[6] & 255}.${g[7] >> 8}.${g[7] & 255}`;
   }
   return `${g
     .slice(0, 4)
@@ -193,7 +193,7 @@ export function withSecurityHeaders(response: Response): Response {
   const missing = Object.keys(SECURITY_HEADERS).filter((h) => !response.headers.has(h));
   if (missing.length === 0) return response;
   const out = new Response(response.body, response);
-  for (const h of missing) out.headers.set(h, SECURITY_HEADERS[h]!);
+  for (const h of missing) out.headers.set(h, SECURITY_HEADERS[h]);
   return out;
 }
 

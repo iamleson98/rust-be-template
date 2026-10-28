@@ -1,9 +1,9 @@
 import { rawAll } from "@/lib/db/client";
 import { sql } from "drizzle-orm";
-import { handleRouteError } from "@/lib/api";
+import { handleRouteError, requireStaff } from "@/lib/api";
 
 /**
- * `GET /api/presence/staff` — who of the staff is online right now
+ * `GET /api/presence/staff` — staff only: who of the staff is online right now
  * (Rust `StaffPresenceResponse`). Presence state is maintained by the
  * chat hub in the original deployment; without the WS hub we derive it
  * from `staff_presence_state` (last_seen freshness) so the widget shows
@@ -11,8 +11,10 @@ import { handleRouteError } from "@/lib/api";
  */
 const ONLINE_WINDOW_SEC = 90;
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
+    // Staff only (Rust parity): the roster and its load are internal data.
+    await requireStaff(req);
     const rows = await rawAll<{
       user_id: string;
       name: string;

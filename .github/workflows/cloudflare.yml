@@ -30,7 +30,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
-      - run: bunx eslint src tests custom-worker.ts
+      - run: bunx eslint --max-warnings 0 src tests custom-worker.ts
       - run: bunx prettier --check src tests scripts custom-worker.ts
       - run: bun run test
       - name: Drizzle schema has no un-generated changes

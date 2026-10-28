@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
 import { z } from "zod";
@@ -79,7 +79,7 @@ export function AccountPasswordPage() {
     mode: "onSubmit",
     reValidateMode: "onChange",
   });
-  const newPassword = form.watch("newPassword");
+  const newPassword = useWatch({ control: form.control, name: "newPassword" });
 
   const change = useMutation({
     ...changePasswordMutation(),

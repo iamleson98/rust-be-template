@@ -1,9 +1,9 @@
-import { getDb, rawAll } from "@/lib/db/client";
+import { getDb } from "@/lib/db/client";
 import { and, asc, eq, gt, sql } from "drizzle-orm";
 import { jobRuns, scheduledJobs } from "@/lib/db/schema";
 import { handleRouteError, requireStaff } from "@/lib/api";
 import { requirePermission } from "@/lib/auth/rbac";
-import type { CronJobRunOut } from "@/lib/services/jobs";
+import { HEARTBEAT_WINDOW_MS, latestRun } from "@/lib/services/jobs";
 
 /**
  * `GET /api/admin/cron-jobs` — job registry with the latest run per job
@@ -42,27 +42,20 @@ export async function GET(req: Request) {
       })),
       ...jobs,
     ];
-    // Latest run per job: a window function has no builder equivalent. (The
-    // ids are random UUIDs, so MAX(id) would pick an arbitrary run.)
-    const lastRuns = await rawAll<CronJobRunOut>(sql`
-      SELECT id, jobType, status, detail, error, startedAt, finishedAt, createdAt FROM (
-        SELECT id, job_type AS jobType, status, detail, error, started_at AS startedAt,
-               finished_at AS finishedAt, created_at AS createdAt,
-               ROW_NUMBER() OVER (PARTITION BY job_type ORDER BY created_at DESC, id) AS rn
-        FROM job_run
-      ) WHERE rn = 1
-    `);
+    // Latest run per job, one indexed lookup each (job_type, created_at): a
+    // window function over job_run would read every row on each page view.
+    const lastRuns = await Promise.all(all.map((j) => latestRun(j.jobType)));
     const heartbeat = await db
       .select({ n: sql<number>`COUNT(*)` })
       .from(jobRuns)
       .where(
         and(
           eq(jobRuns.jobType, "holds.sweep"),
-          gt(jobRuns.createdAt, new Date(Date.now() - 5 * 60_000).toISOString()),
+          gt(jobRuns.createdAt, new Date(Date.now() - HEARTBEAT_WINDOW_MS).toISOString()),
         ),
       );
     return Response.json({
-      items: all.map((j) => ({
+      items: all.map((j, i) => ({
         jobType: j.jobType,
         enabled: !!j.enabled,
         intervalDays: j.intervalDays,
@@ -70,7 +63,7 @@ export async function GET(req: Request) {
         atMinute: j.atMinute,
         nextRunAt: j.nextRunAt,
         updatedAt: j.updatedAt,
-        lastRun: lastRuns.find((r) => r.jobType === j.jobType) ?? null,
+        lastRun: lastRuns[i] ?? null,
       })),
       schedulerEnabled: Number(heartbeat[0]?.n ?? 0) > 0,
     });

@@ -1,3 +1,4 @@
+/* eslint-disable no-console -- the banner deliberately wraps console.log (parity with the Rust frontend) */
 /**
  * Console protection — soft deterrent against DevTools usage.
  *
@@ -71,8 +72,8 @@ function logWarning(): void {
     "Nếu bạn là lập trình viên, vui lòng liên hệ admin@datxevui.com để được cấp quyền dev.",
   ].join("\n");
 
-  console.log(banner, style);
-  console.log(message);
+  console.info(banner, style);
+  console.info(message);
 
   // Fire a GA4 event (if analytics is configured).
   if (typeof window !== "undefined" && window.gtag) {

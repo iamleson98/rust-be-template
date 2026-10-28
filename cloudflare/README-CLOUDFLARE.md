@@ -73,9 +73,10 @@ first account yourself right after the first deploy: the first registrant become
 ## Cron jobs (no container)
 
 The Worker's Cron Trigger (`* * * * *`, see `wrangler.jsonc`) calls `scheduled()` in
-`custom-worker.ts`, which feeds a synthetic `POST /api/jobs/tick` through the Next.js
-handler in-process — same bindings, same request context as any API route, no public round
-trip. The route stays callable with the `CRON_SERVICE_TOKEN` for manual runs.
+`custom-worker.ts`, which runs the job executor (`src/lib/cron.ts`) in-process inside OpenNext's
+request context — same bindings as any API route, no public round trip, no Next.js render on the
+way (the Free plan allows 10 ms of CPU per invocation) and no secret needed. `POST
+/api/jobs/tick` stays callable with the `CRON_SERVICE_TOKEN` for manual runs.
 
 Table-driven jobs are **claimed** with a compare-and-swap lease on `scheduled_job.next_run_at`
 before they run, so overlapping ticks (a slow run, the admin "trigger" button) never run a

@@ -148,6 +148,8 @@ export default function RootLayout({
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="application-name" content="DatXeVui" />
         <meta name="format-detection" content="telephone=no" />
+        {/* Static @font-face sheet served from /public with long-lived caching. */}
+        {/* eslint-disable-next-line @next/next/no-css-tags */}
         <link rel="stylesheet" href="/fonts/geist.css" />
         <link
           rel="preload"

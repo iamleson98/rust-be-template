@@ -48,16 +48,16 @@ export async function PUT(req: Request, ctx: Params) {
       })
       .where(eq(schedules.id, id));
 
-    if (body.points && body.points.length >= 2) {
+    const points = body.points;
+    if (points && points.length >= 2) {
       await db.delete(schedulePoints).where(eq(schedulePoints.scheduleId, id));
-      const rows = body.points
+      const rows = points
         .map((p, i) => ({
           id: crypto.randomUUID(),
           scheduleId: id,
           addressId: (p.addressId ?? "").trim(),
           stopOrder: i + 1,
-          kind:
-            i === 0 ? "departure" : i === body.points!.length - 1 ? "destination" : "intermediate",
+          kind: i === 0 ? "departure" : i === points.length - 1 ? "destination" : "intermediate",
           arrivalTime: p.arrivalTime ?? null,
           createdAt: new Date().toISOString(),
         }))

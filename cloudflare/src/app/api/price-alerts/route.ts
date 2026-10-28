@@ -3,6 +3,7 @@ import { getDb } from "@/lib/db/client";
 import { priceAlerts } from "@/lib/db/schema";
 import { and, desc, eq } from "drizzle-orm";
 import { handleRouteError, readJson, requireUser, err } from "@/lib/api";
+import { isStaff } from "@/lib/auth/rbac";
 
 /** `GET /api/price-alerts` — the caller's watch list (users see own; staff see all). */
 export async function GET(req: Request) {
@@ -12,11 +13,10 @@ export async function GET(req: Request) {
     const limit = Math.min(parseInt(url.searchParams.get("limit") ?? "50", 10) || 50, 200);
     const offset = Math.max(parseInt(url.searchParams.get("offset") ?? "0", 10) || 0, 0);
     const db = await getDb();
-    const staff = user.role === "employee" || user.role === "admin";
     const rows = await db
       .select()
       .from(priceAlerts)
-      .where(staff ? undefined : eq(priceAlerts.userId, user.id))
+      .where(isStaff(user) ? undefined : eq(priceAlerts.userId, user.id))
       .orderBy(desc(priceAlerts.createdAt))
       .limit(limit)
       .offset(offset);
