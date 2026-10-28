@@ -12,6 +12,8 @@ declare interface CloudflareEnv {
   UPLOADS: R2Bucket;
   ASSETS: Fetcher;
   WORKER_SELF_REFERENCE: Fetcher;
+  /** Cloudflare Images binding: route picture thumbnails (absent → originals only). */
+  IMAGES?: ImagesBinding;
   CHAT_HUB?: DurableObjectNamespace;
   CALL_HUB?: DurableObjectNamespace;
 

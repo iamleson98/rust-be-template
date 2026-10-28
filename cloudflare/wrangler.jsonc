@@ -34,6 +34,9 @@
       "bucket_name": "datxevui-uploads"
     }
   ],
+  "images": {
+    "binding": "IMAGES"
+  },
   "durable_objects": {
     "bindings": [
       {
