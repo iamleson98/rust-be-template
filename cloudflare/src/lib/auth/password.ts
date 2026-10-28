@@ -108,3 +108,11 @@ export async function verifyPassword(password: string, stored: string | null): P
   const actual = await pbkdf2(password, salt, iterations);
   return timingSafeEqual(actual, expected);
 }
+
+let decoy: Promise<string> | undefined;
+
+/** Run one verification against a throwaway hash (the unknown-account path of a login). */
+export async function spendVerifyTime(password: string): Promise<void> {
+  decoy ??= hashPassword(crypto.randomUUID());
+  await verifyPassword(password, await decoy);
+}

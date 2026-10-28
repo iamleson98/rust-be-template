@@ -58,7 +58,12 @@ export const ADMIN_ONLY_PERMS = [
   "admin:export",
 ];
 
-export const USER_PERMS = ["posts:read", "posts:write", "users:read"];
+/**
+ * Customers hold the two post permissions. Rust also grants them `users:read`,
+ * which let any signed-in customer list every account's name and email;
+ * migration 0008 takes it away.
+ */
+export const USER_PERMS = ["posts:read", "posts:write"];
 
 export function isStaff(user: SessionUser): boolean {
   return user.role === "employee" || user.role === "admin";

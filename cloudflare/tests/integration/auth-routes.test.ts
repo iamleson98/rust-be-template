@@ -154,15 +154,30 @@ describe("register (AuthService::register)", () => {
     ]);
   });
 
-  it("the service rule on the name counts bytes: 3–64", async () => {
+  it("the service rule on the name counts characters: 3–64", async () => {
     const short = await signUp({ ...valid, fullName: "An" });
     expect([short.status, (await json(short)).message]).toEqual([
       400,
       "validation failed: username must be 3-64 characters",
     ]);
-    const long = await signUp({ ...valid, fullName: "ế".repeat(22) }); // 22 chars, 66 bytes
-    expect(long.status).toBe(400);
-    expect((await signUp({ ...valid, fullName: "Lê" })).status).toBe(200); // 3 bytes
+    // Rust counts bytes and would refuse 22 accented letters (66 bytes).
+    expect((await signUp({ ...valid, fullName: "ế".repeat(22) })).status).toBe(200);
+    expect((await signUp({ ...valid, email: "b@test.vn", fullName: "x".repeat(65) })).status).toBe(
+      400,
+    );
+  });
+
+  it("two simultaneous first signups: exactly one admin, one bot", async () => {
+    const results = await Promise.all(
+      [1, 2, 3, 4].map((i) => signUp({ ...valid, email: `race${i}@test.vn` })),
+    );
+    expect(results.every((r) => r.status === 200)).toBe(true);
+    const roleList = (await (await getDb()).select().from(users))
+      .filter((u) => !u.isBot)
+      .map((u) => u.role);
+    expect(roleList.filter((r) => r === "admin")).toHaveLength(1);
+    const bots = (await (await getDb()).select().from(users)).filter((u) => u.isBot);
+    expect(bots).toHaveLength(1);
   });
 
   it("a taken email is a 409, whatever its case", async () => {

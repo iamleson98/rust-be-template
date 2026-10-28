@@ -295,7 +295,10 @@ describe("callback success", () => {
   it("the same identity signs in again; a second person is a plain user", async () => {
     await signIn(google);
     expect((await signIn(google)).res.status).toBe(307);
-    expect(await (await getDb()).select().from(users)).toHaveLength(1);
+    // The first human brings the NullClaw bot along, whichever way they arrive.
+    const all = await (await getDb()).select().from(users);
+    expect(all.filter((u) => !u.isBot)).toHaveLength(1);
+    expect(all.filter((u) => u.isBot)).toHaveLength(1);
     await signIn({ ...google, sub: "g-2", email: "binh@test.vn" });
     const binh = (
       await (await getDb()).select().from(users).where(eq(users.email, "binh@test.vn"))
@@ -303,8 +306,14 @@ describe("callback success", () => {
     expect(binh.role).toBe("user");
   });
 
-  it("links the identity to an existing password account with the same email", async () => {
+  it("links a VERIFIED password account and leaves its password alone", async () => {
     const { id } = await createUser({ email: "an@test.vn" });
+    await (
+      await getDb()
+    )
+      .update(users)
+      .set({ emailVerifiedAt: "2026-01-01T00:00:00.000Z" })
+      .where(eq(users.id, id));
     await signIn(google);
     const u = (await (await getDb()).select().from(users).where(eq(users.id, id)))[0]!;
     expect([u.oauthProvider, u.oauthSubject, u.avatarUrl]).toEqual([
@@ -312,9 +321,31 @@ describe("callback success", () => {
       "g-1",
       "https://img/an.png",
     ]);
-    expect(u.passwordHash).not.toBeNull(); // still signs in with the password too
+    expect(u.passwordHash).not.toBeNull();
     expect(await (await getDb()).select().from(users)).toHaveLength(1);
-    void PASSWORD;
+  });
+
+  it("linking onto a password account whose email nobody verified ends that password and its sessions", async () => {
+    // The squatter registered an.test@... with a password before the real owner showed up.
+    const squatter = await createUser({ email: "an@test.vn" });
+    const { issueSession, refreshSession } = await import("@/lib/auth/session");
+    const stolen = await issueSession(squatter.id);
+    await signIn(google);
+    const u = (await (await getDb()).select().from(users).where(eq(users.id, squatter.id)))[0]!;
+    expect(u.passwordHash).toBeNull();
+    expect(u.emailVerifiedAt).not.toBeNull();
+    expect(u.oauthSubject).toBe("g-1");
+    await expect(refreshSession(stolen.refreshToken)).rejects.toMatchObject({ status: 401 });
+    // The squatter's password no longer signs in.
+    const { POST: login } = await import("@/app/api/auth/login/route");
+    const res = await login(
+      new Request("https://datxevui.com/api/auth/login", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email: "an@test.vn", password: PASSWORD }),
+      }),
+    );
+    expect(res.status).toBe(401);
   });
 
   it("Facebook: the token request carries the credentials in the query", async () => {

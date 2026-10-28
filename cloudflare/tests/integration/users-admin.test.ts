@@ -233,7 +233,7 @@ describe("PATCH /api/users/{id}/role (UserService::set_role)", () => {
 });
 
 describe("the seeded role model (seed_defaults)", () => {
-  it("admin holds everything, employee all but the admin-only set, user three", async () => {
+  it("admin holds everything, employee all but the admin-only set, user two", async () => {
     const admin = await createUser({ role: "admin" });
     const employee = await createUser({ role: "employee" });
     const customer = await createUser();
@@ -253,10 +253,11 @@ describe("the seeded role model (seed_defaults)", () => {
     for (const p of ["admin:bookings:write", "admin:payments:read", "users:read", "posts:delete"]) {
       expect(await userHasPermission(employee.id, p), p).toBe(true);
     }
-    for (const p of ["posts:read", "posts:write", "users:read"]) {
+    for (const p of ["posts:read", "posts:write"]) {
       expect(await userHasPermission(customer.id, p), p).toBe(true);
     }
-    for (const p of ["posts:delete", "admin:bookings:read", "users:delete"]) {
+    // Rust also grants customers users:read (the whole directory); migration 0008 revokes it.
+    for (const p of ["users:read", "posts:delete", "admin:bookings:read", "users:delete"]) {
       expect(await userHasPermission(customer.id, p), p).toBe(false);
     }
     const count = await env.DB.prepare(`SELECT COUNT(*) AS n FROM permissions`).first<{

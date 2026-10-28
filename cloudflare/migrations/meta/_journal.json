@@ -57,6 +57,13 @@
       "when": 1792550000000,
       "tag": "0007_seed_campaigns_permission",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1792560000000,
+      "tag": "0008_user_role_without_users_read",
+      "breakpoints": true
     }
   ]
 }

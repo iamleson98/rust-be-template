@@ -4,9 +4,9 @@ import { listUsers } from "@/lib/services/users";
 import { optionalCount } from "@/lib/services/pagination";
 
 /**
- * `GET /api/users` — one page of users plus the total (`users:read`). Rust also
- * lets customers through (the `user` role holds `users:read`); the port keeps
- * this staff-only because the list carries every customer's email.
+ * `GET /api/users` — one page of users plus the total (`users:read`, staff only:
+ * the list carries every customer's email, and since migration 0008 customers
+ * no longer hold the permission either).
  */
 export async function GET(req: Request) {
   try {

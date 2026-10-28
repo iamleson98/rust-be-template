@@ -9,6 +9,7 @@ import migration1 from "../../migrations/0001_fts_and_seeds.sql?raw";
 import migration2 from "../../migrations/0002_realtime_meeting_id.sql?raw";
 import migration5 from "../../migrations/0005_repair_literal_timestamps.sql?raw";
 import migration7 from "../../migrations/0007_seed_campaigns_permission.sql?raw";
+import migration8 from "../../migrations/0008_user_role_without_users_read.sql?raw";
 import { setCloudflareContext } from "./context";
 import { applyMigrations } from "./migrate";
 import { getDb } from "@/lib/db/client";
@@ -21,7 +22,7 @@ export const PASSWORD = "correct-horse-battery";
 
 export async function migrateAuth(): Promise<void> {
   setCloudflareContext();
-  await applyMigrations(migration0, migration1, migration2, migration5, migration7);
+  await applyMigrations(migration0, migration1, migration2, migration5, migration7, migration8);
 }
 
 /** Empty every table the auth tests touch (accounts, sessions, grants, devices, notifications). */

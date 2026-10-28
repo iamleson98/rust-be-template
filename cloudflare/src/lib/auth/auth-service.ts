@@ -4,17 +4,17 @@
  * the OAuth user upsert. Routes validate the body, call these, and answer with
  * `authResponse`; every rule (limits, error text, status) lives here once.
  */
-import { and, count, eq, inArray, or, sql } from "drizzle-orm";
+import { and, eq, inArray, or, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db/client";
 import { users } from "@/lib/db/schema";
 import { clientIp } from "@/lib/api";
 import { rateLimit } from "@/lib/rate-limit";
 import { normalizePhone } from "@/lib/format";
-import { hashPassword, needsRehash, verifyPassword } from "./password";
+import { hashPassword, needsRehash, spendVerifyTime, verifyPassword } from "./password";
 import { assertNotLocked, recordFailedLogin } from "./lockout";
 import { ApiError, assignRole } from "./rbac";
 import { revokeAllSessions } from "./session";
-import { Issues, asObject, byteLength, isEmail, str } from "./validation";
+import { Issues, asObject, isEmail, str } from "./validation";
 
 export type UserRow = typeof users.$inferSelect;
 
@@ -62,11 +62,12 @@ async function findUserByPhone(phone: string): Promise<UserRow | undefined> {
   return rows.length === 1 ? rows[0] : undefined;
 }
 
-async function humanUserCount(): Promise<number> {
-  const db = await getDb();
-  const rows = await db.select({ n: count() }).from(users).where(eq(users.isBot, false));
-  return rows[0]?.n ?? 0;
-}
+/**
+ * The role of a new account, decided inside the INSERT: the first HUMAN account
+ * is `admin` (the bot never counts), everyone else a `user`. One statement, so
+ * two simultaneous first signups cannot both become admin (Rust counts, then inserts).
+ */
+const NEW_ACCOUNT_ROLE = sql<string>`(CASE WHEN EXISTS (SELECT 1 FROM ${users} WHERE ${users.isBot} = 0) THEN 'user' ELSE 'admin' END)`;
 
 // ── Register ────────────────────────────────────────────────────────────
 
@@ -81,7 +82,7 @@ export interface RegisterInput {
 
 /**
  * Rust `RegisterRequest` (`routes/auth.rs`) followed by the checks
- * `AuthService::register` repeats on what it receives (those count bytes).
+ * `AuthService::register` repeats on what it receives.
  */
 export function parseRegister(raw: unknown): RegisterInput {
   const body = asObject(raw);
@@ -108,13 +109,10 @@ export function parseRegister(raw: unknown): RegisterInput {
   const contact = email || phone;
   if (!contact) throw new ApiError(400, "validation_error", "Email or phone is required");
   if (email && !isEmail(email)) throw new ApiError(400, "validation_error", "invalid email");
-  const nameBytes = byteLength(fullName!);
-  if (nameBytes < 3 || nameBytes > 64) {
+  // Rust counts bytes here, which refuses a 22-letter Vietnamese name; characters are what the message says.
+  const nameLength = [...fullName!].length;
+  if (nameLength < 3 || nameLength > 64) {
     throw new ApiError(400, "validation_error", "username must be 3-64 characters");
-  }
-  const passwordBytes = byteLength(password!);
-  if (passwordBytes < 8 || passwordBytes > 128) {
-    throw new ApiError(400, "validation_error", "password must be 8-128 characters");
   }
   return {
     fullName: fullName!,
@@ -167,8 +165,6 @@ export async function registerUser(input: RegisterInput): Promise<UserRow> {
     throw new ApiError(409, "conflict", "phone already registered");
   }
 
-  const isFirst = (await humanUserCount()) === 0;
-  const role = isFirst ? "admin" : "user";
   const id = crypto.randomUUID();
   try {
     await db.insert(users).values({
@@ -177,7 +173,7 @@ export async function registerUser(input: RegisterInput): Promise<UserRow> {
       email: identity,
       phone: input.phone,
       passwordHash: await hashPassword(input.password),
-      role,
+      role: NEW_ACCOUNT_ROLE,
       status: "active",
       locale: input.locale,
     });
@@ -185,9 +181,15 @@ export async function registerUser(input: RegisterInput): Promise<UserRow> {
     if (isUniqueViolation(e)) throw new ApiError(409, "conflict", "account already registered");
     throw e;
   }
-  if (isFirst) await createBotAccount();
-  await assignRole(id, role);
-  return (await userById(id))!;
+  return grantNewAccountRole(id);
+}
+
+/** Give a just-inserted account the grant of the role the INSERT chose; the first admin also brings the bot. */
+async function grantNewAccountRole(id: string): Promise<UserRow> {
+  const user = (await userById(id))!;
+  if (user.role === "admin") await createBotAccount();
+  await assignRole(id, user.role);
+  return user;
 }
 
 async function emailTaken(email: string): Promise<boolean> {
@@ -259,7 +261,11 @@ export async function authenticate(req: Request, input: LoginInput): Promise<Use
   const user = input.email
     ? await findUserByEmail(input.email)
     : await findUserByPhone(input.phone);
-  if (!user?.passwordHash) throw invalidCredentials();
+  if (!user?.passwordHash) {
+    // Same work as a real check, so the answer time does not tell whether the account exists.
+    await spendVerifyTime(input.password);
+    throw invalidCredentials();
+  }
 
   assertNotLocked(user);
   if (!(await verifyPassword(input.password, user.passwordHash))) {
@@ -372,19 +378,28 @@ export async function registerOauthUser(profile: OAuthProfile): Promise<UserRow>
 
   const byEmail = await findUserByEmail(profile.email);
   if (byEmail) {
+    const now = new Date().toISOString();
+    // Nobody ever proved they own this address: whoever registered it with a
+    // password may be a stranger who got there first. The provider has now
+    // verified it for the person at the door, so the password and every
+    // session made with it end here (the owner can set a new password from
+    // the account page). Rust links the identity and leaves both alive.
+    const squatted = byEmail.passwordHash !== null && byEmail.emailVerifiedAt === null;
     await db
       .update(users)
       .set({
         oauthProvider: profile.provider,
         oauthSubject: profile.subject,
         ...(profile.avatarUrl ? { avatarUrl: profile.avatarUrl } : {}),
-        updatedAt: new Date().toISOString(),
+        emailVerifiedAt: byEmail.emailVerifiedAt ?? now,
+        ...(squatted ? { passwordHash: null, passwordChangedAt: now } : {}),
+        updatedAt: now,
       })
       .where(eq(users.id, byEmail.id));
+    if (squatted) await revokeAllSessions(byEmail.id);
     return (await userById(byEmail.id))!;
   }
 
-  const role = (await humanUserCount()) === 0 ? "admin" : "user";
   const id = crypto.randomUUID();
   try {
     await db.insert(users).values({
@@ -393,7 +408,7 @@ export async function registerOauthUser(profile: OAuthProfile): Promise<UserRow>
       email: profile.email,
       emailVerifiedAt: new Date().toISOString(),
       avatarUrl: profile.avatarUrl,
-      role,
+      role: NEW_ACCOUNT_ROLE,
       oauthProvider: profile.provider,
       oauthSubject: profile.subject,
     });
@@ -401,6 +416,5 @@ export async function registerOauthUser(profile: OAuthProfile): Promise<UserRow>
     if (isUniqueViolation(e)) throw new ApiError(409, "store_error", "conflict: account exists");
     throw e;
   }
-  await assignRole(id, role);
-  return (await userById(id))!;
+  return grantNewAccountRole(id);
 }
