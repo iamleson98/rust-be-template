@@ -612,12 +612,13 @@ anywhere in this domain.
   cards for the same trip. The port builds the same card as search. Keep?
 - **Q3 Route endpoints carry `lat: 0, lon: 0`** in `GET /api/routes` (`:444-453`); the port sends the
   real city coordinates (a superset). Keep?
-- **Q4 Deactivated brands and routes.** Rust search checks the route status but not the brand's, the
-  warmer creates trips for inactive routes, and recommendations/stats count them. A deactivated brand
-  therefore stays searchable and bookable. Mirrored (the port used to hide inactive brands). Should a
-  deactivated brand's trips disappear?
-- **Q5 Unknown amenity keys have an empty label** in facets and in the detail (`amenity_label` →
-  `""`, `:245`). Mirrored; the SPA falls back to the key.
+- **Q4 Deactivated brands and routes** (decided: better than Rust). Rust search checks the route's
+  status but not the brand's, so a deactivated brand stays searchable and bookable; recommendations
+  and stats also count inactive routes' trips. The port hides a deactivated brand's trips from search,
+  coordinate search and recommendations; inactive _routes_ stay out of search/geo as in Rust. Trips
+  are still created for them, so reactivating needs no wait.
+- **Q5 Unknown amenity keys** have an empty label in Rust (`amenity_label` → `""`, `:245`); the port
+  labels them by their key (decided: better than Rust).
 - **Q6 `brand_id` that is not a UUID** is a 500 in Rust (`parse_uuid` surfaced as an internal error);
   the port answers 400.
 - **Q7 Unordered truncation.** The city search keeps the first 500 trips of a day and the coordinate

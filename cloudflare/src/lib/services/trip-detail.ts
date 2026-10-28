@@ -256,7 +256,10 @@ export async function tripDetail(tripId: string) {
       fares: tripFares(classFares, policy),
       childFare: policy ?? undefined,
     },
-    amenities: parseAmenities(schedule.amenities).map((key) => ({ key, label: amenityLabel(key) })),
+    amenities: parseAmenities(schedule.amenities).map((key) => ({
+      key,
+      label: amenityLabel(key) || key,
+    })),
     pickupPoints: pickups.map((s) => ({
       id: s.id,
       name: s.name,

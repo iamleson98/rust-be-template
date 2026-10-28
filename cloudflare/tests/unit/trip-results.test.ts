@@ -180,10 +180,10 @@ describe("facets", () => {
     expect(f.plentyOfSeats).toBe(3);
   });
 
-  it("label a brand without a name by its slug, and an unknown amenity by nothing", () => {
+  it("label a brand without a name by its slug, and an unknown amenity by its key", () => {
     const f = buildFacets([built({ brandSlug: "x", brandName: "", amenities: ["sauna"] })]);
     expect(f.brands[0]).toEqual({ key: "x", label: "x", count: 1 });
-    expect(f.amenities[0]).toEqual({ key: "sauna", label: "", count: 1 });
+    expect(f.amenities[0]).toEqual({ key: "sauna", label: "sauna", count: 1 });
   });
 
   it("order equal counts by label byte-wise", () => {

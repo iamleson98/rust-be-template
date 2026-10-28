@@ -154,7 +154,7 @@ export function buildFacets(built: Built[]): SearchFacets {
       count: built.filter((b) => boardingHour(b) >= start && boardingHour(b) < end).length,
     })),
     amenities: countFacets(
-      cards.flatMap((t) => t.amenities.map((a): [string, string] => [a, amenityLabel(a)])),
+      cards.flatMap((t) => t.amenities.map((a): [string, string] => [a, amenityLabel(a) || a])),
     ),
     plentyOfSeats: cards.filter((t) => t.availableSeats > FEW_SEATS).length,
   };

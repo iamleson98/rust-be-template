@@ -206,5 +206,8 @@ function toBuilt(c: Candidate, data: CardData): Built {
 export async function buildCards(candidates: Candidate[]): Promise<Built[]> {
   if (candidates.length === 0) return [];
   const data = await loadCardData(candidates);
-  return candidates.map((c) => toBuilt(c, data));
+  // Better than Rust, which keeps selling a deactivated brand's trips: they are not shown.
+  return candidates
+    .filter((c) => !c.route.brandId || data.brands.get(c.route.brandId)?.status === "active")
+    .map((c) => toBuilt(c, data));
 }

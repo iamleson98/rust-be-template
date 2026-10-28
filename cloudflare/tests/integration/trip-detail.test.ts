@@ -128,7 +128,7 @@ describe("trip detail", () => {
     });
     expect(body.amenities).toEqual([
       { key: "wifi", label: "WiFi" },
-      { key: "sauna", label: "" },
+      { key: "sauna", label: "sauna" },
     ]);
   });
 

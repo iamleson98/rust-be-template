@@ -148,11 +148,12 @@ describe("finding trips", () => {
     });
   });
 
-  it("still sells the trips of a deactivated brand, as Rust does (a question, see the audit)", async () => {
+  it("hides the trips of a deactivated brand (Rust keeps selling them; see the audit)", async () => {
     const date = vnDay(2);
     const { brandId, tripId } = await lane(date);
     await (await getDb()).update(brands).set({ status: "inactive" }).where(eq(brands.id, brandId));
-    expect(ids(await search(date))).toEqual([tripId]);
+    expect(tripId).toBeTruthy();
+    expect(ids(await search(date))).toEqual([]);
   });
 });
 
