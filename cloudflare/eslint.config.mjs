@@ -76,9 +76,10 @@ const eslintConfig = [
       "react-hooks/exhaustive-deps": "warn",
       "react-hooks/purity": "warn",
 
-      // Next.js: <img> blocks LCP; next/image is required except where
-      // deliberately opted out (legacy SPA parity) via eslint-disable.
-      "@next/next/no-img-element": "warn",
+      // `images.unoptimized` is set (next.config.ts): there is no image loader on
+      // Workers, so next/image would add a wrapper and nothing else. Plain <img>
+      // with explicit width/height (or aspect-ratio) and loading="lazy" is the contract.
+      "@next/next/no-img-element": "off",
       "@next/next/no-page-custom-font": "error",
 
       // Logging: warn/error are legitimate; bare log is debug leftovers.
