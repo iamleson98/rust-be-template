@@ -82,7 +82,10 @@ describe("customer bookings", () => {
     expect(alias.status).toBe(200);
     const conflict = await holdAlias(await req(user, "POST", "/api/bookings/hold", body(f)));
     expect(conflict.status).toBe(409);
-    expect((await conflict.json()).error.message).toBe("some seats are no longer available");
+    expect(await conflict.json()).toEqual({
+      error: "conflict",
+      message: "conflict: some seats are no longer available",
+    });
     expect((await holdRoute(await req(null, "POST", "/api/bookings", body(f)))).status).toBe(401);
   });
 

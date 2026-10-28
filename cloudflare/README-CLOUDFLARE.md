@@ -175,9 +175,11 @@ includeSubDomains`), `nosniff`, `X-Frame-Options: DENY` and `Referrer-Policy:
 strict-origin-when-cross-origin` (never overriding a header a route set); `public/_headers`
 adds the same to static files plus a day of cache (+ a week stale-while-revalidate) for
 fonts, icons and images (`sw.js` stays `no-cache`). `GET /api/brands`, `/api/stats`,
-`/api/routes` and `/api/reviews/tags` are served from the Workers Cache API
-(`s-maxage=30, stale-while-revalidate=120`): a hit costs no D1 read and no KV operation. The
-cache is per data centre and only works on a custom domain, not `*.workers.dev`.
+`/api/routes`, `/api/recommendations` and `/api/reviews/tags` are served from the Workers Cache API
+(60 s for the public catalog, which sets `Cache-Control: public, max-age=60`; a caller with a
+session cookie is never served from or stored in it and gets `no-store`, as in Rust): a hit costs
+no D1 read and no KV operation. The cache is per data centre and only works on a custom domain,
+not `*.workers.dev`. Search, trip detail and places send the same header but are not edge cached.
 
 ### Dashboard steps still to do (cannot be done in code)
 
@@ -409,14 +411,13 @@ expiry. Run it against `wrangler dev` or a preview deploy; all checks pass.
   binding — survives isolate eviction, shared across isolates/colos
   (eventually consistent, ≤60s; best-effort, never throws). No binding →
   memory-only, automatically.
-  Cached today: brands, brand detail, default routes page, vehicle-type
-  catalog, popular places, review tags, homepage stats
-  (`src/lib/services/lookups.ts`); the public campaign list has its own
+  Cached with it today: the review tags (`src/lib/services/lookups.ts`). The public
+  catalog (brands, routes, stats, recommendations) is not cached in the app at all: the Workers
+  Cache API in front of it does that (see "Security headers and caching"). The public campaign list has its own
   cache — per-isolate copy + Workers Cache API, 10 s, claims write the exact
   slot count through, no KV (`src/lib/services/campaign-public.ts`). NEVER cached: seats, availability,
   bookings, payments, auth — correctness-critical reads go straight to D1.
-  Admin write routes call the matching `invalidate*` helper so changes
-  surface immediately.
+  The review moderation route calls `invalidateReviews` so changes surface immediately.
 - **`withRetry(fn)`** (`src/lib/db/retry.ts`) — `p-retry` with exponential
   backoff + full jitter, retrying only transient D1 failures
   (D1_ERROR: internal, SQLITE_BUSY/LOCKED, dropped connections, 5xx);
@@ -438,6 +439,20 @@ Secure; Partitioned` — the CHIPS combination. The preview is served on a
   cookies (the "logs in, bounces back to /login" loop). Partitioned cookies
   survive third-party cookie blocking while staying double-keyed to the
   embedding site.
+
+Also read, with the Rust names and defaults: `COOKIE_SAMESITE=strict`,
+`COOKIE_SECURE=true|false` (unset → Secure on HTTPS requests), `COOKIE_DOMAIN`
+(unset → host-only cookies), `JWT_ISSUER` (`backend`), `JWT_ACCESS_TTL_SECS`
+(900), `JWT_REFRESH_TTL_SECS` (7 days) and `JWT_MOBILE_REFRESH_TTL_SECS` (90
+days, `X-Client: mobile`). Cookie lifetimes follow the token lifetimes.
+
+## Social sign-in (Google, Facebook)
+
+A provider is offered when `OAUTH_<GOOGLE|FACEBOOK>_ENABLED=true` **and** its
+`_CLIENT_ID` and `_CLIENT_SECRET` are set (optional `_SCOPES`). Also set
+`OAUTH_REDIRECT_BASE_URL` (the public origin; the provider's redirect URI is
+`{base}/api/auth/oauth/{provider}/callback`) and, when the SPA lives elsewhere,
+`OAUTH_FRONTEND_URL`. Failures redirect to `{frontend}/login?oauth_error=…`.
 
 ## Tests
 

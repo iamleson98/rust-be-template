@@ -32,7 +32,7 @@ import {
   sql,
   type SQL,
 } from "drizzle-orm";
-import { findCity } from "@/lib/services/trip-search";
+import { findCity } from "@/lib/city-match";
 import { departureInstant, rfc3339 } from "./trip-time";
 
 type BookingRow = typeof bookings.$inferSelect;

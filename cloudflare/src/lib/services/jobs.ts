@@ -25,7 +25,8 @@ import { jobRuns, scheduledJobs, coupons, seatInventory, tripSessions } from "@/
 import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, lte } from "drizzle-orm";
 import { catchUp, DEFAULT_TZ_OFFSET_MINUTES, nextOccurrence } from "@/lib/scheduler";
 import { badRequest, conflict, notFound } from "@/lib/services/http-errors";
-import { sweepExpiredHolds, warmTrips } from "./booking";
+import { sweepExpiredHolds } from "./booking";
+import { warmTrips } from "./trip-warmer";
 
 /**
  * The job catalog (Rust `jobs::catalog`). Rust ships `osm.import` (place
@@ -317,6 +318,13 @@ function runOut(r: typeof jobRuns.$inferSelect): CronJobRunOut {
   };
 }
 
+/** The newest run of a job that was just executed or cancelled, so one exists. */
+async function latestRunOrThrow(jobType: string): Promise<CronJobRunOut> {
+  const run = await latestRun(jobType);
+  if (!run) throw notFound(`${jobType} has no run`);
+  return run;
+}
+
 export async function latestRun(jobType: string): Promise<CronJobRunOut | null> {
   const db = await getDb();
   const row = (
@@ -441,7 +449,7 @@ export async function updateCronJob(jobType: string, body: UpdateCronJobBody) {
     .where(eq(scheduledJobs.jobType, jobType));
   const updated = (
     await db.select().from(scheduledJobs).where(eq(scheduledJobs.jobType, jobType)).limit(1)
-  )[0]!;
+  )[0];
   return scheduleOut(updated, await latestRun(jobType));
 }
 
@@ -465,7 +473,7 @@ export async function triggerCronJob(jobType: string): Promise<CronJobRunOut> {
       `${jobType} is already queued or running (run ${live.id}) — wait for it to finish`,
     );
   await triggerJob(jobType);
-  return (await latestRun(jobType))!;
+  return latestRunOrThrow(jobType);
 }
 
 /** `POST /api/admin/cron-jobs/{jobType}/cancel`: only a run that is still queued or running can be cancelled. */
@@ -484,5 +492,5 @@ export async function cancelCronJob(jobType: string): Promise<CronJobRunOut> {
     .update(jobRuns)
     .set({ status: "cancelled", finishedAt: new Date().toISOString() })
     .where(eq(jobRuns.id, live.id));
-  return (await latestRun(jobType))!;
+  return latestRunOrThrow(jobType);
 }

@@ -1,5 +1,4 @@
 import { getDb } from "@/lib/db/client";
-import { invalidateRoutes } from "@/lib/services/lookups";
 import { routes } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { handleRouteError, requireStaff, readJson, err } from "@/lib/api";
@@ -39,7 +38,6 @@ export async function PUT(req: Request, ctx: Params) {
         updatedAt: new Date().toISOString(),
       })
       .where(eq(routes.id, id));
-    await invalidateRoutes();
     return Response.json({ id });
   } catch (e) {
     return handleRouteError(e);
@@ -61,7 +59,6 @@ export async function DELETE(req: Request, ctx: Params) {
     // unrecoverable; a storage hiccup must not block the deletion.
     await purgeRoute(id).catch((e: unknown) => console.warn("route-picture GC failed", e));
     await db.delete(routes).where(eq(routes.id, id));
-    await invalidateRoutes();
     return Response.json({ id });
   } catch (e) {
     return handleRouteError(e);

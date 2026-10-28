@@ -71,9 +71,10 @@ describe("login lockout", () => {
 
     const locked = await attempt(PASSWORD);
     expect(locked.status).toBe(429);
-    expect(((await locked.json()) as { error: { code: string } }).error.code).toBe(
-      "account-locked",
-    );
+    expect(await locked.json()).toMatchObject({
+      error: "too_many_requests",
+      message: expect.stringContaining("too many failed sign-in attempts"),
+    });
     const retry = Number(locked.headers.get("retry-after"));
     expect(retry).toBeGreaterThan((LOCK_MINUTES - 1) * 60);
     expect(retry).toBeLessThanOrEqual(LOCK_MINUTES * 60);
@@ -154,7 +155,7 @@ describe("rate-limit binding", () => {
     expect((await attempt("wrong")).status).toBe(401);
     const blocked = await attempt("wrong");
     expect(blocked.status).toBe(429);
-    expect(((await blocked.json()) as { error: { code: string } }).error.code).toBe("rate-limited");
+    expect(((await blocked.json()) as { error: string }).error).toBe("too_many_requests");
     expect(blocked.headers.get("retry-after")).toBe("60");
     // The blocked attempt must not have counted as a failed password.
     expect((await row()).failedLoginAttempts).toBe(1);

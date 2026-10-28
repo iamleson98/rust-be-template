@@ -10,7 +10,7 @@ import { and, asc, count, desc, eq, inArray, like, or, sql, type SQL } from "dri
 import { getDb, type Database } from "@/lib/db/client";
 import { bookings, brands, reviews, routes, schedules, tripSessions } from "@/lib/db/schema";
 import { departureInstant, localToday } from "@/lib/services/trip-time";
-import { invalidateBrands, invalidateReviews } from "@/lib/services/lookups";
+import { invalidateReviews } from "@/lib/services/lookups";
 import {
   badRequest,
   conflict,
@@ -73,9 +73,7 @@ function parsePhotos(raw: string | null): string[] {
   if (!raw) return [];
   try {
     const parsed: unknown = JSON.parse(raw);
-    return Array.isArray(parsed) && parsed.every((p) => typeof p === "string")
-      ? (parsed as string[])
-      : [];
+    return Array.isArray(parsed) && parsed.every((p) => typeof p === "string") ? parsed : [];
   } catch {
     return [];
   }
@@ -225,7 +223,7 @@ export function tallyReviews(rows: { rating: number; tags: string | null }[]): R
   let sum = 0;
   for (const { rating, tags } of rows) {
     if (!Number.isInteger(rating) || rating < 1 || rating > 5) continue;
-    byRating[rating - 1]! += 1;
+    byRating[rating - 1] += 1;
     total += 1;
     sum += rating;
     for (const tag of parseTags(tags, true)) tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1);
@@ -288,7 +286,6 @@ export async function recomputeBrandRating(brandId: string): Promise<void> {
   const avg = await approvedAverage(db, brandId);
   if (avg === null) return;
   await db.update(brands).set({ rating: avg }).where(eq(brands.id, brandId));
-  await invalidateBrands();
 }
 
 /** Rust `reconcile_brand_ratings`: fixes every drifted brand; returns how many changed. */
@@ -318,7 +315,6 @@ export async function reconcileBrandRatings(): Promise<number> {
     await db.update(brands).set({ rating: avg }).where(eq(brands.id, row.brandId));
     corrected += 1;
   }
-  if (corrected > 0) await invalidateBrands();
   return corrected;
 }
 

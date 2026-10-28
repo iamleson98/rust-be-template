@@ -23,7 +23,7 @@ export async function POST(req: Request) {
     await verifyTelegram(req.headers, (await getEnv()).TELEGRAM_WEBHOOK_SECRET);
     let update: TelegramUpdate;
     try {
-      update = (await req.json()) as TelegramUpdate;
+      update = await req.json();
       if (update.message && typeof update.message.chat?.id !== "number")
         throw new Error("missing chat.id");
     } catch (e) {

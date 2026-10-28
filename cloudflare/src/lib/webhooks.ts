@@ -16,7 +16,7 @@ async function safeEqual(a: string, b: string): Promise<boolean> {
     [a, b].map(async (v) => new Uint8Array(await crypto.subtle.digest("SHA-256", enc.encode(v)))),
   );
   let diff = 0;
-  for (let i = 0; i < x!.length; i++) diff |= x![i]! ^ y![i]!;
+  for (let i = 0; i < x.length; i++) diff |= x[i] ^ y[i];
   return diff === 0;
 }
 
@@ -25,7 +25,7 @@ const toHex = (buf: ArrayBuffer): string =>
 
 function fromHex(hex: string, bytes: number): Uint8Array | null {
   if (hex.length !== bytes * 2 || !/^[0-9a-f]+$/i.test(hex)) return null;
-  return Uint8Array.from(hex.match(/../g)!, (h) => parseInt(h, 16));
+  return Uint8Array.from(hex.match(/../g) ?? [], (h) => parseInt(h, 16));
 }
 
 export async function hmacSha256Hex(secret: string, data: BufferSource): Promise<string> {

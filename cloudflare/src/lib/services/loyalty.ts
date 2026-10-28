@@ -102,7 +102,7 @@ export async function loyaltySummary(userId: string): Promise<LoyaltySummary> {
     completedTrips: rows.length,
     totalSpent: rows.reduce((sum, b) => sum + b.total, 0),
     currency: rows[0]?.currency ?? "VND",
-    tier: TIERS[idx]!,
+    tier: TIERS[idx],
     ...(next && { nextTier: next }),
     history: rows.slice(0, HISTORY_LIMIT).map((b) => {
       // The driver's recorded departure first, the scheduled one as fallback.

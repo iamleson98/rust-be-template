@@ -1,5 +1,4 @@
 import { getDb } from "@/lib/db/client";
-import { invalidateBrands } from "@/lib/services/lookups";
 import { brands } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { handleRouteError, requireStaff, readJson, err } from "@/lib/api";
@@ -37,7 +36,6 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
         updatedAt: new Date().toISOString(),
       })
       .where(eq(brands.id, id));
-    await invalidateBrands();
     return Response.json({ id, updated: true });
   } catch (e) {
     return handleRouteError(e);
@@ -55,7 +53,6 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }
       .update(brands)
       .set({ status: "inactive", updatedAt: new Date().toISOString() })
       .where(eq(brands.id, id));
-    await invalidateBrands();
     return Response.json({ id, status: "inactive" });
   } catch (e) {
     return handleRouteError(e);

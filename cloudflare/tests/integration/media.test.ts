@@ -111,7 +111,7 @@ describe("uploading", () => {
   it("refuses what is not a picture of a route that exists, with Rust's statuses", async () => {
     const notImage = await post([["file", new Blob(["<html>"])]]);
     expect(notImage.status).toBe(400);
-    expect((await notImage.json()).error.message).toContain("unsupported image format");
+    expect((await notImage.json()).message).toContain("unsupported image format");
     expect((await post([file(png(0, 0))])).status).toBe(400); // unreadable header
     expect((await post([["alt_text", "x"]])).status).toBe(400); // no file
     expect((await post([file(png(1, 1, 1)), file(png(1, 1, 2))])).status).toBe(400); // two files
@@ -123,7 +123,9 @@ describe("uploading", () => {
     for (let i = 0; i < 12; i++) expect((await add(10, 10, i)).status).toBe(201);
     const over = await add(10, 10, 99);
     expect(over.status).toBe(400);
-    expect((await over.json()).error.message).toBe("route already has 12 pictures (max 12)");
+    expect((await over.json()).message).toBe(
+      "validation failed: route already has 12 pictures (max 12)",
+    );
   });
 
   it("rejects an oversized body before reading it (413)", async () => {

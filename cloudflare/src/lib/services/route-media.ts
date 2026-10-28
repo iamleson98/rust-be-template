@@ -63,8 +63,8 @@ export function readDimensions(
     const tag = String.fromCharCode(...b.subarray(12, 16));
     if (tag === "VP8X" && b.length >= 30)
       return dims(
-        1 + (b[24]! | (b[25]! << 8) | (b[26]! << 16)),
-        1 + (b[27]! | (b[28]! << 8) | (b[29]! << 16)),
+        1 + (b[24] | (b[25] << 8) | (b[26] << 16)),
+        1 + (b[27] | (b[28] << 8) | (b[29] << 16)),
       );
     if (tag === "VP8L" && b.length >= 25) {
       const bits = v.getUint32(21, true);
@@ -78,7 +78,7 @@ export function readDimensions(
   let i = 2;
   while (i + 9 < b.length) {
     if (b[i] !== 0xff) return null;
-    const marker = b[i + 1]!;
+    const marker = b[i + 1];
     if (marker >= 0xc0 && marker <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(marker))
       return dims(v.getUint16(i + 7), v.getUint16(i + 5));
     i += 2 + v.getUint16(i + 2);

@@ -1,5 +1,4 @@
 import { getDb } from "@/lib/db/client";
-import { invalidateVehicleTypes } from "@/lib/services/lookups";
 import { vehicleTypes } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { handleRouteError, requireStaff, readJson, err } from "@/lib/api";
@@ -61,7 +60,6 @@ export async function POST(req: Request) {
       createdAt: now,
       updatedAt: now,
     });
-    await invalidateVehicleTypes();
     return Response.json({ id }, { status: 201 });
   } catch (e) {
     return handleRouteError(e);

@@ -53,7 +53,7 @@ export function alertOut(a: AlertRow): PriceAlertOut {
 export function isValidVnPhone(phone: string): boolean {
   const digits = phone.replace(/\D/g, "");
   const normalized = digits.startsWith("84") ? `0${digits.slice(2)}` : digits;
-  return normalized.length === 10 && normalized.startsWith("0") && /[3-9]/.test(normalized[1]!);
+  return normalized.length === 10 && normalized.startsWith("0") && /[3-9]/.test(normalized[1]);
 }
 
 export interface CreatePriceAlertBody {

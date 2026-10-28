@@ -41,7 +41,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { ApiError } from "@/lib/auth/rbac";
 import { brandPrefix, genBookingCode } from "@/lib/format";
 import { CAMPAIGN_CODES, couponBadRequest, couponConflict } from "./campaign-codes";
-import { findCity } from "@/lib/services/trip-search";
+import { findCity } from "@/lib/city-match";
 import {
   childPolicyOf,
   classOf,
@@ -52,6 +52,7 @@ import {
 } from "./fares";
 import { chooseStops, snapshot, tripStops, type StopSnapshot } from "./trip-stops";
 import { departureInstant, localToday, refundPercent, rfc3339 } from "./trip-time";
+import { SELL_WINDOW_DAYS, ensureSeats } from "./trip-warmer";
 
 // ── Constants ────────────────────────────────────────────────────
 
@@ -63,8 +64,6 @@ export const ADVANCE_HOLD_SECS = 20 * 60;
 export const ADVANCE_TTL_FROM_DAYS = 3;
 /** How long a started payment keeps the seats. */
 export const PAYMENT_HOLD_SECS = 15 * 60;
-/** Days ahead (inclusive of today) a customer can book. */
-export const SELL_WINDOW_DAYS = 14;
 /** Holds released per sweep; a backlog is worked off over successive sweeps. */
 const SWEEP_MAX_PER_RUN = 200;
 /** D1 allows 100 bound parameters per statement; the sweep binds its id list several times. */
@@ -239,60 +238,6 @@ async function loadTripContext(db: Database, tripId: string) {
     .where(eq(tripSessions.id, tripId))
     .limit(1);
   return rows[0] ?? null;
-}
-
-/**
- * Seats exist once the trip was opened; a hold straight from a link creates
- * them here. Only a trip with no seats at all is filled (Rust
- * `trip_warmer::ensure_seats`); layout-less schedules sell by count and have
- * no seat rows.
- */
-async function ensureSeats(
-  db: Database,
-  tripId: string,
-  schedule: typeof schedules.$inferSelect,
-): Promise<void> {
-  if (!schedule.busLayoutId) return;
-  const seated = await db
-    .select({ id: seatInventory.id })
-    .from(seatInventory)
-    .where(eq(seatInventory.tripSessionId, tripId))
-    .limit(1);
-  if (seated.length > 0) return;
-  const layoutSeats = await db
-    .select({ id: seats.id, seatClass: seats.seatClass })
-    .from(seats)
-    .where(eq(seats.busLayoutId, schedule.busLayoutId));
-  if (layoutSeats.length === 0) return;
-  const rows = await db
-    .select()
-    .from(scheduleFares)
-    .where(eq(scheduleFares.scheduleId, schedule.id));
-  const table = fareTable(schedule, rows);
-  const now = nowIso();
-  // Multi-row INSERTs stay under D1's 100-parameter cap at 8 columns × 10 rows.
-  const stmts = chunk(layoutSeats, 10).map((part) =>
-    db
-      .insert(seatInventory)
-      .values(
-        part.map((s) => {
-          const price = fareOf(table, classOf(s)).adult;
-          return {
-            id: crypto.randomUUID(),
-            tripSessionId: tripId,
-            seatId: s.id,
-            status: "available",
-            basePrice: price,
-            finalPrice: price,
-            currency: "VND",
-            createdAt: now,
-            updatedAt: now,
-          };
-        }),
-      )
-      .onConflictDoNothing({ target: [seatInventory.tripSessionId, seatInventory.seatId] }),
-  );
-  await atomicBatch(stmts);
 }
 
 // ── Hold ─────────────────────────────────────────────────────────
@@ -915,114 +860,4 @@ export async function sweepExpiredHolds(): Promise<{ cancelled: number; seats: n
     }
   }
   return { cancelled, seats: freed };
-}
-
-// ── Trip warming ─────────────────────────────────────────────────
-
-/** Does a schedule with `daysOfWeek` operate on `date` (`YYYY-MM-DD`)? */
-export function runsOnDate(daysOfWeek: string | null, date: string): boolean {
-  const d = new Date(`${date}T00:00:00Z`);
-  const mondayFirst = (d.getUTCDay() + 6) % 7; // Mon=0 … Sun=6
-  const raw = daysOfWeek?.trim();
-  // Rust: a 7-character 0/1 mask, index 0 = Monday; anything else is daily.
-  if (raw && /^[01]{7}$/.test(raw)) return raw[mondayFirst] === "1";
-  // The port's earlier JSON array of 1..7 (Sunday = 1).
-  if (raw?.startsWith("[")) {
-    try {
-      const parsed = JSON.parse(raw) as unknown;
-      if (Array.isArray(parsed) && parsed.length > 0)
-        return parsed.map(Number).includes(d.getUTCDay() + 1);
-    } catch {
-      /* malformed → daily */
-    }
-  }
-  return true;
-}
-
-/** Cron: materialize trip_session + seat inventory for the 14-day sell window. */
-export async function warmTrips(): Promise<{ created: number; pruned: number }> {
-  const db = await getDb();
-  const today = localToday();
-  const horizon = new Date(Date.parse(`${today}T00:00:00Z`) + (SELL_WINDOW_DAYS - 1) * DAY_MS)
-    .toISOString()
-    .slice(0, 10);
-
-  // Candidate schedule×date combos missing a trip_session (recursive CTE —
-  // the documented raw-SQL exception, see client.ts SQL POLICY). The
-  // weekday mask is applied in TypeScript (`runsOnDate`).
-  const candidates = await rawAll<{
-    schedule_id: string;
-    date: string;
-    days_of_week: string | null;
-  }>(sql`
-      WITH RECURSIVE cnt(x) AS (
-        SELECT 0 UNION ALL SELECT x + 1 FROM cnt WHERE x < ${SELL_WINDOW_DAYS - 1}
-      )
-      SELECT s.id AS schedule_id, date(${today}, '+' || cnt.x || ' days') AS date,
-             s.days_of_week AS days_of_week
-      FROM schedule s
-      JOIN route r ON r.id = s.route_id
-      CROSS JOIN cnt
-      WHERE r.status = 'active'
-        AND date(${today}, '+' || cnt.x || ' days') BETWEEN ${today} AND ${horizon}
-        AND (s.effective_from IS NULL OR s.effective_from <= date(${today}, '+' || cnt.x || ' days'))
-        AND (s.effective_to IS NULL OR s.effective_to >= date(${today}, '+' || cnt.x || ' days'))
-        AND NOT EXISTS (
-          SELECT 1 FROM trip_session ts
-          WHERE ts.schedule_id = s.id AND ts.departure_date = date(${today}, '+' || cnt.x || ' days')
-        )
-      LIMIT 500
-    `);
-
-  let created = 0;
-  for (const c of candidates.filter((x) => runsOnDate(x.days_of_week, x.date)).slice(0, 200)) {
-    const seatCountRows = await db
-      .select({ n: sql<number>`COUNT(*)` })
-      .from(seats)
-      .innerJoin(schedules, eq(schedules.busLayoutId, seats.busLayoutId))
-      .where(eq(schedules.id, c.schedule_id));
-    const seatCount = Number(seatCountRows[0]?.n ?? 0);
-    const nowTs = nowIso();
-    await db
-      .insert(tripSessions)
-      .values({
-        id: crypto.randomUUID(),
-        scheduleId: c.schedule_id,
-        departureDate: c.date,
-        status: "scheduled",
-        totalSeats: seatCount,
-        availableSeats: seatCount,
-        createdAt: nowTs,
-        updatedAt: nowTs,
-      })
-      .onConflictDoNothing({ target: [tripSessions.scheduleId, tripSessions.departureDate] });
-    created++;
-    // Materialize inventory lazily on first hold (ensureSeats).
-  }
-
-  // Prune departed trips' unsold inventory.
-  const pruned = await db
-    .delete(seatInventory)
-    .where(
-      and(
-        eq(seatInventory.status, "available"),
-        inArray(
-          seatInventory.tripSessionId,
-          db
-            .select({ id: tripSessions.id })
-            .from(tripSessions)
-            .innerJoin(schedules, eq(schedules.id, tripSessions.scheduleId))
-            .where(
-              and(
-                sql`${tripSessions.departureDate} < ${today}`,
-                eq(tripSessions.status, "scheduled"),
-              ),
-            ),
-        ),
-      ),
-    )
-    .run()
-    .then((r) => r.meta.changes);
-
-  return { created, pruned };
 }

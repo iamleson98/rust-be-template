@@ -108,7 +108,7 @@ export function conversionDateTime(rfc3339: string): string {
     rfc3339,
   );
   if (!m) throw new Error(`bad created_at '${rfc3339}'`);
-  return `${m[1]} ${m[2]}${m[3]!.toUpperCase() === "Z" ? "+00:00" : m[3]}`;
+  return `${m[1]} ${m[2]}${m[3].toUpperCase() === "Z" ? "+00:00" : m[3]}`;
 }
 
 async function upload(cfg: AdsConfig, m: ConversionRow): Promise<void> {

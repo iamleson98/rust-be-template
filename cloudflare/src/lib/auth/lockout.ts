@@ -38,8 +38,8 @@ export function assertNotLocked(u: LockState): void {
   if (left > 0) {
     throw new ApiError(
       429,
-      "account-locked",
-      "Too many failed sign-in attempts — try again later or reset your password",
+      "too_many_requests",
+      "too many failed sign-in attempts, try again later or reset your password",
       left,
     );
   }

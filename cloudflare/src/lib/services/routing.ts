@@ -103,7 +103,12 @@ export async function matrix(costing: string, sources: LatLon[], targets: LatLon
     Array.isArray(row) ? (row as { time?: unknown; distance?: unknown }[]) : [],
   );
   return {
-    timesMin: cells.map((row) => row.map((c) => (num(c.time) === null ? null : num(c.time)! / 60))),
+    timesMin: cells.map((row) =>
+      row.map((c) => {
+        const seconds = num(c.time);
+        return seconds === null ? null : seconds / 60;
+      }),
+    ),
     distancesKm: cells.map((row) => row.map((c) => num(c.distance))),
   };
 }

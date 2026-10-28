@@ -212,7 +212,7 @@ async function channelDto(viewerId: string, channelId: string): Promise<ChatChan
     await db.select().from(chatChannels).where(eq(chatChannels.id, channelId)).limit(1)
   )[0];
   if (!channel) throw notFound("chat channel not found");
-  return (await toDtos(db, viewerId, [channel]))[0]!;
+  return (await toDtos(db, viewerId, [channel]))[0];
 }
 
 // ── Channels ────────────────────────────────────────────────────

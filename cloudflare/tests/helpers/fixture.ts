@@ -259,5 +259,6 @@ export async function sessionOf(userId: string): Promise<SessionUser> {
     avatarUrl: u.avatarUrl,
     brandId: u.brandId,
     locale: u.locale,
+    hasPassword: u.passwordHash !== null,
   };
 }
