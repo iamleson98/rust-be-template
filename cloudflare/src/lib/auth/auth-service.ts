@@ -26,9 +26,16 @@ const invalidCredentials = () => new ApiError(401, "unauthorized", "invalid cred
 
 // ── Lookups ─────────────────────────────────────────────────────────────
 
-async function userById(id: string): Promise<UserRow | undefined> {
+async function findUserById(id: string): Promise<UserRow | undefined> {
   const db = await getDb();
   return (await db.select().from(users).where(eq(users.id, id)).limit(1))[0];
+}
+
+/** Rust `get_user`: a missing row is a 404 store error. */
+async function userById(id: string): Promise<UserRow> {
+  const user = await findUserById(id);
+  if (!user) throw new ApiError(404, "store_error", `entity not found: user ${id}`);
+  return user;
 }
 
 /**
@@ -110,15 +117,16 @@ export function parseRegister(raw: unknown): RegisterInput {
   if (!contact) throw new ApiError(400, "validation_error", "Email or phone is required");
   if (email && !isEmail(email)) throw new ApiError(400, "validation_error", "invalid email");
   // Rust counts bytes here, which refuses a 22-letter Vietnamese name; characters are what the message says.
-  const nameLength = [...fullName!].length;
+  const name = fullName ?? "";
+  const nameLength = [...name].length;
   if (nameLength < 3 || nameLength > 64) {
     throw new ApiError(400, "validation_error", "username must be 3-64 characters");
   }
   return {
-    fullName: fullName!,
+    fullName: name,
     email: email ? email.toLowerCase() : "",
     phone: phone ? normalizePhone(phone) : null,
-    password: password!,
+    password: password ?? "",
     locale: body.locale === "en" ? "en" : "vi",
   };
 }
@@ -157,7 +165,7 @@ function isUniqueViolation(e: unknown): boolean {
  */
 export async function registerUser(input: RegisterInput): Promise<UserRow> {
   const db = await getDb();
-  const identity = input.email || input.phone!;
+  const identity = input.email || input.phone || "";
   if (input.email && (await emailTaken(input.email))) {
     throw new ApiError(409, "conflict", "email already registered");
   }
@@ -186,7 +194,7 @@ export async function registerUser(input: RegisterInput): Promise<UserRow> {
 
 /** Give a just-inserted account the grant of the role the INSERT chose; the first admin also brings the bot. */
 async function grantNewAccountRole(id: string): Promise<UserRow> {
-  const user = (await userById(id))!;
+  const user = await userById(id);
   if (user.role === "admin") await createBotAccount();
   await assignRole(id, user.role);
   return user;
@@ -244,7 +252,7 @@ export function parseLogin(raw: unknown): LoginInput {
   if (password === undefined) issues.add("password", "invalid");
   else issues.length("password", password, 1, 255);
   issues.throwIfAny();
-  return { email, phone, password: password! };
+  return { email, phone, password: password ?? "" };
 }
 
 /**
@@ -313,7 +321,7 @@ export function parsePasswordChange(raw: unknown): PasswordChange {
   if (next === undefined) issues.add("new password", "invalid");
   else issues.length("new password", next, 8, 128);
   issues.throwIfAny();
-  return { currentPassword: typeof current === "string" ? current : null, newPassword: next! };
+  return { currentPassword: typeof current === "string" ? current : null, newPassword: next ?? "" };
 }
 
 /**
@@ -324,7 +332,6 @@ export function parsePasswordChange(raw: unknown): PasswordChange {
  */
 export async function changePassword(userId: string, change: PasswordChange): Promise<UserRow> {
   const user = await userById(userId);
-  if (!user) throw new ApiError(404, "store_error", `entity not found: user ${userId}`);
   if (user.passwordHash) {
     const ok =
       change.currentPassword !== null &&
@@ -344,7 +351,7 @@ export async function changePassword(userId: string, change: PasswordChange): Pr
     })
     .where(eq(users.id, userId));
   await revokeAllSessions(userId);
-  return (await userById(userId))!;
+  return await userById(userId);
 }
 
 // ── OAuth ───────────────────────────────────────────────────────────────
@@ -397,7 +404,7 @@ export async function registerOauthUser(profile: OAuthProfile): Promise<UserRow>
       })
       .where(eq(users.id, byEmail.id));
     if (squatted) await revokeAllSessions(byEmail.id);
-    return (await userById(byEmail.id))!;
+    return await userById(byEmail.id);
   }
 
   const id = crypto.randomUUID();

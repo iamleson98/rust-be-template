@@ -1,7 +1,7 @@
 /**
  * API helpers — JSON envelope, error mapping, guards for route handlers.
  */
-import { errorResponse } from "./error-envelope";
+import { INTERNAL_MESSAGE, errorResponse } from "./error-envelope";
 import { ApiError } from "./auth/rbac";
 import { accessTokenOf, currentUser, type SessionUser } from "./auth/session";
 import { isStaff } from "./auth/rbac";
@@ -21,11 +21,21 @@ export function err(status: number, code: string, message: string, retryAfter?: 
   return errorResponse(status, code, message, { retryAfter });
 }
 
+/**
+ * What a client is told about a server-side fault. Like Rust's `public_message`,
+ * the detail (SQL, gateway bodies, paths) goes to the log, never to the caller.
+ */
+export const INTERNAL_ERROR_MESSAGE = INTERNAL_MESSAGE;
+
 /** Convert thrown values into the standard error envelope. */
 export function handleRouteError(e: unknown): Response {
-  if (e instanceof ApiError) return err(e.status, e.code, e.message, e.retryAfter);
+  if (e instanceof ApiError) {
+    if (e.status !== 500) return err(e.status, e.code, e.message, e.retryAfter);
+    console.error("[api]", e.code, e.message);
+    return err(500, "internal_error", INTERNAL_ERROR_MESSAGE);
+  }
   console.error("[api]", e);
-  return err(500, "internal_error", e instanceof Error ? e.message : "unknown error");
+  return err(500, "internal_error", INTERNAL_ERROR_MESSAGE);
 }
 
 /** Rust `AuthUser`: 401 "missing access token" / "invalid or expired token". */
