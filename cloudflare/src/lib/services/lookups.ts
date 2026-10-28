@@ -1,24 +1,24 @@
 /**
- * Cached store lookups — the port of the Rust app's cache-first reads
- * (moka → two-tier Workers cache, see `db/cache.ts`).
+ * Public catalog reads — brands, routes and the homepage counters — plus the
+ * cached review tags.
  *
- * Every lookup: retry the D1 read on transient errors (`db/retry.ts`),
- * serve from L1 memory → L2 KV → database, and refresh the tiers on the
- * way back. Admin write routes call the matching `invalidate*` helper so
- * changes surface on the next request instead of waiting out the TTL.
+ * The public lists are not cached here: `GET /api/brands`, `/api/routes`,
+ * `/api/stats` and `/api/recommendations` are served from the Workers Cache
+ * API in front of the app (`edge-guard.ts`, 60 s, bypassed for signed-in
+ * callers), which costs no D1 read and no KV operation and needs no
+ * invalidation from admin writes beyond that TTL — the staleness Rust
+ * allowed its browsers (`Cache-Control: public, max-age=60`).
  *
- * What is cached — and deliberately NOT cached:
- *   cached: reference data (brands, routes list, vehicle types, popular
- *           places, review tags, homepage counters)
- *   NEVER:  seat maps, availability, booking/payment/auth state — those
- *           are correctness-critical and always read D1 directly.
+ * NEVER cached: seat maps, availability, booking/payment/auth state.
  */
-import { getDb, rawAll } from "@/lib/db/client";
-import { asc, desc, eq, sql } from "drizzle-orm";
-import { brands, routes, vehicleTypes } from "@/lib/db/schema";
+import { getDb, inList, rawAll } from "@/lib/db/client";
+import { and, asc, count, desc, eq, gte, min, sql } from "drizzle-orm";
+import { brands, routes, schedules, tripSessions } from "@/lib/db/schema";
 import { countOf, groupedCounts } from "@/lib/db/counts";
 import { cacheFirst, cacheInvalidatePrefix } from "@/lib/db/cache";
 import { withRetry } from "@/lib/db/retry";
+import { findCity, nameForSlug } from "@/lib/city-match";
+import { localToday } from "./trip-time";
 
 // ── Brands ─────────────────────────────────────────────────────
 
@@ -31,150 +31,153 @@ export interface BrandListItem {
   routeCount: number;
 }
 
-/** `GET /api/brands` — active brands, rating-ordered.
- * (Two queries on purpose — the Rust `list_active` + `count_routes_by_brand_map`
- * pair; a correlated per-row count subquery is exactly the footgun that
- * silently returned 0 for every brand, see db/counts.ts.) */
+/**
+ * `GET /api/brands` — active brands, best rated first, each with its number
+ * of active routes. (Two queries on purpose — the Rust `list_active` +
+ * `count_routes_by_brand_map` pair; a correlated per-row count subquery is
+ * exactly the footgun that silently returned 0 for every brand, see
+ * db/counts.ts.) `limit` is clamped to 1..500.
+ */
 export async function listBrands(limit: number): Promise<BrandListItem[]> {
-  return cacheFirst(
-    `lookups:brands:${limit}`,
-    () =>
-      withRetry(async () => {
-        const db = await getDb();
-        const rows = await db
-          .select({
-            id: brands.id,
-            slug: brands.slug,
-            name: brands.name,
-            logoUrl: brands.logoUrl,
-            rating: brands.rating,
-          })
-          .from(brands)
-          .where(eq(brands.status, "active"))
-          .orderBy(desc(brands.rating), desc(brands.totalTrips), asc(brands.name))
-          .limit(limit);
-        const routeCounts = await groupedCounts(
-          routes,
-          routes.brandId,
-          rows.map((b) => b.id),
-          eq(routes.status, "active"),
-        );
-        return rows.map((b) => ({ ...b, routeCount: countOf(routeCounts, b.id) }));
-      }),
-    { ttlMs: 60_000 },
+  const db = await getDb();
+  const rows = await withRetry(() =>
+    db
+      .select({
+        id: brands.id,
+        slug: brands.slug,
+        name: brands.name,
+        logoUrl: brands.logoUrl,
+        rating: brands.rating,
+      })
+      .from(brands)
+      .where(eq(brands.status, "active"))
+      .orderBy(desc(brands.rating), desc(brands.totalTrips), asc(brands.name))
+      .limit(Math.min(Math.max(limit, 1), 500)),
   );
-}
-
-/** `GET /api/brands/{slug}` — brand detail. */
-export async function getBrandBySlug(slug: string): Promise<{
-  id: string;
-  slug: string;
-  name: string;
-  logoUrl: string | null;
-  description: string | null;
-  contactPhone: string | null;
-  contactEmail: string | null;
-  rating: number | null;
-} | null> {
-  return cacheFirst(
-    `lookups:brand:${slug}`,
-    () =>
-      withRetry(async () => {
-        const db = await getDb();
-        const row = (await db.select().from(brands).where(eq(brands.slug, slug)).limit(1))[0];
-        if (!row) return null;
-        return {
-          id: row.id,
-          slug: row.slug,
-          name: row.name,
-          logoUrl: row.logoUrl,
-          description: row.description,
-          contactPhone: row.contactPhone,
-          contactEmail: row.contactEmail,
-          rating: row.rating,
-        };
-      }),
-    { ttlMs: 60_000 },
+  const routeCounts = await groupedCounts(
+    routes,
+    routes.brandId,
+    rows.map((b) => b.id),
+    eq(routes.status, "active"),
   );
+  return rows.map((b) => ({ ...b, routeCount: countOf(routeCounts, b.id) }));
 }
 
-// ── Routes (default listing only — filtered/searched pages always hit D1) ──
-
-export interface RouteListItem {
-  id: string;
-  name: string;
-  status: string;
-  brandId: string | null;
-  brandSlug: string | null;
-  brandName: string | null;
-  brandLogoUrl: string | null;
-  brandRating: number | null;
-  startLocationId: string;
-  endLocationId: string;
-  scheduleCount: number;
-  priceFrom: number | null;
+/** `GET /api/brands/{slug}` — an active brand's detail; null when unknown or not active. */
+export async function getBrandBySlug(slug: string) {
+  const db = await getDb();
+  const row = (
+    await withRetry(() => db.select().from(brands).where(eq(brands.slug, slug)).limit(1))
+  )[0];
+  if (!row || row.status !== "active") return null;
+  return {
+    id: row.id,
+    slug: row.slug,
+    name: row.name,
+    logoUrl: row.logoUrl,
+    description: row.description,
+    contactPhone: row.contactPhone,
+    contactEmail: row.contactEmail,
+    rating: row.rating,
+  };
 }
 
-/** `GET /api/routes` default page (no brandId / no q filters). */
-export async function listRoutesDefault(limit: number, offset: number): Promise<RouteListItem[]> {
-  return cacheFirst(
-    `lookups:routes:${limit}:${offset}`,
-    () =>
-      withRetry(async () => {
-        const db = await getDb();
-        const rows = await db
-          .select({
-            id: routes.id,
-            name: routes.name,
-            status: routes.status,
-            brandId: routes.brandId,
-            brandSlug: brands.slug,
-            brandName: brands.name,
-            brandLogoUrl: brands.logoUrl,
-            brandRating: brands.rating,
-            startLocationId: routes.startLocationId,
-            endLocationId: routes.endLocationId,
-            scheduleCount: sql<number>`(SELECT COUNT(*) FROM schedule s WHERE s.route_id = ${routes.id})`,
-            priceFrom: sql<
-              number | null
-            >`(SELECT MIN(s.base_price_adult) FROM schedule s WHERE s.route_id = ${routes.id})`,
-          })
-          .from(routes)
-          .leftJoin(brands, eq(brands.id, routes.brandId))
-          .where(eq(routes.status, "active"))
-          .orderBy(desc(routes.createdAt))
-          .limit(limit)
-          .offset(offset);
-        return rows.map((r) => ({
-          ...r,
-          scheduleCount: Number(r.scheduleCount),
-          priceFrom: r.priceFrom == null ? null : Number(r.priceFrom),
-        }));
-      }),
-    { ttlMs: 30_000 },
+// ── Routes ─────────────────────────────────────────────────────
+
+/** A route's endpoints: its cities' names, or — when neither city is known — the name split at `→`. */
+function endpointNames(r: { name: string; startLocationId: string; endLocationId: string }) {
+  const from = nameForSlug(r.startLocationId);
+  const to = nameForSlug(r.endLocationId);
+  if (from !== r.startLocationId || to !== r.endLocationId) return { from, to };
+  const arrow = r.name.indexOf(" → ");
+  return arrow < 0
+    ? { from: r.name, to: "" }
+    : { from: r.name.slice(0, arrow), to: r.name.slice(arrow + " → ".length) };
+}
+
+/**
+ * `GET /api/routes` — active routes by name (of one brand when `brandId` is
+ * given), each with its brand preview, endpoints, schedule count and the
+ * lowest adult base price (the real "from" price; never fabricated).
+ * `limit` is clamped to 1..500 (Rust `PublicService::list_routes`).
+ */
+export async function listRoutes(brandId: string | undefined, limit: number) {
+  const db = await getDb();
+  const rows = await withRetry(() =>
+    db
+      .select()
+      .from(routes)
+      .where(and(eq(routes.status, "active"), brandId ? eq(routes.brandId, brandId) : undefined))
+      .orderBy(asc(routes.name))
+      .limit(Math.min(Math.max(limit, 1), 500)),
   );
+  const brandIds = [...new Set(rows.flatMap((r) => (r.brandId ? [r.brandId] : [])))];
+  const routeIds = rows.map((r) => r.id);
+  const [brandRows, scheduleStats] = await Promise.all([
+    db.select().from(brands).where(inList(brands.id, brandIds)),
+    db
+      .select({ routeId: schedules.routeId, n: count(), from: min(schedules.basePriceAdult) })
+      .from(schedules)
+      .where(inList(schedules.routeId, routeIds))
+      .groupBy(schedules.routeId),
+  ]);
+  const brandById = new Map(brandRows.map((b) => [b.id, b]));
+  const statsByRoute = new Map(scheduleStats.map((s) => [s.routeId, s]));
+  return rows.map((r) => {
+    const brand = r.brandId ? brandById.get(r.brandId) : undefined;
+    const names = endpointNames(r);
+    const from = findCity(r.startLocationId);
+    const to = findCity(r.endLocationId);
+    const stats = statsByRoute.get(r.id);
+    return {
+      id: r.id,
+      brandId: r.brandId ?? undefined,
+      name: r.name,
+      brand: {
+        name: brand?.name,
+        slug: brand?.slug,
+        logoUrl: brand?.logoUrl ?? undefined,
+        rating: brand?.rating ?? undefined,
+      },
+      from: { name: names.from, lat: from?.lat ?? 0, lon: from?.lon ?? 0 },
+      to: { name: names.to, lat: to?.lat ?? 0, lon: to?.lon ?? 0 },
+      scheduleCount: stats ? Number(stats.n) : 0,
+      priceFrom: stats?.from ?? undefined,
+    };
+  });
 }
 
-// ── Vehicle types (label catalog used by search + trip detail) ──
+// ── Homepage counters ───────────────────────────────────────────
 
-export interface VehicleTypeEntry {
-  code: string;
-  label: string;
+export interface HomeStats {
+  /** Active brands. */
+  brands: number;
+  /** Active routes. */
+  routes: number;
+  /** Scheduled trips departing today (Vietnam) or later. */
+  trips: number;
 }
 
-export async function vehicleTypeCatalog(): Promise<VehicleTypeEntry[]> {
-  return cacheFirst(
-    "lookups:vehicle-types",
-    () =>
-      withRetry(async () => {
-        const db = await getDb();
-        return db
-          .select({ code: vehicleTypes.code, label: vehicleTypes.label })
-          .from(vehicleTypes)
-          .orderBy(asc(vehicleTypes.sortOrder));
-      }),
-    { ttlMs: 300_000 },
+/** `GET /api/stats` — the public landing-page counters (Rust `PublicService::stats`). */
+export async function homeStats(): Promise<HomeStats> {
+  const db = await getDb();
+  const [[brandCount], [routeCount], [tripCount]] = await withRetry(() =>
+    Promise.all([
+      db.select({ n: count() }).from(brands).where(eq(brands.status, "active")),
+      db.select({ n: count() }).from(routes).where(eq(routes.status, "active")),
+      db
+        .select({ n: count() })
+        .from(tripSessions)
+        .where(
+          and(eq(tripSessions.status, "scheduled"), gte(tripSessions.departureDate, localToday())),
+        ),
+    ]),
   );
+  return {
+    brands: Number(brandCount?.n ?? 0),
+    routes: Number(routeCount?.n ?? 0),
+    trips: Number(tripCount?.n ?? 0),
+  };
 }
 
 // ── Review tags ─────────────────────────────────────────────────
@@ -199,70 +202,7 @@ export async function reviewTags(limit: number): Promise<string[]> {
   );
 }
 
-// ── Homepage counters ───────────────────────────────────────────
-
-export type HomeStats = Record<string, number>;
-
-/** `GET /api/stats` — public landing-page counters.
- * (Seven scalar-subquery counters in ONE round trip — deliberately a
- * single statement; seven separate builder queries would be slower.) */
-export async function homeStats(): Promise<HomeStats> {
-  return cacheFirst(
-    "lookups:stats",
-    () =>
-      withRetry(async () => {
-        const rows = await rawAll<{
-          brands: number;
-          routes: number;
-          trips: number;
-          bookings: number;
-          confirmed: number;
-          reviews: number;
-          users: number;
-        }>(sql`
-          SELECT
-            (SELECT COUNT(*) FROM brand WHERE status = 'active') AS brands,
-            (SELECT COUNT(*) FROM route WHERE status = 'active') AS routes,
-            (SELECT COUNT(*) FROM trip_session WHERE departure_date >= date('now')) AS trips,
-            (SELECT COUNT(*) FROM booking) AS bookings,
-            (SELECT COUNT(*) FROM booking WHERE status = 'confirmed') AS confirmed,
-            (SELECT COUNT(*) FROM review WHERE status = 'published') AS reviews,
-            (SELECT COUNT(*) FROM "user") AS users
-        `);
-        const agg = rows[0] ?? {
-          brands: 0,
-          routes: 0,
-          trips: 0,
-          bookings: 0,
-          confirmed: 0,
-          reviews: 0,
-          users: 0,
-        };
-        const stats: HomeStats = {};
-        for (const [k, v] of Object.entries(agg)) stats[k] = Number(v);
-        return stats;
-      }),
-    { ttlMs: 30_000 },
-  );
-}
-
 // ── Invalidation hooks (call from admin write routes) ───────────
 
-/** Brand writes (and brand-affecting route writes) — brands + stats. */
-export const invalidateBrands = () =>
-  cacheInvalidatePrefix("lookups:brands:", "lookups:brand:", "lookups:stats");
-
-/** Route / schedule writes — routes list + stats. */
-export const invalidateRoutes = () => cacheInvalidatePrefix("lookups:routes:", "lookups:stats");
-
-/** Vehicle-type catalog writes. */
-export const invalidateVehicleTypes = () => cacheInvalidatePrefix("lookups:vehicle-types");
-
-/** Place / FTS writes. */
-
-/** Review moderation — tags + stats. */
-export const invalidateReviews = () =>
-  cacheInvalidatePrefix("lookups:review-tags:", "lookups:stats");
-
-/** User / booking counters (stats). */
-export const invalidateStats = () => cacheInvalidatePrefix("lookups:stats");
+/** Review moderation — the cached review tags. */
+export const invalidateReviews = () => cacheInvalidatePrefix("lookups:review-tags:");

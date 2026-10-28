@@ -12,6 +12,7 @@
  * binding (tests, `next dev`) or no `CF-Connecting-IP` nothing is limited.
  */
 import { originAllowed } from "@/lib/realtime/ws-auth";
+import { carriesSession } from "@/lib/public-cache";
 
 export type LimitClass = "read" | "strict";
 
@@ -197,11 +198,22 @@ export function withSecurityHeaders(response: Response): Response {
 }
 
 /** Public, user-independent JSON reads served from the colo's Cache API. */
-const CACHEABLE_PATHS = new Set(["/api/brands", "/api/stats", "/api/routes", "/api/reviews/tags"]);
+const CACHEABLE_PATHS = new Set([
+  "/api/brands",
+  "/api/stats",
+  "/api/routes",
+  "/api/recommendations",
+  "/api/reviews/tags",
+]);
 export const PUBLIC_JSON_CACHE_CONTROL = "public, s-maxage=30, stale-while-revalidate=120";
 
 export function isCacheablePublicRead(request: Request): boolean {
-  return request.method === "GET" && CACHEABLE_PATHS.has(new URL(request.url).pathname);
+  return (
+    request.method === "GET" &&
+    CACHEABLE_PATHS.has(new URL(request.url).pathname) &&
+    // A signed-in caller always reads fresh: their own writes must show on the next fetch.
+    !carriesSession(request.headers)
+  );
 }
 
 /**

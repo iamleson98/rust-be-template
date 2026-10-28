@@ -19,7 +19,8 @@
 import { getDb } from "@/lib/db/client";
 import { jobRuns, scheduledJobs, coupons, seatInventory, tripSessions } from "@/lib/db/schema";
 import { and, desc, eq, inArray, isNotNull, isNull, lt, lte } from "drizzle-orm";
-import { sweepExpiredHolds, warmTrips } from "./booking";
+import { sweepExpiredHolds } from "./booking";
+import { warmTrips } from "./trip-warmer";
 
 export interface JobOutcome {
   jobType: string;

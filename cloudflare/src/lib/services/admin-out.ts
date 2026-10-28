@@ -16,7 +16,7 @@ import {
   vehicleTypes,
   brands,
 } from "@/lib/db/schema";
-import { findCity } from "@/lib/services/trip-search";
+import { findCity } from "@/lib/city-match";
 import { countOf, groupedCounts } from "@/lib/db/counts";
 import {
   deriveFromSeats,

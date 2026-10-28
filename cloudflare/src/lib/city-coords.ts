@@ -1,5 +1,3 @@
-import { VIETNAMESE_CITIES } from "@/lib/cities";
-
 /** Province-seat coordinates ported from the Rust `cities` table. */
 export const CITY_COORDS: Record<string, { lat: number; lon: number }> = {
   "ha-noi": { lat: 21.03, lon: 105.85 },
@@ -65,13 +63,3 @@ export const CITY_COORDS: Record<string, { lat: number; lon: number }> = {
   "bac-lieu": { lat: 9.27, lon: 105.73 },
   "ca-mau": { lat: 9.18, lon: 105.15 },
 };
-
-/** Find a city by slug with coordinates; `null` when unknown. */
-export function findCityWithCoords(
-  slug: string,
-): { name: string; lat: number; lon: number } | null {
-  const city = VIETNAMESE_CITIES.find((c) => c.id === slug);
-  const coords = CITY_COORDS[slug];
-  if (!city || !coords) return null;
-  return { name: city.name, ...coords };
-}
