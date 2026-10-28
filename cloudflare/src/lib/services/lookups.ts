@@ -177,28 +177,6 @@ export async function vehicleTypeCatalog(): Promise<VehicleTypeEntry[]> {
   );
 }
 
-// ── Review tags ─────────────────────────────────────────────────
-
-/** `GET /api/reviews/tags` — tags that appear on approved reviews.
- * (json_each lateral + DISTINCT LOWER — SQL semantics drizzle has no
- * builder for; kept as a parameterized template on purpose.) */
-export async function reviewTags(limit: number): Promise<string[]> {
-  return cacheFirst(
-    `lookups:review-tags:${limit}`,
-    () =>
-      withRetry(async () => {
-        const rows = await rawAll<{ tag: string }>(sql`
-          SELECT DISTINCT LOWER(TRIM(je.value)) AS tag
-          FROM review r, json_each(COALESCE(r.tags, '[]')) je
-          WHERE r.status = 'approved' AND TRIM(je.value) != ''
-          ORDER BY tag LIMIT ${limit}
-        `);
-        return rows.map((r) => r.tag);
-      }),
-    { ttlMs: 120_000 },
-  );
-}
-
 // ── Homepage counters ───────────────────────────────────────────
 
 export type HomeStats = Record<string, number>;
@@ -226,7 +204,7 @@ export async function homeStats(): Promise<HomeStats> {
             (SELECT COUNT(*) FROM trip_session WHERE departure_date >= date('now')) AS trips,
             (SELECT COUNT(*) FROM booking) AS bookings,
             (SELECT COUNT(*) FROM booking WHERE status = 'confirmed') AS confirmed,
-            (SELECT COUNT(*) FROM review WHERE status = 'published') AS reviews,
+            (SELECT COUNT(*) FROM review WHERE status = 'approved') AS reviews,
             (SELECT COUNT(*) FROM "user") AS users
         `);
         const agg = rows[0] ?? {

@@ -88,6 +88,16 @@ declare interface CloudflareEnv {
   OAUTH_FACEBOOK_CLIENT_SECRET?: string;
   OAUTH_APPLE_CLIENT_ID?: string;
 
+  // Google Ads server-side conversion upload (all of the first five, else record-only)
+  GOOGLE_ADS_DEVELOPER_TOKEN?: string;
+  GOOGLE_ADS_CUSTOMER_ID?: string;
+  GOOGLE_ADS_LOGIN_CUSTOMER_ID?: string;
+  GOOGLE_ADS_CLIENT_ID?: string;
+  GOOGLE_ADS_CLIENT_SECRET?: string;
+  GOOGLE_ADS_REFRESH_TOKEN?: string;
+  /** JSON: event name → conversion action resource name. */
+  GOOGLE_ADS_CONVERSION_ACTIONS?: string;
+
   // NullClaw AI chat assistant (optional)
   NULLCLAW_ENABLED?: string;
   NULLCLAW_PROVIDER?: string;

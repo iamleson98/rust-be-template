@@ -1,12 +1,14 @@
 import { handleRouteError } from "@/lib/api";
-import { reviewTags } from "@/lib/services/lookups";
+import { cacheFirst } from "@/lib/db/cache";
+import { approvedReviewTags } from "@/lib/services/reviews";
 
-/** `GET /api/reviews/tags` — the tags that appear on approved reviews. */
-export async function GET(req: Request) {
+/** `GET /api/reviews/tags` — every tag on an approved review. */
+export async function GET() {
   try {
-    const url = new URL(req.url);
-    const limit = Math.min(parseInt(url.searchParams.get("limit") ?? "12", 10) || 12, 50);
-    return Response.json({ items: await reviewTags(limit) });
+    const items = await cacheFirst("lookups:review-tags:all", approvedReviewTags, {
+      ttlMs: 120_000,
+    });
+    return Response.json({ items });
   } catch (e) {
     return handleRouteError(e);
   }

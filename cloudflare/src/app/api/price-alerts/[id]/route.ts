@@ -1,18 +1,13 @@
-import { getDb } from "@/lib/db/client";
-import { priceAlerts } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
-import { handleRouteError, requireUser, err } from "@/lib/api";
+import { handleRouteError, requireUser } from "@/lib/api";
+import { uuidParam } from "@/lib/services/http-errors";
+import { cancelPriceAlert } from "@/lib/services/price-alerts";
 
-/** `DELETE /api/price-alerts/{id}` — stop watching. */
-export async function DELETE(_req: Request, ctx: { params: Promise<{ id: string }> }) {
+/** `DELETE /api/price-alerts/{id}` — cancel (soft-delete) an alert; answers the cancelled alert. */
+export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }> }) {
   try {
-    await requireUser(_req);
-    const { id } = await ctx.params;
-    const db = await getDb();
-    const row = (await db.select().from(priceAlerts).where(eq(priceAlerts.id, id)).limit(1))[0];
-    if (!row) return err(404, "not-found", "Price alert not found");
-    await db.delete(priceAlerts).where(eq(priceAlerts.id, id));
-    return new Response(null, { status: 204 });
+    const user = await requireUser(req);
+    const id = uuidParam("id", (await ctx.params).id) as string;
+    return Response.json(await cancelPriceAlert(id, user.id));
   } catch (e) {
     return handleRouteError(e);
   }
