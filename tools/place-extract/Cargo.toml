@@ -1,7 +1,6 @@
-# Standalone on purpose: it reuses the backend's OSM reader / admin-hierarchy
-# code by path, but must NOT depend on the backend crate (that pulls in the
-# rust-sql submodule and the whole server). The weekly place-index CI job
-# builds only this crate.
+# Standalone crate: the weekly place-index CI job (.github/workflows/place-index.yml)
+# builds it to turn the Geofabrik Vietnam extract into the static place index
+# that cloudflare/ serves.
 [package]
 name = "place-extract"
 version = "0.1.0"
@@ -24,12 +23,6 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-
-# src/osm/mod.rs includes the backend's osm_reader.rs / spatial.rs / vn_text.rs
-# BY PATH. Those files use these crates, but cargo-machete only scans this
-# crate's own src/ tree and would report them unused.
-[package.metadata.cargo-machete]
-ignored = ["deunicode", "once_cell", "osmpbf", "regex"]
 
 [profile.release]
 opt-level = 3

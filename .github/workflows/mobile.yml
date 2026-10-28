@@ -1,0 +1,98 @@
+# ─── Mobile checks (mobile/ — Flutter support app) ────────────────────
+#
+# Format, analyze, test and a debug-APK smoke build. Runs only when mobile/
+# (or this file) changes; the backend is the Cloudflare app, see cloudflare.yml.
+
+name: Mobile
+
+on:
+  pull_request:
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/mobile.yml'
+  push:
+    branches: ['**']
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/mobile.yml'
+
+concurrency:
+  group: mobile-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  mobile:
+    name: Mobile (Flutter)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Java (Temurin 21)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.2
+          channel: stable
+          # Caches ~/.pub-cache keyed on pubspec.lock.
+          cache: true
+
+      - name: Format check (dart format)
+        # The formatter IS the style guide — no config drift possible.
+        # Normalize locally with: cd mobile && dart format .
+        run: dart format --output=none --set-exit-if-changed .
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      # The gate the mobile workflow actually blocks on: zero analyzer
+      # issues (infos included — lints keep the codebase honest).
+      - name: Analyze (zero issues)
+        run: flutter analyze --fatal-infos
+
+      - name: Test
+        run: flutter test
+
+      # Full Gradle/AGP/Kotlin build — catches Android-side regressions
+      # (plugin Gradle integration, manifest, res/raw resources) that
+      # analyze/test cannot see.
+      - name: Gradle cache
+        uses: actions/cache@v4
+        with:
+          # NOTE: cache `path` is relative to the repo root, NOT the job's
+          # `defaults.run.working-directory`.
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            mobile/android/.gradle
+          key: gradle-${{ runner.os }}-${{ hashFiles('mobile/android/**/*.gradle*', 'mobile/pubspec.lock') }}
+          restore-keys: gradle-${{ runner.os }}-
+
+      - name: Set up Android SDK
+        # v4, not v3: Google no longer serves the deprecated 'tools' package
+        # and v3 fails hard asking for it ("Failed to find package 'tools'").
+        # v4 installs cmdline-tools + platform-tools and accepts the SDK
+        # licenses itself.
+        uses: android-actions/setup-android@v4
+
+      - name: Install Android platform + build tools
+        # AGP 9 no longer auto-installs missing SDK pieces:
+        # - compileSdk = 37 resolves to hash 'android-37' = minor-0 platform,
+        #   served as platforms;android-37.0 (there is no plain android-37)
+        # - AGP 9.1's default build tools revision is 36.0.0
+        # (see AGP 9.1 release notes compatibility table)
+        run: sdkmanager "platforms;android-37.0" "build-tools;36.0.0" >/dev/null
+
+      - name: Build debug APK (smoke)
+        run: flutter build apk --debug

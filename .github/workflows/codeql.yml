@@ -1,26 +1,15 @@
 # ─── CodeQL: semantic security analysis ──────────────────────────────
 #
-# Complements the CI lint/format/test harness (ci.yml) with deep
-# semantic analysis of the Rust backend and the TypeScript frontend:
-# injection, path traversal, crypto misuse, SSRF, unsafe-adjacent
-# patterns, etc. Not a style gate — a vulnerability discovery gate.
+# Semantic security analysis of the TypeScript code (cloudflare/): injection,
+# path traversal, crypto misuse, SSRF, unsafe patterns. Not a style gate — a
+# vulnerability discovery gate.
 #
-# TRIGGERS ("verify once" — see docs/CI.md § Trigger):
-#   * pull_request (master, feat/cloudflare-migration) — the gate. Analyzes the MERGE REF, so the
-#     exact tree a merge would produce is what gets analyzed; results
-#     annotate the PR. New code cannot land unanalyzed.
-#   * merge_group — merge-queue-ready (no-op until a queue exists).
-#   * schedule (Mon 04:30 UTC) — refreshes the DEFAULT-BRANCH analysis
-#     on the Security tab (weekly baseline; scheduled workflows run on
-#     the default branch). This replaces the old push-on-master runs:
-#     a post-merge run would re-analyze a tree the PR run already
-#     analyzed. Caveat: GitHub auto-disables scheduled workflows after
-#     60 days with no repository activity — any push re-enables them;
-#     this repo merges PRs far more often than that.
-#
-# NOTE on `rust`: CodeQL traces a real `cargo build` — the submodule
-# must be checked out AND updated to upstream master, same as the
-# backend CI job, and libssl/pkg-config must be present.
+# TRIGGERS:
+#   * pull_request — analyzes the MERGE REF, so the exact tree a merge would
+#     produce is what gets analyzed; results annotate the PR.
+#   * schedule (Mon 04:30 UTC) — refreshes the default-branch analysis on the
+#     Security tab. GitHub auto-disables scheduled workflows after 60 days
+#     with no repository activity; any push re-enables them.
 
 name: CodeQL
 
@@ -52,33 +41,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: [rust, javascript-typescript]
+        language: [javascript-typescript]
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Pull latest rust-sql engine (master)
-        if: matrix.language == 'rust'
-        run: |
-          git submodule update --init --recursive
-          git submodule update --remote rust-sql
-          git -C rust-sql log --oneline -1
-
-      - name: Install Rust toolchain
-        if: matrix.language == 'rust'
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache cargo registry + target
-        if: matrix.language == 'rust'
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: cargo-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
-          restore-keys: cargo-${{ runner.os }}-
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
@@ -86,14 +51,6 @@ jobs:
           languages: ${{ matrix.language }}
           # Default suite = security + quality queries for the language.
           queries: security-extended
-
-      - name: Build (Rust compilation tracing)
-        # CodeQL for Rust has no autobuild — it instruments a real build.
-        if: matrix.language == 'rust'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y pkg-config libssl-dev
-          cargo build --workspace
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3

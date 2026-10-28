@@ -54,7 +54,7 @@ applied in two phases inside one transaction so swaps never trip
 
 ## Templates
 
-Generated in Rust (`service/seat_plan_presets.rs`) — one source of truth for the
+Generated in `cloudflare/src/lib/services/admin-out.ts` (`presetCatalog`) — one source of truth for the
 admin gallery and for the backfill. Cells are numbered front → rear, left → right
 (`01…` single deck, `A01…` lower / `B01…` upper).
 
