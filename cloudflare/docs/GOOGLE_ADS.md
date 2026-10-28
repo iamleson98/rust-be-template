@@ -39,8 +39,12 @@ In CI set them as repository secrets → build-time environment variables.
 - **Click-id capture** (`gclid`/`wbraid`/`gbraid`) on the first landing
   before the SPA router rewrites the URL, replayed into conversion events
   and mirrored to `POST /api/ads/conversions` via `navigator.sendBeacon`
-  (stored in `ad_conversion`; server-side upload to the Google Ads API
-  stays off until API credentials are configured).
+  (stored in `ad_conversion`). When the `GOOGLE_ADS_*` secrets
+  (`DEVELOPER_TOKEN`, `CUSTOMER_ID`, `CLIENT_ID`, `CLIENT_SECRET`, `REFRESH_TOKEN`,
+  `CONVERSION_ACTIONS` as a JSON map event → conversion action; optional
+  `LOGIN_CUSTOMER_ID`) are all set, a conversion that carries a click id is also
+  uploaded to the Google Ads API after the beacon is answered. Without them the row
+  is stored as `unconfigured`.
 
 ## ads.txt
 

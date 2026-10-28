@@ -228,7 +228,7 @@ All 121 OpenAPI contract paths from the Rust backend are implemented:
   reviews moderation, campaigns CRUD, coupons audit + payouts/settle/reject,
   chat stats, cron jobs (registry/runs/reschedule/cancel/trigger), system
   status/metrics/database/memory (Workers-flavoured equivalents), users + roles.
-- **Infra**: `/health`, `/ready`, `/sitemap.xml`, `/robots.txt` (static).
+- **Infra**: `/health`, `/ready`, `/sitemap.xml`, `/robots.txt` (generated, the Rust text).
 
 RBAC mirrors the Rust seed exactly (roles, permission catalogue, admin-only set),
 with a healing fallback that derives permissions from `users.role` when the
@@ -258,7 +258,7 @@ with a healing fallback that derives permissions from `users.role` when the
 
 - OAuth start/callback implementations (Google/Facebook/Apple) once credentials exist
 - NullClaw AI assistant (status + exchange audit endpoints are stubbed)
-- Valhalla routing proxy (`/api/routing/*`) — map features currently degrade gracefully
+- Valhalla server for `/api/routing/*` — the proxy is ported; set `VALHALLA_URL` to switch it on (until then it answers "not configured" and the map degrades gracefully)
 - Load-test + D1 read-replica evaluation at scale
 
 ## Database schema & migrations (drizzle-kit → wrangler D1)
