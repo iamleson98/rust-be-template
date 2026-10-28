@@ -2,6 +2,7 @@ import { getDb } from "@/lib/db/client";
 import { eq } from "drizzle-orm";
 import { reviews } from "@/lib/db/schema";
 import { handleRouteError, requireUser, readJson, err } from "@/lib/api";
+import { isAdmin, isStaff } from "@/lib/auth/rbac";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -63,9 +64,9 @@ export async function PATCH(req: Request, ctx: Params) {
     const existing = await findReview(id);
     if (!existing) return err(404, "not-found", "review not found");
     const isAuthor = existing.userId === user.id;
-    const isStaff = user.role === "admin" || user.role === "employee";
-    if (!isAuthor && !isStaff) return err(403, "forbidden", "Not your review");
-    if (existing.status === "published" && !isStaff) {
+    const staff = isStaff(user);
+    if (!isAuthor && !staff) return err(403, "forbidden", "Not your review");
+    if (existing.status === "published" && !staff) {
       return err(409, "conflict", "Published reviews can no longer be edited");
     }
     const rating = body.rating ?? Number(existing.rating);
@@ -99,8 +100,7 @@ export async function DELETE(req: Request, ctx: Params) {
     const existing = await findReview(id);
     if (!existing) return err(404, "not-found", "review not found");
     const isAuthor = existing.userId === user.id;
-    const isStaff = user.role === "admin";
-    if (!isAuthor && !isStaff) return err(403, "forbidden", "Not your review");
+    if (!isAuthor && !isAdmin(user)) return err(403, "forbidden", "Not your review");
     const db = await getDb();
     await db.delete(reviews).where(eq(reviews.id, id));
     return Response.json({ ok: true });

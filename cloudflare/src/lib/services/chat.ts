@@ -14,7 +14,7 @@ import {
 } from "@/lib/db/schema";
 import { and, desc, eq, gte, isNull, ne, or, sql, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
-import { ApiError } from "@/lib/auth/rbac";
+import { ApiError, isStaff } from "@/lib/auth/rbac";
 import type { SessionUser } from "@/lib/auth/session";
 
 export interface ChannelUserOut {
@@ -166,24 +166,24 @@ export function serializeChannel(r: ChannelJoinedRow, viewerId?: string): ChatCh
   };
 }
 
+/** What a staff member sees of the queue: open channels, brand-scoped like the Rust `list_channels`. */
+function staffQueueWhere(user: SessionUser) {
+  const open = ne(chatChannels.status, "closed");
+  return user.brandId != null // narrows both null and undefined
+    ? and(open, or(isNull(chatChannels.brandId), eq(chatChannels.brandId, user.brandId)))
+    : open;
+}
+
 /** Channels visible to caller: customers see own; staff see the queue (brand-scoped). */
 export async function listChannels(user: SessionUser): Promise<ChatChannelOut[]> {
   const db = await getDb();
-  const staff = user.role === "employee" || user.role === "admin";
-  const where = staff
-    ? user.brandId != null // narrows both null and undefined
-      ? and(
-          ne(chatChannels.status, "closed"),
-          or(isNull(chatChannels.brandId), eq(chatChannels.brandId, user.brandId)),
-        )
-      : ne(chatChannels.status, "closed")
-    : eq(chatChannels.userId, user.id);
+  const where = isStaff(user) ? staffQueueWhere(user) : eq(chatChannels.userId, user.id);
   const rows = await channelRows(db, where);
   return rows.map((r) => serializeChannel(r, user.id));
 }
 
-/** Channels with activity since `since`, with a monotonic sequence stamp. */
-export async function onlineChannels(): Promise<{
+/** Staff view of the channels with recent activity, with a monotonic sequence stamp. */
+export async function onlineChannels(user: SessionUser): Promise<{
   items: ChatChannelOut[];
   seq: number;
   userIds: string[];
@@ -191,11 +191,11 @@ export async function onlineChannels(): Promise<{
   const db = await getDb();
   const cutoff = new Date(Date.now() - 15 * 60_000).toISOString();
   const where = and(
-    ne(chatChannels.status, "closed"),
+    staffQueueWhere(user),
     gte(sql`COALESCE(${chatChannels.lastMessageAt}, ${chatChannels.createdAt})`, cutoff),
   );
   const rows = await channelRows(db, where);
-  const items = rows.map((r) => serializeChannel(r));
+  const items = rows.map((r) => serializeChannel(r, user.id));
   return {
     items,
     seq: Date.now(),
@@ -208,8 +208,7 @@ export async function getChannelOut(user: SessionUser, channelId: string): Promi
   const rows = await channelRows(db, eq(chatChannels.id, channelId));
   const row = rows[0];
   if (!row) throw new ApiError(404, "not-found", "Channel not found");
-  const staff = user.role === "employee" || user.role === "admin";
-  if (!staff && row.channel.userId !== user.id)
+  if (!isStaff(user) && row.channel.userId !== user.id)
     throw new ApiError(403, "forbidden", "Not your channel");
   return serializeChannel(row, user.id);
 }
@@ -220,7 +219,7 @@ async function assertChannelAccess(user: SessionUser, channelId: string) {
     await db.select().from(chatChannels).where(eq(chatChannels.id, channelId)).limit(1)
   )[0];
   if (!ch) throw new ApiError(404, "not-found", "Channel not found");
-  const staff = user.role === "employee" || user.role === "admin";
+  const staff = isStaff(user);
   if (!staff && ch.userId !== user.id) throw new ApiError(403, "forbidden", "Not your channel");
   return ch;
 }
@@ -250,7 +249,7 @@ export async function postMessage(
 ): Promise<typeof chatMessages.$inferSelect> {
   const ch = await assertChannelAccess(user, channelId);
   const db = await getDb();
-  const staff = user.role === "employee" || user.role === "admin";
+  const staff = isStaff(user);
   const senderType = staff ? "employee" : "user";
   const now = new Date().toISOString();
   const text = (body.content ?? "").trim();
@@ -332,7 +331,7 @@ export async function postMessage(
 export async function markRead(user: SessionUser, channelId: string) {
   await assertChannelAccess(user, channelId);
   const db = await getDb();
-  const staff = user.role === "employee" || user.role === "admin";
+  const staff = isStaff(user);
   await db
     .update(chatChannels)
     .set(staff ? { unreadEmployee: 0 } : { unreadUser: 0 })
@@ -387,7 +386,7 @@ export async function releaseChannel(user: SessionUser, channelId: string) {
 
 export async function closeChannel(user: SessionUser, channelId: string) {
   const ch = await assertChannelAccess(user, channelId);
-  const staff = user.role === "employee" || user.role === "admin";
+  const staff = isStaff(user);
   if (!staff && ch.status !== "open")
     throw new ApiError(403, "forbidden", "Only staff can close assigned channels");
   const db = await getDb();

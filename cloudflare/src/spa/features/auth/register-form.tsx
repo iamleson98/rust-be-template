@@ -1,6 +1,6 @@
 import { useSession } from "@spa/stores/session";
 import { useMemo, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useT } from "@spa/lib/i18n";
 import { Link, useNavigate } from "@tanstack/react-router";
@@ -44,10 +44,10 @@ export function RegisterForm() {
       confirm: "",
     },
   });
-  const { control, watch, handleSubmit } = form;
-  const password = watch("password");
-  const confirm = watch("confirm");
-  const email = watch("email");
+  const { control, handleSubmit } = form;
+  const password = useWatch({ control, name: "password" });
+  const confirm = useWatch({ control, name: "confirm" });
+  const email = useWatch({ control, name: "email" });
 
   const registerMut = useMutation({
     ...authRegisterMutation(),

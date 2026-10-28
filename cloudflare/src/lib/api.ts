@@ -22,12 +22,21 @@ export function err(status: number, code: string, message: string, retryAfter?: 
   );
 }
 
+/**
+ * What a client is told about a server-side fault. Like Rust's `public_message`,
+ * the detail (SQL, gateway bodies, paths) goes to the log, never to the caller.
+ */
+export const INTERNAL_ERROR_MESSAGE = "internal server error";
+
 /** Convert thrown values into the standard error envelope. */
 export function handleRouteError(e: unknown): Response {
-  if (e instanceof ApiError) return err(e.status, e.code, e.message, e.retryAfter);
-  const message = e instanceof Error ? e.message : "Internal error";
+  if (e instanceof ApiError) {
+    if (e.status !== 500) return err(e.status, e.code, e.message, e.retryAfter);
+    console.error("[api]", e.code, e.message);
+    return err(500, e.code, INTERNAL_ERROR_MESSAGE);
+  }
   console.error("[api]", e);
-  return err(500, "internal", message);
+  return err(500, "internal", INTERNAL_ERROR_MESSAGE);
 }
 
 export async function requireUser(req: Request): Promise<SessionUser> {

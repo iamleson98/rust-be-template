@@ -35,7 +35,7 @@
 import { adminSchedulesCreateMutation, adminSchedulesUpdateMutation } from "@spa/api";
 import { useMutation } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import {
@@ -66,6 +66,13 @@ import { ScheduleDaysField } from "./schedule-days-field";
 import { ScheduleAmenitiesField } from "./schedule-amenities-field";
 import { ScheduleFares } from "./schedule-fares";
 import { getErrorMessage } from "@spa/lib/error-message";
+
+const DAY_MS = 86_400_000;
+
+/** `YYYY-MM-DD` of today plus `days` (UTC), the default validity window of a new schedule. */
+function isoDayFromNow(days: number): string {
+  return new Date(Date.now() + days * DAY_MS).toISOString().slice(0, 10);
+}
 
 export function ScheduleFormDialog({
   open,
@@ -103,6 +110,16 @@ export function ScheduleFormDialog({
   const [createFor, setCreateFor] = useState<"start" | "end" | number | null>(null);
   const [addressDialogOpen, setAddressDialogOpen] = useState(false);
 
+  // Each opening of the dialog starts clean. Adjusting state while rendering (instead of in
+  // an effect) avoids a second render pass with the stale values.
+  const openKey = open ? (schedule?.id ?? "new") : null;
+  const [seenOpenKey, setSeenOpenKey] = useState(openKey);
+  if (openKey !== seenOpenKey) {
+    setSeenOpenKey(openKey);
+    setExtraAddresses([]);
+    setCreateFor(null);
+  }
+
   // Addresses the picker must always be able to resolve: the schedule's
   // existing points (edit mode — they embed the full address) plus ones
   // created during this dialog session.
@@ -120,8 +137,8 @@ export function ScheduleFormDialog({
     reValidateMode: "onChange",
     defaultValues: {
       departureTime: "08:00",
-      effectiveFrom: new Date().toISOString().slice(0, 10),
-      effectiveTo: new Date(Date.now() + 365 * 86400000).toISOString().slice(0, 10),
+      effectiveFrom: isoDayFromNow(0),
+      effectiveTo: isoDayFromNow(365),
       days: [true, true, true, true, true, true, true],
       vehicleTypeId: "",
       busLayoutId: "",
@@ -147,9 +164,8 @@ export function ScheduleFormDialog({
       const middles = points.filter((p) => p.kind === "middle");
       form.reset({
         departureTime: schedule?.departureTime ?? "08:00",
-        effectiveFrom: schedule?.effectiveFrom ?? new Date().toISOString().slice(0, 10),
-        effectiveTo:
-          schedule?.effectiveTo ?? new Date(Date.now() + 365 * 86400000).toISOString().slice(0, 10),
+        effectiveFrom: schedule?.effectiveFrom ?? isoDayFromNow(0),
+        effectiveTo: schedule?.effectiveTo ?? isoDayFromNow(365),
         days: [0, 1, 2, 3, 4, 5, 6].map((i) => ds[i] === "1"),
         vehicleTypeId: schedule?.vehicleTypeId ?? "",
         busLayoutId: schedule?.busLayoutId ?? "",
@@ -168,18 +184,16 @@ export function ScheduleFormDialog({
         endPointTime: endPoint?.arrivalTime ?? null,
         middlePoints: middles.map((p) => ({ id: p.addressId, time: p.arrivalTime ?? null })),
       });
-      setExtraAddresses([]);
-      setCreateFor(null);
     }
   }, [open, schedule, form]);
 
-  const days = form.watch("days");
-  const busLayoutId = form.watch("busLayoutId");
-  const effectiveFrom = form.watch("effectiveFrom");
-  const amenitiesValue = form.watch("amenities");
-  const startPointId = form.watch("startPointId");
-  const endPointId = form.watch("endPointId");
-  const middlePoints = form.watch("middlePoints");
+  const days = useWatch({ control: form.control, name: "days" });
+  const busLayoutId = useWatch({ control: form.control, name: "busLayoutId" });
+  const effectiveFrom = useWatch({ control: form.control, name: "effectiveFrom" });
+  const amenitiesValue = useWatch({ control: form.control, name: "amenities" });
+  const startPointId = useWatch({ control: form.control, name: "startPointId" });
+  const endPointId = useWatch({ control: form.control, name: "endPointId" });
+  const middlePoints = useWatch({ control: form.control, name: "middlePoints" });
 
   const toggleDay = (i: number) => {
     form.setValue(
