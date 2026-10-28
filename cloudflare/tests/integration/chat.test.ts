@@ -98,11 +98,13 @@ describe("opening a channel", () => {
     expect((await createChannel(customer, { brandId: f.brandId })).id).not.toBe(first.id);
   });
 
-  it("starts a new one once the old one is assigned or closed (Rust only reuses `open`)", async () => {
+  it("keeps returning the channel once staff took it, and starts a new one only after it is closed", async () => {
     const customer = await owner();
     const first = await createChannel(customer, {});
     const db = await getDb();
     await db.update(chatChannels).set({ status: "assigned" }).where(eq(chatChannels.id, first.id));
+    expect((await createChannel(customer, {})).id).toBe(first.id); // Rust would open a second one
+    await db.update(chatChannels).set({ status: "closed" }).where(eq(chatChannels.id, first.id));
     expect((await createChannel(customer, {})).id).not.toBe(first.id);
   });
 
@@ -229,6 +231,25 @@ describe("the channel list", () => {
     expect((await listChannels({ ...admin, brandId: f.brandId }, 50, 0)).map((c) => c.id)).toEqual([
       branded.id,
     ]);
+  });
+});
+
+describe("the queue order", () => {
+  it("puts a channel nobody wrote in yet by its creation time, not last", async () => {
+    const quiet = await createChannel(await owner(), {});
+    await new Promise((r) => setTimeout(r, 5));
+    const talkative = await createChannel(await owner(), {});
+    const staff = await sessionOf(await owner("employee"));
+    await postMessage(await sessionOf(talkative.userId), talkative.id, { content: "hi" });
+    const old = await createChannel(await owner(), {});
+    const db = await getDb();
+    await db
+      .update(chatChannels)
+      .set({ lastMessageAt: "2020-01-01T00:00:00.000Z" })
+      .where(eq(chatChannels.id, old.id));
+    const ids = (await listChannels(staff, 50, 0)).map((c) => c.id);
+    expect(ids.indexOf(quiet.id)).toBeLessThan(ids.indexOf(old.id));
+    expect(ids[0]).toBe(talkative.id);
   });
 });
 

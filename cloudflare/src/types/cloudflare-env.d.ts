@@ -99,6 +99,8 @@ declare interface CloudflareEnv {
   GOOGLE_ADS_CLIENT_ID?: string;
   GOOGLE_ADS_CLIENT_SECRET?: string;
   GOOGLE_ADS_REFRESH_TOKEN?: string;
+  /** Google Ads REST version, e.g. `v21` (default `v21`). */
+  GOOGLE_ADS_API_VERSION?: string;
   /** JSON: event name → conversion action resource name. */
   GOOGLE_ADS_CONVERSION_ACTIONS?: string;
 

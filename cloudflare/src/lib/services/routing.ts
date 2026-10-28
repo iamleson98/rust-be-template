@@ -14,6 +14,8 @@ const TIMEOUT_MS = 15_000;
 const NUMBER = /^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/;
 
 const internal = (message: string) => new ApiError(500, "internal", message);
+/** Improvement on Rust (500): a missing optional service is "unavailable", not a server fault. */
+const unavailable = (message: string) => new ApiError(503, "unavailable", message);
 
 /** Rust `parse_locs`: `lat,lon;lat,lon` (empty segments skipped, extra coordinates ignored). */
 export function parseLocations(raw: string): LatLon[] {
@@ -44,7 +46,7 @@ const point = ([lat, lon]: LatLon) => ({ lat, lon });
 
 async function callValhalla(endpoint: string, body: unknown): Promise<Record<string, unknown>> {
   const base = (await getEnv()).VALHALLA_URL;
-  if (!base) throw internal("Valhalla routing service not configured. Set VALHALLA_URL.");
+  if (!base) throw unavailable("Valhalla routing service not configured. Set VALHALLA_URL.");
   let res: Response;
   try {
     res = await fetch(`${base}${endpoint}`, {

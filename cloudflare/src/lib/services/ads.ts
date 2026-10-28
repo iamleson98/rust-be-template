@@ -16,8 +16,12 @@ import { badRequest } from "@/lib/services/http-errors";
 
 type ConversionRow = typeof adConversions.$inferSelect;
 
-/** Rust talks to API v17; kept as is (see the audit's questions). */
-const ADS_API = "https://googleads.googleapis.com/v17";
+/**
+ * Rust is pinned to v17, which Google has retired. The version is a setting
+ * (`GOOGLE_ADS_API_VERSION`); the default is a recent one that was not
+ * verified against Google's current sunset schedule.
+ */
+const DEFAULT_API_VERSION = "v21";
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
 
 export interface ReportConversionBody {
@@ -44,6 +48,7 @@ interface AdsConfig {
   clientSecret: string;
   refreshToken: string;
   conversionActions: Record<string, string>;
+  apiVersion: string;
 }
 
 /** Rust `GoogleAdsConfig::from_env` + `is_active`: null unless the whole credential group is set. */
@@ -64,6 +69,9 @@ export function adsConfig(env: CloudflareEnv): AdsConfig | null {
     clientSecret: get(env.GOOGLE_ADS_CLIENT_SECRET),
     refreshToken: get(env.GOOGLE_ADS_REFRESH_TOKEN),
     conversionActions,
+    apiVersion: /^v\d+$/.test(get(env.GOOGLE_ADS_API_VERSION))
+      ? get(env.GOOGLE_ADS_API_VERSION)
+      : DEFAULT_API_VERSION,
   };
   const active =
     cfg.developerToken && cfg.customerId && cfg.clientId && cfg.clientSecret && cfg.refreshToken;
@@ -115,29 +123,32 @@ async function upload(cfg: AdsConfig, m: ConversionRow): Promise<void> {
       : m.gbraid
         ? { gbraid: m.gbraid }
         : {};
-  const res = await fetch(`${ADS_API}/customers/${cfg.customerId}:uploadClickConversions`, {
-    method: "POST",
-    headers: {
-      authorization: `Bearer ${token}`,
-      "developer-token": cfg.developerToken,
-      "content-type": "application/json",
-      ...(cfg.loginCustomerId && { "login-customer-id": cfg.loginCustomerId }),
+  const res = await fetch(
+    `https://googleads.googleapis.com/${cfg.apiVersion}/customers/${cfg.customerId}:uploadClickConversions`,
+    {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${token}`,
+        "developer-token": cfg.developerToken,
+        "content-type": "application/json",
+        ...(cfg.loginCustomerId && { "login-customer-id": cfg.loginCustomerId }),
+      },
+      body: JSON.stringify({
+        conversions: [
+          {
+            conversionAction: action,
+            conversionDateTime: conversionDateTime(m.createdAt),
+            orderId: m.transactionId,
+            ...(m.conversionValue && { conversionValue: m.conversionValue }),
+            ...(m.currency && { currencyCode: m.currency }),
+            ...clickId,
+          },
+        ],
+        partialFailure: true,
+      }),
+      signal: AbortSignal.timeout(15_000),
     },
-    body: JSON.stringify({
-      conversions: [
-        {
-          conversionAction: action,
-          conversionDateTime: conversionDateTime(m.createdAt),
-          orderId: m.transactionId,
-          ...(m.conversionValue && { conversionValue: m.conversionValue }),
-          ...(m.currency && { currencyCode: m.currency }),
-          ...clickId,
-        },
-      ],
-      partialFailure: true,
-    }),
-    signal: AbortSignal.timeout(15_000),
-  });
+  );
   if (!res.ok) throw new Error(`upload rejected: ${(await res.text()).slice(0, 500)}`);
 }
 

@@ -9,6 +9,7 @@
 import { and, asc, count, desc, eq, inArray, like, or, sql, type SQL } from "drizzle-orm";
 import { getDb, type Database } from "@/lib/db/client";
 import { bookings, brands, reviews, routes, schedules, tripSessions } from "@/lib/db/schema";
+import { departureInstant, localToday } from "@/lib/services/trip-time";
 import { invalidateBrands, invalidateReviews } from "@/lib/services/lookups";
 import {
   badRequest,
@@ -22,7 +23,7 @@ import {
 type ReviewRow = typeof reviews.$inferSelect;
 
 export const REVIEW_STATUSES = ["pending", "approved", "rejected", "hidden"] as const;
-const MAX_CONTENT_BYTES = 5000;
+const MAX_CONTENT_CHARS = 5000;
 const MAX_PAGE = 200;
 
 // ── DTO ─────────────────────────────────────────────────────────
@@ -391,10 +392,8 @@ export function validateUpdateReview(b: UpdateReviewInput): void {
   validateReviewFields(b);
 }
 
-const utf8Length = (s: string): number => new TextEncoder().encode(s).length;
-
 function assertContentFits(content: string | null | undefined): void {
-  if (content != null && utf8Length(content) > MAX_CONTENT_BYTES)
+  if (content != null && [...content].length > MAX_CONTENT_CHARS)
     throw badRequest("content must be at most 5000 characters");
 }
 
@@ -427,9 +426,18 @@ export async function createReview(userId: string, input: CreateReviewInput): Pr
     )[0];
     if (!trip) throw notFound("the trip for this booking no longer exists");
 
-    // Rust compares the trip date with today's UTC date.
-    const today = new Date().toISOString().slice(0, 10);
-    const departed = (trip.departureDate.split("T")[0] ?? "") < today;
+    const schedule = (
+      await db.select().from(schedules).where(eq(schedules.id, trip.scheduleId)).limit(1)
+    )[0];
+    // Improvement on Rust (which compares the date with today's UTC date and so
+    // opens a morning bus 7 h late): the trip counts once its Vietnam departure
+    // instant has passed.
+    const leaves = schedule
+      ? departureInstant(trip.departureDate, schedule.departureTime, trip.actualDepartureAt)
+      : null;
+    const departed = leaves
+      ? leaves.getTime() <= Date.now()
+      : (trip.departureDate.split("T")[0] ?? "") < localToday();
     if (booking.status === "cancelled" || trip.status === "cancelled")
       throw badRequest("cancelled trips cannot be reviewed");
     if (!departed)
@@ -443,9 +451,6 @@ export async function createReview(userId: string, input: CreateReviewInput): Pr
     if (already.length > 0) throw conflict("you have already reviewed this booking");
 
     // The review rides the booking's chain: trip → schedule → route → brand.
-    const schedule = (
-      await db.select().from(schedules).where(eq(schedules.id, trip.scheduleId)).limit(1)
-    )[0];
     if (schedule) {
       routeId = schedule.routeId;
       const route = (
@@ -494,9 +499,14 @@ export async function updateReview(
   assertContentFits(input.content);
 
   const db = await getDb();
+  const edited = [input.rating, input.title, input.content, input.tags, input.photos].some(
+    (v) => v != null,
+  );
   await db
     .update(reviews)
     .set({
+      // Improvement on Rust: rewriting an approved review sends it back to moderation.
+      ...(edited && existing.status === "approved" && { status: "pending" }),
       ...(input.rating != null && { rating: input.rating }),
       ...(input.title != null && { title: input.title }),
       ...(input.content != null && { content: input.content }),

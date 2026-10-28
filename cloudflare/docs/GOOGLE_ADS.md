@@ -42,7 +42,7 @@ In CI set them as repository secrets → build-time environment variables.
   (stored in `ad_conversion`). When the `GOOGLE_ADS_*` secrets
   (`DEVELOPER_TOKEN`, `CUSTOMER_ID`, `CLIENT_ID`, `CLIENT_SECRET`, `REFRESH_TOKEN`,
   `CONVERSION_ACTIONS` as a JSON map event → conversion action; optional
-  `LOGIN_CUSTOMER_ID`) are all set, a conversion that carries a click id is also
+  `LOGIN_CUSTOMER_ID` and `API_VERSION`, default `v21`: check it against Google's sunset schedule) are all set, a conversion that carries a click id is also
   uploaded to the Google Ads API after the beacon is answered. Without them the row
   is stored as `unconfigured`.
 

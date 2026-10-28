@@ -6,6 +6,7 @@ import {
   approvedReviewTags,
   brandReviewSummary,
   createReview,
+  findReview,
   getPublicReview,
   listAdminReviews,
   listMyReviews,
@@ -106,9 +107,11 @@ describe("creating a review", () => {
     expect(() => validateCreateReview(body)).not.toThrow();
   });
 
-  it("caps content at 5000 bytes, not characters", async () => {
+  it("caps content at 5000 characters (Rust counted bytes, refusing ~1,700 Vietnamese characters)", async () => {
     const u = await owner();
-    const err = await rejection(createReview(u, { rating: 5, content: "ế".repeat(1700) }));
+    const long = await rejection(createReview(u, { rating: 5, content: "ế".repeat(5001) }));
+    await createReview(u, { rating: 5, content: "ế".repeat(5000) });
+    const err = long;
     expect(err).toEqual({ status: 400, message: "content must be at most 5000 characters" });
   });
 
@@ -152,6 +155,15 @@ describe("creating a review", () => {
         status: 400,
         message: "you can only review trips you have ridden — this trip hasn't departed yet",
       });
+    });
+
+    it("opens as soon as the Vietnam departure instant has passed, not the next UTC day", async () => {
+      const u = await owner();
+      const { bookingId } = await hold(f, u, 1);
+      await departIn(f, 1);
+      expect((await rejection(createReview(u, { ...body, bookingId }))).status).toBe(400);
+      await departIn(f, -1);
+      await createReview(u, { ...body, bookingId });
     });
 
     it("refuses a cancelled trip", async () => {
@@ -261,7 +273,7 @@ describe("the author's own reviews", () => {
     expect((await listMyReviews(mine, "approved", 20, 0)).total).toBe(1);
   });
 
-  it("update touches only what is sent and leaves the status alone; only the author may", async () => {
+  it("update touches only what is sent; only the author may; rewriting an approved review re-opens moderation", async () => {
     const mine = await owner();
     const id = await insert({ userId: mine, title: "old", content: "keep", tags: "a" });
     expect((await rejection(updateReview(id, await owner(), { rating: 3 }))).status).toBe(403);
@@ -272,8 +284,11 @@ describe("the author's own reviews", () => {
       title: "old",
       content: "keep",
       tags: "x,y",
-      status: "approved",
+      status: "pending",
     });
+    await moderateReview(id, { status: "rejected" });
+    await updateReview(id, mine, { title: "again" });
+    expect((await findReview(id))?.status).toBe("rejected"); // only approved reviews go back
     expect((await rejection(updateReview(crypto.randomUUID(), mine, {}))).status).toBe(404);
   });
 

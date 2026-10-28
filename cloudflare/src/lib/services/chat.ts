@@ -217,7 +217,8 @@ async function channelDto(viewerId: string, channelId: string): Promise<ChatChan
 
 // ── Channels ────────────────────────────────────────────────────
 
-const lastActivity = desc(chatChannels.lastMessageAt);
+/** Newest activity first. Improvement on Rust, which sorts channels nobody wrote in yet last: a new channel is one staff must see. */
+const lastActivity = desc(sql`COALESCE(${chatChannels.lastMessageAt}, ${chatChannels.createdAt})`);
 
 /**
  * Customers see their own channels; staff see the whole queue (open and
@@ -302,8 +303,9 @@ export interface CreateChannelBody {
 }
 
 /**
- * Rust `create_channel`: a customer has at most one OPEN channel per brand,
- * so asking again returns it. A new channel joins the customer, the bot and
+ * Rust `create_channel`: a customer has at most one live channel per brand,
+ * so asking again returns it (Rust only reuses `open` ones, so a customer
+ * whose chat staff already took would get a second channel). A new channel joins the customer, the bot and
  * the system admin, and is routed to the most available staff member at once.
  */
 export async function createChannel(
@@ -325,7 +327,7 @@ export async function createChannel(
   }
 
   const open = (await listChannelsOf(userId, 50)).find(
-    (c) => c.status === "open" && c.brandId === brandId,
+    (c) => c.status !== "closed" && c.brandId === brandId,
   );
   if (open) return channelDto(userId, open.id);
 
