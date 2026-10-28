@@ -184,9 +184,9 @@ Each is an independent audit-and-fix unit with its own Rust test file to port as
 1. Bookings and seat holds (**done, see 5.1**): `booking_service.rs` (1,555 lines), `seat_plan*.rs`, `fares.rs`, hold
    expiry, ticket lifecycle and phone-confirm flow.
 2. Payments (**done, see 5.1**): `payment_service.rs` (1,322), IPN verification and idempotency, COD, refunds.
-3. Trips and search: `trip_search.rs`, `trip_warmer.rs`, `trip_stops.rs`, `public_service.rs`
-   (1,558), recommendations, facets.
-4. Auth and users (**done, see 5.2**): `auth_service.rs`, RBAC, OAuth, guest accounts, notifications.
+3. Trips and search (**done, see 5.2**): `trip_search.rs`, `trip_warmer.rs`, `trip_stops.rs`,
+   `public_service.rs` (1,558), recommendations, facets.
+4. Auth and users (**done, see 5.3**): `auth_service.rs`, RBAC, OAuth, guest accounts, notifications.
 5. Chat, reviews, loyalty, price alerts, posts, ads, jobs/scheduler, route media pipeline
    (`route_media_service.rs`, 697 lines: thumbnails, content-addressed keys).
 
@@ -432,12 +432,214 @@ works). Not changed here: it is a port-wide decision.
 
 #### Follow-ups not done here
 
-- `trip-search.ts:506,687`: the weekday mask problem from item 12 (needs the search audit).
+- ~~`trip-search.ts:506,687`: the weekday mask problem from item 12~~ (done in 5.2: search no longer
+  filters existing trips by the schedule's rules, and the inline fill shares `runsOnDate`).
 - Tests for the `/ws`-style realtime side of tickets (support chat) are not part of this unit.
 - `src/routes/webhooks/*` chat-bot channels (zalo/messenger/telegram/discord) are unrelated to
   payments and still absent (section 1).
 
-### 5.2 Auth, users, RBAC, OAuth, notifications, push (audited and fixed)
+### 5.2 Trips, search, recommendations and the public catalog (audited and fixed)
+
+Scope: `src/service/{trip_search,trip_warmer,public_service}.rs` (and the `trip_stops.rs`,
+`trip_time.rs`, `fares.rs` parts audited in 5.1), `src/cities.rs` (matching),
+`src/store/{route,trip,address,brands}.rs` (the queries search runs), `src/routes/{public,places}.rs`,
+`src/middleware/public_cache.rs` (on `master`; the migration branch's `src/` predates it) and the Rust
+unit tests inside those files. Port side: `src/lib/services/{trip-search,trip-search-options,
+trip-results,trip-cards,trip-geo,trip-recommendations,trip-detail,trip-warmer,public-format,lookups}.ts`,
+`src/lib/{city-match,query,public-cache,edge-guard}.ts`, `src/app/api/{trips,search,recommendations,
+routes,brands,stats,places}/**`.
+
+**Method.** As in 5.1: every behaviour was read in the Rust source and in the port, then settled by a
+workerd test against the real migration chain (`tests/helpers/catalog.ts` is the fixture). Ported 1:1
+from Rust: the `cities.rs` matching tests, the `public_service.rs` helper tests (amenities, labels, ISO
+stamps, overnight arrival, `on_sale`), the `trip_warmer.rs` tests (VN day roll-over, sell window,
+weekday mask, effective window) and the `public_cache.rs` tests; new tests for what Rust implements but
+does not test (filters, facets, sort, paging, geo pairs, inline fill, detail, catalog routes). **Honest
+limit:** the Rust tests were not executed here (the `rust-sql` submodule is not checked out, so `cargo
+test` cannot build); Rust is the specification as read, not as run. Miniflare does not enforce D1's
+100-bound-parameter cap, so every id list that can exceed ~90 travels as one JSON parameter (`inList`).
+
+Status key as in 5.1. Line numbers: Rust on `master`/the migration branch's `src/`; "before" is
+`feat/cloudflare-migration` at 3c4a61c.
+
+#### Divergences users would have seen (all FIXED)
+
+1. **Coordinate search was a different feature.** The port found the nearest _city_ to each point
+   (default 150 km) and ran the city search; Rust matches the _stops_ of each trip (timetable stops with
+   their times, else the route's pickup points) within 50 km, picks the nearest pickup and a later
+   drop-off, returns them on the card (`pickup`/`dropoff` with distance and time), sorts nearest first by
+   default and applies `departAfter` to the time the bus reaches the pickup stop (`public_service.rs:627`,
+   `trip_search.rs:208`). Rewritten as `trip-geo.ts`.
+2. **Trips were only created by the six-hourly cron.** Rust fills the schedules a search finds missing,
+   inline, within a 2 s budget (`public_service.rs:480-549`, `trip_warmer.rs:80,585`). A new schedule, or a
+   day the cron had not reached, was invisible in search. Now `fillInline` (single flight per date,
+   budgeted, never fails a search) and the cron share `materializeMissing`.
+3. **Weekday mask (the open item from 5.1).** `json_array_length('1111100')` is 0, so the SQL filter let
+   every schedule through on every day. Rust does not filter existing trips by the schedule at all; it
+   uses the mask only when _creating_ trips (`trip_warmer.rs:145`). Now the same, through the shared
+   `runsOnDate`/`scheduleRunsOn` (the schedule column comment said "JSON array [1..7]"; fixed).
+4. **`GET /api/routes?brand_id=` was ignored.** The port read `brandId`; the SPA and OpenAPI send
+   `brand_id` (`routes/public.rs:60`), so every brand dialog listed all routes. It also listed inactive
+   routes of a brand, ordered by creation instead of name, gave a brand-less route `brand: null`, and
+   accepted `limit` up to 500 for brands (Rust: 200) and treated `0` as 20 (Rust: 1).
+5. **`GET /api/places/reverse` returned `{items}`**; the SDK (and `leaflet-map.tsx`) read an array, so the
+   map picker named every pin by its coordinates.
+6. **`GET /api/stats` published private counters** (`bookings`, `confirmed`, `reviews`, `users`) and
+   counted every trip from the UTC date. Rust: `{brands, routes, trips}`, trips = scheduled from today in
+   Vietnam (`public_service.rs:1298`).
+7. **`GET /api/brands/{slug}` served inactive brands** (`brand_detail` filters `status == "active"`,
+   `:320`).
+8. **Prices of a trip nobody opened.** The port took `MIN/MAX(schedule_fare.price_adult)`, which ignores
+   the base price (standard seats) and fares of classes no seat has. Rust prices every seat class of the
+   layout at the schedule's fares (`trip_search.rs:373-384`).
+9. **City names.** The port matched only exact names/aliases of its own list. Now Rust's rules
+   (`cities.rs:601`): normalised name, slug form or alias, plus containment for queries of 4+ characters
+   (`danangairport`, `ben xe my dinh ha noi`), and Rust's alias table (`Phú Quốc`, `Biên Hòa`, …).
+   Routes are also found by name (`LOWER(name) LIKE` both sides) with the direction check
+   (`runs_between`, `:52`), which the port lacked.
+10. **Trip detail** (`public_service.rs:779`): `pickupPoints` fell back to nothing (Rust: the timetable's
+    stops), no deck `plan`/`fixtures`/seat `kind`, seats of an unopened trip were not created, `capacity`
+    was omitted instead of `null`, the 404 said `Trip not found`, an id that is not a UUID was a 404.
+11. **Unreadable query values were silently defaulted** (`?limit=abc` → 20). Rust's typed `Query` answers
+    400 (`query.ts`); `date` must be a real calendar date; `hours`/`departAfter` errors carry Rust's text.
+12. **Facet order** used `localeCompare` (Rust: byte order), and an unknown amenity was labelled by its key
+    (Rust: empty, see Q5).
+13. **Cache headers.** None on search, trips, recommendations, places; `s-maxage=30` on four lists.
+    Rust: `public, max-age=60` for anonymous callers, `no-store` once a session cookie rides along
+    (`public_cache.rs`). The edge Cache API now bypasses signed-in callers too: an admin could otherwise
+    read a 30 s stale `/api/brands` right after their own edit.
+14. **Warmer details** (`trip_warmer.rs:193-407`): capacity falls back to the vehicle type's
+    `total_seats` for layout-less schedules and a schedule with no capacity is skipped (the port made a
+    trip with 0 seats); the layout seat count was one query per trip (now one `GROUP BY`; a layout shared
+    by many schedules is counted once, the bug master's #92 fixed in Rust); the prune looked at trips
+    before _today_ and only `scheduled` ones (Rust: before yesterday, any status) and was one unbounded
+    DELETE (now bounded statements, resumable over passes).
+
+#### Behaviour table — city search (`PublicService::search_trips`, `trip_search::results`)
+
+| Behaviour                                                                                                                                   | Rust                                | Status                                                              |
+| ------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- | ------------------------------------------------------------------- |
+| Query fields camelCase; `from`, `to`, `date` required; unreadable number/bool → 400                                                         | `dto/public.rs:538`                 | FIXED (`parseSearchOptions`)                                        |
+| Validation order: unreadable values, `hours`, `date`, `departAfter`, then empty `from`/`to`                                                 | `routes/public.rs:136`              | FIXED                                                               |
+| `limit` default 20 clamp 1..100; `offset` ≥ 0; `minSeats` default 1, floor 1; `priceMin/Max/minRating` ≤ 0 means unset                      | `trip_search.rs:151,98`             | OK / FIXED                                                          |
+| `sort`: `price`, `rating`, `departure`; `distance` only in coordinate search; default departure (city) / distance (geo)                     | `:56`                               | OK; `distance` in the city search was accepted, now ignored         |
+| `departAfter` `HH:MM`, ≤ 5 chars, 1-digit hour allowed, only the first 2 minute chars read                                                  | `:178,199`                          | FIXED (`minutesOf`)                                                 |
+| Routes: active, name path OR (both cities resolved AND endpoints in the sets), cap 1000, then `runs_between`                                | `route.rs:288`, `:52`               | FIXED                                                               |
+| Trips of those schedules on the date: `scheduled`, cap **500** before `minSeats`, no ordering                                               | `trip.rs:567`, `:42`                | FIXED (cap order mirrored; truncation is arbitrary in both, see Q8) |
+| Existing trips are not filtered by the schedule's window or weekday                                                                         | `:515-549`                          | FIXED                                                               |
+| Gap filling: date ≥ VN today, schedules that run that day with no scheduled trip, inline, 2 s budget, single flight, failure never fails    | `:480-549`, `trip_warmer.rs:585`    | FIXED (`fillInline`)                                                |
+| Brand status is not checked, route status is                                                                                                | `route.rs:288`                      | FIXED (the port hid inactive brands, see Q4)                        |
+| `on_sale`: `scheduled` and `departure_instant` (VN time, recorded departure wins) in the future; unreadable time stays on sale              | `:1336`                             | FIXED (string compare before)                                       |
+| `departAfter` against the boarding time (pickup stop time, past midnight when earlier than departure)                                       | `:208`                              | OK                                                                  |
+| Card: brand/vehicle type/layout/arrival from batched queries; `minPrice/maxPrice` from seats for sale else layout classes × fares else base | `:297-460`                          | FIXED                                                               |
+| Vehicle type labelled from the types the _results_ reference, not the whole catalog                                                         | `:147`                              | FIXED (`resolveVehicleType`)                                        |
+| `priceChild` = standard seat for the brand's child policy, 0 without                                                                        | `:1429`                             | OK                                                                  |
+| Facets over all matches: price range, brands, vehicle types, 4 hour bands, amenities, plenty of seats; count desc then label (bytes)        | `:467`                              | FIXED                                                               |
+| Filters: all must pass; `hours` any band; amenities all                                                                                     | `:235`                              | OK                                                                  |
+| Sort: key, then boarding time, then trip id (byte order)                                                                                    | `:529`                              | FIXED (`localeCompare` before)                                      |
+| Page: `{items,total,limit,offset,hasMore,facets}`; empty search keeps metadata and empty facets                                             | `dto/public.rs:249-285`             | OK                                                                  |
+| 400 texts: `missing departure location (from)`, `missing arrival location (to)`, `date must be YYYY-MM-DD`, `departAfter must be HH:MM`     | `:161,185`, `public_service.rs:562` | FIXED (field order)                                                 |
+
+#### Behaviour table — coordinate search (`search_trips_geo`)
+
+| Behaviour                                                                                                                              | Rust                               | Status                                      |
+| -------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- | ------------------------------------------- |
+| Required `fromLat/fromLon/toLat/toLon/date`; `maxDistanceKm` default **50**, clamp 1..200                                              | `routes/public.rs:236,278`, `:634` | FIXED (150, unclamped, nearest city before) |
+| Box around each place: `km/111·1.2` lat, `km/(111·cos lat)·1.2` lon (cos floored at 0.01), exact haversine (R 6371) afterwards         | `:84`, `place_service.rs:253`      | FIXED                                       |
+| Schedules with a timetable: stops inside either box, nearest pickup + **later** drop-off by total distance, distance rounded to 0.1 km | `:98,637-660`                      | FIXED                                       |
+| Schedules without a timetable: their route's pickup points (active routes, lat/lon set) in either box; no time on the stop             | `:662-724`                         | FIXED                                       |
+| A schedule with a timetable boards only at its own stops                                                                               | `:716`                             | FIXED                                       |
+| Active routes only; cap **1000** trips; same gap filling, filters, facets and paging as the city search                                | `:44,726-766`                      | FIXED                                       |
+| Default sort nearest first (pickup + drop-off km), then boarding time, then trip id                                                    | `trip_search.rs:550`               | FIXED                                       |
+
+#### Behaviour table — trips ahead, seats on demand (`trip_warmer.rs`)
+
+| Behaviour                                                                                                           | Rust          | Status                                                                                  |
+| ------------------------------------------------------------------------------------------------------------------- | ------------- | --------------------------------------------------------------------------------------- |
+| Sell window 14 days from the VN date; past dates never filled; VN day rolls at 17:00 UTC                            | `:68,116,193` | OK (`sellWindow`, `localToday`)                                                         |
+| `schedule_runs_on`: effective window then 7-char Monday-first mask; anything else is daily                          | `:145`        | FIXED (+ the port's old JSON-array form is still read, DELIBERATE: existing rows)       |
+| Capacity: layout seat count, else vehicle type `total_seats` (layout-less only), else skipped                       | `:282-295`    | FIXED                                                                                   |
+| Batched existence check and inserts; idempotent per (schedule, date) via the unique index                           | `:216-338`    | OK (9 rows per INSERT for D1's 100-parameter cap)                                       |
+| `ensure_seats` creates a trip's priced seat rows once, on first open or first hold; layout-less schedules have none | `:351`        | OK (hold, 5.1) / FIXED (detail now opens trips too)                                     |
+| Boot pass, 6-hourly tick, per-search `notify` to a background task, `TRIP_WARMER_BOOT`                              | `:612-700`    | DELIBERATE: cron tick every 6 h covers the window, the search fills its own date inline |
+| Prune unsold seats of trips that left before yesterday; sold and held stay; legacy backfill                         | `:439`        | FIXED (bounded statements per pass instead of Rust's slow date walk)                    |
+
+#### Behaviour table — detail, recommendations, brands, routes, stats, places
+
+| Behaviour                                                                                                                                              | Rust                                                | Status                                                                                                                   |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `GET /api/trips/{id}`: 404 `trip not found`/`schedule not found`/`route not found`; non-UUID → 400                                                     | `:779-803`                                          | FIXED                                                                                                                    |
+| Pickup points = route points else timetable stops; schedule points with addresses; arrival from the last timed stop                                    | `:846-897,1033`                                     | FIXED                                                                                                                    |
+| Seat map by deck → row; status `available` and fare price where no seat row; class fares cheapest first; child prices per seat                         | `:946-1014,1407`                                    | OK                                                                                                                       |
+| Saved floor plan trusted only while it matches the seats: deck `plan{name,rows,cols,fixtures}` and seat `kind`                                         | `:932-1014`                                         | FIXED                                                                                                                    |
+| `bookable` = `on_sale`; `busLayout.capacity` always present (`null`); `pricing.childFare` only with a policy                                           | `:1059`, `dto/public.rs:373`                        | FIXED                                                                                                                    |
+| `GET /api/recommendations`: scheduled, seats left, soonest first, 16 looked at, on-sale ones, first 4; cold database self-heals (7 days, 2 s)          | `:1115-1292`                                        | FIXED (body is `{items}` only; the port added `total`/`facets`)                                                          |
+| …on a cold database the home page was empty until the cron ran                                                                                         | `:1130-1158`                                        | FIXED                                                                                                                    |
+| `GET /api/brands`: active, best rated first, `routeCount` = active routes, `limit` default 20, ≤ 200 (floor 1)                                         | `:286`, `routes/public.rs:36`                       | FIXED                                                                                                                    |
+| `GET /api/brands/{slug}`: 404 `brand not found` unless active                                                                                          | `:320`                                              | FIXED                                                                                                                    |
+| `GET /api/routes`: `brand_id`, `limit` (50, 1..500); active only; by name; endpoints from city names, else the name split at `→`; count + lowest price | `:344`                                              | FIXED                                                                                                                    |
+| The port's extra `offset` and `q` on `/api/routes`                                                                                                     | —                                                   | FIXED: removed (nothing in the SPA or the OpenAPI sends them)                                                            |
+| `GET /api/stats`: `{brands, routes, trips}`                                                                                                            | `:1298`                                             | FIXED                                                                                                                    |
+| `GET /api/places`, `/search`, `/reverse`: limits 50/10/10, caps 200/50/50; `q` and `lat`/`lon` required; reverse is a bare array                       | `routes/places.rs`                                  | FIXED                                                                                                                    |
+| Place engine: Tantivy index → static shards; `engine` says `static-shards`; blank `q` lists popular places instead of nothing                          | `place_service.rs:120-200`                          | DELIBERATE (index ships with the deploy, 5.0); `/api/places` lists the shipped popular places, not the SQL `place` table |
+| Place responses `max-age` 300/3600 instead of 60                                                                                                       | `public_cache.rs` (handlers that set their own win) | DELIBERATE: the index changes weekly, with a deploy                                                                      |
+
+#### Caching: what is cached where
+
+| Read                                                      | Rust                                            | Port now                                                                                                                          |
+| --------------------------------------------------------- | ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Brand by id/slug/list (moka, 300 s, invalidated on write) | `store/brands.rs:208`, `server.rs:170`          | **Not cached in the app.** `/api/brands` is served from the Workers Cache API (60 s, per colo, free)                              |
+| Routes list, stats, search, trips, recommendations        | none in process                                 | Search/trips/detail: no server cache. `/api/routes`, `/api/stats`, `/api/brands`, `/api/recommendations`: Workers Cache API, 60 s |
+| Browser/shared HTTP cache                                 | `public, max-age=60`, `no-store` with a session | Same, `publicJson` on every route above; the edge cache never serves or stores a signed-in caller                                 |
+| Trip availability, seat maps                              | 60 s browser cache (hold re-validates)          | Same 60 s browser cache, never cached at the edge or in memory                                                                    |
+
+The old tier (per-isolate memory 30–60 s + KV 300 s) was removed for these reads: it served stale
+data for up to ~90 s after an admin edit (invalidation reaches one isolate and KV only), cost a KV
+`list`+`delete` per admin write, and sat behind the edge cache that already answers the hot paths.
+Staleness is now bounded by the 60 s edge TTL for anonymous visitors (what Rust allowed its
+browsers) and zero for signed-in staff. The admin write routes no longer call `invalidate*` for
+brands, routes and vehicle types (the review-tag cache keeps its own). No KV `list` or `delete` is issued
+anywhere in this domain.
+
+#### Questions (Rust itself looks wrong; the port keeps the safer behaviour meanwhile)
+
+- **Q1 Recommendations use the UTC date.** `recommendations()` asks for trips from
+  `Utc::now()` (`public_service.rs:1116`) while everything else uses the Vietnam date. Between
+  00:00 and 07:00 Vietnam time the first 16 candidates are yesterday's trips, which `on_sale` then
+  drops, so the carousel can be empty at night. The port uses the Vietnam date. Keep?
+- **Q2 Recommendation cards are simplified.** Rust hard-codes `vehicleType: "standard"`, leaves
+  `capacity` empty and prices unopened trips at the base fare (`:1246,1281,1363`), unlike search
+  cards for the same trip. The port builds the same card as search. Keep?
+- **Q3 Route endpoints carry `lat: 0, lon: 0`** in `GET /api/routes` (`:444-453`); the port sends the
+  real city coordinates (a superset). Keep?
+- **Q4 Deactivated brands and routes** (decided: better than Rust). Rust search checks the route's
+  status but not the brand's, so a deactivated brand stays searchable and bookable; recommendations
+  and stats also count inactive routes' trips. The port hides a deactivated brand's trips from search,
+  coordinate search and recommendations; inactive _routes_ stay out of search/geo as in Rust. Trips
+  are still created for them, so reactivating needs no wait.
+- **Q5 Unknown amenity keys** have an empty label in Rust (`amenity_label` → `""`, `:245`); the port
+  labels them by their key (decided: better than Rust).
+- **Q6 `brand_id` that is not a UUID** is a 500 in Rust (`parse_uuid` surfaced as an internal error);
+  the port answers 400.
+- **Q7 Unordered truncation.** The city search keeps the first 500 trips of a day and the coordinate
+  search 1000, with no `ORDER BY` (`trip.rs:567-598`), so on a day with more the cut is arbitrary.
+  Mirrored (an ordering would change which trips are lost, not that some are).
+- **Q8 `LOWER(name) LIKE` is ASCII-only in SQLite**, so a route is never found by an
+  upper-case-diacritic name (`Đà Nẵng` ≠ `đà nẵng`); only the city-slug path finds it. Mirrored.
+- **Q9 Opening a trip writes.** `GET /api/trips/{id}` creates the trip's seat rows
+  (`ensure_seats`, `:901`); mirrored (D1 writes ≈ 40 rows once per trip). Prefer to create them only at
+  the first hold?
+- **Q10 The default `daysOfWeek` of the port's admin schedule form is `"[]"`** (`api/admin/schedules`),
+  where Rust stores NULL; both mean daily, and `runsOnDate` reads both. Left for the admin audit.
+
+#### Follow-ups not done here
+
+- `GET /api/routes/{id}/pictures` and the media pipeline (5.5 in the plan).
+- The `/sitemap.xml` and SEO routes read trips/routes too; not part of this unit.
+- Production D1 should be checked for schedules with a JSON-array `days_of_week` (the port's old
+  form) once the admin audit settles the default; until then `runsOnDate` reads both.
+
+### 5.3 Auth, users, RBAC, OAuth, notifications, push (audited and fixed)
 
 Scope: `src/service/{auth_service,users_service,notification_service}.rs`,
 `src/routes/{auth,oauth,users,notifications,push_devices}.rs`, `src/auth/*` (jwt, jwt_validator, refresh,
@@ -647,7 +849,7 @@ CI), separate from the per-domain audits above.
 
 ### Open, deliberately not changed here
 
-- **Error envelope.** Settled in section 5.2: every error now has the Rust shape
+- **Error envelope.** Settled in section 5.3: every error now has the Rust shape
   `{ "error": "<kind>", "message": "<kind>: <text>" }`, built in one place (`lib/error-envelope.ts`).
 - **Other users of `window.console` patching** (`spa/lib/console-protection.ts`) and the
   `VeXeVN` banner text are carried over from the Rust frontend as is.

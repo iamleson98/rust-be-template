@@ -158,7 +158,7 @@ export const schedules = sqliteTable(
     departureTime: text("departure_time").notNull(), // "HH:MM"
     effectiveFrom: text("effective_from"),
     effectiveTo: text("effective_to"),
-    daysOfWeek: text("days_of_week"), // JSON array [1..7]
+    daysOfWeek: text("days_of_week"), // 7-char 0/1 mask, Monday first ("1111100"); empty = daily
     busLayoutId: text("bus_layout_id").references(() => busLayouts.id, { onDelete: "set null" }),
     basePriceAdult: integer("base_price_adult").notNull().default(0),
     basePriceChild: integer("base_price_child"),

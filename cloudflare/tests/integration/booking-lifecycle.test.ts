@@ -5,7 +5,6 @@ import { seatInventory, tripSessions, bookings } from "@/lib/db/schema";
 import {
   ADVANCE_HOLD_SECS,
   HOLD_SECS,
-  SELL_WINDOW_DAYS,
   cancelBooking,
   confirmAsSystem,
   createBooking,
@@ -15,6 +14,7 @@ import {
   placeCash,
   sweepExpiredHolds,
 } from "@/lib/services/booking";
+import { SELL_WINDOW_DAYS } from "@/lib/services/trip-warmer";
 import {
   ageHold,
   booking,

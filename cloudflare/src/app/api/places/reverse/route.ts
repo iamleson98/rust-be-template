@@ -1,15 +1,21 @@
+import { handleRouteError } from "@/lib/api";
+import { queryReader } from "@/lib/query";
 import { reverseGeocode } from "@/lib/services/place-search";
-import { handleRouteError, err } from "@/lib/api";
 
+/**
+ * `GET /api/places/reverse?lat=&lon=&limit=` — the nearest places, nearest
+ * first, as a bare array (the SDK's `PlacesReverseResponse`). `limit`
+ * defaults to 10, at most 50.
+ */
 export async function GET(req: Request) {
   try {
-    const url = new URL(req.url);
-    const lat = Number(url.searchParams.get("lat"));
-    const lon = Number(url.searchParams.get("lon"));
-    if (!Number.isFinite(lat) || !Number.isFinite(lon))
-      return err(400, "validation", "lat and lon are required");
-    const items = await reverseGeocode(lat, lon);
-    return Response.json({ items }, { headers: { "cache-control": "public, max-age=3600" } });
+    const q = queryReader(new URL(req.url).searchParams);
+    const lat = q.required.f64("lat");
+    const lon = q.required.f64("lon");
+    const limit = Math.min(Math.max(q.u64("limit") ?? 10, 1), 50);
+    return Response.json(await reverseGeocode(lat, lon, limit), {
+      headers: { "cache-control": "public, max-age=3600" },
+    });
   } catch (e) {
     return handleRouteError(e);
   }

@@ -256,6 +256,7 @@ describe("public JSON cache", () => {
     expect(isCacheablePublicRead(req("/api/stats"))).toBe(true);
     expect(isCacheablePublicRead(req("/api/routes?limit=5"))).toBe(true);
     expect(isCacheablePublicRead(req("/api/reviews/tags"))).toBe(true);
+    expect(isCacheablePublicRead(req("/api/recommendations"))).toBe(true);
     expect(isCacheablePublicRead(req("/api/brands", { method: "POST" }))).toBe(false);
     for (const p of [
       "/api/campaigns",
@@ -266,6 +267,14 @@ describe("public JSON cache", () => {
     ]) {
       expect(isCacheablePublicRead(req(p))).toBe(false);
     }
+  });
+
+  it("never serves or stores a read made with a session (their own writes must show)", () => {
+    const withCookie = (cookie: string) =>
+      new Request("https://datxevui.com/api/brands", { headers: { cookie } });
+    expect(isCacheablePublicRead(withCookie("access_token=abc"))).toBe(false);
+    expect(isCacheablePublicRead(withCookie("bus_lang=vi; refresh_token=abc"))).toBe(false);
+    expect(isCacheablePublicRead(withCookie("bus_lang=vi"))).toBe(true);
   });
 
   it("serves the second read from the cache and tags it with Cache-Control", async () => {
