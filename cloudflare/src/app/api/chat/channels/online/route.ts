@@ -1,13 +1,10 @@
-import { handleRouteError } from "@/lib/api";
+import { handleRouteError, requireUser } from "@/lib/api";
 import { onlineChannels } from "@/lib/services/chat";
 
-/**
- * `GET /api/chat/channels/online` — channels with recent activity plus the
- * customer ids behind them (the WS hub's snapshot equivalent).
- */
-export async function GET() {
+/** `GET /api/chat/channels/online` — staff only: the customers connected now and their open channels. */
+export async function GET(req: Request) {
   try {
-    return Response.json(await onlineChannels());
+    return Response.json(await onlineChannels(await requireUser(req)));
   } catch (e) {
     return handleRouteError(e);
   }

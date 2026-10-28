@@ -1,6 +1,7 @@
 import { rawAll } from "@/lib/db/client";
 import { sql } from "drizzle-orm";
 import { handleRouteError, requireStaff } from "@/lib/api";
+import { requirePermission } from "@/lib/auth/rbac";
 
 /**
  * `GET /api/admin/chat/stats` — support-channel counters (Rust
@@ -16,7 +17,7 @@ import { handleRouteError, requireStaff } from "@/lib/api";
  */
 export async function GET(req: Request) {
   try {
-    await requireStaff(req);
+    await requirePermission(await requireStaff(req), "admin:stats:read");
     const rows = await rawAll<{
       total_channels: number;
       open_count: number;
@@ -59,7 +60,7 @@ export async function GET(req: Request) {
       assignedCount: Number(r.assigned_count),
       closedCount: Number(r.closed_count),
       // AVG() is NULL when no channel has a staff reply yet — zero then.
-      avgResponseTimeSecs: Math.round(r.avg_response === null ? 0 : Number(r.avg_response)) || 0,
+      avgResponseTimeSecs: r.avg_response === null ? 0 : Number(r.avg_response),
     });
   } catch (e) {
     return handleRouteError(e);

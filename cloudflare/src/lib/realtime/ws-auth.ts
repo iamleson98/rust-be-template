@@ -21,6 +21,8 @@ export interface WsUser {
   id: string;
   fullName: string;
   role: string;
+  /** The operator a staff account belongs to; null = serves every brand. */
+  brandId: string | null;
   isStaff: boolean;
 }
 
@@ -93,10 +95,16 @@ export async function authenticateWs(request: Request, env: WsAuthEnv): Promise<
       return { ok: false, status: 401, reason: "not an access token" };
     }
     const row = await env.DB.prepare(
-      `SELECT id, full_name, role, status FROM "user" WHERE id = ? LIMIT 1`,
+      `SELECT id, full_name, role, status, brand_id FROM "user" WHERE id = ? LIMIT 1`,
     )
       .bind(payload.sub)
-      .first<{ id: string; full_name: string; role: string; status: string }>();
+      .first<{
+        id: string;
+        full_name: string;
+        role: string;
+        status: string;
+        brand_id: string | null;
+      }>();
     if (!row || row.status !== "active") {
       return { ok: false, status: 401, reason: "account not active" };
     }
@@ -107,6 +115,7 @@ export async function authenticateWs(request: Request, env: WsAuthEnv): Promise<
         id: row.id,
         fullName: row.full_name,
         role: row.role,
+        brandId: row.brand_id,
         isStaff: row.role === "employee" || row.role === "admin",
       },
     };
