@@ -16,7 +16,7 @@ export async function POST(req: Request) {
     ).catch(() => ({}) as { channelId?: string; brandId?: string; topic?: string });
     let channelId = body.channelId;
     if (!channelId) {
-      channelId = (await createChannel(user, { brandId: body.brandId, topic: body.topic })).id;
+      channelId = (await createChannel(user.id, { brandId: body.brandId, topic: body.topic })).id;
     }
     const cfg = await realtimeConfig();
     if (!cfg.enabled) {

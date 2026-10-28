@@ -30,7 +30,7 @@ export async function POST(req: Request) {
     if (body.topic != null && (typeof body.topic !== "string" || [...body.topic].length > 255))
       throw badRequest("topic has an invalid length");
     if (body.brandId != null) uuidParam("brandId", String(body.brandId));
-    return Response.json({ channel: await createChannel(user, body) }, { status: 200 });
+    return Response.json({ channel: await createChannel(user.id, body) }, { status: 200 });
   } catch (e) {
     return handleRouteError(e);
   }

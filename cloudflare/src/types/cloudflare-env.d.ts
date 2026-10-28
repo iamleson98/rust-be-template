@@ -102,6 +102,17 @@ declare interface CloudflareEnv {
   /** JSON: event name → conversion action resource name. */
   GOOGLE_ADS_CONVERSION_ACTIONS?: string;
 
+  /** Valhalla routing server base URL for /api/routing/* (absent → routing answers "not configured"). */
+  VALHALLA_URL?: string;
+
+  // Chat-bot platform webhooks (a missing secret rejects that platform's calls)
+  TELEGRAM_WEBHOOK_SECRET?: string;
+  MESSENGER_APP_SECRET?: string;
+  MESSENGER_VERIFY_TOKEN?: string;
+  ZALO_OA_SECRET?: string;
+  /** Hex Ed25519 public key of the Discord application. */
+  DISCORD_PUBLIC_KEY?: string;
+
   // NullClaw AI chat assistant (optional)
   NULLCLAW_ENABLED?: string;
   NULLCLAW_PROVIDER?: string;

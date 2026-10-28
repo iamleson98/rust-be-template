@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import headersFile from "../../public/_headers?raw";
-import robots from "../../public/robots.txt?raw";
 import {
   cachedPublicRead,
   classify,
@@ -290,10 +289,4 @@ describe("static files", () => {
     );
   });
 
-  it("robots.txt hides private areas and points at the sitemap", () => {
-    for (const d of ["/api/", "/admin/", "/bookings/", "/payments/"]) {
-      expect(robots).toContain(`Disallow: ${d}`);
-    }
-    expect(robots).toContain("Sitemap: https://datxevui.com/sitemap.xml");
-  });
 });

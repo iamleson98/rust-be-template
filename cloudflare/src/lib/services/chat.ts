@@ -206,13 +206,13 @@ export async function assertChannelAccess(
   return channel;
 }
 
-async function channelDto(user: SessionUser, channelId: string): Promise<ChatChannelOut> {
+async function channelDto(viewerId: string, channelId: string): Promise<ChatChannelOut> {
   const db = await getDb();
   const channel = (
     await db.select().from(chatChannels).where(eq(chatChannels.id, channelId)).limit(1)
   )[0];
   if (!channel) throw notFound("chat channel not found");
-  return (await toDtos(db, user.id, [channel]))[0]!;
+  return (await toDtos(db, viewerId, [channel]))[0]!;
 }
 
 // ── Channels ────────────────────────────────────────────────────
@@ -244,6 +244,17 @@ export async function listChannels(
     .limit(Math.min(limit, MAX_PAGE))
     .offset(offset);
   return toDtos(db, user.id, rows);
+}
+
+/** A user's own channels, most recently active first (Rust `ChatStore::list_channels`). */
+export async function listChannelsOf(userId: string, limit: number): Promise<ChannelRow[]> {
+  const db = await getDb();
+  return db
+    .select()
+    .from(chatChannels)
+    .where(eq(chatChannels.userId, userId))
+    .orderBy(lastActivity)
+    .limit(limit);
 }
 
 /** `GET /api/chat/channels/online`: the queue's channels whose customer has a socket open now. */
@@ -296,13 +307,13 @@ export interface CreateChannelBody {
  * the system admin, and is routed to the most available staff member at once.
  */
 export async function createChannel(
-  user: SessionUser,
+  userId: string,
   body: CreateChannelBody,
 ): Promise<ChatChannelOut> {
   const db = await getDb();
   const brandId = body.brandId ?? null;
   const exists = (
-    await db.select({ id: users.id }).from(users).where(eq(users.id, user.id)).limit(1)
+    await db.select({ id: users.id }).from(users).where(eq(users.id, userId)).limit(1)
   )[0];
   if (!exists)
     throw new ApiError(
@@ -317,19 +328,15 @@ export async function createChannel(
     if (!brand) throw badRequest(`brand not found: ${brandId}`);
   }
 
-  const recent = await db
-    .select()
-    .from(chatChannels)
-    .where(eq(chatChannels.userId, user.id))
-    .orderBy(lastActivity)
-    .limit(50);
-  const open = recent.find((c) => c.status === "open" && c.brandId === brandId);
-  if (open) return channelDto(user, open.id);
+  const open = (await listChannelsOf(userId, 50)).find(
+    (c) => c.status === "open" && c.brandId === brandId,
+  );
+  if (open) return channelDto(userId, open.id);
 
   const id = crypto.randomUUID();
   await db.insert(chatChannels).values({
     id,
-    userId: user.id,
+    userId,
     brandId,
     topic: body.topic ?? DEFAULT_TOPIC,
     status: "open",
@@ -338,15 +345,15 @@ export async function createChannel(
 
   const d1 = await getD1();
   const roster = await memberRoster(db);
-  await addMember(d1, id, user.id, "user");
+  await addMember(d1, id, userId, "user");
   if (roster.botId) await addMember(d1, id, roster.botId, "bot");
   if (roster.adminId) await addMember(d1, id, roster.adminId, "employee");
 
   // Creation-time assignment: the queue shows an owner before the customer types.
   const routed = await hubRoute(id);
   if (routed?.kind === "assigned") await addMember(d1, id, routed.employeeId, "employee");
-  await emitChatEvent({ type: "channel_created", channelId: id, userId: user.id }, "all");
-  return channelDto(user, id);
+  await emitChatEvent({ type: "channel_created", channelId: id, userId }, "all");
+  return channelDto(userId, id);
 }
 
 // ── Messages ────────────────────────────────────────────────────
@@ -473,7 +480,7 @@ export async function claimChannel(staff: SessionUser, channelId: string) {
     role: isAdmin(staff) ? "admin" : "employee",
     status,
   });
-  return { ok: true, channel: await channelDto(staff, channelId) };
+  return { ok: true, channel: await channelDto(staff.id, channelId) };
 }
 
 /** Rust `release_channel`: admins only; an employee stays on a channel until an admin moves them. */
@@ -483,7 +490,7 @@ export async function releaseChannel(requester: SessionUser, channelId: string) 
     throw forbidden("employees cannot leave an assigned channel — ask an admin to reassign it");
   await releaseAssignment(await getD1(), channelId);
   await announce(channelId, "open", { type: "channel_released", status: "open" });
-  return { ok: true, channel: await channelDto(requester, channelId) };
+  return { ok: true, channel: await channelDto(requester.id, channelId) };
 }
 
 /** Rust `close_channel_as_staff`: any staff member may close; the assignment ends with it. */
@@ -492,7 +499,7 @@ export async function closeChannel(requester: SessionUser, channelId: string) {
   await assertChannelAccess(requester, channelId);
   await closeChannelRow(await getD1(), channelId);
   await announce(channelId, "closed", { type: "channel_closed", status: "closed" });
-  return { ok: true, channel: await channelDto(requester, channelId) };
+  return { ok: true, channel: await channelDto(requester.id, channelId) };
 }
 
 // ── Admin counters ──────────────────────────────────────────────
