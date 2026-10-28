@@ -1,20 +1,13 @@
 import { handleRouteError } from "@/lib/api";
+import { publicJson } from "@/lib/public-cache";
+import { queryReader } from "@/lib/query";
 import { listBrands } from "@/lib/services/lookups";
 
-/**
- * `GET /api/brands` — active brands (slim `BrandOut`: id, slug, name,
- * logoUrl, rating, routeCount). Rust default limit 20, clamp 1..500.
- * Cache-first: see `services/lookups.ts`.
- */
+/** `GET /api/brands` — active brands with their route counts; `limit` defaults to 20, at most 200. */
 export async function GET(req: Request) {
   try {
-    const url = new URL(req.url);
-    const limit = Math.min(
-      Math.max(parseInt(url.searchParams.get("limit") ?? "20", 10) || 20, 1),
-      500,
-    );
-    const items = await listBrands(limit);
-    return Response.json({ items });
+    const limit = Math.min(queryReader(new URL(req.url).searchParams).u64("limit") ?? 20, 200);
+    return publicJson(req, { items: await listBrands(limit) });
   } catch (e) {
     return handleRouteError(e);
   }

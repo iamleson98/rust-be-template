@@ -1,6 +1,6 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { drizzle } from "drizzle-orm/d1";
-import { SQL, sql } from "drizzle-orm";
+import { SQL, sql, type SQLWrapper } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import * as schema from "./schema";
 
@@ -101,4 +101,13 @@ export async function atomicBatch<T = Record<string, unknown>>(
 export function sqlIn(values: Array<string | number>): SQL {
   if (values.length === 0) return sql`NULL`;
   return values.map((v) => sql`${v}`).reduce((a, b) => sql`${a}, ${b}`);
+}
+
+/**
+ * `column IN (…)` over any number of values. They travel as ONE bound JSON
+ * parameter, so D1's 100-parameter cap never limits the list (the batched
+ * "load these N rows" reads of a search can span hundreds of ids).
+ */
+export function inList(column: SQLWrapper, values: ReadonlyArray<string | number>): SQL {
+  return sql`${column} IN (SELECT value FROM json_each(${JSON.stringify(values)}))`;
 }

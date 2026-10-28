@@ -1,5 +1,4 @@
 import { getDb } from "@/lib/db/client";
-import { invalidateRoutes } from "@/lib/services/lookups";
 import { schedules, schedulePoints, scheduleFares } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { handleRouteError, requireStaff, readJson, err } from "@/lib/api";
@@ -69,7 +68,6 @@ export async function POST(req: Request) {
     if (body.classFares) {
       await writeFares(db, id, body.classFares);
     }
-    await invalidateRoutes();
     return Response.json({ id }, { status: 201 });
   } catch (e) {
     return handleRouteError(e);

@@ -1,5 +1,4 @@
 import { getDb } from "@/lib/db/client";
-import { invalidateVehicleTypes } from "@/lib/services/lookups";
 import { vehicleTypes } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { handleRouteError, requireStaff, readJson, err } from "@/lib/api";
@@ -38,7 +37,6 @@ export async function PUT(req: Request, ctx: Params) {
         updatedAt: new Date().toISOString(),
       })
       .where(eq(vehicleTypes.id, id));
-    await invalidateVehicleTypes();
     return Response.json({ id });
   } catch (e) {
     return handleRouteError(e);
@@ -61,7 +59,6 @@ export async function DELETE(req: Request, ctx: Params) {
     )[0];
     if (!existing) return err(404, "not-found", "vehicle type not found");
     await db.delete(vehicleTypes).where(eq(vehicleTypes.id, id));
-    await invalidateVehicleTypes();
     return Response.json({ id });
   } catch (e) {
     return handleRouteError(e);
