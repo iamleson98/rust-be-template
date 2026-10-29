@@ -5,7 +5,6 @@
  * carries what the document head needs (see `app/route-meta.tsx`).
  */
 import {
-  createBrowserHistory,
   createRootRoute,
   createRoute,
   createRouter,
@@ -22,6 +21,7 @@ import { RootLayout } from "@spa/app/root-layout";
 import { bookingsDetail, getPayment } from "@spa/api";
 import { paymentReturnTarget } from "@spa/features/booking/payment-return";
 import { parseSearch, SEARCH_DEFAULTS, toQuery, type SearchInput } from "@spa/lib/search-params";
+import { createAppHistory } from "./history";
 import { requireAdmin, requireAuth, requireStaff } from "./guards";
 import { loginSearch } from "./login-redirect";
 
@@ -312,7 +312,7 @@ export function createAppRouter(history?: RouterHistory) {
 }
 
 export const router = createAppRouter(
-  typeof window !== "undefined" ? createBrowserHistory() : undefined,
+  typeof window !== "undefined" ? createAppHistory() : undefined,
 );
 
 declare module "@tanstack/react-router" {

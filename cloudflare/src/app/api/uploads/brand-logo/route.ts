@@ -1,15 +1,14 @@
 import { limitWrite } from "@/lib/rate-limit";
 import { getR2 } from "@/lib/db/client";
 import { handleRouteError, requireStaff, err } from "@/lib/api";
-import { requirePermission } from "@/lib/auth/rbac";
+import { ApiError, requirePermission } from "@/lib/auth/rbac";
+import { getEnv } from "@/lib/db/client";
+import { decode, toWebp, unavailable } from "@/lib/services/image-encode";
 
-const MAX_BYTES = 2 * 1024 * 1024; // 2 MiB logos
-const ALLOWED: Record<string, string> = {
-  "image/jpeg": "jpg",
-  "image/png": "png",
-  "image/webp": "webp",
-  "image/svg+xml": "svg",
-};
+const MAX_BYTES = 5 * 1024 * 1024; // 5 MiB in; a stored logo is a few KiB
+/** Long edge of a stored logo: sharp at 2x on the largest place a logo is shown. */
+const LOGO_LONG_EDGE = 512;
+const LOGO_QUALITY = 85;
 
 /** Magic-byte sniffing (jpg/png/webp; svg allowed as text+xml). */
 function sniff(bytes: Uint8Array, declared: string): string | null {
@@ -39,10 +38,20 @@ function sniff(bytes: Uint8Array, declared: string): string | null {
   return null;
 }
 
+const hex16 = async (bytes: Uint8Array): Promise<string> =>
+  Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes as BufferSource)), (b) =>
+    b.toString(16).padStart(2, "0"),
+  )
+    .join("")
+    .slice(0, 16);
+
 /**
  * POST /api/uploads/brand-logo — admin multipart upload → R2.
- * Content-addressed key: brands/logos/{sha256-16}.{ext}; immutable cache.
- * Returns the public /api/media/... URL to store on the brand row.
+ * A raster logo is re-encoded to WebP (scaled to 512 px, EXIF dropped) before
+ * it is stored; an SVG is kept as it is. Without the Images binding a raster
+ * upload is refused rather than stored uncompressed.
+ * Content-addressed key: brands/logos/{sha256-16 of the stored bytes}.{webp|svg};
+ * immutable cache. Returns the public /api/media/... URL to store on the brand row.
  */
 export async function POST(req: Request) {
   try {
@@ -52,20 +61,30 @@ export async function POST(req: Request) {
     const form = await req.formData();
     const file = form.get("file");
     if (!(file instanceof File)) return err(400, "validation", "file field required");
-    if (file.size > MAX_BYTES) return err(413, "too-large", "Logo must be ≤ 2 MiB");
+    if (file.size > MAX_BYTES) return err(413, "too-large", "Logo must be ≤ 5 MiB");
     const buf = new Uint8Array(await file.arrayBuffer());
     const mime = sniff(buf, file.type);
     if (!mime) return err(415, "unsupported", "Only jpg/png/webp/svg allowed");
-    const digest = await crypto.subtle.digest("SHA-256", buf as BufferSource);
-    const hash = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0"))
-      .join("")
-      .slice(0, 16);
-    const ext = ALLOWED[mime];
-    const key = `brands/logos/${hash}.${ext}`;
+
+    let stored: Uint8Array = buf;
+    if (mime !== "image/svg+xml") {
+      const images = (await getEnv()).IMAGES;
+      if (!images) throw unavailable();
+      await decode(images, buf);
+      try {
+        stored = (await toWebp(images, buf, LOGO_LONG_EDGE, LOGO_QUALITY)).bytes;
+      } catch (e) {
+        if (e instanceof ApiError) throw e;
+        console.warn("brand-logo encode failed", e);
+        throw unavailable();
+      }
+    }
+    const storedMime = mime === "image/svg+xml" ? mime : "image/webp";
+    const key = `brands/logos/${await hex16(stored)}.${storedMime === "image/webp" ? "webp" : "svg"}`;
     const bucket = await getR2();
-    await bucket.put(key, buf as BufferSource, {
+    await bucket.put(key, stored as BufferSource, {
       httpMetadata: {
-        contentType: mime,
+        contentType: storedMime,
         cacheControl: "public, max-age=31536000, immutable",
       },
     });

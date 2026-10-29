@@ -288,6 +288,8 @@ function TripView({ detail }: { detail: TripDetail }) {
                   pickupPoints={mapStops}
                   fromName={detail.from.name ?? ""}
                   toName={detail.to.name ?? ""}
+                  fromCityId={detail.from.cityId}
+                  toCityId={detail.to.cityId}
                 />
                 <StopTimeline
                   title={t("tripDetail.routeTimelineTitle")}

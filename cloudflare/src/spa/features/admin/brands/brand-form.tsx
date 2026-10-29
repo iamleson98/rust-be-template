@@ -36,6 +36,7 @@ import type { AdminBrandOut, UpsertBrandRequest } from "@spa/api";
 import { slugify } from "@spa/lib/text";
 import { getErrorMessage } from "@spa/lib/error-message";
 import { BrandAddressList } from "@spa/features/admin/addresses/brand-address-list";
+import { BrandLogoField, useBrandLogo } from "./brand-logo-field";
 
 const makeBrandSchema = (t: ReturnType<typeof useT>) =>
   z.object({
@@ -102,7 +103,9 @@ export function BrandFormDialog({
   const isEdit = !!brandId;
   const createMutation = useMutation(adminBrandsCreateMutation());
   const updateMutation = useMutation(adminBrandsUpdateMutation());
-  const saving = createMutation.isPending || updateMutation.isPending;
+  const logo = useBrandLogo(brand?.logoUrl, open);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const saving = createMutation.isPending || updateMutation.isPending || uploadingLogo;
   const brandSchema = useMemo(() => makeBrandSchema(t), [t]);
 
   const form = useForm<BrandFormValues>({
@@ -152,6 +155,14 @@ export function BrandFormDialog({
 
   const onSubmit = async (values: BrandFormValues) => {
     try {
+      // The logo goes up first: a failed upload leaves the brand as it was.
+      setUploadingLogo(true);
+      let logoUrl: string | null | undefined;
+      try {
+        logoUrl = await logo.commit();
+      } finally {
+        setUploadingLogo(false);
+      }
       const body: UpsertBrandRequest = {
         name: values.name.trim(),
         slug: values.slug.trim(),
@@ -165,6 +176,8 @@ export function BrandFormDialog({
               discountAmount: values.childFare.discountAmount,
             }
           : null,
+        // Absent keeps the saved logo; `null` removes it.
+        ...(logoUrl !== undefined && { logoUrl }),
       };
       if (brandId) {
         await updateMutation.mutateAsync({ path: { id: brandId }, body });
@@ -200,6 +213,8 @@ export function BrandFormDialog({
             className="grid gap-x-6 gap-y-4 md:grid-cols-2"
           >
             <div className="grid content-start gap-3">
+              <BrandLogoField logo={logo} name={nameValue} disabled={saving} />
+
               <FormField
                 control={form.control}
                 name="name"

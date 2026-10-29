@@ -24,6 +24,7 @@ import { getDb, getEnv, getR2 } from "@/lib/db/client";
 import { routePictures, routes } from "@/lib/db/schema";
 import { ApiError } from "@/lib/auth/rbac";
 import { badRequest, notFound } from "@/lib/services/http-errors";
+import { decode, toWebp, unavailable, type Encoded } from "@/lib/services/image-encode";
 
 type PictureRow = typeof routePictures.$inferSelect;
 
@@ -149,44 +150,6 @@ export async function listPictures(routeId: string) {
 
 const hex = (buf: ArrayBuffer): string =>
   Array.from(new Uint8Array(buf), (b) => b.toString(16).padStart(2, "0")).join("");
-
-interface Encoded {
-  bytes: Uint8Array;
-  width: number;
-  height: number;
-}
-
-const unavailable = () =>
-  new ApiError(503, "unavailable", "image processing is not available; try again later");
-
-/** The Images binding's verdict on `data`: dimensions of a decodable raster, else a 400. */
-async function decode(images: ImagesBinding, data: Uint8Array) {
-  const stream = new Blob([data as BlobPart]).stream();
-  let info;
-  try {
-    info = await images.info(stream);
-  } catch (e) {
-    throw badRequest(`image failed to decode (corrupt or unsupported): ${String(e)}`);
-  }
-  if (!("width" in info))
-    throw badRequest("image failed to decode (corrupt or unsupported): not a raster image");
-  return { width: info.width, height: info.height };
-}
-
-/** `data` scaled down to fit `longEdge` px (never enlarged) and re-encoded as WebP. */
-async function toWebp(
-  images: ImagesBinding,
-  data: Uint8Array,
-  longEdge: number,
-  quality: number,
-): Promise<Encoded> {
-  const out = await images
-    .input(new Blob([data as BlobPart]).stream())
-    .transform({ width: longEdge, height: longEdge, fit: "scale-down" })
-    .output({ format: "image/webp", quality });
-  const bytes = new Uint8Array(await out.response().arrayBuffer());
-  return { bytes, ...(await decode(images, bytes)) };
-}
 
 export interface UploadResult {
   ok: true;

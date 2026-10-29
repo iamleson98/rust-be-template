@@ -505,6 +505,10 @@ export type AdminSchedulePointOut = {
      * Optional `HH:MM` — when the vehicle reaches this stop.
      */
     arrivalTime?: string | null;
+    /**
+     * Slug of the city the stop is in; absent on stops older than the field.
+     */
+    cityId?: string | null;
     id: string;
     /**
      * `pickup` (first) / `middle` / `drop` (last).
@@ -3423,6 +3427,10 @@ export type TripDetail = {
 };
 
 export type TripEndpoint = {
+    /**
+     * City slug (e.g. `"ha-noi"`) — what a stop's `cityId` is compared with.
+     */
+    cityId?: string | null;
     lat: number;
     lon: number;
     name?: string | null;
@@ -3549,6 +3557,10 @@ export type TripSchedulePoint = {
      * Optional `HH:MM` — when the vehicle reaches this stop.
      */
     arrivalTime?: string | null;
+    /**
+     * Slug of the city the stop is in; absent on stops older than the field.
+     */
+    cityId?: string | null;
     id: string;
     /**
      * `pickup` (first) / `middle` / `drop` (last) — derived from the

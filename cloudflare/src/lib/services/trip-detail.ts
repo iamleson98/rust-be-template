@@ -114,6 +114,7 @@ export async function tripDetail(tripId: string) {
         address: addresses.address,
         lat: addresses.lat,
         lon: addresses.lon,
+        cityId: addresses.cityId,
       })
       .from(schedulePoints)
       .innerJoin(addresses, eq(addresses.id, schedulePoints.addressId))
@@ -241,8 +242,8 @@ export async function tripDetail(tripId: string) {
       logoUrl: brand?.logoUrl ?? undefined,
       rating: brand?.rating ?? undefined,
     },
-    from: { name: from?.name, lat: from?.lat ?? 0, lon: from?.lon ?? 0 },
-    to: { name: to?.name, lat: to?.lat ?? 0, lon: to?.lon ?? 0 },
+    from: { cityId: from?.slug, name: from?.name, lat: from?.lat ?? 0, lon: from?.lon ?? 0 },
+    to: { cityId: to?.slug, name: to?.name, lat: to?.lat ?? 0, lon: to?.lon ?? 0 },
     busLayout: {
       id: schedule.busLayoutId ?? undefined,
       name: layout?.name ?? undefined,
@@ -280,6 +281,7 @@ export async function tripDetail(tripId: string) {
               arrivalTime: p.arrivalTime ?? undefined,
               name: p.name,
               address: p.address ?? undefined,
+              cityId: p.cityId ?? undefined,
               lat: p.lat,
               lon: p.lon,
             },
