@@ -52,7 +52,7 @@ function ComboboxValue({
   // component. We wrap it in a span so it can be laid out inside the
   // trigger button.
   return (
-    <span className="flex flex-1 text-left">
+    <span className="min-w-0 flex-1 truncate text-left">
       <ComboboxPrimitive.Value data-slot="combobox-value" placeholder={placeholder}>
         {children}
       </ComboboxPrimitive.Value>

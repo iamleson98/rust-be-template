@@ -4545,6 +4545,10 @@ export type AdminBusLayoutsListData = {
     query?: {
         brandId?: string;
         /**
+         * With `brandId`: the shared catalog (no brand) too.
+         */
+        includeShared?: boolean;
+        /**
          * Page size (clamped to `[1, 200]` by the service). `None` = all
          * rows (legacy consumers).
          */
