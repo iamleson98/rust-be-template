@@ -52,12 +52,8 @@ const makeBrandSchema = (t: ReturnType<typeof useT>) =>
       .max(80, t("adminBrands.slugMax"))
       .regex(/^[a-z0-9-]+$/, t("adminBrands.slugRegex")),
     description: optionalText(5000),
-    contactPhone: z
-      .string()
-      .trim()
-      .optional()
-      .or(z.literal(""))
-      .refine((v) => !v || /^0\d{8,10}$/.test(v), t("validation.phone")),
+    // Any hotline as the brand writes it: short numbers (1900 6067) are common.
+    contactPhone: z.string().trim().optional(),
     contactEmail: z
       .string()
       .trim()
