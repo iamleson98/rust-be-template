@@ -166,9 +166,21 @@ export const TripCard = memo(function TripCard({
         <div className="min-w-0 sm:p-5">
           {/* Operator */}
           <div className="flex items-center gap-2.5">
-            <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary text-xs font-bold text-primary-foreground">
-              {initials(trip.brandName)}
-            </span>
+            {trip.brandLogo ? (
+              <span className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-xl bg-slate-100 ring-1 ring-black/5">
+                <img
+                  src={trip.brandLogo}
+                  alt=""
+                  loading="lazy"
+                  decoding="async"
+                  className="h-full w-full object-contain"
+                />
+              </span>
+            ) : (
+              <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary text-xs font-bold text-primary-foreground">
+                {initials(trip.brandName)}
+              </span>
+            )}
             <div className="min-w-0 flex-1">
               <Link
                 to="/brands/$slug"
