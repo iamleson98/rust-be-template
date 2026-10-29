@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { VIETNAMESE_CITIES } from "@/lib/cities";
-import { findCity, matchCitySlugs, nameForSlug, normalizeForMatch } from "@/lib/city-match";
+import {
+  cityForProvince,
+  findCity,
+  matchCitySlugs,
+  nameForSlug,
+  normalizeForMatch,
+} from "@/lib/city-match";
 
 /** Port of the `src/cities.rs` unit tests. */
 
@@ -88,5 +94,28 @@ describe("matchCitySlugs", () => {
     expect(normalizeForMatch("TP. Hồ Chí Minh")).toBe("tphochiminh");
     expect(normalizeForMatch("Đà Nẵng")).toBe("danang");
     expect(normalizeForMatch("Sài Gòn")).toBe("saigon");
+  });
+});
+
+describe("cityForProvince", () => {
+  it("maps the place search's province names onto one of our cities", () => {
+    expect(cityForProvince("Hà Nội")).toBe("ha-noi");
+    expect(cityForProvince("TP. Hồ Chí Minh")).toBe("ho-chi-minh");
+    expect(cityForProvince("Thành phố Hồ Chí Minh")).toBe("ho-chi-minh");
+    expect(cityForProvince("Thành phố Huế")).toBe("hue");
+    expect(cityForProvince("Tỉnh Lâm Đồng")).toBe("lam-dong");
+    expect(cityForProvince("Bà Rịa - Vũng Tàu")).toBe("ba-ria-vung-tau");
+    expect(cityForProvince("Hưng Yên")).toBe("hung-yen");
+  });
+
+  it("is none for an unknown, empty or ambiguous name", () => {
+    expect(cityForProvince("Atlantis")).toBeNull();
+    expect(cityForProvince("")).toBeNull();
+    expect(cityForProvince(null)).toBeNull();
+    expect(cityForProvince("Giang")).toBeNull(); // Hà Giang, Bắc Giang, Kiên Giang, …
+  });
+
+  it("knows every city by its own name", () => {
+    for (const c of VIETNAMESE_CITIES) expect(cityForProvince(c.name)).toBe(c.id);
   });
 });

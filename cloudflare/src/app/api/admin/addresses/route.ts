@@ -4,11 +4,13 @@ import { and, asc, eq, like, or, sql, type SQL } from "drizzle-orm";
 import { handleRouteError, requireStaff, readJson, err } from "@/lib/api";
 import { requirePermission } from "@/lib/auth/rbac";
 import { adminAddressOut } from "@/lib/services/admin-out";
+import { findCity } from "@/lib/city-match";
 
 /**
  * `GET /api/admin/addresses?brandId=&q=&limit=&offset=` — a brand's
- * addresses; `q`/`limit`/`offset` feed the searchable, infinite-scroll
- * schedule point picker; omitting `limit` returns all.
+ * addresses, each with how many schedule stops use it (`stopCount`);
+ * `q`/`limit`/`offset` feed the searchable, infinite-scroll schedule point
+ * picker; omitting `limit` returns all.
  */
 export async function GET(req: Request) {
   try {
@@ -29,7 +31,11 @@ export async function GET(req: Request) {
     }
     const where = conditions.length > 0 ? and(...conditions) : undefined;
     const rows = await db
-      .select()
+      .select({
+        address: addresses,
+        // Spelled out: inside the subquery drizzle would print both ids unqualified.
+        stopCount: sql<number>`(SELECT COUNT(*) FROM "schedule_point" sp WHERE sp."address_id" = "address"."id")`,
+      })
       .from(addresses)
       .where(where)
       .orderBy(asc(addresses.name))
@@ -39,7 +45,10 @@ export async function GET(req: Request) {
       .select({ n: sql<number>`count(*)` })
       .from(addresses)
       .where(where);
-    return Response.json({ items: rows.map(adminAddressOut), total: Number(total[0]?.n ?? 0) });
+    return Response.json({
+      items: rows.map((r) => ({ ...adminAddressOut(r.address), stopCount: Number(r.stopCount) })),
+      total: Number(total[0]?.n ?? 0),
+    });
   } catch (e) {
     return handleRouteError(e);
   }
@@ -51,12 +60,13 @@ interface AddressBody {
   address?: string;
   lat?: number;
   lon?: number;
-  province?: string;
+  /** Slug of one of our cities (`cities.json`); `province` follows from it. */
+  cityId?: string;
   district?: string;
   ward?: string;
 }
 
-/** `POST /api/admin/addresses` — create an address. */
+/** `POST /api/admin/addresses` — create an address in one of our cities. */
 export async function POST(req: Request) {
   try {
     const staff = await requireStaff(req);
@@ -65,6 +75,10 @@ export async function POST(req: Request) {
     const brandId = (body.brandId ?? "").trim();
     const name = (body.name ?? "").trim();
     if (!brandId || !name) return err(400, "validation", "brandId and name are required");
+    const cityId = (body.cityId ?? "").trim();
+    if (!cityId) return err(400, "validation", "cityId is required");
+    const city = findCity(cityId);
+    if (!city) return err(400, "validation", `cityId: unknown city ${JSON.stringify(cityId)}`);
     const db = await getDb();
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
@@ -75,7 +89,8 @@ export async function POST(req: Request) {
       address: body.address ?? null,
       lat: body.lat ?? null,
       lon: body.lon ?? null,
-      province: body.province ?? null,
+      cityId: city.slug,
+      province: city.name,
       district: body.district ?? null,
       ward: body.ward ?? null,
       createdAt: now,

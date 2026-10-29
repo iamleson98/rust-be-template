@@ -1,4 +1,4 @@
-import { adminAddressesCreateMutation } from "@spa/api";
+import { adminAddressesCreateMutation, adminAddressesUpdateMutation } from "@spa/api";
 import { useMutation } from "@tanstack/react-query";
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -12,6 +12,7 @@ import {
 import { Button } from "@spa/components/ui/button";
 import { Input } from "@spa/components/ui/input";
 import { Label } from "@spa/components/ui/label";
+import { ComboboxField } from "@spa/components/ui/combobox";
 import { MapPin, Loader2, Plus, Search, X, Crosshair, Check } from "lucide-react";
 import { toast } from "sonner";
 import { usePlaceSearch } from "@spa/features/map/api";
@@ -21,6 +22,8 @@ import { useMyLocation } from "@spa/features/map/use-my-location";
 import type { AdminAddressOut, PlaceSearchHit } from "@spa/api";
 import { LatLongRegex, parseLatLong } from "./lat-long";
 import { getErrorMessage } from "@spa/lib/error-message";
+import { cityForProvince } from "@/lib/city-match";
+import { cityLabel, getCityGroups } from "@spa/features/admin/routes/city-select-content";
 
 const LeafletMap = lazy(() =>
   import("@spa/features/map/leaflet-map").then((m) => ({ default: m.LeafletMap })),
@@ -38,14 +41,17 @@ type Props = {
   /** The brand the new address will belong to (each address belongs to exactly 1 brand). */
   brandId?: string;
   brandName?: string;
-  /** Fired after a successful save — the point select should adopt this address. */
-  onCreated: (address: AdminAddressOut) => void;
+  /** The address to edit; none creates a new one. */
+  address?: AdminAddressOut | null;
+  /** Fired after a successful save with the address as saved. */
+  onSaved: (address: AdminAddressOut) => void;
 };
 
 type FormState = {
   name: string;
   address: string;
-  province: string;
+  /** Slug of one of our cities; required. */
+  cityId: string;
   district: string;
   ward: string;
   lat: number | null;
@@ -55,19 +61,51 @@ type FormState = {
 const EMPTY_FORM: FormState = {
   name: "",
   address: "",
-  province: "",
+  cityId: "",
   district: "",
   ward: "",
   lat: null,
   lon: null,
 };
 
-export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCreated }: Props) {
+/** The form for an existing address; a point older than the city field gets its province's city. */
+const formOf = (a: AdminAddressOut): FormState => ({
+  name: a.name,
+  address: a.address ?? "",
+  cityId: a.cityId ?? cityForProvince(a.province) ?? "",
+  district: a.district ?? "",
+  ward: a.ward ?? "",
+  lat: a.lat,
+  lon: a.lon,
+});
+
+export function AddressMapDialog({
+  open,
+  onOpenChange,
+  brandId,
+  brandName,
+  address: editing,
+  onSaved,
+}: Props) {
   const t = useT();
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [picked, setPicked] = useState<{ name: string; lat: number; lon: number } | null>(null);
   const [reverseLoading, setReverseLoading] = useState(false);
   const [flyTarget, setFlyTarget] = useState<[number, number] | null>(null);
+  // A city staff chose themselves stays; otherwise it follows the picked point.
+  const cityByHand = useRef(false);
+  /** The picked place's province when it is none of our cities. */
+  const [unmatchedProvince, setUnmatchedProvince] = useState<string | null>(null);
+  const [submitted, setSubmitted] = useState(false);
+  const cityGroups = getCityGroups(t);
+
+  /** Fills the city from the picked place's province, unless staff chose one. */
+  const fillCity = useCallback((province: string | null | undefined) => {
+    if (cityByHand.current) return;
+    const cityId = cityForProvince(province);
+    setForm((f) => ({ ...f, cityId: cityId ?? "" }));
+    setUnmatchedProvince(cityId ? null : province?.trim() || null);
+  }, []);
 
   // Place search for the overlay box; `debounced` drives the lat/long parse.
   const [query, setQuery] = useState("");
@@ -90,17 +128,17 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
           setForm((f) => ({
             ...f,
             name: f.name.trim() ? f.name : name,
-            province: f.province.trim() ? f.province : (province ?? ""),
             district: f.district.trim() ? f.district : (district ?? ""),
             lat,
             lon,
           }));
+          fillCity(province);
         })
         .finally(() => setReverseLoading(false));
     }
 
     // return null;
-  }, [debounced]);
+  }, [debounced, fillCity]);
 
   // The hook debounces on its own, so it takes the raw input.
   const { data: searchData, isLoading: searchLoading } = usePlaceSearch(query, {
@@ -110,6 +148,8 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
   const hits: PlaceSearchHit[] = searchData?.items ?? [];
 
   const createMutation = useMutation(adminAddressesCreateMutation());
+  const updateMutation = useMutation(adminAddressesUpdateMutation());
+  const saving = createMutation.isPending || updateMutation.isPending;
 
   // Reset every time the dialog opens.
   useEffect(() => {
@@ -117,14 +157,17 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
       // Intentional effect-synced state (dialog reset-on-open /
       // server-data snapshot / DOM-availability gate).
 
-      setForm(EMPTY_FORM);
-      setPicked(null);
-      setFlyTarget(null);
+      setForm(editing ? formOf(editing) : EMPTY_FORM);
+      cityByHand.current = false;
+      setUnmatchedProvince(null);
+      setSubmitted(false);
+      setPicked(editing ? { name: editing.name, lat: editing.lat, lon: editing.lon } : null);
+      setFlyTarget(editing ? [editing.lat, editing.lon] : null);
       setQuery("");
       setDebounced("");
       setSearchOpen(false);
     }
-  }, [open]);
+  }, [open, editing]);
 
   // Close the search dropdown on outside click.
   useEffect(() => {
@@ -200,10 +243,10 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
         // Pre-fill name/hierarchy only when still empty — never clobber
         // what the user already typed.
         name: f.name.trim() ? f.name : place.name,
-        province: f.province.trim() ? f.province : (place.province ?? ""),
       }));
+      fillCity(place.province);
     },
-    [t, cancelLocate],
+    [t, cancelLocate, fillCity],
   );
 
   // Keep the GPS-fix pipeline ref pointed at the latest map-click handler
@@ -225,16 +268,16 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
         lat,
         lon,
         name: f.name.trim() ? f.name : hit.name,
-        province: f.province.trim() ? f.province : (hit.province ?? ""),
         district: f.district.trim() ? f.district : (hit.district ?? ""),
         ward: f.ward.trim() ? f.ward : (hit.ward ?? ""),
       }));
+      fillCity(hit.province);
       setPicked({ name: hit.name, lat, lon });
       setFlyTarget([lat, lon]);
       setSearchOpen(false);
       setQuery(hit.name ?? "");
     },
-    [cancelLocate],
+    [cancelLocate, fillCity],
   );
 
   const onInput = (v: string) => {
@@ -257,57 +300,64 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
       toast.error(t("adminAddresses.positionRequired"));
       return;
     }
+    if (!form.cityId) {
+      setSubmitted(true);
+      return;
+    }
+    const fields = {
+      name: form.name.trim(),
+      address: form.address.trim() || null,
+      lat: form.lat,
+      lon: form.lon,
+      cityId: form.cityId,
+      district: form.district.trim() || null,
+      ward: form.ward.trim() || null,
+    };
     try {
-      // SDK mutation hooks require { body: <payload> } — see the 415 note
-      // in queries/index.ts.
-      const res = await (createMutation.mutateAsync({
-        body: {
-          brandId,
-          name: form.name.trim(),
-          address: form.address.trim() || undefined,
-          lat: form.lat,
-          lon: form.lon,
-          province: form.province.trim() || undefined,
-          district: form.district.trim() || undefined,
-          ward: form.ward.trim() || undefined,
-        },
-      } as unknown as Parameters<typeof createMutation.mutateAsync>[0]) as {
-        id?: string;
-        data?: { id?: string };
+      let id: string;
+      if (editing) {
+        await updateMutation.mutateAsync({ path: { id: editing.id }, body: fields });
+        id = editing.id;
+      } else {
+        // SDK mutation hooks require { body: <payload> } — see the 415 note
+        // in queries/index.ts.
+        const res = (await createMutation.mutateAsync({ body: { brandId, ...fields } })) as {
+          id?: string;
+          data?: { id?: string };
+        };
+        const newId = res?.id ?? res?.data?.id;
+        if (!newId) throw new Error("missing id in response");
+        id = newId;
+      }
+      toast.success(t(editing ? "adminAddresses.updated" : "adminAddresses.created"), {
+        description: fields.name,
       });
-      const newId: string | undefined = res?.id ?? res?.data?.id;
-      if (!newId) throw new Error("missing id in response");
-      toast.success(t("adminAddresses.created"), { description: form.name.trim() });
-      onCreated({
-        id: newId,
+      const now = new Date().toISOString();
+      onSaved({
+        ...fields,
+        id,
         brandId,
-        name: form.name.trim(),
-        address: form.address.trim() || null,
-        lat: form.lat,
-        lon: form.lon,
-        province: form.province.trim() || null,
-        district: form.district.trim() || null,
-        ward: form.ward.trim() || null,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        province: cityLabel(form.cityId),
+        createdAt: editing?.createdAt ?? now,
+        updatedAt: now,
       });
       onOpenChange(false);
     } catch (e) {
-      toast.error(t("adminAddresses.createFailed"), {
+      toast.error(t(editing ? "adminAddresses.updateFailed" : "adminAddresses.createFailed"), {
         description: getErrorMessage(e, t("adminAddresses.tryAgain")),
       });
     }
   };
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !createMutation.isPending && onOpenChange(o)}>
+    <Dialog open={open} onOpenChange={(o) => !saving && onOpenChange(o)}>
       {/* max-h + internal scroll — previously unbounded: the stacked
           mobile layout (form + 420px map + footer) ran ~1100px tall, so
           the Save/Cancel footer was unreachable on phones. */}
       <DialogContent className="max-w-4xl max-h-[92dvh] p-0 gap-0 overflow-hidden flex flex-col">
         <DialogHeader icon={<MapPin />} className="shrink-0 border-b px-5 py-4 pr-14">
           <DialogTitle>
-            {t("adminAddresses.createTitle")}
+            {t(editing ? "adminAddresses.editTitle" : "adminAddresses.createTitle")}
             {brandName ? (
               <span className="ml-1 text-xs font-normal text-muted-foreground">· {brandName}</span>
             ) : null}
@@ -338,16 +388,31 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
                 placeholder={t("adminAddresses.detailPh")}
               />
             </div>
+            <div className="grid gap-1.5">
+              <Label>
+                {t("adminAddresses.provinceLabel")} <span className="text-destructive">*</span>
+              </Label>
+              <ComboboxField
+                value={form.cityId || null}
+                onValueChange={(cityId) => {
+                  cityByHand.current = cityId !== "";
+                  update("cityId", cityId);
+                }}
+                items={cityGroups}
+                placeholder={t("adminAddresses.cityPh")}
+                searchPlaceholder={t("routeForm.searchCity")}
+                aria-label={t("adminAddresses.provinceLabel")}
+                className={submitted && !form.cityId ? "border-destructive" : undefined}
+              />
+              {submitted && !form.cityId ? (
+                <p className="text-xs text-destructive">{t("adminAddresses.cityRequired")}</p>
+              ) : unmatchedProvince && !form.cityId ? (
+                <p className="text-xs text-muted-foreground">
+                  {t("adminAddresses.cityUnmatched", { province: unmatchedProvince })}
+                </p>
+              ) : null}
+            </div>
             <div className="grid grid-cols-2 gap-3">
-              <div className="grid gap-1.5">
-                <Label htmlFor="addr-province">{t("adminAddresses.provinceLabel")}</Label>
-                <Input
-                  id="addr-province"
-                  value={form.province}
-                  onChange={(e) => update("province", e.target.value)}
-                  placeholder="Hà Nội"
-                />
-              </div>
               <div className="grid gap-1.5">
                 <Label htmlFor="addr-district">{t("adminAddresses.districtLabel")}</Label>
                 <Input
@@ -357,15 +422,15 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
                   placeholder="Nam Từ Liêm"
                 />
               </div>
-            </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor="addr-ward">{t("adminAddresses.wardLabel")}</Label>
-              <Input
-                id="addr-ward"
-                value={form.ward}
-                onChange={(e) => update("ward", e.target.value)}
-                placeholder="Mỹ Đình 1"
-              />
+              <div className="grid gap-1.5">
+                <Label htmlFor="addr-ward">{t("adminAddresses.wardLabel")}</Label>
+                <Input
+                  id="addr-ward"
+                  value={form.ward}
+                  onChange={(e) => update("ward", e.target.value)}
+                  placeholder="Mỹ Đình 1"
+                />
+              </div>
             </div>
 
             {/* Coordinates — filled by the map / search; read-only UI. */}
@@ -513,27 +578,21 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
         </div>
 
         <DialogFooter className="px-5 py-4 border-t bg-white">
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={createMutation.isPending}
-          >
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
             {t("common.cancel")}
           </Button>
           <Button
             onClick={handleSave}
             disabled={
-              createMutation.isPending ||
-              !form.name.trim() ||
-              form.lat == null ||
-              form.lon == null ||
-              !brandId
+              saving || !form.name.trim() || form.lat == null || form.lon == null || !brandId
             }
           >
-            {createMutation.isPending ? (
+            {saving ? (
               <>
                 <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> {t("common.saving")}
               </>
+            ) : editing ? (
+              t("common.saveChanges")
             ) : (
               <>
                 <Plus className="h-4 w-4 mr-1.5" /> {t("adminAddresses.createBtn")}

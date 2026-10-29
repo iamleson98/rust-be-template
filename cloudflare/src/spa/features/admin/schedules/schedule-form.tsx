@@ -64,6 +64,7 @@ import { ScheduleRouteSection } from "./schedule-route-section";
 import { ScheduleBasicsFields } from "./schedule-basics-fields";
 import { ScheduleDaysField } from "./schedule-days-field";
 import { ScheduleAmenitiesField } from "./schedule-amenities-field";
+import { formatAmenities, parseAmenities } from "@/lib/amenities";
 import { ScheduleFares } from "./schedule-fares";
 import { getErrorMessage } from "@spa/lib/error-message";
 
@@ -177,7 +178,7 @@ export function ScheduleFormDialog({
             { priceAdult: f.priceAdult, priceChild: f.priceChild ?? 0 },
           ]),
         ),
-        amenities: schedule?.amenities ? schedule.amenities.split(",").filter(Boolean) : [],
+        amenities: parseAmenities(schedule?.amenities),
         startPointId: startPoint?.addressId ?? "",
         startPointTime: startPoint?.arrivalTime ?? null,
         endPointId: endPoint?.addressId ?? "",
@@ -302,10 +303,8 @@ export function ScheduleFormDialog({
             priceAdult: fare.priceAdult,
             priceChild: fare.priceChild || null,
           })),
-        // Backend stores `amenities` as `Option<String>` (comma-separated).
-        // The form edits them as an array — join before sending. The
-        // previous version sent the array directly → serde 422.
-        amenities: values.amenities.join(","),
+        // Stored as text holding a JSON array (see `@/lib/amenities`).
+        amenities: formatAmenities(values.amenities),
         points,
       };
       // SDK mutation hooks require { body: <payload> } — passing the raw
@@ -432,7 +431,7 @@ export function ScheduleFormDialog({
         onOpenChange={setAddressDialogOpen}
         brandId={brandId}
         brandName={brandName}
-        onCreated={handleAddressCreated}
+        onSaved={handleAddressCreated}
       />
     </>
   );

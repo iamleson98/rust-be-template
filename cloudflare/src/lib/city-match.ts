@@ -100,3 +100,22 @@ export function matchCitySlugs(query: string): string[] {
     return exact || contains;
   }).map((c) => c.slug);
 }
+
+/** "Thành phố", "TP." or "Tỉnh" before a province name, normalised. */
+const PROVINCE_PREFIX = /^(thanhpho|tp|tinh)/;
+
+/**
+ * The one city a place search's province name means ("Hà Nội", "Thành phố
+ * Huế", "Tỉnh Lâm Đồng"); null when it names none of ours, or several.
+ */
+export function cityForProvince(province: string | null | undefined): string | null {
+  if (!province?.trim()) return null;
+  const matches = matchCitySlugs(province);
+  if (matches.length === 1) return matches[0];
+  if (matches.length > 1) return null;
+  const bare = normalizeForMatch(province).replace(PROVINCE_PREFIX, "");
+  const exact = FORMS.filter(
+    (c) => c.name === bare || c.slugForm === bare || c.aliases.includes(bare),
+  );
+  return exact.length === 1 ? exact[0].slug : null;
+}

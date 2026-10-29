@@ -160,6 +160,20 @@ export function toCandidates(
   });
 }
 
+/**
+ * Active routes from city `from` to city `to` (trimmed, non-empty names;
+ * accents and aliases like "Sài Gòn" resolved).
+ */
+export async function routesBetween(from: string, to: string): Promise<RouteRow[]> {
+  const fromLower = from.toLowerCase();
+  const toLower = to.toLowerCase();
+  const fromSlugs = matchCitySlugs(from);
+  const toSlugs = matchCitySlugs(to);
+  return (await searchActiveRoutes(fromLower, toLower, fromSlugs, toSlugs)).filter((r) =>
+    runsBetween(r, fromSlugs, toSlugs, fromLower, toLower),
+  );
+}
+
 /** City search from `from` to `to` (city names; accents and aliases like "Sài Gòn" resolved). */
 export async function searchTrips(
   from: string,
@@ -170,13 +184,7 @@ export async function searchTrips(
   to = to.trim();
   if (!from) throw new ApiError(400, "validation", "missing departure location (from)");
   if (!to) throw new ApiError(400, "validation", "missing arrival location (to)");
-  const fromLower = from.toLowerCase();
-  const toLower = to.toLowerCase();
-  const fromSlugs = matchCitySlugs(from);
-  const toSlugs = matchCitySlugs(to);
-  const found = (await searchActiveRoutes(fromLower, toLower, fromSlugs, toSlugs)).filter((r) =>
-    runsBetween(r, fromSlugs, toSlugs, fromLower, toLower),
-  );
+  const found = await routesBetween(from, to);
   if (found.length === 0) return results([], opts);
 
   const db = await getDb();

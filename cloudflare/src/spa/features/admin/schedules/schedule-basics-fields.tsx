@@ -97,7 +97,8 @@ export function ScheduleBasicsFields({
           control={form.control}
           name="busLayoutId"
           render={({ field }) => (
-            <FormItem className="grid gap-1.5">
+            // min-w-0: a long layout name truncates instead of widening the column.
+            <FormItem className="grid min-w-0 gap-1.5">
               <FormLabel>{t("adminSchedules.vehicleLayout")}</FormLabel>
               <FormControl>
                 <ComboboxField

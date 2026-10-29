@@ -12,6 +12,7 @@ import migration0 from "../../migrations/0000_init_domain.sql?raw";
 import migration1 from "../../migrations/0001_fts_and_seeds.sql?raw";
 import migration2 from "../../migrations/0002_realtime_meeting_id.sql?raw";
 import migration4 from "../../migrations/0004_deep_callisto.sql?raw";
+import migration9 from "../../migrations/0009_address_city.sql?raw";
 import { applyMigrations } from "./migrate";
 import { setCloudflareContext } from "./context";
 import { getDb } from "@/lib/db/client";
@@ -37,7 +38,7 @@ export const STANDARD_FARE = 350_000;
 
 export async function migrate(): Promise<void> {
   setCloudflareContext();
-  await applyMigrations(migration0, migration1, migration2, migration4);
+  await applyMigrations(migration0, migration1, migration2, migration4, migration9);
 }
 
 export interface Fixture {

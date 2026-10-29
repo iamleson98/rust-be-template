@@ -48,6 +48,18 @@ describe("/search URL: result filters", () => {
     });
   });
 
+  it("keeps a precise pick's cities, which scope its search", () => {
+    const precise = { fromLat: 21.03, fromLon: 105.78, toLat: 16.05, toLon: 108.2 };
+    const pick = { from: "Bến xe Mỹ Đình", to: "Hội An", fromCity: "Hà Nội", toCity: "Đà Nẵng" };
+    expect(reload(address({ ...pick, ...precise }))).toMatchObject({ ...pick, ...precise });
+    // One precise end: the plain city search, under the precise end's city.
+    expect(reload(address({ ...pick, fromLat: 21.03, fromLon: 105.78 }))).toMatchObject({
+      from: "Hà Nội",
+      to: "Đà Nẵng",
+      fromLat: undefined,
+    });
+  });
+
   it("round-trips through the route's own URL form", () => {
     const parsed = parseSearch({ from: "A", to: "B", hours: "6-12", brands: "x,y", seats: true });
     expect(parseSearch(toQuery(parsed))).toEqual(parsed);

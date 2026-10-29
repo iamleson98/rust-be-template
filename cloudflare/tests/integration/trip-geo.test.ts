@@ -175,3 +175,96 @@ describe("coordinate search", () => {
     expect((await res.json()).message).toContain("toLon: missing field");
   });
 });
+
+describe("coordinate search within the places' cities", () => {
+  // As the place search names the provinces of a Hà Nội and a Sài Gòn place.
+  const CITIES = { from: "Hà Nội", to: "TP. Hồ Chí Minh" };
+  const scoped = (qs = "") =>
+    searchTripsGeo(
+      HANOI,
+      SAIGON,
+      50,
+      parseSearchOptions(new URLSearchParams(`date=${date}&${qs}`), true),
+      CITIES,
+    );
+
+  /** A Hà Nội → Sài Gòn schedule on a route with `points`, and its trip on `date`. */
+  async function onRoute(points: Parameters<typeof addPickupPoints>[1], from = "ha-noi") {
+    const brandId = await addBrand();
+    const layout = await addLayout(brandId, 4);
+    const routeId = await addRoute(brandId, from);
+    if (points.length > 0) await addPickupPoints(routeId, points);
+    const scheduleId = await addSchedule(routeId, { busLayoutId: layout.id });
+    return addTrip(scheduleId, date, { totalSeats: 4, availableSeats: 4 });
+  }
+
+  it("finds every trip between the cities, even one with no stop to measure", async () => {
+    const tripId = await onRoute([]);
+    expect((await geo()).total).toBe(0); // nothing to measure without the cities
+    const r = await scoped();
+    expect(r.items.map((i) => i.tripId)).toEqual([tripId]);
+    expect(r.items[0]?.pickup).toBeUndefined();
+    expect(r.items[0]?.dropoff).toBeUndefined();
+  });
+
+  it("ranks by the nearest pickup and drop-off however far, unmeasured last", async () => {
+    const unmeasured = await onRoute([]);
+    // Pickup in Sơn Tây (~35 km) and drop-off in Biên Hòa (~25 km)…
+    const far = await onRoute([
+      { name: "Sơn Tây", lat: 21.14, lon: 105.5 },
+      { name: "Biên Hòa", lat: 10.95, lon: 106.82 },
+    ]);
+    // …and the outskirts of both, beyond the 50 km a search measures.
+    const outside = await onRoute([
+      { name: "Hòa Bình", lat: 20.82, lon: 105.34 },
+      { name: "Bà Rịa", lat: 10.5, lon: 107.17 },
+    ]);
+    const near = await onRoute([NEAR_HANOI, NEAR_SAIGON]);
+    const r = await scoped();
+    expect(r.items.map((i) => i.tripId)).toEqual([near, far, outside, unmeasured]);
+    expect(r.items[2]?.pickup?.name).toBe("Hòa Bình");
+    expect(r.items[2]?.pickup?.distanceKm).toBeGreaterThan(50);
+  });
+
+  it("keeps a route passing near both places, and leaves out other cities' routes", async () => {
+    const passing = await onRoute([NEAR_HANOI, NEAR_SAIGON], "hai-phong");
+    await onRoute([], "hai-phong"); // not between the cities, nothing near
+    const r = await scoped();
+    expect(r.items.map((i) => i.tripId)).toEqual([passing]);
+  });
+
+  it("does not take the reverse direction", async () => {
+    const brandId = await addBrand();
+    const layout = await addLayout(brandId, 4);
+    const routeId = await addRoute(brandId, "ho-chi-minh", "ha-noi");
+    const scheduleId = await addSchedule(routeId, { busLayoutId: layout.id });
+    await addTrip(scheduleId, date, { totalSeats: 4, availableSeats: 4 });
+    expect((await scoped()).total).toBe(0);
+  });
+
+  it("boards a timed schedule between the cities at its own nearest stops", async () => {
+    const t = await timed([
+      { name: "Hòa Bình", lat: 20.82, lon: 105.34, arrival: "21:30" },
+      { name: "Bà Rịa", lat: 10.5, lon: 107.17 },
+    ]);
+    await addPickupPoints(t.routeId, [NEAR_HANOI, NEAR_SAIGON]);
+    const r = await scoped();
+    expect(r.items.map((i) => i.tripId)).toEqual([t.tripId]);
+    expect(r.items[0]?.pickup).toMatchObject({ name: "Hòa Bình", time: "21:30" });
+  });
+
+  it("reads the cities over HTTP, both or neither", async () => {
+    await onRoute([]);
+    const q = `fromLat=21.03&fromLon=105.85&toLat=10.78&toLon=106.7&date=${date}`;
+    const total = async (extra: string) =>
+      (
+        await (
+          await geoRoute(new Request(`https://datxevui.com/api/search/geo?${q}${extra}`))
+        ).json()
+      ).total;
+    expect(
+      await total("&fromCity=H%C3%A0%20N%E1%BB%99i&toCity=TP.%20H%E1%BB%93%20Ch%C3%AD%20Minh"),
+    ).toBe(1);
+    expect(await total("&fromCity=H%C3%A0%20N%E1%BB%99i")).toBe(0);
+  });
+});

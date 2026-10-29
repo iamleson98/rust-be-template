@@ -43,20 +43,7 @@ export function amenityLabel(key: string): string {
   }
 }
 
-/** The keys a `schedule.amenities` text holds: a JSON array of strings, else comma-separated. */
-export function parseAmenities(raw: string | null | undefined): string[] {
-  if (raw == null || raw.trim() === "") return [];
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    if (Array.isArray(parsed) && parsed.every((v) => typeof v === "string")) return parsed;
-  } catch {
-    /* not JSON: comma-separated */
-  }
-  return raw
-    .split(",")
-    .map((s) => s.trim())
-    .filter((s) => s !== "");
-}
+export { parseAmenities } from "@/lib/amenities";
 
 // ── Vehicle type ─────────────────────────────────────────────────
 

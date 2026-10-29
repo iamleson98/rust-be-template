@@ -4,7 +4,7 @@
  * Every field name matches the openapi.json contract exactly.
  */
 import { getDb } from "@/lib/db/client";
-import { and, desc, eq, inArray, like, or, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, like, or, sql } from "drizzle-orm";
 import {
   addresses,
   busLayouts,
@@ -457,6 +457,7 @@ export function adminAddressOut(a: AddressRow) {
     address: a.address,
     lat: a.lat ?? 0,
     lon: a.lon ?? 0,
+    cityId: a.cityId,
     province: a.province,
     district: a.district,
     ward: a.ward,
@@ -646,11 +647,16 @@ export async function adminVehicleTypeList(filters: { q?: string; limit: number;
  * when opening the editor). */
 export async function adminBusLayoutList(filters: {
   brandId?: string;
+  /** With `brandId`: the shared catalog (no brand) too. */
+  includeShared?: boolean;
   limit: number;
   offset: number;
 }) {
   const db = await getDb();
-  const where = filters.brandId !== undefined ? eq(busLayouts.brandId, filters.brandId) : undefined;
+  const ofBrand =
+    filters.brandId !== undefined ? eq(busLayouts.brandId, filters.brandId) : undefined;
+  const where =
+    ofBrand && filters.includeShared ? or(ofBrand, isNull(busLayouts.brandId)) : ofBrand;
   const rows = await db
     .select({ layout: busLayouts })
     .from(busLayouts)

@@ -5,7 +5,11 @@ import { requirePermission } from "@/lib/auth/rbac";
 import { adminBusLayoutList, type SeatPlan } from "@/lib/services/admin-out";
 import { replaceSeatPlan, toStored, validateSeatPlan } from "@/lib/services/seat-plan";
 
-/** `GET /api/admin/bus-layouts?brandId=&limit=&offset=` — staff list (slim). */
+/**
+ * `GET /api/admin/bus-layouts?brandId=&includeShared=&limit=&offset=` —
+ * staff list (slim); `includeShared=true` adds the shared catalog (no brand)
+ * to a brand's own layouts, as the schedule form offers both.
+ */
 export async function GET(req: Request) {
   try {
     const staff = await requireStaff(req);
@@ -13,6 +17,7 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const result = await adminBusLayoutList({
       brandId: url.searchParams.get("brandId") ?? undefined,
+      includeShared: url.searchParams.get("includeShared") === "true",
       limit: Math.min(
         Math.max(parseInt(url.searchParams.get("limit") ?? "100", 10) || 100, 1),
         500,

@@ -27,6 +27,8 @@ export type TripSearchParams = Pick<SearchParams, "from" | "to" | "date"> &
       | "fromLon"
       | "toLat"
       | "toLon"
+      | "fromCity"
+      | "toCity"
     >
   > & {
     /** The results page's filters, applied by the server over every match. */
@@ -51,7 +53,8 @@ const canSearch = (p: TripSearchParams | null) => !!p && !!(p.from || p.to) && !
 
 /**
  * The query for whichever endpoint fits: precise picks (all four coordinates) use the geo
- * endpoint, which ranks by pickup + drop distance; everything else searches city to city.
+ * endpoint, which keeps every trip between the places' cities and ranks by pickup + drop
+ * distance; everything else searches city to city.
  */
 function endpointQuery(p: TripSearchParams, limit?: number) {
   const minSeats = (p.adults ?? 1) + (p.children ?? 0);
@@ -59,7 +62,7 @@ function endpointQuery(p: TripSearchParams, limit?: number) {
   const departAfter = p.time || undefined;
   const filters = p.filters ?? {};
   if (isPrecise(p)) {
-    const { fromLat, fromLon, toLat, toLon, date } = p;
+    const { fromLat, fromLon, toLat, toLon, fromCity, toCity, date } = p;
     return {
       geo: true as const,
       query: {
@@ -67,6 +70,8 @@ function endpointQuery(p: TripSearchParams, limit?: number) {
         fromLon,
         toLat,
         toLon,
+        fromCity,
+        toCity,
         date,
         departAfter,
         // Nearest stops first unless the customer picked another order.
