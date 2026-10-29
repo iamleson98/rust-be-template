@@ -307,6 +307,12 @@ export const en: TranslationMap = {
   "routePictures.uploading": "Uploading pictures {done}/{total}...",
   "routePictures.partial":
     "The route was saved, but {count} picture step(s) failed. Reopen the route to retry.",
+  "tripDetail.pictureAlt": "{route}: picture {index}",
+  "pictures.prev": "Previous picture",
+  "pictures.next": "Next picture",
+  "pictures.view": "View picture {index} larger",
+  "pictures.show": "Go to picture {index}",
+  "tripDetail.tabPictures": "Pictures",
   "busLayouts.title": "Seat layouts",
   "busLayouts.add": "Add seat layout",
   "busLayouts.search": "Search by name or code…",

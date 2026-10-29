@@ -306,6 +306,12 @@ export const vi: TranslationMap = {
   "routePictures.uploading": "Đang tải ảnh {done}/{total}...",
   "routePictures.partial":
     "Đã lưu tuyến, nhưng {count} thao tác với ảnh không thành công. Mở lại tuyến để thử lại.",
+  "tripDetail.pictureAlt": "{route}: ảnh {index}",
+  "pictures.prev": "Ảnh trước",
+  "pictures.next": "Ảnh sau",
+  "pictures.view": "Xem ảnh {index} cỡ lớn",
+  "pictures.show": "Chuyển đến ảnh {index}",
+  "tripDetail.tabPictures": "Hình ảnh",
   "busLayouts.title": "Sơ đồ ghế",
   "busLayouts.add": "Thêm sơ đồ ghế",
   "busLayouts.search": "Tìm theo tên hoặc mã…",

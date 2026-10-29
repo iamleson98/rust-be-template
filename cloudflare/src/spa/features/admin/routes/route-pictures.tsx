@@ -18,6 +18,8 @@ import {
   patchPictureMutation,
   uploadPictureMutation,
 } from "@spa/api";
+import { PictureLightbox } from "@spa/components/picture-lightbox";
+import type { Slide } from "@spa/components/picture-slider";
 import { Skeleton } from "@spa/components/ui/skeleton";
 import { ChevronLeft, ChevronRight, ImagePlus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -30,7 +32,7 @@ const MAX_PICTURE_BYTES = 10 * 1024 * 1024;
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
 export type PictureItem =
-  | { kind: "saved"; id: string; src: string }
+  | { kind: "saved"; id: string; src: string; full: string }
   | { kind: "new"; key: string; file: File; src: string };
 
 const itemKey = (item: PictureItem) => (item.kind === "saved" ? item.id : item.key);
@@ -98,6 +100,7 @@ export function useRoutePictures(routeId: string | undefined, open: boolean): Ro
       kind: "saved",
       id: p.id,
       src: p.thumbUrl,
+      full: p.url,
     }));
     setSeeded(true);
     setBaseline(existing.map(itemKey));
@@ -229,6 +232,14 @@ export function RoutePicturesField({
   const input = useRef<HTMLInputElement>(null);
   const { items } = pictures;
   const full = items.length >= MAX_ROUTE_PICTURES;
+  // Which picture the large view is open on; null while it is closed.
+  const [viewing, setViewing] = useState<number | null>(null);
+  const slides: Slide[] = items.map((item, i) => ({
+    id: itemKey(item),
+    src: item.kind === "saved" ? item.full : item.src,
+    thumbSrc: item.src,
+    alt: t("routePictures.alt", { index: i + 1 }),
+  }));
 
   return (
     <section className="grid gap-2">
@@ -264,13 +275,20 @@ export function RoutePicturesField({
               key={itemKey(item)}
               className="relative aspect-[4/3] overflow-hidden rounded-lg ring-1 ring-black/10"
             >
-              <img
-                src={item.src}
-                alt={t("routePictures.alt", { index: i + 1 })}
-                className="h-full w-full object-cover"
-                loading="lazy"
-                decoding="async"
-              />
+              <button
+                type="button"
+                onClick={() => setViewing(i)}
+                aria-label={t("pictures.view", { index: i + 1 })}
+                className="block h-full w-full cursor-zoom-in focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden focus-visible:ring-inset"
+              >
+                <img
+                  src={item.src}
+                  alt=""
+                  className="h-full w-full object-cover"
+                  loading="lazy"
+                  decoding="async"
+                />
+              </button>
               {i === 0 ? (
                 <span className="absolute top-1 left-1 rounded bg-blue-600 px-1.5 py-0.5 text-[10px] font-medium text-white">
                   {t("routePictures.cover")}
@@ -323,6 +341,16 @@ export function RoutePicturesField({
       <p className="text-[11px] text-muted-foreground">
         {t("routePictures.hint", { max: MAX_ROUTE_PICTURES })}
       </p>
+
+      {viewing !== null && items.length > 0 ? (
+        <PictureLightbox
+          slides={slides}
+          index={viewing}
+          onIndexChange={setViewing}
+          onClose={() => setViewing(null)}
+          title={t("routePictures.title")}
+        />
+      ) : null}
     </section>
   );
 }

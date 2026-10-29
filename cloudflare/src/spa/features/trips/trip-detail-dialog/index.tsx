@@ -1,17 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import {
   ArrowLeftRight,
   Bus,
   CheckCircle2,
   Clock,
+  Images,
   MapPin,
   MessageSquareQuote,
   Users,
 } from "lucide-react";
-import type { TripDetail, TripSeat } from "@spa/api";
+import { routePicturesOptions, type TripDetail, type TripSeat } from "@spa/api";
 import { ErrorState } from "@spa/components/error-state";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@spa/components/ui/dialog";
 import { ScrollArea } from "@spa/components/ui/scroll-area";
@@ -19,6 +21,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@spa/components/ui/tab
 import { BookingFlow } from "@spa/features/booking/flow/booking-flow";
 import { RouteScheduleMap } from "@spa/features/map/route-schedule-map";
 import { ReviewsList } from "@spa/features/reviews/reviews-list";
+import type { Slide } from "@spa/components/picture-slider";
 import { SeatMap } from "@spa/features/seat-plan";
 import { useTripDetail } from "@spa/features/trips/api";
 import { useT } from "@spa/lib/i18n";
@@ -32,6 +35,7 @@ import { PriceSummary } from "./price-summary";
 import { StopTimeline } from "./stop-timeline";
 import { TripDetailSkeleton } from "./trip-detail-skeleton";
 import { TripInfo } from "./trip-info";
+import { TripPictures } from "./trip-pictures";
 import { tripStops } from "./trip-stops";
 
 /** Seats one booking may hold. */
@@ -135,6 +139,19 @@ function TripView({ detail }: { detail: TripDetail }) {
   const mapStops = detail.schedulePoints.length > 0 ? detail.schedulePoints : detail.pickupPoints;
   const located = mapStops.filter((p) => p.lat != null && p.lon != null);
 
+  // The route's gallery: its own tab, only when the route has pictures.
+  const { data: gallery } = useQuery({
+    ...routePicturesOptions({ path: { id: detail.route.id } }),
+    staleTime: 5 * 60_000,
+  });
+  const slides: Slide[] = (gallery?.items ?? []).map((p, i) => ({
+    id: p.id,
+    src: p.url,
+    thumbSrc: p.thumbUrl,
+    alt: p.altText || t("tripDetail.pictureAlt", { route: detail.route.name, index: i + 1 }),
+  }));
+  const tabCols = slides.length > 0 ? "grid-cols-6 md:grid-cols-5" : "grid-cols-5 md:grid-cols-4";
+
   const toggleSeat = ({ id }: TripSeat) =>
     setPicked((prev) =>
       prev.includes(id)
@@ -196,7 +213,9 @@ function TripView({ detail }: { detail: TripDetail }) {
       <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden md:grid-cols-[minmax(0,1fr)_320px] lg:grid-cols-[minmax(0,1.3fr)_420px]">
         <div className="flex min-h-0 min-w-0 flex-col overflow-hidden md:border-r">
           <Tabs defaultValue="seats" className="flex min-h-0 flex-1 flex-col">
-            <TabsList className="grid h-auto w-full shrink-0 grid-cols-5 rounded-none border-b border-slate-200/80 bg-white p-0 px-2 md:grid-cols-4">
+            <TabsList
+              className={`grid h-auto w-full shrink-0 ${tabCols} rounded-none border-b border-slate-200/80 bg-white p-0 px-2`}
+            >
               <TabsTrigger value="seats" className={TAB}>
                 <Bus className="h-4 w-4 shrink-0" /> {t("booking.seatSelector")}
               </TabsTrigger>
@@ -206,6 +225,11 @@ function TripView({ detail }: { detail: TripDetail }) {
               <TabsTrigger value="route" className={TAB}>
                 <MapPin className="h-4 w-4 shrink-0" /> {t("tripDetail.tabRoute")}
               </TabsTrigger>
+              {slides.length > 0 && (
+                <TabsTrigger value="pictures" className={TAB}>
+                  <Images className="h-4 w-4 shrink-0" /> {t("tripDetail.tabPictures")}
+                </TabsTrigger>
+              )}
               <TabsTrigger value="info" className={TAB}>
                 <CheckCircle2 className="h-4 w-4 shrink-0" /> {t("tripDetail.tabPolicy")}
               </TabsTrigger>
@@ -277,6 +301,12 @@ function TripView({ detail }: { detail: TripDetail }) {
                   }
                 />
               </TabsContent>
+
+              {slides.length > 0 && (
+                <TabsContent value="pictures" className="m-0 p-4">
+                  <TripPictures slides={slides} />
+                </TabsContent>
+              )}
 
               <TabsContent value="info" className="m-0 space-y-4 p-4">
                 <FareTable pricing={detail.pricing} />
