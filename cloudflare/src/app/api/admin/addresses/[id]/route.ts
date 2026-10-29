@@ -3,6 +3,7 @@ import { addresses } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { handleRouteError, requireStaff, readJson, err } from "@/lib/api";
 import { requirePermission } from "@/lib/auth/rbac";
+import { findCity } from "@/lib/city-match";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -12,7 +13,8 @@ interface AddressBody {
   address?: string;
   lat?: number;
   lon?: number;
-  province?: string;
+  /** Slug of one of our cities (`cities.json`); `province` follows from it. */
+  cityId?: string;
   district?: string;
   ward?: string;
 }
@@ -27,6 +29,10 @@ export async function PUT(req: Request, ctx: Params) {
     const db = await getDb();
     const existing = (await db.select().from(addresses).where(eq(addresses.id, id)).limit(1))[0];
     if (!existing) return err(404, "not-found", "address not found");
+    const city = body.cityId === undefined ? null : findCity(body.cityId.trim());
+    if (body.cityId !== undefined && !city) {
+      return err(400, "validation", `cityId: unknown city ${JSON.stringify(body.cityId)}`);
+    }
     await db
       .update(addresses)
       .set({
@@ -35,7 +41,8 @@ export async function PUT(req: Request, ctx: Params) {
         address: body.address ?? existing.address,
         lat: body.lat ?? existing.lat,
         lon: body.lon ?? existing.lon,
-        province: body.province ?? existing.province,
+        cityId: city?.slug ?? existing.cityId,
+        province: city?.name ?? existing.province,
         district: body.district ?? existing.district,
         ward: body.ward ?? existing.ward,
         updatedAt: new Date().toISOString(),

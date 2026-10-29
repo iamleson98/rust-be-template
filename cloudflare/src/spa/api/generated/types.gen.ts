@@ -18,6 +18,10 @@ export type AdminAddressListResponse = {
 export type AdminAddressOut = {
     address?: string | null;
     brandId: string;
+    /**
+     * Slug of the city the point is in; null only on points older than the field.
+     */
+    cityId?: string | null;
     createdAt: string;
     district?: string | null;
     id: string;
@@ -3738,11 +3742,14 @@ export type UpdateRoutePictureInput = {
 export type UpsertAddressRequest = {
     address?: string | null;
     brandId?: string | null;
+    /**
+     * Slug of one of our cities; required to create. The point's `province` follows from it.
+     */
+    cityId?: string | null;
     district?: string | null;
     lat?: number | null;
     lon?: number | null;
     name?: string | null;
-    province?: string | null;
     ward?: string | null;
 };
 

@@ -61,6 +61,9 @@ export const addresses = sqliteTable(
     address: text("address"),
     lat: real("lat"),
     lon: real("lon"),
+    /** Slug of the city (`cities.json`) the point is in; null only on rows older than the field. */
+    cityId: text("city_id"),
+    /** The city's display name (kept with `cityId`). */
     province: text("province"),
     district: text("district"),
     ward: text("ward"),

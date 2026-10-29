@@ -457,6 +457,7 @@ export function adminAddressOut(a: AddressRow) {
     address: a.address,
     lat: a.lat ?? 0,
     lon: a.lon ?? 0,
+    cityId: a.cityId,
     province: a.province,
     district: a.district,
     ward: a.ward,

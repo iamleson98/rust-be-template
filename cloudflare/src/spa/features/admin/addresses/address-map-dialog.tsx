@@ -12,6 +12,7 @@ import {
 import { Button } from "@spa/components/ui/button";
 import { Input } from "@spa/components/ui/input";
 import { Label } from "@spa/components/ui/label";
+import { ComboboxField } from "@spa/components/ui/combobox";
 import { MapPin, Loader2, Plus, Search, X, Crosshair, Check } from "lucide-react";
 import { toast } from "sonner";
 import { usePlaceSearch } from "@spa/features/map/api";
@@ -21,6 +22,8 @@ import { useMyLocation } from "@spa/features/map/use-my-location";
 import type { AdminAddressOut, PlaceSearchHit } from "@spa/api";
 import { LatLongRegex, parseLatLong } from "./lat-long";
 import { getErrorMessage } from "@spa/lib/error-message";
+import { cityForProvince } from "@/lib/city-match";
+import { cityLabel, getCityGroups } from "@spa/features/admin/routes/city-select-content";
 
 const LeafletMap = lazy(() =>
   import("@spa/features/map/leaflet-map").then((m) => ({ default: m.LeafletMap })),
@@ -45,7 +48,8 @@ type Props = {
 type FormState = {
   name: string;
   address: string;
-  province: string;
+  /** Slug of one of our cities; required. */
+  cityId: string;
   district: string;
   ward: string;
   lat: number | null;
@@ -55,7 +59,7 @@ type FormState = {
 const EMPTY_FORM: FormState = {
   name: "",
   address: "",
-  province: "",
+  cityId: "",
   district: "",
   ward: "",
   lat: null,
@@ -68,6 +72,20 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
   const [picked, setPicked] = useState<{ name: string; lat: number; lon: number } | null>(null);
   const [reverseLoading, setReverseLoading] = useState(false);
   const [flyTarget, setFlyTarget] = useState<[number, number] | null>(null);
+  // A city staff chose themselves stays; otherwise it follows the picked point.
+  const cityByHand = useRef(false);
+  /** The picked place's province when it is none of our cities. */
+  const [unmatchedProvince, setUnmatchedProvince] = useState<string | null>(null);
+  const [submitted, setSubmitted] = useState(false);
+  const cityGroups = getCityGroups(t);
+
+  /** Fills the city from the picked place's province, unless staff chose one. */
+  const fillCity = useCallback((province: string | null | undefined) => {
+    if (cityByHand.current) return;
+    const cityId = cityForProvince(province);
+    setForm((f) => ({ ...f, cityId: cityId ?? "" }));
+    setUnmatchedProvince(cityId ? null : province?.trim() || null);
+  }, []);
 
   // Place search for the overlay box; `debounced` drives the lat/long parse.
   const [query, setQuery] = useState("");
@@ -90,17 +108,17 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
           setForm((f) => ({
             ...f,
             name: f.name.trim() ? f.name : name,
-            province: f.province.trim() ? f.province : (province ?? ""),
             district: f.district.trim() ? f.district : (district ?? ""),
             lat,
             lon,
           }));
+          fillCity(province);
         })
         .finally(() => setReverseLoading(false));
     }
 
     // return null;
-  }, [debounced]);
+  }, [debounced, fillCity]);
 
   // The hook debounces on its own, so it takes the raw input.
   const { data: searchData, isLoading: searchLoading } = usePlaceSearch(query, {
@@ -118,6 +136,9 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
       // server-data snapshot / DOM-availability gate).
 
       setForm(EMPTY_FORM);
+      cityByHand.current = false;
+      setUnmatchedProvince(null);
+      setSubmitted(false);
       setPicked(null);
       setFlyTarget(null);
       setQuery("");
@@ -200,10 +221,10 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
         // Pre-fill name/hierarchy only when still empty — never clobber
         // what the user already typed.
         name: f.name.trim() ? f.name : place.name,
-        province: f.province.trim() ? f.province : (place.province ?? ""),
       }));
+      fillCity(place.province);
     },
-    [t, cancelLocate],
+    [t, cancelLocate, fillCity],
   );
 
   // Keep the GPS-fix pipeline ref pointed at the latest map-click handler
@@ -225,16 +246,16 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
         lat,
         lon,
         name: f.name.trim() ? f.name : hit.name,
-        province: f.province.trim() ? f.province : (hit.province ?? ""),
         district: f.district.trim() ? f.district : (hit.district ?? ""),
         ward: f.ward.trim() ? f.ward : (hit.ward ?? ""),
       }));
+      fillCity(hit.province);
       setPicked({ name: hit.name, lat, lon });
       setFlyTarget([lat, lon]);
       setSearchOpen(false);
       setQuery(hit.name ?? "");
     },
-    [cancelLocate],
+    [cancelLocate, fillCity],
   );
 
   const onInput = (v: string) => {
@@ -257,6 +278,10 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
       toast.error(t("adminAddresses.positionRequired"));
       return;
     }
+    if (!form.cityId) {
+      setSubmitted(true);
+      return;
+    }
     try {
       // SDK mutation hooks require { body: <payload> } — see the 415 note
       // in queries/index.ts.
@@ -267,7 +292,7 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
           address: form.address.trim() || undefined,
           lat: form.lat,
           lon: form.lon,
-          province: form.province.trim() || undefined,
+          cityId: form.cityId,
           district: form.district.trim() || undefined,
           ward: form.ward.trim() || undefined,
         },
@@ -285,7 +310,8 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
         address: form.address.trim() || null,
         lat: form.lat,
         lon: form.lon,
-        province: form.province.trim() || null,
+        cityId: form.cityId,
+        province: cityLabel(form.cityId),
         district: form.district.trim() || null,
         ward: form.ward.trim() || null,
         createdAt: new Date().toISOString(),
@@ -338,16 +364,31 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
                 placeholder={t("adminAddresses.detailPh")}
               />
             </div>
+            <div className="grid gap-1.5">
+              <Label>
+                {t("adminAddresses.provinceLabel")} <span className="text-destructive">*</span>
+              </Label>
+              <ComboboxField
+                value={form.cityId || null}
+                onValueChange={(cityId) => {
+                  cityByHand.current = cityId !== "";
+                  update("cityId", cityId);
+                }}
+                items={cityGroups}
+                placeholder={t("adminAddresses.cityPh")}
+                searchPlaceholder={t("routeForm.searchCity")}
+                aria-label={t("adminAddresses.provinceLabel")}
+                className={submitted && !form.cityId ? "border-destructive" : undefined}
+              />
+              {submitted && !form.cityId ? (
+                <p className="text-xs text-destructive">{t("adminAddresses.cityRequired")}</p>
+              ) : unmatchedProvince && !form.cityId ? (
+                <p className="text-xs text-muted-foreground">
+                  {t("adminAddresses.cityUnmatched", { province: unmatchedProvince })}
+                </p>
+              ) : null}
+            </div>
             <div className="grid grid-cols-2 gap-3">
-              <div className="grid gap-1.5">
-                <Label htmlFor="addr-province">{t("adminAddresses.provinceLabel")}</Label>
-                <Input
-                  id="addr-province"
-                  value={form.province}
-                  onChange={(e) => update("province", e.target.value)}
-                  placeholder="Hà Nội"
-                />
-              </div>
               <div className="grid gap-1.5">
                 <Label htmlFor="addr-district">{t("adminAddresses.districtLabel")}</Label>
                 <Input
@@ -357,15 +398,15 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
                   placeholder="Nam Từ Liêm"
                 />
               </div>
-            </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor="addr-ward">{t("adminAddresses.wardLabel")}</Label>
-              <Input
-                id="addr-ward"
-                value={form.ward}
-                onChange={(e) => update("ward", e.target.value)}
-                placeholder="Mỹ Đình 1"
-              />
+              <div className="grid gap-1.5">
+                <Label htmlFor="addr-ward">{t("adminAddresses.wardLabel")}</Label>
+                <Input
+                  id="addr-ward"
+                  value={form.ward}
+                  onChange={(e) => update("ward", e.target.value)}
+                  placeholder="Mỹ Đình 1"
+                />
+              </div>
             </div>
 
             {/* Coordinates — filled by the map / search; read-only UI. */}

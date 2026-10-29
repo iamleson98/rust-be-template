@@ -64,6 +64,13 @@
       "when": 1792560000000,
       "tag": "0008_user_role_without_users_read",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1793264378906,
+      "tag": "0009_address_city",
+      "breakpoints": true
     }
   ]
 }

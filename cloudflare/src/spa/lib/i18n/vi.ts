@@ -518,6 +518,10 @@ export const vi: TranslationMap = {
   "adminAddresses.detailLabel": "Địa chỉ chi tiết",
   "adminAddresses.detailPh": "Số nhà, đường…",
   "adminAddresses.provinceLabel": "Tỉnh / Thành phố",
+  "adminAddresses.cityPh": "Chọn tỉnh / thành phố...",
+  "adminAddresses.cityRequired": "Vui lòng chọn tỉnh / thành phố",
+  "adminAddresses.cityUnmatched":
+    "Không tìm thấy “{province}” trong danh sách — vui lòng chọn tỉnh / thành phố",
   "adminAddresses.districtLabel": "Quận / Huyện",
   "adminAddresses.wardLabel": "Phường / Xã",
   "adminAddresses.latLabel": "Vĩ độ (lat)",

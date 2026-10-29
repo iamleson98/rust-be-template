@@ -517,6 +517,10 @@ export const en: TranslationMap = {
   "adminAddresses.detailLabel": "Detailed address",
   "adminAddresses.detailPh": "House number, street…",
   "adminAddresses.provinceLabel": "Province / city",
+  "adminAddresses.cityPh": "Choose a province / city...",
+  "adminAddresses.cityRequired": "Please choose a province / city",
+  "adminAddresses.cityUnmatched":
+    "“{province}” is not in our list — please choose the province / city",
   "adminAddresses.districtLabel": "District",
   "adminAddresses.wardLabel": "Ward / commune",
   "adminAddresses.latLabel": "Latitude (lat)",
