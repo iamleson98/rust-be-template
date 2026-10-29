@@ -346,7 +346,7 @@ export class CallHub extends DurableObject<CloudflareEnv> {
     // the socket reconnected — hand the still-ringing offer to THIS socket.
     if (state.role === "agent") {
       const ringing = this.sessions.ringingFor(state.userId);
-      if (ringing) this.send(ws, this.incomingFrame(ringing, "customer"));
+      if (ringing) this.send(ws, this.incomingFrame(ringing, "agent"));
       this.broadcastPresence();
     }
   }

@@ -7,5 +7,7 @@ declare namespace Cloudflare {
     DB: D1Database;
     CACHE_KV: KVNamespace;
     UPLOADS: R2Bucket;
+    CHAT_HUB: DurableObjectNamespace;
+    CALL_HUB: DurableObjectNamespace;
   }
 }

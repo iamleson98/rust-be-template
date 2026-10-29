@@ -80,6 +80,32 @@ hibernates rehydrates from attachments instead of dropping its sockets.
   try/catch (closed-mid-send tolerated). The REST layer (D1) remains the
   durable source of truth and the reconnect fallback for chat.
 
+## The mobile app (Flutter agent console)
+
+`mobile/` speaks the same two protocols as the web, with these differences,
+all covered by `tests/hubs/` (the real `ChatHub` / `CallHub` classes run in
+workerd, driven with the app's own frames):
+
+- The credential rides in `?token=` (no cookie, no Origin); REST calls carry
+  `X-Client: mobile`, which the origin check exempts. Tokens are refreshed
+  with `{refresh_token}` in the body.
+- It **sends** chat over REST (`clientMsgId`, idempotent) and only
+  **receives** over `/ws`; the socket echo is de-duplicated by message `id`.
+  The queue row is patched from the `channel_message` frame's `preview`.
+- `/ws-call` heartbeat is `{"type":"heartbeat","__client_ts":…}` every 20 s;
+  any frame resets its 50 s half-open watchdog, so the hub's `pong` keeps a
+  healthy socket from being recycled.
+- A call survives a Wi-Fi ↔ LTE switch: the new socket registers with
+  `resume: true` inside the 15 s grace window and receives `activeCall`.
+- A phone woken by a VoIP push re-registers and is handed the still-ringing
+  offer (`incoming`, from the customer's side).
+
+**Closed-app ringing needs secrets the Worker does not have by default**:
+`APNS_KEY_PEM`, `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_TOPIC` (iOS VoIP) and
+`FCM_CREDENTIALS_JSON`. Without them the ring only reaches a phone whose
+app is awake and holding its socket (Android duty mode, iOS in the
+foreground); an iPhone with the app suspended or closed never hears the call.
+
 ## Smoke tests (all passing against the OpenNext preview)
 
 | Script                               | Verifies                                                               |
