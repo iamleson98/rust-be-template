@@ -19,6 +19,8 @@ import { AccountLayout } from "@spa/app/layout/account-layout";
 import { AdminLayout } from "@spa/app/layout/admin-layout";
 import { NotFoundPage } from "@spa/app/not-found";
 import { RootLayout } from "@spa/app/root-layout";
+import { bookingsDetail, getPayment } from "@spa/api";
+import { paymentReturnTarget } from "@spa/features/booking/payment-return";
 import { parseSearch, SEARCH_DEFAULTS, toQuery, type SearchInput } from "@spa/lib/search-params";
 import { requireAdmin, requireAuth, requireStaff } from "./guards";
 import { loginSearch } from "./login-redirect";
@@ -67,6 +69,24 @@ const booking = createRoute({
   beforeLoad: ({ params }) => {
     throw redirect({ to: "/account/trips/$code", params, replace: true });
   },
+});
+
+// Payment gateways send the customer back here once they have paid (or given up).
+const paymentReturn = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/payments/$paymentId/return",
+  beforeLoad: async (ctx) => {
+    requireAuth(ctx);
+    throw redirect(
+      await paymentReturnTarget(ctx.params.paymentId, {
+        bookingOf: async (id) =>
+          (await getPayment({ path: { id }, throwOnError: true })).data.bookingId,
+        codeOf: async (id) =>
+          (await bookingsDetail({ path: { id }, throwOnError: true })).data.code,
+      }),
+    );
+  },
+  staticData: { private: true },
 });
 
 const compare = createRoute({
@@ -270,6 +290,7 @@ export const routeTree = rootRoute.addChildren({
   trip,
   brand,
   booking,
+  paymentReturn,
   compare,
   privacy,
   terms,

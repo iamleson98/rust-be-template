@@ -1746,6 +1746,8 @@ export const en: TranslationMap = {
   "seo.brandDetail.description": "Operator information, routes, and customer reviews.",
   "seo.bookingDetail.title": "Ticket details — DatXeVui",
   "seo.bookingDetail.description": "Booked ticket information.",
+  "seo.paymentReturn.title": "Payment result — DatXeVui",
+  "seo.paymentReturn.description": "Opening the ticket you just paid for.",
   "seo.default.title": "DatXeVui — Book bus tickets online",
   "cancelSchema.reasonRequired": "Please choose a cancellation reason",
   "cancelSchema.otherReasonMax": "Reason must be at most 500 characters",

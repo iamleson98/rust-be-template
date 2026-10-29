@@ -26,10 +26,11 @@ describe("page SEO", () => {
       "/admin/system",
       "/account/trips/AB12",
       "/bookings/AB12",
+      "/payments/1/return",
     ]) {
       expect(matchPage(path)?.kind).toBe("private");
     }
-    for (const path of ["/random", "/brands", "/brands/x/y", "/adminx", "/payments/1/return"]) {
+    for (const path of ["/random", "/brands", "/brands/x/y", "/adminx", "/payments/1"]) {
       expect(matchPage(path)).toBeNull();
     }
   });

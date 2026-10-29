@@ -1743,6 +1743,8 @@ export const vi: TranslationMap = {
   "seo.brandDetail.description": "Thông tin hãng xe, tuyến đường, đánh giá khách hàng.",
   "seo.bookingDetail.title": "Chi tiết vé — DatXeVui",
   "seo.bookingDetail.description": "Thông tin vé đã đặt.",
+  "seo.paymentReturn.title": "Kết quả thanh toán — DatXeVui",
+  "seo.paymentReturn.description": "Đang mở vé vừa thanh toán.",
   "seo.default.title": "DatXeVui — Đặt vé xe khách online",
   "cancelSchema.reasonRequired": "Vui lòng chọn lý do huỷ vé",
   "cancelSchema.otherReasonMax": "Lý do huỷ vé tối đa 500 ký tự",
