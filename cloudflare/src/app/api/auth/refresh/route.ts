@@ -1,7 +1,7 @@
 import { clientIp, handleRouteError } from "@/lib/api";
 import { REFRESH_COOKIE } from "@/lib/auth/jwt";
 import { ApiError } from "@/lib/auth/rbac";
-import { authResponse, readCookie, refreshSession, sessionKindOf } from "@/lib/auth/session";
+import { authResponse, readCookies, refreshAnySession, sessionKindOf } from "@/lib/auth/session";
 import { Issues } from "@/lib/auth/validation";
 import { getDb } from "@/lib/db/client";
 import { users } from "@/lib/db/schema";
@@ -9,7 +9,7 @@ import { eq } from "drizzle-orm";
 
 /**
  * `POST /api/auth/refresh` — rotate the refresh token and issue a new access
- * token. The httpOnly cookie wins; the body's `refresh_token` (≤ 4096 chars) is
+ * token; of several refresh cookies, the live one. The httpOnly cookie wins; the body's `refresh_token` (≤ 4096 chars) is
  * the fallback for clients without a cookie jar — the mobile app. The camelCase
  * spelling is kept for anything already sending it, and a missing body is fine.
  */
@@ -26,10 +26,12 @@ export async function POST(req: Request) {
       else issues.length("refresh token", fromBody, 0, 4096);
       issues.throwIfAny();
     }
-    const presented = readCookie(req, REFRESH_COOKIE) ?? (fromBody as string | null | undefined);
-    if (!presented) throw new ApiError(401, "unauthorized", "missing refresh token");
+    // Every refresh cookie the browser sent (a stale one may come first), else the body's.
+    const cookies = readCookies(req, REFRESH_COOKIE);
+    const presented = cookies.length > 0 ? cookies : typeof fromBody === "string" ? [fromBody] : [];
+    if (presented.length === 0) throw new ApiError(401, "unauthorized", "missing refresh token");
 
-    const session = await refreshSession(presented, {
+    const session = await refreshAnySession(presented, {
       userAgent: req.headers.get("user-agent"),
       ip: clientIp(req),
       kind: sessionKindOf(req),

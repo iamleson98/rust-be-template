@@ -375,6 +375,23 @@ describe("refresh", () => {
     return { res, refreshToken: cookieValue(setCookie(res, "refresh_token")!) };
   }
 
+  it("uses the live refresh cookie when a stale one of the same name comes first", async () => {
+    // A partitioned and an unpartitioned cookie, from before a policy change.
+    const { refreshToken } = await signedIn();
+    const stale = `${crypto.randomUUID()}.${"0".repeat(64)}`;
+    const res = await refresh(
+      jsonRequest("/api/auth/refresh", {
+        body: {},
+        headers: { cookie: `refresh_token=${stale}; refresh_token=${refreshToken}` },
+      }),
+    );
+    expect(res.status).toBe(200);
+    // …and expires the other partition's pair so the browser stops sending it.
+    const all = res.headers.getSetCookie().filter((c) => c.startsWith("refresh_token="));
+    expect(all).toHaveLength(2);
+    expect(all[1]).toMatch(/^refresh_token=;.*Max-Age=0/);
+  });
+
   it("rotates through the cookie and sets fresh cookies", async () => {
     const { refreshToken } = await signedIn();
     const res = await refresh(

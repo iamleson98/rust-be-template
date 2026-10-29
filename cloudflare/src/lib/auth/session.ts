@@ -78,18 +78,30 @@ export function sessionUserOut(u: {
 
 // ── Request credentials ─────────────────────────────────────────────────
 
-/** One cookie of the request; a value that does not percent-decode is ignored. */
-export function readCookie(req: Request, name: string): string | null {
+/**
+ * Every value the request sends for cookie `name`, in order; values that do
+ * not percent-decode are skipped. A browser can hold several cookies of one
+ * name — a partitioned and an unpartitioned one, from before and after a
+ * cookie-policy change — and sends them all.
+ */
+export function readCookies(req: Request, name: string): string[] {
+  const values: string[] = [];
   for (const part of (req.headers.get("cookie") ?? "").split(";")) {
     const eq = part.indexOf("=");
     if (eq === -1 || part.slice(0, eq).trim() !== name) continue;
     try {
-      return decodeURIComponent(part.slice(eq + 1).trim());
+      const value = decodeURIComponent(part.slice(eq + 1).trim());
+      if (value) values.push(value);
     } catch {
-      return null;
+      /* not percent-encoded: not ours */
     }
   }
-  return null;
+  return values;
+}
+
+/** The first value of cookie `name`. */
+export function readCookie(req: Request, name: string): string | null {
+  return readCookies(req, name)[0] ?? null;
 }
 
 export function bearerToken(req: Request): string | null {
@@ -101,6 +113,12 @@ export function bearerToken(req: Request): string | null {
 /** Rust `bearer_or_cookie_token`: the Authorization header wins over the cookie. */
 export function accessTokenOf(req: Request): string | null {
   return bearerToken(req) ?? readCookie(req, ACCESS_COOKIE);
+}
+
+/** The access tokens to try, best first: the Authorization header, else every access cookie. */
+function accessTokensOf(req: Request): string[] {
+  const bearer = bearerToken(req);
+  return bearer ? [bearer] : readCookies(req, ACCESS_COOKIE);
 }
 
 // ── Refresh tokens ──────────────────────────────────────────────────────
@@ -206,6 +224,27 @@ export async function refreshSession(
   return { ...(await issueSession(userId, ctx)), userId };
 }
 
+/**
+ * Rotate the first of `candidates` that is a live refresh token (a stale
+ * cookie of the same name may come first); throws the last refusal when
+ * none is.
+ */
+export async function refreshAnySession(
+  candidates: string[],
+  ctx: SessionContext = {},
+): Promise<IssuedTokens & { userId: string }> {
+  let refusal: unknown = new ApiError(401, "unauthorized", "missing refresh token");
+  for (const presented of candidates) {
+    try {
+      return await refreshSession(presented, ctx);
+    } catch (e) {
+      if (!(e instanceof ApiError) || (e.status !== 400 && e.status !== 401)) throw e;
+      refusal = e;
+    }
+  }
+  throw refusal;
+}
+
 export async function revokeAllSessions(userId: string): Promise<void> {
   const db = await getDb();
   await db
@@ -255,10 +294,15 @@ export async function logoutSession(opts: {
 
 /** Resolve the caller from the Authorization header or the access cookie. */
 export async function currentUser(req: Request): Promise<SessionUser | null> {
-  const token = accessTokenOf(req);
-  if (!token) return null;
-  const claims = await verifyAccessToken(token);
-  if (!claims || (await isAccessTokenRevoked(token, claims))) return null;
+  let claims: Awaited<ReturnType<typeof verifyAccessToken>> = null;
+  for (const token of accessTokensOf(req)) {
+    const verified = await verifyAccessToken(token);
+    if (verified && !(await isAccessTokenRevoked(token, verified))) {
+      claims = verified;
+      break;
+    }
+  }
+  if (!claims) return null;
   const db = await getDb();
   const rows = await db
     .select({
@@ -360,13 +404,30 @@ export async function sessionCookies(
   return [
     `${ACCESS_COOKIE}=${encodeURIComponent(access)}; ${cookieAttributes(policy, await accessTtlSecs())}`,
     `${REFRESH_COOKIE}=${encodeURIComponent(refresh)}; ${cookieAttributes(policy, await refreshTtlSecs())}`,
+    ...expiredCookies(otherPartition(policy)),
   ];
 }
 
-/** Expire both cookies; Path/Domain/SameSite must match the ones they were set with. */
-export async function clearSessionCookies(req: Request): Promise<string[]> {
-  const attrs = cookieAttributes(await cookiePolicy(req), 0);
+/**
+ * The policy of the session cookies a browser may still hold from before a
+ * cookie-policy change: partitioned and unpartitioned cookies of one name
+ * live side by side, and the stale pair would be sent with the live one.
+ */
+function otherPartition(policy: CookiePolicy): CookiePolicy {
+  return policy.partitioned
+    ? { ...policy, sameSite: "Lax", partitioned: false }
+    : { ...policy, secure: true, sameSite: "None", partitioned: true };
+}
+
+const expiredCookies = (policy: CookiePolicy): string[] => {
+  const attrs = cookieAttributes(policy, 0);
   return [`${ACCESS_COOKIE}=; ${attrs}`, `${REFRESH_COOKIE}=; ${attrs}`];
+};
+
+/** Expire both cookies, in both partitions; Path/Domain must match the ones they were set with. */
+export async function clearSessionCookies(req: Request): Promise<string[]> {
+  const policy = await cookiePolicy(req);
+  return [...expiredCookies(policy), ...expiredCookies(otherPartition(policy))];
 }
 
 /**
