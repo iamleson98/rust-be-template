@@ -24,7 +24,8 @@ use serde::Deserialize;
 use serde_json::json;
 use subtle::ConstantTimeEq;
 use tower_http::timeout::TimeoutLayer;
-use tower_http::trace::TraceLayer;
+use tower_http::trace::{DefaultOnFailure, TraceLayer};
+use tracing::Level;
 
 use crate::indexer::{self, Source};
 use crate::metrics::Latency;
@@ -50,7 +51,8 @@ pub fn router(state: Shared) -> Router {
             StatusCode::SERVICE_UNAVAILABLE,
             REQUEST_TIMEOUT,
         ))
-        .layer(TraceLayer::new_for_http())
+        // 5xx answers are expected (503 before the first index): not log-worthy errors.
+        .layer(TraceLayer::new_for_http().on_failure(DefaultOnFailure::new().level(Level::DEBUG)))
         .with_state(state)
 }
 

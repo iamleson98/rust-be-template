@@ -751,7 +751,7 @@ export const en: TranslationMap = {
   "adminSystem.vpsTitle": "VPS service",
   "adminSystem.vpsDetail": "v{version} · up {uptime} · answered in {latency}",
   "adminSystem.vpsNotConfigured":
-    "The VPS is not configured. Set VPS_URL and the VPS_SERVICE_TOKEN secret on the Worker.",
+    "The VPS is not configured: the Worker needs its VPS binding and the VPS_SERVICE_TOKEN secret.",
   "adminSystem.vpsUnreachable": "The VPS did not answer: {error}",
   "adminSystem.cpuDetail": "{cores} cores · load {load}",
   "adminSystem.serviceCpu": "Service: {pct} of one core",

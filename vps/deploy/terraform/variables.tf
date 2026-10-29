@@ -74,12 +74,6 @@ variable "ssh_private_key_path" {
   default     = "~/.ssh/datxevui-vps"
 }
 
-variable "deploy_public_key_path" {
-  description = "Public key of the CI deploy user (release.yml holds the private key as VPS_DEPLOY_KEY)."
-  type        = string
-  default     = "~/.ssh/datxevui-deploy.pub"
-}
-
 variable "ssh_user" {
   description = "Login user of the Ubuntu image (sudo, key only)."
   type        = string

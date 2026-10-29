@@ -1,0 +1,11 @@
+[Unit]
+Description=Install the newest signed vps-service release, if any
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/vps-service-update auto
+# Never compete with search for CPU or disk.
+Nice=10
+IOSchedulingClass=idle

@@ -38,8 +38,8 @@ Secrets live in `.dev.vars` (git-ignored).
 
 **A release tag deploys.** PRs target the default branch (`feat/cloudflare-migration`) and only
 run checks; production changes when you push a tag (`git tag v1.2.0 && git push origin v1.2.0`).
-`.github/workflows/release.yml` then builds and deploys the VPS service (`vps/README.md`) and
-calls `.github/workflows/cloudflare-deploy.yml` for the Worker:
+`.github/workflows/release.yml` then builds and signs the VPS service (which the VPS installs by
+itself, `vps/README.md`) and calls `.github/workflows/cloudflare-deploy.yml` for the Worker:
 
 ```text
 typecheck + tests → install the latest place index → apply pending D1 migrations
@@ -105,7 +105,7 @@ rows live.
 ## Place search
 
 `/api/places/search`, `/api/places/reverse` and `/api/places` ask the **VPS service** first
-(`VPS_URL` + the `VPS_SERVICE_TOKEN` secret; 1.5 s timeout): every named place in Vietnam with
+(the private `VPS` Workers VPC binding + the `VPS_SERVICE_TOKEN` secret; 1.5 s timeout): every named place in Vietnam with
 typo tolerance, intent and context ranking. Answers are cached at the edge (5 min for search,
 1 h for reverse and popular). When the VPS is unset or does not answer, the Worker stops asking
 for 30 s and serves the **static shard index** below (cached for 1 min only); the response's
