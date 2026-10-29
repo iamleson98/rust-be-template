@@ -1,4 +1,4 @@
-import { adminAddressesCreateMutation } from "@spa/api";
+import { adminAddressesCreateMutation, adminAddressesUpdateMutation } from "@spa/api";
 import { useMutation } from "@tanstack/react-query";
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -41,8 +41,10 @@ type Props = {
   /** The brand the new address will belong to (each address belongs to exactly 1 brand). */
   brandId?: string;
   brandName?: string;
-  /** Fired after a successful save — the point select should adopt this address. */
-  onCreated: (address: AdminAddressOut) => void;
+  /** The address to edit; none creates a new one. */
+  address?: AdminAddressOut | null;
+  /** Fired after a successful save with the address as saved. */
+  onSaved: (address: AdminAddressOut) => void;
 };
 
 type FormState = {
@@ -66,7 +68,25 @@ const EMPTY_FORM: FormState = {
   lon: null,
 };
 
-export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCreated }: Props) {
+/** The form for an existing address; a point older than the city field gets its province's city. */
+const formOf = (a: AdminAddressOut): FormState => ({
+  name: a.name,
+  address: a.address ?? "",
+  cityId: a.cityId ?? cityForProvince(a.province) ?? "",
+  district: a.district ?? "",
+  ward: a.ward ?? "",
+  lat: a.lat,
+  lon: a.lon,
+});
+
+export function AddressMapDialog({
+  open,
+  onOpenChange,
+  brandId,
+  brandName,
+  address: editing,
+  onSaved,
+}: Props) {
   const t = useT();
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [picked, setPicked] = useState<{ name: string; lat: number; lon: number } | null>(null);
@@ -128,6 +148,8 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
   const hits: PlaceSearchHit[] = searchData?.items ?? [];
 
   const createMutation = useMutation(adminAddressesCreateMutation());
+  const updateMutation = useMutation(adminAddressesUpdateMutation());
+  const saving = createMutation.isPending || updateMutation.isPending;
 
   // Reset every time the dialog opens.
   useEffect(() => {
@@ -135,17 +157,17 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
       // Intentional effect-synced state (dialog reset-on-open /
       // server-data snapshot / DOM-availability gate).
 
-      setForm(EMPTY_FORM);
+      setForm(editing ? formOf(editing) : EMPTY_FORM);
       cityByHand.current = false;
       setUnmatchedProvince(null);
       setSubmitted(false);
-      setPicked(null);
-      setFlyTarget(null);
+      setPicked(editing ? { name: editing.name, lat: editing.lat, lon: editing.lon } : null);
+      setFlyTarget(editing ? [editing.lat, editing.lon] : null);
       setQuery("");
       setDebounced("");
       setSearchOpen(false);
     }
-  }, [open]);
+  }, [open, editing]);
 
   // Close the search dropdown on outside click.
   useEffect(() => {
@@ -282,58 +304,60 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
       setSubmitted(true);
       return;
     }
+    const fields = {
+      name: form.name.trim(),
+      address: form.address.trim() || null,
+      lat: form.lat,
+      lon: form.lon,
+      cityId: form.cityId,
+      district: form.district.trim() || null,
+      ward: form.ward.trim() || null,
+    };
     try {
-      // SDK mutation hooks require { body: <payload> } — see the 415 note
-      // in queries/index.ts.
-      const res = await (createMutation.mutateAsync({
-        body: {
-          brandId,
-          name: form.name.trim(),
-          address: form.address.trim() || undefined,
-          lat: form.lat,
-          lon: form.lon,
-          cityId: form.cityId,
-          district: form.district.trim() || undefined,
-          ward: form.ward.trim() || undefined,
-        },
-      } as unknown as Parameters<typeof createMutation.mutateAsync>[0]) as {
-        id?: string;
-        data?: { id?: string };
+      let id: string;
+      if (editing) {
+        await updateMutation.mutateAsync({ path: { id: editing.id }, body: fields });
+        id = editing.id;
+      } else {
+        // SDK mutation hooks require { body: <payload> } — see the 415 note
+        // in queries/index.ts.
+        const res = (await createMutation.mutateAsync({ body: { brandId, ...fields } })) as {
+          id?: string;
+          data?: { id?: string };
+        };
+        const newId = res?.id ?? res?.data?.id;
+        if (!newId) throw new Error("missing id in response");
+        id = newId;
+      }
+      toast.success(t(editing ? "adminAddresses.updated" : "adminAddresses.created"), {
+        description: fields.name,
       });
-      const newId: string | undefined = res?.id ?? res?.data?.id;
-      if (!newId) throw new Error("missing id in response");
-      toast.success(t("adminAddresses.created"), { description: form.name.trim() });
-      onCreated({
-        id: newId,
+      const now = new Date().toISOString();
+      onSaved({
+        ...fields,
+        id,
         brandId,
-        name: form.name.trim(),
-        address: form.address.trim() || null,
-        lat: form.lat,
-        lon: form.lon,
-        cityId: form.cityId,
         province: cityLabel(form.cityId),
-        district: form.district.trim() || null,
-        ward: form.ward.trim() || null,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        createdAt: editing?.createdAt ?? now,
+        updatedAt: now,
       });
       onOpenChange(false);
     } catch (e) {
-      toast.error(t("adminAddresses.createFailed"), {
+      toast.error(t(editing ? "adminAddresses.updateFailed" : "adminAddresses.createFailed"), {
         description: getErrorMessage(e, t("adminAddresses.tryAgain")),
       });
     }
   };
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !createMutation.isPending && onOpenChange(o)}>
+    <Dialog open={open} onOpenChange={(o) => !saving && onOpenChange(o)}>
       {/* max-h + internal scroll — previously unbounded: the stacked
           mobile layout (form + 420px map + footer) ran ~1100px tall, so
           the Save/Cancel footer was unreachable on phones. */}
       <DialogContent className="max-w-4xl max-h-[92dvh] p-0 gap-0 overflow-hidden flex flex-col">
         <DialogHeader icon={<MapPin />} className="shrink-0 border-b px-5 py-4 pr-14">
           <DialogTitle>
-            {t("adminAddresses.createTitle")}
+            {t(editing ? "adminAddresses.editTitle" : "adminAddresses.createTitle")}
             {brandName ? (
               <span className="ml-1 text-xs font-normal text-muted-foreground">· {brandName}</span>
             ) : null}
@@ -554,27 +578,21 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
         </div>
 
         <DialogFooter className="px-5 py-4 border-t bg-white">
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={createMutation.isPending}
-          >
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
             {t("common.cancel")}
           </Button>
           <Button
             onClick={handleSave}
             disabled={
-              createMutation.isPending ||
-              !form.name.trim() ||
-              form.lat == null ||
-              form.lon == null ||
-              !brandId
+              saving || !form.name.trim() || form.lat == null || form.lon == null || !brandId
             }
           >
-            {createMutation.isPending ? (
+            {saving ? (
               <>
                 <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> {t("common.saving")}
               </>
+            ) : editing ? (
+              t("common.saveChanges")
             ) : (
               <>
                 <Plus className="h-4 w-4 mr-1.5" /> {t("adminAddresses.createBtn")}

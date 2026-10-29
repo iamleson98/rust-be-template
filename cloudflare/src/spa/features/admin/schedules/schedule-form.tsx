@@ -431,7 +431,7 @@ export function ScheduleFormDialog({
         onOpenChange={setAddressDialogOpen}
         brandId={brandId}
         brandName={brandName}
-        onCreated={handleAddressCreated}
+        onSaved={handleAddressCreated}
       />
     </>
   );

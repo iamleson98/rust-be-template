@@ -29,6 +29,10 @@ export type AdminAddressOut = {
     lon: number;
     name: string;
     province?: string | null;
+    /**
+     * Schedule stops at this address (the list endpoint only).
+     */
+    stopCount?: number;
     updatedAt: string;
     ward?: string | null;
 };

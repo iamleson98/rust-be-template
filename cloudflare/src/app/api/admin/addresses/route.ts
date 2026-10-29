@@ -8,8 +8,9 @@ import { findCity } from "@/lib/city-match";
 
 /**
  * `GET /api/admin/addresses?brandId=&q=&limit=&offset=` — a brand's
- * addresses; `q`/`limit`/`offset` feed the searchable, infinite-scroll
- * schedule point picker; omitting `limit` returns all.
+ * addresses, each with how many schedule stops use it (`stopCount`);
+ * `q`/`limit`/`offset` feed the searchable, infinite-scroll schedule point
+ * picker; omitting `limit` returns all.
  */
 export async function GET(req: Request) {
   try {
@@ -30,7 +31,11 @@ export async function GET(req: Request) {
     }
     const where = conditions.length > 0 ? and(...conditions) : undefined;
     const rows = await db
-      .select()
+      .select({
+        address: addresses,
+        // Spelled out: inside the subquery drizzle would print both ids unqualified.
+        stopCount: sql<number>`(SELECT COUNT(*) FROM "schedule_point" sp WHERE sp."address_id" = "address"."id")`,
+      })
       .from(addresses)
       .where(where)
       .orderBy(asc(addresses.name))
@@ -40,7 +45,10 @@ export async function GET(req: Request) {
       .select({ n: sql<number>`count(*)` })
       .from(addresses)
       .where(where);
-    return Response.json({ items: rows.map(adminAddressOut), total: Number(total[0]?.n ?? 0) });
+    return Response.json({
+      items: rows.map((r) => ({ ...adminAddressOut(r.address), stopCount: Number(r.stopCount) })),
+      total: Number(total[0]?.n ?? 0),
+    });
   } catch (e) {
     return handleRouteError(e);
   }

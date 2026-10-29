@@ -3,9 +3,9 @@ import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { signAccessToken } from "@/lib/auth/jwt";
 import { getDb } from "@/lib/db/client";
-import { addresses } from "@/lib/db/schema";
+import { addresses, schedulePoints } from "@/lib/db/schema";
 import { GET as list, POST as create } from "@/app/api/admin/addresses/route";
-import { PUT as update } from "@/app/api/admin/addresses/[id]/route";
+import { DELETE as remove, PUT as update } from "@/app/api/admin/addresses/[id]/route";
 import { setCloudflareContext } from "../helpers/context";
 import { fixture, migrate, owner, type Fixture } from "../helpers/fixture";
 
@@ -67,5 +67,44 @@ describe("address city", () => {
     expect(await row(id)).toMatchObject({ name: "Mỹ Đình", cityId: "ha-noi" });
     expect((await update(await send("PUT", { cityId: "da-nang" }), ctx)).status).toBe(200);
     expect(await row(id)).toMatchObject({ cityId: "da-nang", province: "Đà Nẵng" });
+  });
+});
+
+describe("managing a brand's locations", () => {
+  const created = async (over: Record<string, unknown> = {}) =>
+    ((await (await create(await send("POST", point(over)))).json()) as any).id as string;
+  const ctxOf = (id: string) => ({ params: Promise.resolve({ id }) });
+  const listed = async () =>
+    ((await (await list(await send("GET", undefined))).json()) as any).items as any[];
+
+  it("clears a detail sent blank, and keeps one not sent", async () => {
+    const id = await created({ address: "1 Phạm Hùng", district: "Nam Từ Liêm" });
+    await update(await send("PUT", { address: "  ", ward: "Mỹ Đình 1" }), ctxOf(id));
+    expect(await row(id)).toMatchObject({
+      address: null,
+      district: "Nam Từ Liêm",
+      ward: "Mỹ Đình 1",
+    });
+    expect((await update(await send("PUT", { name: " " }), ctxOf(id))).status).toBe(400);
+  });
+
+  it("counts the schedule stops at each location and refuses to delete a used one", async () => {
+    const used = await created();
+    const free = await created({ name: "Bến xe Giáp Bát" });
+    await (await getDb()).insert(schedulePoints).values({
+      id: crypto.randomUUID(),
+      scheduleId: f.scheduleId,
+      addressId: used,
+      stopOrder: 0,
+      kind: "pickup",
+    });
+    const counts = Object.fromEntries((await listed()).map((a) => [a.id, a.stopCount]));
+    expect(counts).toMatchObject({ [used]: 1, [free]: 0 });
+
+    const refused = await remove(await send("DELETE", undefined), ctxOf(used));
+    expect(refused.status).toBe(409);
+    expect(await row(used)).toBeDefined();
+    expect((await remove(await send("DELETE", undefined), ctxOf(free))).status).toBe(200);
+    expect(await row(free)).toBeUndefined();
   });
 });
