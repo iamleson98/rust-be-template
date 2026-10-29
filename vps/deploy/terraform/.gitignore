@@ -1,0 +1,7 @@
+.terraform/
+*.tfstate
+*.tfstate.*
+# Operator values stay local.
+terraform.tfvars
+crash.log
+tfplan

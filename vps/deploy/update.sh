@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
-# Install or update vps-service from the rolling `vps-service` GitHub release
-# (published by .github/workflows/vps.yml). Run as root on the VPS:
+# Install or update vps-service from a GitHub release. Run as root on the VPS:
 #
-#   sudo bash update.sh            # latest build
+#   sudo bash update.sh            # the rolling `vps-service` release (default branch)
+#   sudo bash update.sh v1.2.0     # a tagged production release
+#
+# Each run also installs itself as /usr/local/sbin/vps-service-update, the
+# one command the CI deploy user may run with sudo (release.yml).
 #
 # First run: creates the service user, /etc/vps-service (config + env
 # template) and the systemd unit. Later runs: verify the download's SHA-256,
@@ -10,7 +13,13 @@
 set -euo pipefail
 
 repo="${VPS_REPO:-iamleson98/rust-be-template}"
-base="https://github.com/$repo/releases/download/vps-service"
+release="${1:-vps-service}"
+# Runs under sudo for the deploy user: accept a release name, nothing else.
+if ! [[ "$release" =~ ^(vps-service|v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?)$ ]]; then
+  echo "not a release name: $release" >&2
+  exit 2
+fi
+base="https://github.com/$repo/releases/download/$release"
 asset="vps-service-x86_64-linux.tar.gz"
 bin=/usr/local/bin/vps-service
 etc=/etc/vps-service
@@ -45,6 +54,7 @@ if [ ! -f "$etc/env" ]; then
   echo "wrote $etc/env: set CRON_SERVICE_TOKEN, and give VPS_SERVICE_TOKEN to the Worker"
 fi
 install -m 0644 "$new/deploy/vps-service.service" /etc/systemd/system/vps-service.service
+install -m 0755 "$new/deploy/update.sh" /usr/local/sbin/vps-service-update
 systemctl daemon-reload
 
 # Swap the binary, keeping the old one for a rollback.
@@ -59,7 +69,7 @@ systemctl restart vps-service
 for _ in $(seq 1 30); do
   code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8787/healthz || true)
   if [ "$code" = 200 ] || [ "$code" = 503 ]; then
-    echo "vps-service is up (healthz $code): $($bin --version)"
+    echo "vps-service $release is up (healthz $code): $($bin --version)"
     exit 0
   fi
   sleep 1

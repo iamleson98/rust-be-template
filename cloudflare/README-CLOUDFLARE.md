@@ -36,8 +36,10 @@ Secrets live in `.dev.vars` (git-ignored).
 
 ## Production build & deploy
 
-**Merging to the default branch deploys.** `feat/cloudflare-migration` is the repository's
-default branch; every PR targets it, and a push to it runs `.github/workflows/cloudflare-deploy.yml`:
+**A release tag deploys.** PRs target the default branch (`feat/cloudflare-migration`) and only
+run checks; production changes when you push a tag (`git tag v1.2.0 && git push origin v1.2.0`).
+`.github/workflows/release.yml` then builds and deploys the VPS service (`vps/README.md`) and
+calls `.github/workflows/cloudflare-deploy.yml` for the Worker:
 
 ```text
 typecheck + tests → install the latest place index → apply pending D1 migrations
@@ -45,11 +47,11 @@ typecheck + tests → install the latest place index → apply pending D1 migrat
 ```
 
 - Deploys never overlap (runs queue), and a failing test or typecheck stops before anything
-  ships. Feature-branch pushes only run the checks in `cloudflare.yml`; they never deploy.
+  ships. Branch pushes and PRs only run the checks in `cloudflare.yml`; they never deploy.
 - **Migrations run before the new code goes live**, so write them to keep the previous version
   working (add columns/tables now, remove things in a later release).
-- The weekly `place-index.yml` build rebuilds the OSM shards, publishes the `place-index`
-  release and calls the same deploy workflow.
+- The weekly `place-index.yml` build rebuilds the OSM shards and publishes the `place-index`
+  release; the next release ships it.
 - Repo settings it relies on: secrets `CLOUDFLARE_API_TOKEN` (Workers write + **D1 edit**) and
   `CLOUDFLARE_ACCOUNT_ID`; variable `SITE_URL` (the public origin, for the health check).
 - Rollback: Cloudflare keeps previous versions (`bunx wrangler rollback`); D1 migrations are

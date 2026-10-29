@@ -6,7 +6,9 @@
 #   pipeline the VPS runs weekly, so a change that breaks it never merges.
 # push to the default branch — also builds the release binary (glibc 2.35,
 #   so it runs on Ubuntu 22.04+ / Debian 13) and publishes it to the rolling
-#   `vps-service` release that vps/deploy/update.sh installs.
+#   `vps-service` release (`vps/deploy/update.sh` with no argument).
+# workflow_call with `release_tag` (release.yml) — the same checks, then
+#   publishes the binary to that tag's release for the production deploy.
 
 name: VPS service
 
@@ -25,6 +27,12 @@ on:
       - 'cloudflare/src/lib/cities.json'
       - '.github/workflows/vps.yml'
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      release_tag:
+        description: 'Publish the binary to this release (vX.Y.Z) instead of the rolling one'
+        type: string
+        required: true
 
 concurrency:
   group: vps-${{ github.ref }}
@@ -35,6 +43,9 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
+  # Where the binary goes: a tag's release, the rolling release (default
+  # branch pushes), or nowhere (pull requests, feature branches).
+  PUBLISH_TO: ${{ inputs.release_tag || ((github.event_name == 'push' && github.ref_name == github.event.repository.default_branch) && 'vps-service' || '') }}
   OSM_USER_AGENT: datxevui-vps-service-ci (+https://github.com/iamleson98/rust-be-template)
   OSM_URL: https://download.geofabrik.de/asia/vietnam-latest.osm.pbf
 
@@ -103,14 +114,14 @@ jobs:
 
       - name: Search the new index
         run: |
-          gen=$(ls "$RUNNER_TEMP"/vps/data/index/*.ndjson | head -1)
+          gen=$(find "$RUNNER_TEMP/vps/data/index" -name '*.ndjson' | head -1)
           printf '%s\n' "ha noi" "ho chi minh" "hue" "ben xe mien dong" "san bay noi bai" \
             "tran phu nha trang" "dai hoc bach khoa ha noi" "nguyne trai" \
             | vps/target/release/vps-service query --records "$gen" | tee "$RUNNER_TEMP/vps/queries.txt"
           grep -A1 "== hue" "$RUNNER_TEMP/vps/queries.txt" | grep -q "Huế"
 
       - name: Package
-        if: github.event_name == 'push' && github.ref_name == github.event.repository.default_branch
+        if: env.PUBLISH_TO != ''
         run: |
           mkdir -p dist/vps-service
           cp vps/target/release/vps-service vps/config.example.toml dist/vps-service/
@@ -119,16 +130,16 @@ jobs:
           sha256sum vps-service-x86_64-linux.tar.gz > vps-service-x86_64-linux.tar.gz.sha256
 
       - uses: actions/upload-artifact@v4
-        if: github.event_name == 'push' && github.ref_name == github.event.repository.default_branch
+        if: env.PUBLISH_TO != ''
         with:
           name: vps-service
           path: vps-service-x86_64-linux.tar.gz*
           retention-days: 14
 
   publish:
-    name: Publish the rolling vps-service release
+    name: Publish the vps-service binary
     needs: check
-    if: github.event_name == 'push' && github.ref_name == github.event.repository.default_branch
+    if: inputs.release_tag != '' || (github.event_name == 'push' && github.ref_name == github.event.repository.default_branch)
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -139,8 +150,14 @@ jobs:
       - env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
+          RELEASE: ${{ inputs.release_tag || 'vps-service' }}
         run: |
-          gh release view vps-service >/dev/null 2>&1 || \
-            gh release create vps-service --title "VPS service (rolling)" --target "$GITHUB_SHA" \
-              --notes "Latest vps-service build from the default branch. Installed by vps/deploy/update.sh."
-          gh release upload vps-service vps-service-x86_64-linux.tar.gz vps-service-x86_64-linux.tar.gz.sha256 --clobber
+          if [ "$RELEASE" = vps-service ]; then
+            gh release view vps-service >/dev/null 2>&1 || \
+              gh release create vps-service --title "VPS service (rolling)" --target "$GITHUB_SHA" \
+                --notes "Latest vps-service build from the default branch. Installed by vps/deploy/update.sh."
+          else
+            gh release view "$RELEASE" >/dev/null 2>&1 || \
+              gh release create "$RELEASE" --verify-tag --title "$RELEASE" --generate-notes
+          fi
+          gh release upload "$RELEASE" vps-service-x86_64-linux.tar.gz vps-service-x86_64-linux.tar.gz.sha256 --clobber

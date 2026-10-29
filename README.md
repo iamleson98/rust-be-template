@@ -34,8 +34,9 @@ Deploy, migrations, cron and the free-plan limits are described in
 | Workflow | Runs |
 | -------- | ---- |
 | `cloudflare.yml` | typecheck, lint, format and tests on every pull request |
-| `cloudflare-deploy.yml` | tests, D1 migrations, deploy and a health check on the default branch |
-| `place-index.yml` | weekly: builds the static fallback place index and redeploys |
+| `release.yml` | on a `vX.Y.Z` tag: builds the VPS service, deploys it to the VPS over SSH, and deploys the Worker |
+| `cloudflare-deploy.yml` | tests, D1 migrations, deploy and a health check (called by `release.yml`, or run by hand) |
+| `place-index.yml` | weekly: builds the static fallback place index (shipped by the next release) |
 | `vps.yml` | fmt, clippy, tests and a real-data index run for `vps/` + `tools/place-extract/`; publishes the `vps-service` release from the default branch |
 | `mobile.yml` | format, analyze, test and a debug APK build when `mobile/` changes |
 | `codeql.yml` | CodeQL on the TypeScript code |

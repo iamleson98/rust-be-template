@@ -41,7 +41,32 @@ All `/v1/*` routes need `Authorization: Bearer $VPS_SERVICE_TOKEN`.
 Hits have the shape of the Worker's `/api/places/*` routes:
 `{id, name, nameNoTones, type, province, district, ward, lat, lon, score}`.
 
-## Set up a new VPS
+## Provision with OpenTofu
+
+`vps/deploy/terraform` orders the VPS (VPS-1: 2 vCPU / 4 GB / 40 GB NVMe,
+Singapore, Ubuntu 24.04; $5.35/month + the $0.50 daily backup OVHcloud
+requires in SGP) and prepares the host: SSH-only firewall, key-only login,
+automatic security updates, 1 GB swap, cloudflared, a `deploy` user for CI,
+and vps-service once its release exists. Credentials come from
+`~/.ovh.conf` (endpoint `ovh-ca`, subsidiary ASIA).
+
+```bash
+cd vps/deploy/terraform
+ssh-keygen -t ed25519 -N "" -f ~/.ssh/datxevui-vps        # your login key
+ssh-keygen -t ed25519 -N "" -f ~/.ssh/datxevui-deploy     # the CI deploy key
+tofu init -backend-config="path=$HOME/.config/datxevui/vps.tfstate"
+tofu apply                                                # orders the VPS (no key yet)
+python3 -I scripts/install-key.py "$(tofu output -raw service_name)" ~/.ssh/datxevui-vps.pub
+echo 'image_id = "<printed id>"' >> terraform.tfvars
+tofu apply                                                # prepares the host over SSH
+```
+
+The API lists OS images only for an existing VPS, hence the second step:
+`install-key.py` rebuilds the fresh VPS with the key (wiping it, which is
+fine on a new server) and prints the image id later VPS are ordered with.
+Then continue with steps 2–4 below (step 1 is done).
+
+## Set up a new VPS by hand
 
 1. **OVH**: Ubuntu 24.04, Singapore (closest to Vietnam). Log in with an SSH
    key, then:
@@ -91,11 +116,30 @@ Hits have the shape of the Worker's `/api/places/*` routes:
    Until the secret is set the Worker keeps using the static index and its
    own cron trigger. `/admin/system` shows which engine and driver are live.
 
+## Release to production
+
+Push a tag; `.github/workflows/release.yml` does the rest:
+
+```bash
+git tag v1.0.0 && git push origin v1.0.0
+```
+
+It runs the service's checks and real-data index run, attaches the binary
+to the tag's release, then deploys in parallel: the VPS (SSH as `deploy`,
+`sudo vps-service-update v1.0.0`, which verifies the SHA-256 and rolls back
+a failed start) and the Cloudflare Worker (`cloudflare-deploy.yml`). Merging
+to the default branch no longer deploys anything.
+
+Repository settings it needs: secrets `CLOUDFLARE_API_TOKEN`,
+`CLOUDFLARE_ACCOUNT_ID`, `VPS_DEPLOY_KEY` (`~/.ssh/datxevui-deploy`),
+`VPS_KNOWN_HOSTS` (`ssh-keyscan -t ed25519 <ip>`, checked against the
+first login); variables `VPS_HOST` (the IPv4) and `SITE_URL`.
+
 ## Operate
 
 ```bash
 journalctl -u vps-service -f                          # logs (index runs, failed jobs)
-sudo bash update.sh                                    # update to the latest build (rolls back if it fails to start)
+sudo vps-service-update v1.2.0                         # install a release by hand (rolls back if it fails to start)
 source /etc/vps-service/env
 curl -s -H "Authorization: Bearer $VPS_SERVICE_TOKEN" localhost:8787/v1/status | jq .index
 curl -s -X POST -H "Authorization: Bearer $VPS_SERVICE_TOKEN" "localhost:8787/v1/index?force=true"

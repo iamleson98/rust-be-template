@@ -1,16 +1,14 @@
 # ─── Deploy the Cloudflare app (Next.js on Workers + D1 + R2) ─────────
 #
-# One deploy path for everything:
-#   push to the DEFAULT branch (a merged PR)   → this workflow
-#   weekly place-index build (place-index.yml) → calls this workflow
-#   manual                                      → Actions → Run workflow
+# Production changes only through:
+#   a release tag (vX.Y.Z)  → release.yml calls this workflow (after the VPS service)
+#   manual                  → Actions → Run workflow (deploys the chosen ref)
+# Merging to the default branch no longer deploys; tag it to ship.
 #
 # Steps: typecheck + tests → install the latest place index → apply pending D1
 # migrations → build + deploy → check the live /health.
 #
-# The branch gate reads the repository's default branch at run time, so
-# renaming it needs no edit here. Feature-branch pushes only run
-# cloudflare.yml (checks); they never deploy.
+# Pull requests and branch pushes only run cloudflare.yml (checks).
 #
 # Secrets (repo → Settings → Secrets → Actions): CLOUDFLARE_API_TOKEN (Workers
 # write + D1 edit), CLOUDFLARE_ACCOUNT_ID. Variable (optional): SITE_URL, the
@@ -23,11 +21,6 @@
 name: Cloudflare deploy
 
 on:
-  push:
-    branches: ['**']
-    paths:
-      - 'cloudflare/**'
-      - '.github/workflows/cloudflare-deploy.yml'
   workflow_dispatch:
   workflow_call:
 
@@ -41,9 +34,6 @@ permissions:
 jobs:
   deploy:
     name: Test, migrate, deploy
-    # A push only deploys from the default branch; dispatch / workflow_call
-    # deploy whatever ref they were started on.
-    if: github.event_name != 'push' || github.ref_name == github.event.repository.default_branch
     runs-on: ubuntu-latest
     timeout-minutes: 30
     defaults:
