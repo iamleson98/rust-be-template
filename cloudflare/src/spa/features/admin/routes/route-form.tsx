@@ -16,12 +16,13 @@
  * fields, but they have been removed from the entity — the platform now
  * derives ETA from the schedule's `departure_time` + Valhalla routing on
  * the public map page. The form below only collects the route's identity
- * (name, brand, start/end city, status).
+ * (name, brand, start/end city, status), plus its picture gallery (up to 10,
+ * re-encoded to WebP on the server) which is written after the route itself.
  */
 
 import { adminRoutesCreateMutation, adminRoutesUpdateMutation } from "@spa/api";
 import { useMutation } from "@tanstack/react-query";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -51,6 +52,7 @@ import type { AdminRouteOut } from "@spa/api";
 import type { AdminBrandOut } from "@spa/api";
 import { getCityGroups } from "./city-select-content";
 import { getErrorMessage } from "@spa/lib/error-message";
+import { RoutePicturesField, useRoutePictures } from "./route-pictures";
 
 const makeRouteSchema = (t: ReturnType<typeof useT>) =>
   z
@@ -89,7 +91,10 @@ export function RouteFormDialog({
   const isEdit = !!route;
   const createMutation = useMutation(adminRoutesCreateMutation());
   const updateMutation = useMutation(adminRoutesUpdateMutation());
-  const saving = createMutation.isPending || updateMutation.isPending;
+  const pictures = useRoutePictures(route?.id, open);
+  // The route is saved first, then its pictures: both are "saving" to the admin.
+  const [savingPictures, setSavingPictures] = useState(false);
+  const saving = createMutation.isPending || updateMutation.isPending || savingPictures;
   const routeSchema = useMemo(() => makeRouteSchema(t), [t]);
   const cityGroups = useMemo(() => getCityGroups(t), [t]);
 
@@ -121,6 +126,7 @@ export function RouteFormDialog({
       toast.error(t("routeForm.noBrand"));
       return;
     }
+    let routeId: string;
     try {
       // SDK mutation hooks require { body: <payload> } — passing the raw
       // payload makes `opts.body === undefined`, which causes the openapi-ts
@@ -139,22 +145,36 @@ export function RouteFormDialog({
           path: { id: route!.id },
           body: payload,
         } as unknown as Parameters<typeof updateMutation.mutateAsync>[0]);
+        routeId = route!.id;
         toast.success(t("routeForm.updated"));
       } else {
-        await createMutation.mutateAsync({ body: payload } as unknown as Parameters<
+        const created = await createMutation.mutateAsync({ body: payload } as unknown as Parameters<
           typeof createMutation.mutateAsync
         >[0]);
+        routeId = created.id;
         toast.success(t("routeForm.created"));
       }
+    } catch (e) {
+      toast.error(getErrorMessage(e, t("routeForm.saveFailed")));
+      return;
+    }
+
+    // The route exists now: a picture that fails does not undo it.
+    setSavingPictures(true);
+    try {
+      const failed = await pictures.commit(routeId);
+      if (failed > 0) toast.error(t("routePictures.partial", { count: failed }));
       onSaved();
     } catch (e) {
       toast.error(getErrorMessage(e, t("routeForm.saveFailed")));
+    } finally {
+      setSavingPictures(false);
     }
   };
 
   return (
     <Dialog open={open} onOpenChange={(o) => !saving && onOpenChange(o)}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-2xl">
         <DialogHeader icon={<RouteIcon />}>
           <DialogTitle>
             {isEdit ? t("routeForm.editTitle") : t("routeForm.createTitle")}
@@ -235,6 +255,8 @@ export function RouteFormDialog({
               )}
             />
 
+            <RoutePicturesField pictures={pictures} disabled={saving} />
+
             <DialogFooter>
               <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
                 {t("common.cancel")}
@@ -242,7 +264,10 @@ export function RouteFormDialog({
               <Button type="submit" disabled={saving}>
                 {saving ? (
                   <>
-                    <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> {t("common.saving")}
+                    <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />{" "}
+                    {pictures.progress
+                      ? t("routePictures.uploading", pictures.progress)
+                      : t("common.saving")}
                   </>
                 ) : (
                   <>{isEdit ? t("common.saveChanges") : t("adminRoutes.addRoute")}</>

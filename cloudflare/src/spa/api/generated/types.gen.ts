@@ -2952,12 +2952,12 @@ export type RoutePictureOut = {
      */
     sortOrder: number;
     /**
-     * Public URL of the JPEG thumbnail (long edge ≤ 640px) — use this
+     * Public URL of the WebP thumbnail (long edge ≤ 640px) — use this
      * in lists/grids, `url` in the detail gallery.
      */
     thumbUrl: string;
     /**
-     * Public URL of the ORIGINAL image (content-addressed, immutable).
+     * Public URL of the stored WebP picture (long edge ≤ 1920px, content-addressed, immutable).
      */
     url: string;
     /**

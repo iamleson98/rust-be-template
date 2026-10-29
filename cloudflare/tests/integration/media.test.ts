@@ -34,10 +34,52 @@ declare global {
 
 beforeAll(migrate);
 
+/**
+ * The Images binding is not available under workerd, so this stands in for it:
+ * it reads a PNG header (or its own "WebP", a RIFF header plus the size it
+ * encodes) the way `info()` would, and "re-encodes" by scaling the size down
+ * to the requested long edge. The output differs per size, like real WebP.
+ */
+const WEBP_HEAD = new TextEncoder().encode("RIFF\0\0\0\0WEBP");
+async function sizeOf(
+  stream: ReadableStream,
+): Promise<{ width: number; height: number; salt?: number }> {
+  const b = new Uint8Array(await new Response(stream).arrayBuffer());
+  const v = new DataView(b.buffer);
+  if (b[0] === 0x89 && b.length >= 24 && v.getUint32(16) > 0)
+    return { width: v.getUint32(16), height: v.getUint32(20), salt: b[32] };
+  if (b[0] === 0x52 && b.length > 12) return JSON.parse(new TextDecoder().decode(b.subarray(12)));
+  throw new Error("unsupported");
+}
+const fakeImages = {
+  info: async (stream: ReadableStream) => ({ format: "image/png", ...(await sizeOf(stream)) }),
+  input: (stream: ReadableStream) => {
+    let edge = Infinity;
+    const chain = {
+      transform: (t: { width: number }) => ((edge = t.width), chain),
+      output: async () => {
+        const { width, height, salt } = await sizeOf(stream);
+        const scale = Math.min(1, edge / Math.max(width, height));
+        const size = {
+          salt,
+          width: Math.round(width * scale),
+          height: Math.round(height * scale),
+        };
+        const body = new Uint8Array([
+          ...WEBP_HEAD,
+          ...new TextEncoder().encode(JSON.stringify(size)),
+        ]);
+        return { response: () => new Response(body) };
+      },
+    };
+    return chain;
+  },
+};
+
 let f: Fixture;
 let admin: string;
 beforeEach(async () => {
-  setCloudflareContext({ UPLOADS: env.UPLOADS });
+  setCloudflareContext({ UPLOADS: env.UPLOADS, IMAGES: fakeImages });
   f = await fixture(1);
   admin = await owner("admin");
   const stored = await env.UPLOADS.list();
@@ -77,7 +119,7 @@ const add = (w = 800, h = 600, salt = 0, alt?: string) =>
   post([file(png(w, h, salt)), ...(alt ? ([["alt_text", alt]] as [string, string][]) : [])]);
 
 describe("uploading", () => {
-  it("stores the original content-addressed, reads the size and answers 201 with Rust's body", async () => {
+  it("re-encodes to WebP, stores the picture and a thumbnail content-addressed and answers 201", async () => {
     const res = await add(1280, 720, 1, "  Bến xe  ");
     expect(res.status).toBe(201);
     const { ok, deduped, picture } = await res.json();
@@ -87,17 +129,40 @@ describe("uploading", () => {
       sortOrder: 0,
       width: 1280,
       height: 720,
-      mimeType: "image/png",
-      sizeBytes: 33,
+      mimeType: "image/webp",
       altText: "Bến xe",
     });
-    expect(picture.url).toMatch(new RegExp(`^/api/media/routes/${f.routeId}/[0-9a-f]{16}\\.png$`));
-    expect(picture.thumbUrl).toBe(picture.url); // no Images binding: the original stands in
-    const object = await env.UPLOADS.get(picture.url.replace("/api/media/", ""));
-    expect(object?.httpMetadata).toMatchObject({
-      contentType: "image/png",
-      cacheControl: "public, max-age=31536000, immutable",
-    });
+    expect(picture.url).toMatch(new RegExp(`^/api/media/routes/${f.routeId}/[0-9a-f]{16}\\.webp$`));
+    expect(picture.thumbUrl).toMatch(
+      new RegExp(`^/api/media/routes/${f.routeId}/t[0-9a-f]{16}\\.webp$`),
+    );
+    for (const url of [picture.url, picture.thumbUrl]) {
+      const object = await env.UPLOADS.get(url.replace("/api/media/", ""));
+      expect(object?.httpMetadata).toMatchObject({
+        contentType: "image/webp",
+        cacheControl: "public, max-age=31536000, immutable",
+      });
+      expect(new TextDecoder().decode((await object!.arrayBuffer()).slice(0, 4))).toBe("RIFF");
+    }
+    // The original PNG is never written.
+    expect((await env.UPLOADS.list()).objects).toHaveLength(2);
+  });
+
+  it("scales a large picture down to 1920 px and its thumbnail to 640 px", async () => {
+    const { picture } = await (await add(4000, 3000, 2)).json();
+    expect(picture).toMatchObject({ width: 1920, height: 1440 });
+    const thumb = await env.UPLOADS.get(picture.thumbUrl.replace("/api/media/", ""));
+    const size = JSON.parse(new TextDecoder().decode((await thumb!.arrayBuffer()).slice(12)));
+    expect(size).toMatchObject({ width: 640, height: 480 });
+    const small = (await (await add(800, 600, 3)).json()).picture; // never enlarged
+    expect(small).toMatchObject({ width: 800, height: 600 });
+  });
+
+  it("refuses to store an uncompressed original when image processing is unavailable", async () => {
+    setCloudflareContext({ UPLOADS: env.UPLOADS });
+    const res = await add(800, 600, 4);
+    expect(res.status).toBe(503);
+    expect((await env.UPLOADS.list()).objects).toHaveLength(0);
   });
 
   it("answers 200 for the same content again and keeps one row", async () => {
@@ -112,20 +177,22 @@ describe("uploading", () => {
     const notImage = await post([["file", new Blob(["<html>"])]]);
     expect(notImage.status).toBe(400);
     expect((await notImage.json()).message).toContain("unsupported image format");
-    expect((await post([file(png(0, 0))])).status).toBe(400); // unreadable header
+    expect((await post([file(png(0, 0))])).status).toBe(400); // undecodable
     expect((await post([["alt_text", "x"]])).status).toBe(400); // no file
     expect((await post([file(png(1, 1, 1)), file(png(1, 1, 2))])).status).toBe(400); // two files
     expect((await add(1, 1, 3, "a".repeat(256))).status).toBe(400);
     expect((await post([file(png(1, 1, 4))], admin, crypto.randomUUID())).status).toBe(404);
   });
 
-  it("caps a route at 12 pictures", async () => {
-    for (let i = 0; i < 12; i++) expect((await add(10, 10, i)).status).toBe(201);
+  it("caps a route at 10 pictures", async () => {
+    for (let i = 0; i < 10; i++) expect((await add(10, 10, i)).status).toBe(201);
     const over = await add(10, 10, 99);
     expect(over.status).toBe(400);
     expect((await over.json()).message).toBe(
-      "validation failed: route already has 12 pictures (max 12)",
+      "validation failed: route already has 10 pictures (max 10)",
     );
+    // A picture the route already has is still answered, not refused.
+    expect((await add(10, 10, 0)).status).toBe(200);
   });
 
   it("rejects an oversized body before reading it (413)", async () => {
@@ -205,14 +272,12 @@ describe("the gallery", () => {
 
   it("deletes one picture and its object, or the whole gallery", async () => {
     const [a] = await seed(3);
-    const key = (await (await getDb()).select().from(routePictures))[0]!.storageKey;
     const res = await deleteOne(
       new Request("https://x", { method: "DELETE", headers: await auth(admin) }),
       picture(a!),
     );
     expect(await res.json()).toEqual({ ok: true, id: a });
-    expect((await env.UPLOADS.list()).objects).toHaveLength(2);
-    void key;
+    expect((await env.UPLOADS.list()).objects).toHaveLength(4);
     const cleared = await clearGallery(
       new Request("https://x", { method: "DELETE", headers: await auth(admin) }),
       ctx(),
