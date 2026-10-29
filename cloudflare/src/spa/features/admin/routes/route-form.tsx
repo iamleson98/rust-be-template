@@ -189,13 +189,13 @@ export function RouteFormDialog({
         </DialogHeader>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-3 max-w-xl">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4 sm:grid-cols-2">
             {/* Route name */}
             <FormField
               control={form.control}
               name="name"
               render={({ field }) => (
-                <FormItem className="grid gap-1.5">
+                <FormItem className="grid gap-1.5 sm:col-span-2">
                   <FormLabel>
                     {t("routeForm.name")} <span className="text-destructive">*</span>
                   </FormLabel>
@@ -255,9 +255,11 @@ export function RouteFormDialog({
               )}
             />
 
-            <RoutePicturesField pictures={pictures} disabled={saving} />
+            <div className="sm:col-span-2">
+              <RoutePicturesField pictures={pictures} disabled={saving} />
+            </div>
 
-            <DialogFooter>
+            <DialogFooter className="sm:col-span-2">
               <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
                 {t("common.cancel")}
               </Button>
