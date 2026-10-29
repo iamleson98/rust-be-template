@@ -8,17 +8,33 @@ import { ChatHub } from "./chat-hub";
 import { CallHub } from "./call-hub";
 import {
   cachedPublicRead,
+  canonicalPlaceUrl,
   enforceIpLimit,
   enforceOrigin,
   isCacheablePublicRead,
   withSecurityHeaders,
 } from "./src/lib/edge-guard";
+import { cachedPage, isCacheablePage } from "./src/lib/page-cache";
+
+/**
+ * Place reads, answered without Next.js: search runs on every keystroke
+ * pause, so it skips the framework's routing and rendering (CPU the Free
+ * plan counts) and goes from the edge cache to the route handler directly.
+ */
+const PLACE_ROUTES: Record<string, () => Promise<{ GET: (req: Request) => Promise<Response> }>> = {
+  "/api/places": () => import("./src/app/api/places/route"),
+  "/api/places/search": () => import("./src/app/api/places/search/route"),
+  "/api/places/reverse": () => import("./src/app/api/places/reverse/route"),
+};
 
 /**
  * Custom OpenNext worker entry:
  *  - re-exports the generated Next.js handler
  *  - adds the `ChatHub` / `CallHub` Durable Objects that power the SPA's
  *    `/ws` chat socket and `/ws-call` audio signalling
+ *  - answers the place reads (`/api/places*`) from the edge cache or their
+ *    route handlers, without a Next.js render
+ *  - serves page HTML from the edge cache (`src/lib/page-cache.ts`)
  *  - answers `POST /api/jobs/tick` (the VPS service's cron driver) and a
  *    `scheduled` handler (Worker Cron Trigger, every minute, a safety net
  *    that only works while the VPS has stopped ticking) with the job
@@ -67,10 +83,25 @@ export default {
       );
     }
 
+    const placeRoute = request.method === "GET" ? PLACE_ROUTES[url.pathname] : undefined;
+    if (placeRoute) {
+      // Equivalent queries share one cache entry; the route sees the same form.
+      const read = new Request(canonicalPlaceUrl(request.url), request);
+      return withSecurityHeaders(
+        await cachedPublicRead(read, ctx, async () => {
+          const { GET } = await placeRoute();
+          return runWithCloudflareRequestContext(read, env, ctx, () => GET(read));
+        }),
+      );
+    }
+
     const dynamic = () => handler.fetch(request, env, ctx) as Promise<Response>;
+    const version = env.CF_VERSION_METADATA?.id;
     const response = isCacheablePublicRead(request)
       ? await cachedPublicRead(request, ctx, dynamic)
-      : await dynamic();
+      : version && isCacheablePage(request)
+        ? await cachedPage(request, version, ctx, dynamic)
+        : await dynamic();
     return withSecurityHeaders(response);
   },
 

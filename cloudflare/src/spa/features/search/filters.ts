@@ -1,37 +1,10 @@
 import type { SearchFacets } from "@spa/api";
+import type { Filters } from "@spa/lib/search-params";
 
-export type TimeRange = "0-6" | "6-12" | "12-18" | "18-24";
-
-/**
- * The results page's filters. The server applies them over every match (so a
- * match on a later page is never missed) and counts the options in `facets`;
- * the URL carries only sort, vehicle types and the query itself.
- */
-export type Filters = {
-  /** 0 means "no lower bound chosen" — the range then follows the matches. */
-  priceMin: number;
-  priceMax: number;
-  /** Boarding hour bands. */
-  timeRanges: TimeRange[];
-  minRating: number;
-  /** More than 5 seats left. */
-  availableOnly: boolean;
-  amenities: string[];
-  /** Brand slugs to include (empty = all brands). */
-  brands: string[];
-};
+// The filters are part of the `/search` URL; their shape lives with that contract.
+export { NO_FILTERS, type Filters, type TimeRange } from "@spa/lib/search-params";
 
 export type PriceRange = [number, number];
-
-export const NO_FILTERS: Filters = {
-  priceMin: 0,
-  priceMax: 0,
-  timeRanges: [],
-  minRating: 0,
-  availableOnly: false,
-  amenities: [],
-  brands: [],
-};
 
 const PRICE_STEP = 50_000;
 

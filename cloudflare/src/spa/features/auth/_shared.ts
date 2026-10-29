@@ -1,4 +1,4 @@
-import { z } from "zod";
+import * as z from "zod";
 import { emailSchema, fullNameSchema } from "@spa/lib/forms";
 import { useT, tSync } from "@spa/lib/i18n";
 

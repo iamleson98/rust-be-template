@@ -69,7 +69,7 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
   const [reverseLoading, setReverseLoading] = useState(false);
   const [flyTarget, setFlyTarget] = useState<[number, number] | null>(null);
 
-  // Debounced full-text search (Tantivy) for the overlay box.
+  // Place search for the overlay box; `debounced` drives the lat/long parse.
   const [query, setQuery] = useState("");
   const [debounced, setDebounced] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
@@ -102,8 +102,10 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
     // return null;
   }, [debounced]);
 
-  const { data: searchData, isLoading: searchLoading } = usePlaceSearch(debounced, {
-    enabled: open && debounced.trim().length >= 2 && !LatLongRegex.test(debounced),
+  // The hook debounces on its own, so it takes the raw input.
+  const { data: searchData, isLoading: searchLoading } = usePlaceSearch(query, {
+    enabled: open && query.trim().length >= 2 && !LatLongRegex.test(query),
+    limit: 20,
   });
   const hits: PlaceSearchHit[] = searchData?.items ?? [];
 

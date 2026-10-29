@@ -8,7 +8,7 @@
  * renders the app.
  *
  * The component is only ever rendered on the client (dynamic import with
- * `ssr: false` in `app/[[...slug]]/page.tsx`), so browser-only APIs are safe.
+ * `ssr: false` in `app/spa-entry.tsx`), so browser-only APIs are safe.
  */
 import { useEffect, useState } from "react";
 import { captureClickIds } from "@spa/lib/analytics";

@@ -1,4 +1,4 @@
-import { z } from "zod";
+import * as z from "zod";
 import { User, UserCheck } from "lucide-react";
 import { fullNameSchema, phoneSchema, emailSchema } from "@spa/lib/forms";
 import { tSync } from "@spa/lib/i18n";

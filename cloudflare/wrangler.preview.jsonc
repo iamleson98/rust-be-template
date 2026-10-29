@@ -80,6 +80,8 @@
     "ZALOPAY_ENABLED": "false",
     "REALTIME_ENABLED": "false"
   },
+  // This deploy's version id: the page HTML cache keys on it (src/lib/page-cache.ts).
+  "version_metadata": { "binding": "CF_VERSION_METADATA" },
   "observability": {
     "enabled": false
   }

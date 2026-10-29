@@ -1,6 +1,6 @@
 // Extracted from the original 'cancel-dialog.tsx'.
 
-import { z } from "zod";
+import * as z from "zod";
 import { tSync } from "@spa/lib/i18n";
 
 export const CANCEL_REASONS = [

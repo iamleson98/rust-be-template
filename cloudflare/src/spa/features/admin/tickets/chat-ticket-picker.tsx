@@ -154,8 +154,8 @@ export function ChatTicketPicker({
   }, [open, channel]);
 
   // ── Data hooks ──
-  const fromSearch = usePlaceSearch(fromQuery, { enabled: fromQuery.length >= 1 });
-  const toSearch = usePlaceSearch(toQuery, { enabled: toQuery.length >= 1 });
+  const fromSearch = usePlaceSearch(fromQuery, { enabled: fromQuery.length >= 1, limit: 6 });
+  const toSearch = usePlaceSearch(toQuery, { enabled: toQuery.length >= 1, limit: 6 });
   const tripSearch = useTripSearch(
     fromPlace && toPlace && date ? { from: fromPlace.name, to: toPlace.name, date } : null,
   );

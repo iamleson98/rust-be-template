@@ -12,7 +12,7 @@
  * (already styled with `text-destructive` in components/ui/form.tsx).
  */
 
-import { z } from "zod";
+import * as z from "zod";
 import { tSync } from "@spa/lib/i18n";
 
 /* Error messages use Zod's functional `{ error: () => … }` form so they

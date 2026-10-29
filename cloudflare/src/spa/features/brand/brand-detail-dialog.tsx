@@ -56,6 +56,10 @@ export function BrandDetailDialog({ slug, onClose }: { slug: string; onClose: ()
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent
         mobile="fullscreen"
+        // This dialog is a page (`/brands/$slug`): closing it goes back and the
+        // page under it mounts afresh, where Base UI's default would focus an
+        // older element that still exists, such as the search form's first field.
+        finalFocus={false}
         className="flex max-w-3xl flex-col gap-0 overflow-clip p-0"
       >
         {!brand ? (

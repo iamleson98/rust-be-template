@@ -68,6 +68,14 @@ export function TripDetailDialog({ tripId, onClose }: { tripId: string; onClose:
           scrolls inside, unlike other dialogs. Full screen on phones. */}
       <DialogContent
         mobile="fullscreen"
+        // This dialog is a page: closing it goes back in history and the page
+        // under it mounts afresh, so Base UI's default would land on whatever
+        // was focused earlier that still exists (the search form's first field,
+        // opening its dropdown). Back on the results, focus the trip's own
+        // button; anywhere else, move focus nowhere.
+        finalFocus={() =>
+          document.querySelector<HTMLElement>(`[data-trip-select="${CSS.escape(tripId)}"]`) ?? false
+        }
         className="flex max-h-[92dvh] max-w-7xl flex-col gap-0 overflow-hidden p-0 max-md:h-dvh max-md:max-h-dvh 2xl:max-w-[88rem]"
       >
         {bookingStep !== "idle" ? (

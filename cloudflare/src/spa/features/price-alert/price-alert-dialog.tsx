@@ -12,7 +12,7 @@ import { useSearchForm } from "@spa/stores/search-form";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import * as z from "zod";
 import { useT } from "@spa/lib/i18n";
 import type { PriceAlertOut as PriceAlert } from "@spa/api";
 import {

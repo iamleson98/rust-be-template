@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { Navigation2 } from "lucide-react";
 import { toast } from "sonner";
 import type { TripResult } from "@spa/api";
@@ -18,7 +18,7 @@ import { MobileFilters } from "./mobile-filters";
 import { RouteDirectory } from "./route-directory";
 import { SavedSearchesList } from "./saved-searches";
 import { useTripSearchInfinite } from "./api";
-import { filterQuery, NO_FILTERS, type Filters } from "./filters";
+import { filterQuery, type Filters } from "./filters";
 import { TripResultsList } from "./trip-results-list";
 import { useResultFilters } from "./use-result-filters";
 import { useSavedSearches, type SavedSearch } from "./use-saved-searches";
@@ -42,8 +42,10 @@ export function SearchResults() {
   }, [urlSearch, returning]);
 
   const browsing = !search.from || !search.to;
-  // The results page's filters, applied by the server over every match.
-  const [filters, setFilters] = useState<Filters>(NO_FILTERS);
+  // The results page's filters, applied by the server over every match. They
+  // live in the URL, so a reload, a shared link or Back from a trip keeps them.
+  const { filters } = urlSearch;
+  const setFilters = (next: Filters) => update({ filters: next }, { replace: true });
   const params = useMemo(() => ({ ...search, filters: filterQuery(filters) }), [search, filters]);
   const query = useTripSearchInfinite(browsing ? null : params);
   // `keepPreviousData` keeps the old list on screen during a re-search, so `isLoading`
@@ -82,7 +84,6 @@ export function SearchResults() {
   const applySaved = (s: SavedSearch) => {
     // A saved search is one-way: it replaces the round trip.
     update({ ...s, sort: s.sort as SortKey, returnDate: "", leg: "out" });
-    rf.setFilters(s.filters);
     toast.success(t("searchPage.savedSearchApplied"));
   };
 

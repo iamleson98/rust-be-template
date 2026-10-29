@@ -300,6 +300,8 @@ export const TripCard = memo(function TripCard({
           </div>
           <button
             type="button"
+            // The trip dialog hands focus back here when it closes.
+            data-trip-select={trip.tripId}
             onClick={(e) => {
               e.stopPropagation();
               select();

@@ -5,12 +5,13 @@ import { useCallback, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useT } from "@spa/lib/i18n";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { Form } from "@spa/components/ui/form";
 import { Button } from "@spa/components/ui/button";
 import { Search } from "lucide-react";
 import { buildSearchInput } from "@spa/lib/search-params";
 import { cn } from "@spa/lib/utils";
+import { LABEL_ROW_LG } from "./field-style";
 import { useMediaQuery } from "@spa/hooks/use-media-query";
 import { searchSchema, type SearchFormValues } from "./schema";
 import { SearchRouteFields } from "./route-fields";
@@ -34,6 +35,7 @@ function searchSort(v: SearchFormValues): SearchFormValues["sort"] {
 export function SearchWidget({ compact = false }: { compact?: boolean }) {
   const t = useT();
   const searchParams = useSearchForm((s) => s.searchParams);
+  const onResults = useRouterState({ select: (s) => s.location.pathname === "/search" });
   const setSearchParams = useSearchForm((s) => s.setSearchParams);
   const navigate = useNavigate();
   // Below lg (phones and tablets) the results page shows a one-line summary instead of the form row.
@@ -139,11 +141,16 @@ export function SearchWidget({ compact = false }: { compact?: boolean }) {
         fromCity: values.fromCity,
         toCity: values.toCity,
       });
+      // On the results page, a new day or party for the same corridor keeps its
+      // filters (the store mirrors the URL there); anything else starts without.
+      const sameCorridor =
+        onResults && values.from === searchParams.from && values.to === searchParams.to;
       setSubmitting(true);
       try {
         navigate({
           to: "/search",
           search: buildSearchInput({
+            filters: sameCorridor ? searchParams.filters : undefined,
             from: values.from,
             to: values.to,
             date: values.date,
@@ -167,7 +174,14 @@ export function SearchWidget({ compact = false }: { compact?: boolean }) {
         setTimeout(() => setSubmitting(false), 300);
       }
     },
-    [setSearchParams, navigate],
+    [
+      setSearchParams,
+      navigate,
+      onResults,
+      searchParams.from,
+      searchParams.to,
+      searchParams.filters,
+    ],
   );
 
   // Form submission can also be triggered programmatically (the search
@@ -212,10 +226,11 @@ export function SearchWidget({ compact = false }: { compact?: boolean }) {
         <form onSubmit={onSubmit} className="contents" noValidate aria-label={t("search.title")}>
           {compact ? (
             /* ── Compact bar (results page, ≥ lg): one row. Every field has
-                the same label and 44px control (see field-style.ts), so
-                `items-end` lines them all up — the swap and search buttons
-                too. Vehicle types stay in the results filters. ── */
-            <div className="grid grid-cols-1 gap-2.5 lg:grid-cols-[minmax(0,1.25fr)_auto_minmax(0,1.25fr)_minmax(0,1.15fr)_minmax(0,1fr)_minmax(0,0.65fr)_auto] lg:items-end">
+                the same label and 44px control (see field-style.ts), aligned
+                to the top so an error line under one field moves no other;
+                the unlabelled swap and search buttons skip the label row
+                (LABEL_ROW). Vehicle types stay in the results filters. ── */
+            <div className="grid grid-cols-1 gap-2.5 lg:grid-cols-[minmax(0,1.25fr)_auto_minmax(0,1.25fr)_minmax(0,1.15fr)_minmax(0,1fr)_minmax(0,0.65fr)_auto] lg:items-start">
               <SearchRouteFields form={form} swap={swap} />
               <SearchDateFields
                 form={form}
@@ -232,7 +247,10 @@ export function SearchWidget({ compact = false }: { compact?: boolean }) {
               <Button
                 type="submit"
                 disabled={submitting}
-                className="h-11 w-full shrink-0 gap-2 rounded-xl px-5 md:h-11 lg:w-auto"
+                className={cn(
+                  "h-11 w-full shrink-0 gap-2 rounded-xl px-5 md:h-11 lg:w-auto",
+                  LABEL_ROW_LG,
+                )}
               >
                 <Search className="h-4 w-4" />
                 <span>{submitting ? t("home.searching") : t("search.btn")}</span>
@@ -241,7 +259,7 @@ export function SearchWidget({ compact = false }: { compact?: boolean }) {
           ) : (
             /* ── Full widget (home page) ── */
             <>
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1.2fr)_auto_minmax(0,1.2fr)_minmax(0,1.15fr)_minmax(0,1fr)_minmax(0,0.7fr)] md:items-end">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1.2fr)_auto_minmax(0,1.2fr)_minmax(0,1.15fr)_minmax(0,1fr)_minmax(0,0.7fr)] md:items-start">
                 <SearchRouteFields form={form} swap={swap} layout="auto" />
 
                 {/* Phones: the two days side by side, then passengers; md: grid cells. */}
