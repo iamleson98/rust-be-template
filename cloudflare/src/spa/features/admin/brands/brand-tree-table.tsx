@@ -27,6 +27,7 @@ import {
   Trash2,
   MapPin,
   Loader2,
+  ImageIcon,
 } from "lucide-react";
 
 import { Badge } from "@spa/components/ui/badge";
@@ -161,8 +162,10 @@ export function BrandTreeTable({
             <TableRow className="border-border/60 bg-muted/50 hover:bg-muted/50">
               <TableHead
                 scope="col"
-                className="h-10 w-16 bg-transparent px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground"
-              />
+                className="h-10 w-28 bg-transparent px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground"
+              >
+                {t("brandLogo.label")}
+              </TableHead>
               <TableHead
                 scope="col"
                 className="h-10 bg-transparent px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground"
@@ -273,12 +276,15 @@ function BrandNode({
         )}
       >
         <TableCell className="px-3 py-3">
-          <Expander
-            expanded={expandable && expanded}
-            disabled={!expandable}
-            onToggle={onToggle}
-            label={t("brands.expandRoutes", { name: brand.name })}
-          />
+          <div className="flex items-center gap-1.5">
+            <Expander
+              expanded={expandable && expanded}
+              disabled={!expandable}
+              onToggle={onToggle}
+              label={t("brands.expandRoutes", { name: brand.name })}
+            />
+            <BrandLogoTile logoUrl={brand.logoUrl} name={brand.name} />
+          </div>
         </TableCell>
         <TableCell className="px-3 py-3">
           <div className="flex items-center gap-2.5">
@@ -672,6 +678,26 @@ function Expander({
         aria-hidden
       />
     </button>
+  );
+}
+
+/** The brand's logo; a placeholder picture while none is set. */
+function BrandLogoTile({ logoUrl, name }: { logoUrl?: string | null; name: string }) {
+  const t = useT();
+  return (
+    <span className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-slate-100 ring-1 ring-black/5 dark:bg-slate-800">
+      {logoUrl ? (
+        <img
+          src={logoUrl}
+          alt={t("brandLogo.alt", { name })}
+          loading="lazy"
+          decoding="async"
+          className="h-full w-full object-contain"
+        />
+      ) : (
+        <ImageIcon className="h-4 w-4 text-slate-400" aria-hidden />
+      )}
+    </span>
   );
 }
 

@@ -19,14 +19,25 @@ export function TripInfo({ detail, onShare }: { detail: TripDetail; onShare: () 
   return (
     <div className="shrink-0 border-b border-slate-200/80 bg-white px-4 pt-4 pb-3 pr-14 sm:px-6 sm:pr-16">
       <div className="flex items-start gap-3">
-        <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-primary text-sm font-bold text-primary-foreground">
-          {brandName
-            .split(" ")
-            .map((w) => w[0])
-            .join("")
-            .slice(0, 2)
-            .toUpperCase()}
-        </span>
+        {detail.brand.logoUrl ? (
+          <span className="grid size-11 shrink-0 place-items-center overflow-hidden rounded-2xl bg-slate-100 ring-1 ring-black/5">
+            <img
+              src={detail.brand.logoUrl}
+              alt=""
+              decoding="async"
+              className="h-full w-full object-contain"
+            />
+          </span>
+        ) : (
+          <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-primary text-sm font-bold text-primary-foreground">
+            {brandName
+              .split(" ")
+              .map((w) => w[0])
+              .join("")
+              .slice(0, 2)
+              .toUpperCase()}
+          </span>
+        )}
         <div className="min-w-0 flex-1">
           {/* Long place names wrap anywhere rather than push the dialog wider. */}
           <DialogTitle className="flex flex-wrap items-center gap-x-2 text-lg leading-snug font-bold tracking-tight text-slate-900 [overflow-wrap:anywhere] sm:text-xl">

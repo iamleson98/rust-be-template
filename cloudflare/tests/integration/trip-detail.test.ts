@@ -182,6 +182,23 @@ describe("trip detail", () => {
     expect(withPoints.pickupPoints.map((p: any) => p.name)).toEqual(["Điểm đón"]);
   });
 
+  it("tells which city each timetable stop is in, and the route's two cities", async () => {
+    const { tripId, brandId, scheduleId } = await seeded();
+    await addTimetable(brandId, scheduleId, [
+      { name: "Bến A", lat: 21, lon: 105.8, cityId: "ha-noi" },
+      { name: "Bến B", lat: 10.8, lon: 106.7, cityId: "ho-chi-minh" },
+      { name: "Bến C", lat: 10.7, lon: 106.6 },
+    ]);
+    const body = await (await get(tripId)).json();
+    expect(body.schedulePoints.map((p: any) => p.cityId)).toEqual([
+      "ha-noi",
+      "ho-chi-minh",
+      undefined,
+    ]);
+    expect(typeof body.from.cityId).toBe("string");
+    expect(typeof body.to.cityId).toBe("string");
+  });
+
   it("reports a departed or cancelled trip as not bookable", async () => {
     const { tripId } = await seeded();
     const db = await getDb();
