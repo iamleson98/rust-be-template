@@ -1,17 +1,24 @@
 /**
- * Coordinate search — port of `PublicService::search_trips_geo`: trips on a
- * date that stop within a distance of both the customer's pickup and
- * drop-off (in that order), each with the stop pair nearest them.
+ * Coordinate search — the search for places picked from the place search or
+ * the map. A trip is found when
+ * - its route runs between the cities the two places are in (the city
+ *   search's routes), or
+ * - it stops within a distance of both places, in that order (a route
+ *   passing through, or one filed under a neighbouring city),
+ * and each trip carries the pickup and drop-off stops nearest the places,
+ * so the default order puts the trips that serve them best first. A trip
+ * between the cities whose stops have no coordinates is still found, after
+ * the measured ones.
  *
  * A schedule with a timetable of its own is matched on ITS stops (with the
  * time the bus is there); one without on its route's pickup points. Stops
  * are found through the `(lat, lon)` columns inside a box around each
  * place, then measured exactly.
  */
-import { and, between, eq, isNotNull, or, type SQLWrapper } from "drizzle-orm";
+import { and, between, eq, isNotNull, or, type SQL, type SQLWrapper } from "drizzle-orm";
 import { getDb, inList } from "@/lib/db/client";
 import { addresses, pickupPoints, routes, schedulePoints, schedules } from "@/lib/db/schema";
-import { results, toCandidates, tripsOn, GEO_TRIP_CAP } from "./trip-search";
+import { results, routesBetween, toCandidates, tripsOn, GEO_TRIP_CAP } from "./trip-search";
 import type { RouteRow, ScheduleRow } from "./trip-cards";
 import type { TripSearchResponse, TripStopMatch } from "./trip-results";
 import type { SearchOptions } from "./trip-search-options";
@@ -98,12 +105,6 @@ export function nearestPair(
   return [stop(best.pickup), stop(best.dropoff)];
 }
 
-function groupBy<K, V>(items: Iterable<[K, V]>): Map<K, V[]> {
-  const out = new Map<K, V[]>();
-  for (const [key, value] of items) out.set(key, [...(out.get(key) ?? []), value]);
-  return out;
-}
-
 /** The stop pair of each group of stops that serves both places. */
 function pairsOf(
   groups: Map<string, StopHit[]>,
@@ -122,8 +123,12 @@ function pairsOf(
 const inside = (boxes: GeoBox[], lat: SQLWrapper, lon: SQLWrapper) =>
   or(...boxes.map((b) => and(between(lat, b.latMin, b.latMax), between(lon, b.lonMin, b.lonMax))));
 
-/** Timetable stops (with the time the bus is there) inside either box, by schedule. */
-async function scheduleStops(boxes: GeoBox[]): Promise<Map<string, StopHit[]>> {
+/**
+ * Timetable stops (with the time the bus is there) matching `where`, by
+ * schedule. Every schedule with a timetable gets an entry, even when none
+ * of its stops has coordinates.
+ */
+async function scheduleStops(where: SQL | undefined): Promise<Map<string, StopHit[]>> {
   const db = await getDb();
   const rows = await db
     .select({
@@ -136,23 +141,26 @@ async function scheduleStops(boxes: GeoBox[]): Promise<Map<string, StopHit[]>> {
     })
     .from(schedulePoints)
     .innerJoin(addresses, eq(addresses.id, schedulePoints.addressId))
-    .where(inside(boxes, addresses.lat, addresses.lon));
-  return groupBy(
-    rows.flatMap((r): Array<[string, StopHit]> =>
-      r.lat == null || r.lon == null
-        ? []
-        : [
-            [
-              r.scheduleId,
-              { order: r.order, name: r.name, time: r.time || undefined, lat: r.lat, lon: r.lon },
-            ],
-          ],
-    ),
-  );
+    .where(where);
+  const out = new Map<string, StopHit[]>();
+  for (const r of rows) {
+    const hits = out.get(r.scheduleId) ?? [];
+    out.set(r.scheduleId, hits);
+    if (r.lat != null && r.lon != null) {
+      hits.push({
+        order: r.order,
+        name: r.name,
+        time: r.time || undefined,
+        lat: r.lat,
+        lon: r.lon,
+      });
+    }
+  }
+  return out;
 }
 
-/** Pickup points of active routes inside either box, by route. */
-async function routeStops(boxes: GeoBox[]): Promise<Map<string, StopHit[]>> {
+/** Pickup points with coordinates of active routes matching `where`, by route. */
+async function routeStops(where: SQL | undefined): Promise<Map<string, StopHit[]>> {
   const db = await getDb();
   const rows = await db
     .select({
@@ -169,73 +177,106 @@ async function routeStops(boxes: GeoBox[]): Promise<Map<string, StopHit[]>> {
         eq(routes.status, "active"),
         isNotNull(pickupPoints.lat),
         isNotNull(pickupPoints.lon),
-        inside(boxes, pickupPoints.lat, pickupPoints.lon),
+        where,
       ),
     );
-  return groupBy(
-    rows.flatMap((r): Array<[string, StopHit]> =>
-      r.lat == null || r.lon == null
-        ? []
-        : [[r.routeId, { order: r.order, name: r.name ?? "", lat: r.lat, lon: r.lon }]],
-    ),
-  );
+  const out = new Map<string, StopHit[]>();
+  for (const r of rows) {
+    if (r.lat == null || r.lon == null) continue;
+    out.set(r.routeId, [
+      ...(out.get(r.routeId) ?? []),
+      { order: r.order, name: r.name ?? "", lat: r.lat, lon: r.lon },
+    ]);
+  }
+  return out;
 }
 
-/** The schedules to search and where the customer boards each. */
+/** The cities the searched places are in, as the place search named them. */
+export interface PlaceCities {
+  from: string;
+  to: string;
+}
+
+/**
+ * The schedules to search and where the customer boards each: null when
+ * the schedule runs between the searched cities but no stop of it has
+ * coordinates to measure.
+ */
 async function boardingSchedules(
   from: LatLon,
   to: LatLon,
   max: number,
-): Promise<{ schedules: ScheduleRow[]; boarding: Map<string, StopPair> }> {
+  cities: PlaceCities | null,
+): Promise<{ schedules: ScheduleRow[]; boarding: Map<string, StopPair | null> }> {
   const db = await getDb();
   const boxes = [geoBox(from, max), geoBox(to, max)];
 
-  // 1. Schedules whose own stops are near both places.
-  const boarding = pairsOf(await scheduleStops(boxes), from, to, max);
-  // 2. Routes whose pickup points are near both — for their schedules without a timetable.
-  const routeBoarding = pairsOf(await routeStops(boxes), from, to, max);
+  // Stops near both places (a schedule's own, or its route's for a schedule
+  // without a timetable), and the routes between the two cities.
+  const [nearSchedules, nearRoutes, cityRoutes] = await Promise.all([
+    scheduleStops(inside(boxes, addresses.lat, addresses.lon)),
+    routeStops(inside(boxes, pickupPoints.lat, pickupPoints.lon)),
+    cities ? routesBetween(cities.from, cities.to) : Promise.resolve([]),
+  ]);
+  const near = pairsOf(nearSchedules, from, to, max);
+  const nearRoute = pairsOf(nearRoutes, from, to, max);
+  const cityRouteIds = new Set(cityRoutes.map((r) => r.id));
+  const routeIds = [...new Set([...nearRoute.keys(), ...cityRouteIds])];
+  if (near.size === 0 && routeIds.length === 0) return { schedules: [], boarding: new Map() };
 
   const found = await db
     .select()
     .from(schedules)
-    .where(inList(schedules.id, [...boarding.keys()]));
-  if (routeBoarding.size > 0) {
-    const byRoute = await db
-      .select()
-      .from(schedules)
-      .where(inList(schedules.routeId, [...routeBoarding.keys()]));
-    const timed = new Set(
-      (
-        await db
-          .select({ scheduleId: schedulePoints.scheduleId })
-          .from(schedulePoints)
-          .where(
-            inList(
-              schedulePoints.scheduleId,
-              byRoute.map((s) => s.id),
-            ),
-          )
-      ).map((p) => p.scheduleId),
-    );
-    for (const s of byRoute) {
-      const pair = routeBoarding.get(s.routeId);
-      if (timed.has(s.id) || boarding.has(s.id) || !pair) continue; // boards only at its own stops
-      boarding.set(s.id, pair);
-      found.push(s);
+    .where(or(inList(schedules.id, [...near.keys()]), inList(schedules.routeId, routeIds)));
+  // Which of the others have a timetable (they board only at its stops),
+  // and every stop of the city routes, however far.
+  const others = found.filter((s) => !near.has(s.id));
+  const [timetables, cityPoints] = await Promise.all([
+    others.length > 0
+      ? scheduleStops(
+          inList(
+            schedulePoints.scheduleId,
+            others.map((s) => s.id),
+          ),
+        )
+      : new Map<string, StopHit[]>(),
+    cityRouteIds.size > 0
+      ? routeStops(inList(pickupPoints.routeId, [...cityRouteIds]))
+      : new Map<string, StopHit[]>(),
+  ]);
+
+  const boarding = new Map<string, StopPair | null>(near);
+  for (const s of others) {
+    const onCityRoute = cityRouteIds.has(s.routeId);
+    const own = timetables.get(s.id);
+    const routePair = nearRoute.get(s.routeId);
+    if (own) {
+      // Its own stops were already measured against the distance; a schedule
+      // between the cities is kept with its nearest stops, however far.
+      if (onCityRoute) boarding.set(s.id, nearestPair(own, from, to, Infinity));
+    } else if (routePair) {
+      boarding.set(s.id, routePair);
+    } else if (onCityRoute) {
+      boarding.set(s.id, nearestPair(cityPoints.get(s.routeId) ?? [], from, to, Infinity));
     }
   }
-  return { schedules: found, boarding };
+  return { schedules: found.filter((s) => boarding.has(s.id)), boarding };
 }
 
-/** Coordinate search: see the module comment. `maxDistanceKm` is clamped to 1..200. */
+/**
+ * Coordinate search: see the module comment. `maxDistanceKm` is clamped to
+ * 1..200; with `cities`, every trip between them is kept too.
+ */
 export async function searchTripsGeo(
   from: LatLon,
   to: LatLon,
   maxDistanceKm: number,
   opts: SearchOptions,
+  cities: PlaceCities | null = null,
 ): Promise<TripSearchResponse> {
   const max = Math.min(Math.max(maxDistanceKm, 1), 200);
-  const { schedules: found, boarding } = await boardingSchedules(from, to, max);
+  const { schedules: found, boarding } = await boardingSchedules(from, to, max, cities);
+  if (found.length === 0) return results([], opts);
 
   // Active routes only.
   const db = await getDb();
@@ -252,10 +293,10 @@ export async function searchTripsGeo(
   const active = found.filter((s) => routesById.has(s.routeId));
 
   const trips = await tripsOn(active, opts.date, opts.minSeats, GEO_TRIP_CAP);
-  const candidates = toCandidates(trips, new Map(active.map((s) => [s.id, s])), routesById).flatMap(
+  const candidates = toCandidates(trips, new Map(active.map((s) => [s.id, s])), routesById).map(
     (c) => {
       const pair = boarding.get(c.schedule.id);
-      return pair ? [{ ...c, pickup: pair[0], dropoff: pair[1] }] : [];
+      return pair ? { ...c, pickup: pair[0], dropoff: pair[1] } : c;
     },
   );
   return results(candidates, opts);

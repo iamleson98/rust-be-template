@@ -64,7 +64,7 @@ export type SearchParams = {
   fromLon?: number;
   toLat?: number;
   toLon?: number;
-  /** Province of a precise pick, used when only one end is precise. */
+  /** Province of a precise pick: scopes the geo search, and stands in for the place when only one end is precise. */
   fromCity?: string;
   toCity?: string;
   /** In the URL too, so a reload, a shared link or Back keeps them. */
@@ -209,10 +209,10 @@ export function toQuery({ vehicleTypes, filters, ...rest }: SearchParams): Searc
 
 /**
  * Navigation input for `/search`: only what differs from the defaults, vehicle
- * types as `vt`. Precise picks keep their coordinates only when both ends are
- * precise; a MIXED pick (one precise end, one plain city) degrades the precise
- * end to its city so the ordinary city-to-city search runs instead of an
- * unresolvable place name.
+ * types as `vt`. Precise picks keep their coordinates (and their cities, which
+ * scope the search) only when both ends are precise; a MIXED pick (one precise
+ * end, one plain city) degrades the precise end to its city so the ordinary
+ * city-to-city search runs instead of an unresolvable place name.
  */
 export function buildSearchInput(input: SearchInput): SearchInput {
   const { vehicleTypes, vt, filters, fromLat, fromLon, toLat, toLon, fromCity, toCity, ...rest } =
@@ -228,7 +228,7 @@ export function buildSearchInput(input: SearchInput): SearchInput {
   const geo = [fromLat, fromLon, toLat, toLon].every(
     (c) => typeof c === "number" && Number.isFinite(c),
   );
-  if (geo) return { ...out, fromLat, fromLon, toLat, toLon };
+  if (geo) return { ...out, fromLat, fromLon, toLat, toLon, fromCity, toCity };
   if (typeof fromLat === "number" || typeof toLat === "number") {
     return { ...out, from: fromCity || out.from, to: toCity || out.to };
   }

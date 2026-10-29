@@ -8575,6 +8575,12 @@ export type SearchTripsGeoData = {
         fromLon: number;
         toLat: number;
         toLon: number;
+        /**
+         * The cities the places are in (with `toCity`): every trip between
+         * them is found, not only those stopping within `maxDistanceKm`.
+         */
+        fromCity?: string | null;
+        toCity?: string | null;
         date: string;
         limit?: number | null;
         offset?: number | null;
