@@ -13,8 +13,8 @@
  *     that same canonical name, which the backend resolves to the city
  *     slug (`match_city_slugs`) for city-to-city trip search.
  *
- *  2. PRECISE PLACES (smart): the query is ALSO debounced into the
- *     Tantivy place index (/api/places/search) and those hits render in
+ *  2. PRECISE PLACES (smart): the query ALSO goes (debounced, cached) to
+ *     the place index (/api/places/search) and those hits render in
  *     a second section. Picking one (or picking a point on the map via
  *     the map button) yields exact lat/lon coordinates, which the parent
  *     can feed to the geo trip search (/api/search/geo) to find trips
@@ -29,6 +29,7 @@ import { usePlaceSearch } from "@spa/features/map/api";
 import type { PlaceSearchHit } from "@spa/api";
 import { MapPin, Loader2, MapIcon, Building2, Navigation2 } from "lucide-react";
 import { Input } from "@spa/components/ui/input";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@spa/components/ui/tooltip";
 import {
   Dialog,
   DialogContent,
@@ -140,13 +141,9 @@ export function PlaceAutocomplete({
   const t = useT();
   const [query, setQuery] = useState(value);
   const [open, setOpen] = useState(false);
-  // Debounced query — fed into usePlaceSearch so we don't fire a request
-  // on every keystroke. The hook itself does caching + deduplication.
-  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [highlight, setHighlight] = useState(0);
   const [mapOpen, setMapOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => {
     // Intentional effect-synced state (dialog reset-on-open /
@@ -155,8 +152,9 @@ export function PlaceAutocomplete({
     setQuery(value);
   }, [value]);
 
-  const { data: placesData, isLoading: loading } = usePlaceSearch(debouncedQuery, {
-    enabled: open && debouncedQuery.trim().length >= 2,
+  // The hook debounces, caches and cancels superseded requests.
+  const { data: placesData, isLoading: loading } = usePlaceSearch(query, {
+    enabled: open && query.trim().length >= 2,
   });
   const placeItems: PlaceSearchHit[] = placesData?.items ?? [];
 
@@ -204,7 +202,7 @@ export function PlaceAutocomplete({
     }));
   }, [query]);
 
-  // ── Place rows: precise hits from the Tantivy index ──
+  // ── Place rows: precise hits from the place index ──
   const placeRows: PlaceRow[] = useMemo(
     () =>
       placeItems
@@ -225,14 +223,6 @@ export function PlaceAutocomplete({
 
   const rows: Row[] = useMemo(() => [...cityRows, ...placeRows], [cityRows, placeRows]);
 
-  // Keep `highlight` within bounds as the row list changes.
-  useEffect(() => {
-    // Intentional effect-synced state (dialog reset-on-open /
-    // server-data snapshot / DOM-availability gate).
-
-    setHighlight(0);
-  }, [debouncedQuery]);
-
   const onInput = (val: string) => {
     setQuery(val);
     onChange(val);
@@ -240,8 +230,8 @@ export function PlaceAutocomplete({
     // the value is now just a name string until a row is picked again.
     onPick?.({ name: val, lat: null, lon: null, city: val });
     setOpen(true);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => setDebouncedQuery(val), 180);
+    // A new query means a new row list: start from its first row.
+    setHighlight(0);
   };
 
   const pick = (row: Row) => {
@@ -265,13 +255,6 @@ export function PlaceAutocomplete({
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
-  // Clean up the debounce timer on unmount.
-  useEffect(() => {
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
   }, []);
 
   const handleMapConfirm = (place: PickedPlace) => {
@@ -305,15 +288,7 @@ export function PlaceAutocomplete({
           onChange={(e) => onInput(e.target.value)}
           onBlur={onBlur}
           aria-invalid={ariaInvalid || undefined}
-          onFocus={() => {
-            setOpen(true);
-            // If the user has already typed something, immediately debounce-
-            // flush so the dropdown opens with results.
-            if (query.trim().length >= 2) {
-              if (debounceRef.current) clearTimeout(debounceRef.current);
-              setDebouncedQuery(query);
-            }
-          }}
+          onFocus={() => setOpen(true)}
           onKeyDown={(e) => {
             if (!open || rows.length === 0) return;
             if (e.key === "ArrowDown") {
@@ -338,15 +313,19 @@ export function PlaceAutocomplete({
           className={cn(icon ? "pl-10" : "", "bg-white/95 backdrop-blur pr-11")}
         />
         {/* "Pick on map" button — sits inside the input on the right */}
-        <button
-          type="button"
-          onClick={() => setMapOpen(true)}
-          title={t("searchPage.pickOnMap")}
-          aria-label={t("searchPage.pickOnMap")}
-          className="absolute right-2.5 top-1/2 -translate-y-1/2 h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-blue-600 hover:bg-blue-50 transition-colors"
-        >
-          <MapIcon className="h-4 w-4" />
-        </button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={() => setMapOpen(true)}
+              aria-label={t("searchPage.pickOnMap")}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-blue-600 hover:bg-blue-50 transition-colors"
+            >
+              <MapIcon className="h-4 w-4" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>{t("searchPage.pickOnMap")}</TooltipContent>
+        </Tooltip>
         {loading && (
           <Loader2 className="absolute right-11 top-1/2 -translate-y-1/2 h-3.5 w-3.5 animate-spin text-blue-600" />
         )}

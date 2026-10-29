@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import headersFile from "../../public/_headers?raw";
 import {
   cachedPublicRead,
+  canonicalPlaceUrl,
   classify,
   enforceIpLimit,
   enforceOrigin,
@@ -274,6 +275,34 @@ describe("public JSON cache", () => {
     expect(isCacheablePublicRead(withCookie("access_token=abc"))).toBe(false);
     expect(isCacheablePublicRead(withCookie("bus_lang=vi; refresh_token=abc"))).toBe(false);
     expect(isCacheablePublicRead(withCookie("bus_lang=vi"))).toBe(true);
+  });
+
+  it("shares place reads with signed-in callers (no user data in them)", () => {
+    for (const p of [
+      "/api/places",
+      "/api/places/search?q=hue",
+      "/api/places/reverse?lat=1&lon=2",
+    ]) {
+      const signedIn = new Request(`https://datxevui.com${p}`, {
+        headers: { cookie: "access_token=abc" },
+      });
+      expect(isCacheablePublicRead(signedIn)).toBe(true);
+    }
+  });
+
+  it("keys equivalent place reads alike", () => {
+    const key = (q: string) => canonicalPlaceUrl(`https://datxevui.com/api/places/search?${q}`);
+    const base = key("q=hà nội&limit=8");
+    expect(key("limit=8&q=H%C3%A0%20%20N%E1%BB%99i%20")).toBe(base);
+    // Decomposed (NFD) "à" is the same text.
+    expect(key(`q=${encodeURIComponent("ha\u0300 nội")}&limit=8`)).toBe(base);
+    expect(key("q=hà nội&limit=8&utm_source=x")).toBe(base);
+    expect(key("q=hà nội&limit=9")).not.toBe(base);
+    expect(key("q=ha noi&limit=8")).not.toBe(base); // tones are meaningful
+    expect(key("q=hue&lat=16.46371&lon=107.59082")).toBe(key("lon=107.5908&q=hue&lat=16.4641"));
+    expect(new URL(key("q=hue&lat=16.46371&lon=107.59082")).searchParams.get("lat")).toBe("16.464");
+    // Junk stays junk, for the route to answer 400.
+    expect(new URL(key("q=hue&lat=north")).searchParams.get("lat")).toBe("north");
   });
 
   it("serves the second read from the cache and tags it with Cache-Control", async () => {

@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { MapContainer, Marker, Popup, useMap, useMapEvents, ZoomControl } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { Search, Loader2, MapPin, Crosshair, X, Check } from "lucide-react";
 import { toast } from "sonner";
-import { placesReverse as sdkReverseGeocode, placesSearch as sdkPlaceSearch } from "@spa/api";
+import { placesReverse as sdkReverseGeocode } from "@spa/api";
+import { usePlaceSearch } from "@spa/features/map/api";
 import { formatPlaceType } from "@spa/lib/place-type";
 import { useT } from "@spa/lib/i18n";
 import { BasemapLayer } from "@spa/features/map/basemap-layer";
@@ -35,7 +36,7 @@ export type PickedPlace = {
 };
 
 type PlaceHit = {
-  osmId: number;
+  id?: string | null;
   name: string;
   type: string;
   province?: string | null;
@@ -172,7 +173,7 @@ export function LeafletMap({
   );
 }
 
-/** Search box that queries the Tantivy places index. */
+/** Search box over the place index. */
 function MapSearchBox({
   onSelect,
   placeholder,
@@ -182,33 +183,18 @@ function MapSearchBox({
 }) {
   const t = useT();
   const [q, setQ] = useState("");
-  const [hits, setHits] = useState<PlaceHit[]>([]);
-  const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const boxRef = useRef<HTMLDivElement>(null);
-
-  const run = useCallback(async (query: string) => {
-    if (query.trim().length < 2) {
-      setHits([]);
-      return;
-    }
-    setLoading(true);
-    try {
-      const { data } = await sdkPlaceSearch({ query: { q: query, limit: 6 } });
-      setHits(((data ?? {}) as { items?: PlaceHit[] }).items ?? []);
-    } catch {
-      setHits([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // Debounced, cached, and a newer query cancels an older one in flight.
+  const searchable = q.trim().length >= 2;
+  const { data, isFetching: loading } = usePlaceSearch(q, { enabled: searchable, limit: 6 });
+  const hits = searchable
+    ? ((data?.items ?? []).filter((h) => h.lat != null && h.lon != null) as PlaceHit[])
+    : [];
 
   const onInput = (v: string) => {
     setQ(v);
     setOpen(true);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => run(v), 350);
   };
 
   useEffect(() => {
@@ -239,10 +225,7 @@ function MapSearchBox({
         )}
         {!loading && q && (
           <button
-            onClick={() => {
-              setQ("");
-              setHits([]);
-            }}
+            onClick={() => setQ("")}
             className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
             aria-label={t("mapPage.clear")}
           >
@@ -253,7 +236,7 @@ function MapSearchBox({
       {open && hits.length > 0 && (
         <ul className="mt-1.5 max-h-72 overflow-y-auto rounded-xl bg-white p-1 shadow-float ring-1 ring-slate-900/10">
           {hits.map((h) => (
-            <li key={h.osmId}>
+            <li key={h.id ?? `${h.lat},${h.lon}`}>
               <button
                 type="button"
                 onClick={() => {

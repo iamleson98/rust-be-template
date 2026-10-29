@@ -206,13 +206,49 @@ const CACHEABLE_PATHS = new Set([
 ]);
 export const PUBLIC_JSON_CACHE_CONTROL = "public, s-maxage=30, stale-while-revalidate=120";
 
+/**
+ * Place reads hold no user data and no user writes them, so a signed-in
+ * caller shares the cached answers too.
+ */
+export const PLACE_PATHS = new Set(["/api/places", "/api/places/search", "/api/places/reverse"]);
+
 export function isCacheablePublicRead(request: Request): boolean {
+  const path = new URL(request.url).pathname;
   return (
     request.method === "GET" &&
-    CACHEABLE_PATHS.has(new URL(request.url).pathname) &&
-    // A signed-in caller always reads fresh: their own writes must show on the next fetch.
-    !carriesSession(request.headers)
+    CACHEABLE_PATHS.has(path) &&
+    // Otherwise a signed-in caller always reads fresh: their own writes must show on the next fetch.
+    (PLACE_PATHS.has(path) || !carriesSession(request.headers))
   );
+}
+
+/** Decimals kept of a place read's `lat` / `lon`: 3 is ~110 m, finer than the bias needs. */
+const PLACE_COORD_DECIMALS = 3;
+const PLACE_PARAMS = ["lat", "limit", "lon", "offset", "q"];
+
+/**
+ * One URL per distinct place answer, so equivalent reads share one cache
+ * entry: the query in the form the engine reads it (case, spacing and
+ * Unicode form do not change the answer; the SPA sends it this way too),
+ * coordinates rounded, unknown parameters dropped, the rest in a fixed
+ * order. The request goes on to the route in this form, so a cached answer
+ * is exactly the answer to its key. A value that does not parse is kept as
+ * is, for the route to reject.
+ */
+export function canonicalPlaceUrl(raw: string): string {
+  const url = new URL(raw);
+  const params = new URLSearchParams();
+  for (const name of PLACE_PARAMS) {
+    let value = url.searchParams.get(name);
+    if (value === null) continue;
+    if (name === "q") value = value.normalize("NFC").trim().replace(/\s+/g, " ").toLowerCase();
+    if ((name === "lat" || name === "lon") && value.trim() !== "" && Number.isFinite(+value)) {
+      value = String(+(+value).toFixed(PLACE_COORD_DECIMALS));
+    }
+    params.set(name, value);
+  }
+  url.search = params.toString();
+  return url.toString();
 }
 
 /**

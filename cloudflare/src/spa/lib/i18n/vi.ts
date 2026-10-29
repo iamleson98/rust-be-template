@@ -1732,6 +1732,13 @@ export const vi: TranslationMap = {
   "legal.contents": "Nội dung",
   "seo.tripDetail.title": "Chi tiết chuyến xe — DatXeVui",
   "seo.tripDetail.description": "Xem sơ đồ ghế, lịch trình, đánh giá và đặt vé trực tuyến.",
+  "seo.searchRoute.title": "Vé xe {from} đi {to} — Đặt vé online | DatXeVui",
+  "seo.searchRoute.description":
+    "Đặt vé xe khách {from} đi {to}: so sánh giờ chạy, giá vé và đánh giá các nhà xe, chọn ghế trên sơ đồ và thanh toán trực tuyến.",
+  "seo.brand.title": "{name} — Đặt vé xe {name} online | DatXeVui",
+  "seo.brand.description":
+    "Đặt vé xe {name} trực tuyến: các tuyến đang chạy, giờ đi, giá vé và đánh giá của hành khách.",
+  "seo.notFound.title": "Không tìm thấy trang — DatXeVui",
   "seo.brandDetail.title": "Hãng xe — DatXeVui",
   "seo.brandDetail.description": "Thông tin hãng xe, tuyến đường, đánh giá khách hàng.",
   "seo.bookingDetail.title": "Chi tiết vé — DatXeVui",

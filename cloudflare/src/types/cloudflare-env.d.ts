@@ -16,6 +16,8 @@ declare interface CloudflareEnv {
   IMAGES?: ImagesBinding;
   CHAT_HUB?: DurableObjectNamespace;
   CALL_HUB?: DurableObjectNamespace;
+  /** This deploy's version (wrangler `version_metadata`): keys the page HTML cache per deploy. */
+  CF_VERSION_METADATA?: WorkerVersionMetadata;
 
   // ── Vars (wrangler.jsonc / .dev.vars) ──────────────────────────────
   APP_ENV?: string;

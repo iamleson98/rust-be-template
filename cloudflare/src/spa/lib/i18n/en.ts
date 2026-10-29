@@ -1735,6 +1735,13 @@ export const en: TranslationMap = {
   "legal.contents": "Contents",
   "seo.tripDetail.title": "Trip details — DatXeVui",
   "seo.tripDetail.description": "View the seat map, schedule, and reviews, and book online.",
+  "seo.searchRoute.title": "{from} to {to} bus tickets — Book online | DatXeVui",
+  "seo.searchRoute.description":
+    "Book {from} to {to} bus tickets: compare departure times, fares and operator ratings, pick your seat on the seat map and pay online.",
+  "seo.brand.title": "{name} — Book {name} bus tickets online | DatXeVui",
+  "seo.brand.description":
+    "Book {name} bus tickets online: routes in service, departure times, fares and passenger reviews.",
+  "seo.notFound.title": "Page not found — DatXeVui",
   "seo.brandDetail.title": "Bus operator — DatXeVui",
   "seo.brandDetail.description": "Operator information, routes, and customer reviews.",
   "seo.bookingDetail.title": "Ticket details — DatXeVui",
