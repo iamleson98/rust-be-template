@@ -5,6 +5,7 @@ import { Combobox as ComboboxPrimitive } from "@base-ui/react/combobox";
 import { CheckIcon, ChevronDownIcon, SearchIcon } from "lucide-react";
 import { useT } from "@spa/lib/i18n";
 import { cn } from "@spa/lib/utils";
+import { noTones } from "@spa/lib/text";
 
 /**
  * Combobox — searchable dropdown built on Base UI's Combobox primitive.
@@ -296,13 +297,14 @@ export function ComboboxField({
   const t = useT();
   const groups = isGrouped(items) ? items : null;
   const flat = groups ? null : (items as ComboboxFieldItem[]);
-  // Track the live query so empty groups can be unmounted (Base UI
-  // hides filtered-out items but leaves group labels in the DOM).
+  // The rows are rendered here, so the live query decides which show
+  // (Base UI's own filter only drives the empty state).
   const [query, setQuery] = React.useState("");
-  const needle = query.trim().toLowerCase();
-
-  const groupMatches = (group: ComboboxFieldGroup) =>
-    !needle || group.items.some((item) => item.label.toLowerCase().includes(needle));
+  const needle = noTones(query);
+  // With or without tones: "binh dinh" finds "Bình Định".
+  const matches = (label: string, q: string) => noTones(label).includes(noTones(q));
+  const shown = (list: ComboboxFieldItem[]) =>
+    needle ? list.filter((item) => matches(item.label, needle)) : list;
 
   return (
     <Combobox
@@ -316,6 +318,8 @@ export function ComboboxField({
       // and trigger label resolution. Base UI accepts flat
       // {value,label} arrays or grouped {label, items} collections.
       items={items as unknown as readonly Record<string, unknown>[]}
+      // Items are `{ value, label }` records at run time, whatever the value type says.
+      filter={(item: unknown, q) => matches((item as ComboboxFieldItem).label, q)}
       disabled={disabled}
     >
       <ComboboxTrigger className={className} aria-label={ariaLabel} data-testid={testId}>
@@ -331,17 +335,21 @@ export function ComboboxField({
         </div>
         <ComboboxList>
           {groups
-            ? groups.filter(groupMatches).map((group) => (
-                <ComboboxPrimitive.Group key={group.label} className="combobox-field-group">
-                  <ComboboxPrimitive.GroupLabel className="px-2 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    {group.label}
-                  </ComboboxPrimitive.GroupLabel>
-                  {group.items.map((item) => (
-                    <ComboboxFieldItemRow key={item.value} item={item} />
-                  ))}
-                </ComboboxPrimitive.Group>
-              ))
-            : flat?.map((item) => <ComboboxFieldItemRow key={item.value} item={item} />)}
+            ? groups
+                .map((group) => ({ ...group, items: shown(group.items) }))
+                .filter((group) => group.items.length > 0)
+                .map((group) => (
+                  <ComboboxPrimitive.Group key={group.label} className="combobox-field-group">
+                    <ComboboxPrimitive.GroupLabel className="px-2 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      {group.label}
+                    </ComboboxPrimitive.GroupLabel>
+                    {group.items.map((item) => (
+                      <ComboboxFieldItemRow key={item.value} item={item} />
+                    ))}
+                  </ComboboxPrimitive.Group>
+                ))
+            : flat &&
+              shown(flat).map((item) => <ComboboxFieldItemRow key={item.value} item={item} />)}
           <ComboboxEmpty>{emptyText ?? t("combobox.noMatch")}</ComboboxEmpty>
         </ComboboxList>
       </ComboboxContent>
