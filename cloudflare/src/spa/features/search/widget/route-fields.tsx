@@ -11,7 +11,7 @@ import { FormControl, FormField, FormItem, FormLabel, FormMessage } from "@spa/c
 import { Tooltip, TooltipContent, TooltipTrigger } from "@spa/components/ui/tooltip";
 import { ArrowLeftRight, CircleDot, MapPin } from "lucide-react";
 import { cn } from "@spa/lib/utils";
-import { FIELD_ERROR, FIELD_ITEM, FIELD_LABEL } from "./field-style";
+import { FIELD_ERROR, FIELD_ITEM, FIELD_LABEL, LABEL_ROW_LG, LABEL_ROW_MD } from "./field-style";
 import type { SearchFormValues } from "./schema";
 
 export function SearchRouteFields({
@@ -96,8 +96,11 @@ export function SearchRouteFields({
           stacked
             ? "absolute right-12 top-12 z-10 -translate-y-1/2"
             : auto
-              ? "absolute right-12 top-12 z-10 -translate-y-1/2 md:static md:flex md:h-11 md:translate-y-0 md:items-center md:justify-center"
-              : "hidden h-11 items-center justify-center md:flex",
+              ? cn(
+                  "absolute right-12 top-12 z-10 -translate-y-1/2 md:static md:flex md:h-11 md:translate-y-0 md:items-center md:justify-center",
+                  LABEL_ROW_MD,
+                )
+              : cn("hidden h-11 items-center justify-center md:flex", LABEL_ROW_LG),
         )}
       >
         <Tooltip>

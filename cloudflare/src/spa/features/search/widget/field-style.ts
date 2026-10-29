@@ -1,8 +1,7 @@
 /**
  * One look for every search field, so a row of them lines up: the same
- * label height, the same 44px control, and an error that floats under its
- * field from md up (a reserved message line pushed every control apart
- * and left an empty band under the form).
+ * label height and the same 44px control. An error adds its line under its
+ * own field only; fields align to the top, so the others stay put.
  */
 
 /**
@@ -20,12 +19,16 @@ export const FIELD_CONTROL = "h-11 rounded-xl bg-white md:h-11";
 /** A control that is not an `<input>` marked like one with `aria-invalid`. */
 export const FIELD_INVALID = "border-destructive ring-destructive/20";
 
-/** The field wrapper: positions the floating error. */
+/**
+ * The label row an unlabelled control in a field row (swap, search) skips to
+ * line up with the controls, the row being top-aligned: the label's h-4 plus
+ * FIELD_ITEM's space-y-1.5, from the breakpoint the row forms at.
+ */
+export const LABEL_ROW_MD = "md:mt-[22px]";
+export const LABEL_ROW_LG = "lg:mt-[22px]";
+
+/** The field wrapper. */
 export const FIELD_ITEM = "relative space-y-1.5";
 
-/**
- * The error under a field: in flow on phones; from md up a small callout
- * pinned under its own field, over whatever is below, so the row never moves.
- */
-export const FIELD_ERROR =
-  "pl-1 text-xs leading-4 font-medium text-red-600 md:pointer-events-none md:absolute md:top-full md:left-0 md:z-10 md:mt-1.5 md:w-max md:max-w-full md:rounded-lg md:bg-white md:px-2.5 md:py-1 md:shadow-md md:ring-1 md:ring-red-200 dark:md:bg-slate-900";
+/** The error under a field: plain red text in the flow, like any form's. */
+export const FIELD_ERROR = "pl-1 text-xs leading-4 text-destructive";
