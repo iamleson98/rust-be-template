@@ -1,6 +1,6 @@
 // Extracted from the original 'search-widget.tsx'.
 
-import { z } from "zod";
+import * as z from "zod";
 import { requiredText } from "@spa/lib/forms";
 import { tSync } from "@spa/lib/i18n";
 

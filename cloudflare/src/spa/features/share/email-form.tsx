@@ -11,7 +11,7 @@
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import * as z from "zod";
 import { Button } from "@spa/components/ui/button";
 import { Input } from "@spa/components/ui/input";
 import { Textarea } from "@spa/components/ui/textarea";

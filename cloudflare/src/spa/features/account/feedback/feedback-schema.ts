@@ -1,4 +1,4 @@
-import { z } from "zod";
+import * as z from "zod";
 import { tSync } from "@spa/lib/i18n";
 
 export const feedbackSchema = z.object({

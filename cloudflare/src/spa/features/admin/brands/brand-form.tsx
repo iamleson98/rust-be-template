@@ -5,7 +5,7 @@ import { adminBrandsCreateMutation, adminBrandsUpdateMutation } from "@spa/api";
 import { useEffect, useMemo } from "react";
 import { useForm, useFormState, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import * as z from "zod";
 import {
   Dialog,
   DialogContent,
