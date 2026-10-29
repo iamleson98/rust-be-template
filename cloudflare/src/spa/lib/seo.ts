@@ -30,6 +30,7 @@ const PAGES: Array<[RegExp, string, PageKind]> = [
   // A trip departs and is gone: the page is not worth a search result, its links are.
   [/^\/trips\/[^/]+$/, "tripDetail", "noindex"],
   [/^\/bookings\/[^/]+$/, "bookingDetail", "private"],
+  [/^\/payments\/[^/]+\/return$/, "paymentReturn", "private"],
   [/^\/login$/, "login", "private"],
   [/^\/admin(\/.*)?$/, "admin", "private"],
   [/^\/account(\/.*)?$/, "account", "private"],
