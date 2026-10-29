@@ -1,6 +1,9 @@
 import { handleRouteError } from "@/lib/api";
 import { publicCampaigns } from "@/lib/services/campaign-public";
 
+/** Live data (bindings, D1): never prerendered at build. */
+export const dynamic = "force-dynamic";
+
 /**
  * `GET /api/campaigns` — public coupon campaigns (Rust
  * `PublicCampaignListResponse`): every campaign that is not paused and has

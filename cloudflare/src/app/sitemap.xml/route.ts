@@ -4,6 +4,12 @@ import { brands } from "@/lib/db/schema";
 
 const BASE = "https://datxevui.com";
 
+/**
+ * Rendered per request (and cached for an hour by the header below): a
+ * build-time prerender would read the empty build database and list no brands.
+ */
+export const dynamic = "force-dynamic";
+
 /** `GET /sitemap.xml` — static shell + one URL per brand slug. */
 export async function GET() {
   try {

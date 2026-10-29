@@ -1,6 +1,9 @@
 import { getDb } from "@/lib/db/client";
 import { sql } from "drizzle-orm";
 
+/** Live data (bindings, D1): never prerendered at build. */
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   const started = Date.now();
   let dbOk = false;
