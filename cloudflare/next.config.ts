@@ -1,7 +1,12 @@
 import type { NextConfig } from "next";
 import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
 
-initOpenNextCloudflareForDev();
+// Bindings for `next dev` only. `next build` prerenders nothing that needs
+// them, and starting the proxy there would open a remote session for the
+// `VPS` Workers VPC binding (always remote), which CI's token may not allow.
+if (process.env.NODE_ENV === "development") {
+  initOpenNextCloudflareForDev({ remoteBindings: false });
+}
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,

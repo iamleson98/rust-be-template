@@ -104,7 +104,9 @@
   // The VPS service (vps/), privately: a Workers VPC service over the
   // `datxevui-vps` Cloudflare Tunnel to its 127.0.0.1:8787. No public hostname.
   "vpc_services": [
-    { "binding": "VPS", "service_id": "01a1866e-b3c3-7390-acb4-5a56e636f08c", "remote": true },
+    // No `remote`: that would open a remote session during `next build`. Local
+    // dev has no binding and uses the static index, like a VPS outage.
+    { "binding": "VPS", "service_id": "01a1866e-b3c3-7390-acb4-5a56e636f08c" },
   ],
   "observability": {
     "enabled": true,
