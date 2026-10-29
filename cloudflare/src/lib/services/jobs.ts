@@ -1,8 +1,9 @@
 /**
- * Jobs service — the cron EXECUTOR. The DRIVER is the Worker's Cron Trigger
- * (every minute): custom-worker.ts `scheduled()` feeds a synthetic
- * POST /api/jobs/tick through the Next.js handler. The same route is also
- * callable with the CRON_SERVICE_TOKEN for manual runs.
+ * Jobs service — the cron EXECUTOR. The DRIVER is the VPS service (`vps/`),
+ * which calls `POST /api/jobs/tick` every minute with the CRON_SERVICE_TOKEN
+ * (custom-worker.ts answers it without Next.js). The Worker's own Cron
+ * Trigger is the safety net: it runs the tick itself only while the VPS's
+ * heartbeat (`cron.driver`) is stale.
  *
  * Cadences (port of the Rust scheduler + in-process timers):
  *  - holds.sweep   — fixed, every tick (60s): cancel expired pending bookings
@@ -121,7 +122,7 @@ export const SWEEP_HEARTBEAT_MS = 10 * 60_000;
 export const HEARTBEAT_WINDOW_MS = 15 * 60_000;
 
 /** Is the newest run of `jobType` older than `maxAgeMs`? (indexed: job_type, created_at) */
-async function lastRunOlderThan(jobType: string, maxAgeMs: number): Promise<boolean> {
+export async function lastRunOlderThan(jobType: string, maxAgeMs: number): Promise<boolean> {
   const db = await getDb();
   const [last] = await db
     .select({ createdAt: jobRuns.createdAt })
@@ -130,6 +131,28 @@ async function lastRunOlderThan(jobType: string, maxAgeMs: number): Promise<bool
     .orderBy(desc(jobRuns.createdAt))
     .limit(1);
   return !last || Date.now() - new Date(last.createdAt).getTime() >= maxAgeMs;
+}
+
+/**
+ * The external cron driver (the VPS service calling `POST /api/jobs/tick`)
+ * leaves a `cron.driver` heartbeat row every `DRIVER_HEARTBEAT_MS`. While
+ * one is younger than `DRIVER_STALE_MS` the Worker's own Cron Trigger stands
+ * down; when they stop, it takes over within that window.
+ */
+export const DRIVER_JOB = "cron.driver";
+export const DRIVER_HEARTBEAT_MS = 5 * 60_000;
+export const DRIVER_STALE_MS = 7 * 60_000;
+
+/** Records that the external driver ticked (at most once per heartbeat interval). */
+export async function noteExternalTick(): Promise<void> {
+  if (await lastRunOlderThan(DRIVER_JOB, DRIVER_HEARTBEAT_MS)) {
+    await recordRun(DRIVER_JOB, "succeeded", JSON.stringify({ driver: "vps" }));
+  }
+}
+
+/** Is the external driver ticking? One indexed row read. */
+export async function externalDriverActive(): Promise<boolean> {
+  return !(await lastRunOlderThan(DRIVER_JOB, DRIVER_STALE_MS));
 }
 
 /** Fixed frequent jobs — always run on tick. */

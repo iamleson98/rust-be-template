@@ -98,6 +98,9 @@
     "REALTIME_ENABLED": "false",
     "CALL_ALLOWED_COUNTRIES": "VN",
     "AUDIO_CALL_RING_TIMEOUT_SECS": "60",
+    // VPS service (vps/): place search + cron driver, via Cloudflare Tunnel.
+    // Inactive until the VPS_SERVICE_TOKEN secret is set.
+    "VPS_URL": "https://vps.datxevui.com",
   },
   "observability": {
     "enabled": true,

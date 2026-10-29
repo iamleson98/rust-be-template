@@ -93,7 +93,7 @@ hibernates rehydrates from attachments instead of dropping its sockets.
 
 1. Set secrets `TURN_KEY_ID` / `TURN_KEY_API_TOKEN` (a Calls/TURN key from
    the Cloudflare dashboard) → corporate-network relay support turns on.
-2. Deploy the container cron driver (`container/`) — see
-   `README-CLOUDFLARE.md`.
+2. Set up the VPS service (`vps/README.md`), which drives the cron jobs and
+   place search; without it the Worker's own cron trigger runs the jobs.
 3. Set `TURN_TTL_SECONDS` only if you want shorter-lived credentials than
    the 24h default (clamped to [600, 86400]).

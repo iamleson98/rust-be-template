@@ -88,3 +88,4 @@ cloudflare/migrations/seed.sql
 
 # place-extract build output (standalone crate, not part of the root workspace)
 /tools/place-extract/target
+/vps/target

@@ -1,0 +1,69 @@
+# ─── Production release: push a tag vX.Y.Z ───────────────────────────
+#
+#   git tag v1.0.0 && git push origin v1.0.0
+#
+# 1. vps.yml: fmt, clippy, tests and a real-data index run of the VPS
+#    service, then its binary is attached to the tag's GitHub release.
+# 2. Two deploys, in parallel once the build passed:
+#    - VPS: SSH as `deploy` (key login; sudo for the release updater only)
+#      and run `vps-service-update <tag>` — verifies the SHA-256, swaps the
+#      binary, restarts, rolls back if the service does not come up.
+#    - Cloudflare: cloudflare-deploy.yml (tests → D1 migrations → Worker
+#      deploy → /health). The Worker falls back to its static place index
+#      and own cron trigger while the VPS restarts, so neither waits.
+#
+# Secrets: CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, VPS_DEPLOY_KEY
+# (private key of the deploy user), VPS_KNOWN_HOSTS (the VPS host keys).
+# Variables: VPS_HOST (its IPv4), SITE_URL (health check).
+
+name: Release
+
+on:
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+*']
+
+concurrency:
+  group: production-release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  vps-build:
+    name: VPS service
+    uses: ./.github/workflows/vps.yml
+    with:
+      release_tag: ${{ github.ref_name }}
+    permissions:
+      contents: write
+    secrets: inherit
+
+  vps-deploy:
+    name: Deploy the VPS service
+    needs: vps-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Install the release on the VPS
+        env:
+          VPS_HOST: ${{ vars.VPS_HOST }}
+          DEPLOY_KEY: ${{ secrets.VPS_DEPLOY_KEY }}
+          KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          if [ -z "$VPS_HOST" ] || [ -z "$DEPLOY_KEY" ] || [ -z "$KNOWN_HOSTS" ]; then
+            echo "::error::VPS_HOST, VPS_DEPLOY_KEY and VPS_KNOWN_HOSTS must be set to deploy the VPS."
+            exit 1
+          fi
+          install -d -m 0700 ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/deploy && chmod 0600 ~/.ssh/deploy
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          ssh -i ~/.ssh/deploy -o StrictHostKeyChecking=yes -o BatchMode=yes \
+            "deploy@$VPS_HOST" sudo /usr/local/sbin/vps-service-update "$TAG"
+
+  web:
+    name: Deploy the Cloudflare app
+    needs: vps-build
+    uses: ./.github/workflows/cloudflare-deploy.yml
+    secrets: inherit

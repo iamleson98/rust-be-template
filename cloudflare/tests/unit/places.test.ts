@@ -149,6 +149,9 @@ describe("buildIndex", () => {
     expect(canonicalProvince("Tỉnh Lâm Đồng")).toBe("Lâm Đồng");
     expect(canonicalProvince("Thành phố Hà Nội")).toBe("Hà Nội");
     expect(canonicalProvince("Thành phố Hồ Chí Minh")).toMatch(/Hồ Chí Minh$/);
+    // A city that became the province, known to the list by its alias.
+    expect(canonicalProvince("Thành phố Huế")).toBe("Thừa Thiên Huế");
+    expect(canonicalProvince("Tỉnh Hưng Yên")).toBe("Hưng Yên");
     expect(canonicalProvince("广西壮族自治区")).toBeNull();
     expect(canonicalProvince("Palawan")).toBeNull();
     expect(canonicalProvince(null)).toBeNull();

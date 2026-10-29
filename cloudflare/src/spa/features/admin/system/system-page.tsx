@@ -1,38 +1,29 @@
-/** Admin route — `/admin/system` — system monitoring dashboard.
+/** Admin route — `/admin/system` — what runs the site, and how it is doing.
  *
- * Three live sections (the first two poll every 5 s):
- *   • System Status — platform runtime: uptime, WebSocket hub, DB pool.
- *   • Database Engine — the rustqlite engine's own resource usage:
- *     memory used, performance capacity, throughput (+ per-file
- *     detail cards). Sourced from the engine's built-in counters.
- *   • Server Metrics — host hardware: CPU, RAM, disks, this process
- *     (the pdf-tts admin "Server Metrics" feature, ported 1:1).
+ * Polls `GET /api/admin/system` every 10 s:
+ *   • Overview — the Cloudflare Worker, D1, who drives the scheduled jobs
+ *     (the VPS, or the Worker's fallback trigger), and which index answers
+ *     place search.
+ *   • VPS service — CPU / memory / disk, search latency percentiles, the
+ *     OpenStreetMap index and its last refresh, and the cron jobs it drives.
  *
- * While data loads, each section renders a structure-matched skeleton
- * (`SystemStatusSkeleton` / `SystemMetricsSkeleton`) — never a data
- * table. The status cards live in
- * `src/features/admin/system/system-status-cards.tsx`; this file is
- * the thin page shell (data wiring + layout).
+ * While the first report loads the page shows a structure-matched skeleton.
  */
 import { useQuery } from "@tanstack/react-query";
-import { systemStatusOptions } from "@spa/api";
-import { Activity } from "lucide-react";
-import { ConsolePage, PageHeader } from "@spa/components/console/page";
-import { useT } from "@spa/lib/i18n";
+import { Activity, AlertCircle } from "lucide-react";
 
-import { DatabaseEngineSection } from "@spa/features/admin/system/database-engine-section";
-import { SystemMetricsSection } from "@spa/features/admin/system/system-metrics-section";
-import { SystemStatusSkeleton } from "@spa/features/admin/system/system-status-skeleton";
-import {
-  CallCard,
-  DatabaseCard,
-  UptimeCard,
-  WebSocketCard,
-} from "@spa/features/admin/system/system-status-cards";
+import { Card, CardContent } from "@spa/components/ui/card";
+import { ConsolePage, PageHeader } from "@spa/components/console/page";
+import { getErrorMessage } from "@spa/lib/error-message";
+import { useT } from "@spa/lib/i18n";
+import { OverviewCards } from "./overview-cards";
+import { systemReportOptions } from "./system-api";
+import { SystemSkeleton } from "./system-skeleton";
+import { VpsSection } from "./vps-section";
 
 export function AdminSystemPage() {
   const t = useT();
-  const { data, isLoading } = useQuery({ ...systemStatusOptions(), refetchInterval: 5000 });
+  const { data, isLoading, error } = useQuery(systemReportOptions());
 
   return (
     <ConsolePage>
@@ -45,29 +36,29 @@ export function AdminSystemPage() {
           </span>
         }
       />
-
-      {/* ── System Status (platform runtime) ───────────────────────── */}
-      <section className="space-y-3" data-testid="system-status">
-        <h2 className="text-lg font-semibold">{t("adminSystem.statusTitle")}</h2>
-        {isLoading ? (
-          <SystemStatusSkeleton />
-        ) : !data ? (
-          <p className="text-sm text-muted-foreground">{t("adminSystem.statusLoadFailed")}</p>
-        ) : (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <UptimeCard data={data} />
-            <WebSocketCard data={data} />
-            <CallCard data={data} />
-            <DatabaseCard data={data} />
-          </div>
-        )}
-      </section>
-
-      {/* ── Database Engine (memory / capacity / throughput) ──────── */}
-      {data?.database?.engine && <DatabaseEngineSection engine={data.database.engine} />}
-
-      {/* ── Server Metrics (host hardware, pdf-tts feature) ────────── */}
-      <SystemMetricsSection />
+      {isLoading ? (
+        <SystemSkeleton />
+      ) : !data ? (
+        <Card data-testid="system-error">
+          <CardContent className="flex items-center gap-3 text-red-600">
+            <AlertCircle className="size-5 shrink-0" aria-hidden />
+            <div>
+              <p className="font-medium">{t("adminSystem.loadFailed")}</p>
+              <p className="text-sm text-muted-foreground">
+                {getErrorMessage(error, t("adminSystem.unknownError"))}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-6">
+          <section className="space-y-3" data-testid="system-overview">
+            <h2 className="text-lg font-semibold">{t("adminSystem.overview")}</h2>
+            <OverviewCards report={data} />
+          </section>
+          <VpsSection vps={data.vps} />
+        </div>
+      )}
     </ConsolePage>
   );
 }

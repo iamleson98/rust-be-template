@@ -1,0 +1,163 @@
+# ─── VPS service (vps/) and the OSM extractor it embeds ──────────────
+#
+# pull_request / push — fmt, clippy (-D warnings, newest stable) and tests
+#   for vps/ and tools/place-extract/, then a real-data run: the Geofabrik
+#   Vietnam extract → `vps-service index` → smoke queries. That is the same
+#   pipeline the VPS runs weekly, so a change that breaks it never merges.
+# push to the default branch — also builds the release binary (glibc 2.35,
+#   so it runs on Ubuntu 22.04+ / Debian 13) and publishes it to the rolling
+#   `vps-service` release (`vps/deploy/update.sh` with no argument).
+# workflow_call with `release_tag` (release.yml) — the same checks, then
+#   publishes the binary to that tag's release for the production deploy.
+
+name: VPS service
+
+on:
+  pull_request:
+    paths:
+      - 'vps/**'
+      - 'tools/place-extract/**'
+      - 'cloudflare/src/lib/cities.json'
+      - '.github/workflows/vps.yml'
+  push:
+    branches: ['**']
+    paths:
+      - 'vps/**'
+      - 'tools/place-extract/**'
+      - 'cloudflare/src/lib/cities.json'
+      - '.github/workflows/vps.yml'
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      release_tag:
+        description: 'Publish the binary to this release (vX.Y.Z) instead of the rolling one'
+        type: string
+        required: true
+
+concurrency:
+  group: vps-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  # Where the binary goes: a tag's release, the rolling release (default
+  # branch pushes), or nowhere (pull requests, feature branches).
+  PUBLISH_TO: ${{ inputs.release_tag || ((github.event_name == 'push' && github.ref_name == github.event.repository.default_branch) && 'vps-service' || '') }}
+  OSM_USER_AGENT: datxevui-vps-service-ci (+https://github.com/iamleson98/rust-be-template)
+  OSM_URL: https://download.geofabrik.de/asia/vietnam-latest.osm.pbf
+
+jobs:
+  check:
+    name: fmt, clippy, test, real-data index
+    runs-on: ubuntu-22.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            vps/target
+            tools/place-extract/target
+          key: vps-${{ runner.os }}-${{ hashFiles('vps/Cargo.lock', 'tools/place-extract/Cargo.lock') }}
+          restore-keys: vps-${{ runner.os }}-
+
+      - name: place-extract — fmt, clippy, test
+        working-directory: tools/place-extract
+        run: |
+          cargo fmt --check
+          cargo clippy --locked --all-targets -- -D warnings
+          cargo test --locked
+
+      - name: vps-service — fmt, clippy, test
+        working-directory: vps
+        run: |
+          cargo fmt --check
+          cargo clippy --locked --all-targets -- -D warnings
+          cargo test --locked
+
+      - name: Build the release binary
+        working-directory: vps
+        run: cargo build --release --locked
+
+      - name: Download the Vietnam extract
+        run: |
+          curl --fail --silent --show-error --location --retry 3 --retry-delay 20 \
+            -A "$OSM_USER_AGENT" -o "$RUNNER_TEMP/vietnam.osm.pbf" "$OSM_URL"
+          ls -l "$RUNNER_TEMP/vietnam.osm.pbf"
+
+      - name: Index it the way the VPS does
+        env:
+          VPS_SERVICE_TOKEN: ci-only-token-not-a-secret-0123456789
+        run: |
+          mkdir -p "$RUNNER_TEMP/vps"
+          printf '[server]\ndata_dir = "%s"\n[indexer]\n' "$RUNNER_TEMP/vps/data" > "$RUNNER_TEMP/vps/config.toml"
+          /usr/bin/time -v vps/target/release/vps-service index \
+            --config "$RUNNER_TEMP/vps/config.toml" --pbf "$RUNNER_TEMP/vietnam.osm.pbf" \
+            > "$RUNNER_TEMP/vps/report.json" 2> "$RUNNER_TEMP/vps/stderr.log" \
+            || { tail -50 "$RUNNER_TEMP/vps/stderr.log"; exit 1; }
+          cat "$RUNNER_TEMP/vps/report.json"
+          grep -E "Maximum resident|Elapsed" "$RUNNER_TEMP/vps/stderr.log"
+          # Only the live generation and its manifest remain; the work dir is empty.
+          ls -la "$RUNNER_TEMP/vps/data/index" "$RUNNER_TEMP/vps/data/work"
+          test -z "$(ls -A "$RUNNER_TEMP/vps/data/work")"
+
+      - name: Search the new index
+        run: |
+          gen=$(find "$RUNNER_TEMP/vps/data/index" -name '*.ndjson' | head -1)
+          printf '%s\n' "ha noi" "ho chi minh" "hue" "ben xe mien dong" "san bay noi bai" \
+            "tran phu nha trang" "dai hoc bach khoa ha noi" "nguyne trai" \
+            | vps/target/release/vps-service query --records "$gen" | tee "$RUNNER_TEMP/vps/queries.txt"
+          grep -A1 "== hue" "$RUNNER_TEMP/vps/queries.txt" | grep -q "Huế"
+
+      - name: Package
+        if: env.PUBLISH_TO != ''
+        run: |
+          mkdir -p dist/vps-service
+          cp vps/target/release/vps-service vps/config.example.toml dist/vps-service/
+          cp -r vps/deploy dist/vps-service/
+          tar -czf vps-service-x86_64-linux.tar.gz -C dist vps-service
+          sha256sum vps-service-x86_64-linux.tar.gz > vps-service-x86_64-linux.tar.gz.sha256
+
+      - uses: actions/upload-artifact@v4
+        if: env.PUBLISH_TO != ''
+        with:
+          name: vps-service
+          path: vps-service-x86_64-linux.tar.gz*
+          retention-days: 14
+
+  publish:
+    name: Publish the vps-service binary
+    needs: check
+    if: inputs.release_tag != '' || (github.event_name == 'push' && github.ref_name == github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: vps-service
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE: ${{ inputs.release_tag || 'vps-service' }}
+        run: |
+          if [ "$RELEASE" = vps-service ]; then
+            gh release view vps-service >/dev/null 2>&1 || \
+              gh release create vps-service --title "VPS service (rolling)" --target "$GITHUB_SHA" \
+                --notes "Latest vps-service build from the default branch. Installed by vps/deploy/update.sh."
+          else
+            gh release view "$RELEASE" >/dev/null 2>&1 || \
+              gh release create "$RELEASE" --verify-tag --title "$RELEASE" --generate-notes
+          fi
+          gh release upload "$RELEASE" vps-service-x86_64-linux.tar.gz vps-service-x86_64-linux.tar.gz.sha256 --clobber

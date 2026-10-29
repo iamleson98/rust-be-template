@@ -1,6 +1,6 @@
 import { handleRouteError } from "@/lib/api";
 import { queryReader } from "@/lib/query";
-import { reverseGeocode } from "@/lib/services/place-search";
+import { placeCacheControl, reverseGeocode } from "@/lib/services/place-search";
 
 /**
  * `GET /api/places/reverse?lat=&lon=&limit=` — the nearest places, nearest
@@ -13,8 +13,9 @@ export async function GET(req: Request) {
     const lat = q.required.f64("lat");
     const lon = q.required.f64("lon");
     const limit = Math.min(Math.max(q.u64("limit") ?? 10, 1), 50);
-    return Response.json(await reverseGeocode(lat, lon, limit), {
-      headers: { "cache-control": "public, max-age=3600" },
+    const { items, engine } = await reverseGeocode(lat, lon, limit);
+    return Response.json(items, {
+      headers: { "cache-control": placeCacheControl(engine, 3600) },
     });
   } catch (e) {
     return handleRouteError(e);

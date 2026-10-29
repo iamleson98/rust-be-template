@@ -198,6 +198,11 @@ const CACHEABLE_PATHS = new Set([
   "/api/routes",
   "/api/recommendations",
   "/api/reviews/tags",
+  // Place search: a repeated query never reaches the Worker's Next.js handler
+  // or the VPS; the routes set how long (shorter for a fallback answer).
+  "/api/places",
+  "/api/places/search",
+  "/api/places/reverse",
 ]);
 export const PUBLIC_JSON_CACHE_CONTROL = "public, s-maxage=30, stale-while-revalidate=120";
 

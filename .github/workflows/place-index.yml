@@ -9,9 +9,10 @@
 # free GitHub runner, once a week.
 #
 # Triggers
-#   schedule          — Mondays 03:17 Vietnam time (Sunday 20:17 UTC): build,
-#                       publish the `place-index` release asset, redeploy.
-#   workflow_dispatch — same; `deploy: false` builds + publishes only.
+#   schedule          — Mondays 03:17 Vietnam time (Sunday 20:17 UTC): build and
+#                       publish the `place-index` release asset; the next
+#                       release (release.yml) ships it.
+#   workflow_dispatch — same; `deploy: true` also redeploys from the chosen ref.
 #   pull_request      — build + validate only (never publishes or deploys), so
 #                       a change to the extractor / builder / search format is
 #                       exercised against the REAL extract before it merges.
@@ -20,9 +21,9 @@
 # Ordinary deploys (cloudflare/scripts/fetch-place-index.sh) download it, so a
 # code deploy never ships without an index and never has to rebuild one.
 #
-# The redeploy is the shared cloudflare-deploy.yml (tests → D1 migrations →
-# build + deploy → health check), so scheduled and merge-triggered deploys are
-# identical. Secrets: CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID.
+# The optional redeploy is the shared cloudflare-deploy.yml (tests → D1
+# migrations → build + deploy → health check).
+# Secrets: CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID.
 
 name: Place index
 
@@ -32,9 +33,9 @@ on:
   workflow_dispatch:
     inputs:
       deploy:
-        description: 'Redeploy the Worker with the new index'
+        description: 'Also redeploy the Worker from this ref (production otherwise changes only with a release tag)'
         type: boolean
-        default: true
+        default: false
       profile:
         description: 'How much of OSM to ship: travel (23k places) | landmarks (39k) | full (118k, + streets, hotels) | all (304k, + every named shop/restaurant/bank/building and house-number addresses)'
         type: choice
@@ -45,6 +46,7 @@ on:
       - 'tools/place-extract/**'
       - 'cloudflare/src/lib/places/**'
       - 'cloudflare/src/lib/cities.ts'
+      - 'cloudflare/src/lib/cities.json'
       - 'cloudflare/scripts/build-place-shards.ts'
       - '.github/workflows/place-index.yml'
 
@@ -156,7 +158,9 @@ jobs:
   deploy:
     name: Redeploy the Worker with the new index
     needs: index
-    if: github.event_name != 'pull_request' && inputs.deploy != false
+    # Production ships from release tags (release.yml); the weekly run only
+    # publishes the index, which the next release picks up.
+    if: github.event_name == 'workflow_dispatch' && inputs.deploy
     permissions:
       contents: read
     uses: ./.github/workflows/cloudflare-deploy.yml

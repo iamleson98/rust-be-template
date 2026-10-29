@@ -1,0 +1,43 @@
+[Unit]
+Description=datxevui VPS service (place search, OSM indexer, cron driver)
+Documentation=https://github.com/iamleson98/rust-be-template/tree/HEAD/vps
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=vps-service
+Group=vps-service
+ExecStart=/usr/local/bin/vps-service serve --config /etc/vps-service/config.toml
+EnvironmentFile=/etc/vps-service/env
+# Two glibc arenas are plenty for two cores and keep the resident size low.
+Environment=MALLOC_ARENA_MAX=2
+Environment=RUST_LOG=info,tower_http=warn
+Restart=always
+RestartSec=5
+TimeoutStopSec=20
+
+# Resources: the live index needs ~250 MB; a weekly run adds a ~600 MB
+# extractor child for about a minute. The ceiling only stops a runaway.
+MemoryHigh=1500M
+MemoryMax=2G
+TasksMax=64
+LimitNOFILE=4096
+
+# Hardening: the service only writes its data directory.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+ReadWritePaths=/var/lib/vps-service
+StateDirectory=vps-service
+
+[Install]
+WantedBy=multi-user.target

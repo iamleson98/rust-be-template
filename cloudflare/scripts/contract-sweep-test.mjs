@@ -29,9 +29,6 @@ const GET_PATHS = [
   "/api/admin/routes?limit=5",
   "/api/admin/schedules?routeId=none",
   "/api/admin/system",
-  "/api/admin/system/database",
-  "/api/admin/system/memory",
-  "/api/admin/system/metrics",
   "/api/admin/vehicle-types",
   "/api/auth/me",
   "/api/auth/oauth/providers",
@@ -70,7 +67,6 @@ const GET_PATHS = [
 
 const POST_PATHS = [
   ["/api/admin/coupons/settle", { brandId: null }],
-  ["/api/admin/system/database/vacuum", {}],
   ["/api/payments/ipn/momo", { orderId: "none-such", resultCode: 0, signature: "x" }],
   ["/api/payments/ipn/zalopay", { data: "{}", mac: "x" }],
 ];

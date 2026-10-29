@@ -65,10 +65,25 @@ pub struct AdminRelationInfo {
 // Pass 1: discover admin relations
 // -----------------------------------------------------------------------
 
+/// A named area mapped as a multipolygon relation (a university campus, a
+/// lake, an airport): placed at the mean of its outer ways' first nodes.
+#[derive(Debug)]
+pub struct NamedRelation {
+    pub osm_id: i64,
+    pub tags: BTreeMap<String, String>,
+    pub outer_way_ids: Vec<i64>,
+}
+
+/// Outer ways sampled per named relation: enough for a centroid, bounded memory.
+const RELATION_SAMPLE_WAYS: usize = 32;
+
 /// Result of Pass 1.
 pub struct Pass1Result {
     pub admin_relations: Vec<AdminRelationInfo>,
     pub admin_way_ids: HashSet<i64>,
+    pub named_relations: Vec<NamedRelation>,
+    /// Outer ways of `named_relations` whose first node Pass 2 must remember.
+    pub named_relation_way_ids: HashSet<i64>,
 }
 
 /// Pass 1: iterate the PBF once to collect all administrative-boundary
@@ -76,6 +91,8 @@ pub struct Pass1Result {
 pub fn pass1_discover_admin<P: AsRef<Path>>(path: P) -> anyhow::Result<Pass1Result> {
     let mut admin_relations: Vec<AdminRelationInfo> = Vec::new();
     let mut admin_way_ids: HashSet<i64> = HashSet::new();
+    let mut named_relations: Vec<NamedRelation> = Vec::new();
+    let mut named_relation_way_ids: HashSet<i64> = HashSet::new();
 
     let reader = ElementReader::from_path(&path)?;
     reader
@@ -90,6 +107,29 @@ pub fn pass1_discover_admin<P: AsRef<Path>>(path: P) -> anyhow::Result<Pass1Resu
                     .map(|v| v == "administrative")
                     .unwrap_or(false);
                 if !is_admin {
+                    if tags.get("type").is_some_and(|t| t == "multipolygon")
+                        && crate::travel::primary_name(&tags).is_some()
+                    {
+                        let outer_way_ids: Vec<i64> = rel
+                            .members()
+                            .filter(|m| {
+                                m.member_type == RelMemberType::Way
+                                    && m.role()
+                                        .map(|r| r == "outer" || r.is_empty())
+                                        .unwrap_or(true)
+                            })
+                            .map(|m| m.member_id)
+                            .take(RELATION_SAMPLE_WAYS)
+                            .collect();
+                        if !outer_way_ids.is_empty() {
+                            named_relation_way_ids.extend(&outer_way_ids);
+                            named_relations.push(NamedRelation {
+                                osm_id: rel.id(),
+                                tags,
+                                outer_way_ids,
+                            });
+                        }
+                    }
                     return;
                 }
                 let name = match tags.get("name") {
@@ -135,13 +175,16 @@ pub fn pass1_discover_admin<P: AsRef<Path>>(path: P) -> anyhow::Result<Pass1Resu
         .map_err(|e| anyhow::anyhow!("pass1: {e}"))?;
 
     info!(
-        "pass1: {} admin relations, {} admin ways",
+        "pass1: {} admin relations, {} admin ways, {} named multipolygons",
         admin_relations.len(),
-        admin_way_ids.len()
+        admin_way_ids.len(),
+        named_relations.len()
     );
     Ok(Pass1Result {
         admin_relations,
         admin_way_ids,
+        named_relations,
+        named_relation_way_ids,
     })
 }
 
@@ -169,6 +212,8 @@ pub enum CentroidMode {
 pub struct Pass2Result {
     pub admin_ways: HashMap<i64, Vec<i64>>, // way_id → node_refs
     pub needed_node_ids: HashSet<i64>,
+    /// First node of every outer way of a named multipolygon.
+    pub relation_way_first_node: HashMap<i64, i64>,
     pub nodes_file_path: PathBuf,
     pub ways_file_path: PathBuf,
     pub nodes_count: u64,
@@ -200,6 +245,7 @@ pub fn pass2_collect_data<P: AsRef<Path>>(
 
     let mut admin_ways: HashMap<i64, Vec<i64>> = HashMap::new();
     let mut needed_node_ids: HashSet<i64> = HashSet::new();
+    let mut relation_way_first_node: HashMap<i64, i64> = HashMap::new();
     let mut nodes_count = 0u64;
     let mut ways_count = 0u64;
 
@@ -260,6 +306,13 @@ pub fn pass2_collect_data<P: AsRef<Path>>(
                         admin_ways.insert(way_id, node_refs.clone());
                     }
 
+                    if pass1.named_relation_way_ids.contains(&way_id) {
+                        if let Some(&first) = node_refs.first() {
+                            needed_node_ids.insert(first);
+                            relation_way_first_node.insert(way_id, first);
+                        }
+                    }
+
                     // If this way should be indexed, save to temp file
                     // and mark needed nodes for coord lookup.
                     if should_index_element(&tags) && !node_refs.is_empty() {
@@ -305,6 +358,7 @@ pub fn pass2_collect_data<P: AsRef<Path>>(
     Ok(Pass2Result {
         admin_ways,
         needed_node_ids,
+        relation_way_first_node,
         nodes_file_path,
         ways_file_path,
         nodes_count,
@@ -362,6 +416,8 @@ pub fn should_index_element(tags: &BTreeMap<String, String>) -> bool {
     // Any explicit name tag
     for k in [
         "name",
+        "name:vi",
+        "name:en",
         "alt_name",
         "official_name",
         "loc_name",

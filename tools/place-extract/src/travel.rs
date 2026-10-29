@@ -24,8 +24,18 @@ pub enum Profile {
     All,
 }
 
+/// The name to show: `name`, else the Vietnamese or English name some
+/// mappers set alone.
+pub fn primary_name(tags: &Tags) -> Option<&str> {
+    ["name", "name:vi", "name:en"]
+        .iter()
+        .filter_map(|k| tags.get(*k))
+        .map(|n| n.trim())
+        .find(|n| !n.is_empty())
+}
+
 fn has_name(tags: &Tags) -> bool {
-    tags.get("name").is_some_and(|n| !n.trim().is_empty())
+    primary_name(tags).is_some()
 }
 
 fn is(tags: &Tags, key: &str, values: &[&str]) -> bool {
@@ -236,29 +246,32 @@ fn is_noise(kind: &str) -> bool {
     ) || kind.ends_with("_link")
 }
 
+/// The street (or, in villages without street names, the place) of an address.
+fn address_street(tags: &Tags) -> Option<&str> {
+    ["addr:street", "addr:place"]
+        .iter()
+        .filter_map(|k| tags.get(*k))
+        .map(|s| s.trim())
+        .find(|s| !s.is_empty())
+}
+
 fn has_address(tags: &Tags) -> bool {
     tags.get("addr:housenumber")
         .is_some_and(|h| !h.trim().is_empty())
-        && tags
-            .get("addr:street")
-            .is_some_and(|s| !s.trim().is_empty())
+        && address_street(tags).is_some()
 }
 
 /// What to call the place: its `name`, else (All profile) "<number> <street>".
 pub fn place_name(tags: &Tags) -> Option<String> {
-    if has_name(tags) {
-        return Some(tags["name"].trim().to_string());
+    if let Some(name) = primary_name(tags) {
+        return Some(name.to_string());
     }
     if ref_road_kind(tags).is_some() {
         return Some(format!("Đường {}", tags["ref"].trim()));
     }
-    has_address(tags).then(|| {
-        format!(
-            "{} {}",
-            tags["addr:housenumber"].trim(),
-            tags["addr:street"].trim()
-        )
-    })
+    let street = address_street(tags)?;
+    let number = tags.get("addr:housenumber")?.trim();
+    (!number.is_empty()).then(|| format!("{number} {street}"))
 }
 
 /// `amenity=restaurant` → "amenity_restaurant"; `building=yes` → "building".
@@ -516,6 +529,16 @@ mod tests {
             Some("road_trunk".to_string())
         );
         assert_eq!(place_name(&ql1).as_deref(), Some("Đường QL1A"));
+        // A village address names the place instead of a street.
+        let village = tags(&[("addr:housenumber", "7"), ("addr:place", "Thôn 3")]);
+        assert_eq!(place_name(&village).as_deref(), Some("7 Thôn 3"));
+        // Mapped with only a Vietnamese name.
+        let vi = tags(&[("amenity", "hospital"), ("name:vi", "Bệnh viện Y")]);
+        assert_eq!(
+            travel_kind(&vi, Profile::Landmarks),
+            Some("amenity_hospital".to_string())
+        );
+        assert_eq!(place_name(&vi).as_deref(), Some("Bệnh viện Y"));
         // Neither a name nor an address: nothing to search for.
         assert_eq!(
             travel_kind(&tags(&[("amenity", "bench")]), Profile::All),

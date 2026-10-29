@@ -1,0 +1,11 @@
+# Copy to terraform.tfvars (kept local).
+
+# Set after the first apply (README, "Provision with OpenTofu").
+# image_id = "..."
+
+# Pay 12 months ahead ($4.54/month instead of $5.35) once you are sure.
+# pricing = "upfront12"
+
+# The daily automated backup (+$0.50/month) is on: OVHcloud refuses the
+# order without it in SGP. Elsewhere it may be turned off:
+# auto_backup = false
