@@ -8,6 +8,7 @@ import type { UseFormReturn } from "react-hook-form";
 import { useT } from "@spa/lib/i18n";
 import { PlaceAutocomplete } from "@spa/features/search/place-autocomplete";
 import { FormControl, FormField, FormItem, FormLabel, FormMessage } from "@spa/components/ui/form";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@spa/components/ui/tooltip";
 import { ArrowLeftRight, CircleDot, MapPin } from "lucide-react";
 import { cn } from "@spa/lib/utils";
 import { FIELD_ERROR, FIELD_ITEM, FIELD_LABEL } from "./field-style";
@@ -99,22 +100,26 @@ export function SearchRouteFields({
               : "hidden h-11 items-center justify-center md:flex",
         )}
       >
-        <button
-          type="button"
-          onClick={swap}
-          className={cn(
-            "relative flex items-center justify-center rounded-full border bg-white text-blue-600 transition-all duration-300 hover:rotate-180 hover:border-blue-300 hover:bg-blue-50",
-            stacked
-              ? "size-9 rotate-90 hover:rotate-270"
-              : auto
-                ? "size-9 rotate-90 hover:rotate-270 md:size-10 md:rotate-0 md:hover:rotate-180"
-                : "size-10",
-          )}
-          title={t("home.swapDirection")}
-          aria-label={t("home.swapDirection")}
-        >
-          <ArrowLeftRight className="h-4 w-4" />
-        </button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={swap}
+              className={cn(
+                "relative flex items-center justify-center rounded-full border bg-white text-blue-600 transition-all duration-300 hover:rotate-180 hover:border-blue-300 hover:bg-blue-50",
+                stacked
+                  ? "size-9 rotate-90 hover:rotate-270"
+                  : auto
+                    ? "size-9 rotate-90 hover:rotate-270 md:size-10 md:rotate-0 md:hover:rotate-180"
+                    : "size-10",
+              )}
+              aria-label={t("home.swapDirection")}
+            >
+              <ArrowLeftRight className="h-4 w-4" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>{t("home.swapDirection")}</TooltipContent>
+        </Tooltip>
       </div>
 
       {/* To */}

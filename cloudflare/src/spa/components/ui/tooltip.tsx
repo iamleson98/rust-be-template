@@ -80,7 +80,7 @@ function TooltipTrigger({
 function TooltipContent({
   className,
   side = "top",
-  sideOffset = 0,
+  sideOffset = 4,
   align = "center",
   children,
   ...props
@@ -96,7 +96,15 @@ function TooltipContent({
   }) {
   return (
     <TooltipPrimitive.Portal>
-      <TooltipPrimitive.Positioner side={side} align={align} sideOffset={sideOffset}>
+      {/* The Positioner is the element Base UI places in the page, so it carries
+          the stacking (as in popover.tsx): on the Popup alone, the tooltip sat
+          under any positioned ancestor of its trigger, e.g. the home hero card. */}
+      <TooltipPrimitive.Positioner
+        side={side}
+        align={align}
+        sideOffset={sideOffset}
+        className="isolate z-[100]"
+      >
         <TooltipPrimitive.Popup
           data-slot="tooltip-content"
           render={(componentProps, state) => (
@@ -109,7 +117,7 @@ function TooltipContent({
           {...props}
         >
           {children}
-          <TooltipPrimitive.Arrow className="bg-primary fill-primary z-50 size-2.5 translate-y-[calc(-50%-2px)] rotate-45 rounded-[2px]" />
+          <TooltipPrimitive.Arrow className="bg-primary fill-primary z-50 size-2.5 translate-y-[calc(-50%-2px)] rotate-45 rounded-[2px] data-[side=bottom]:top-1 data-[side=left]:top-1/2! data-[side=left]:-right-1 data-[side=left]:-translate-y-1/2 data-[side=right]:top-1/2! data-[side=right]:-left-1 data-[side=right]:-translate-y-1/2 data-[side=top]:-bottom-2.5" />
         </TooltipPrimitive.Popup>
       </TooltipPrimitive.Positioner>
     </TooltipPrimitive.Portal>
