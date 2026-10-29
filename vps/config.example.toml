@@ -1,0 +1,41 @@
+# vps-service configuration (copy to /etc/vps-service/config.toml).
+#
+# Secrets are NOT in this file. Put them in /etc/vps-service/env (mode 0600),
+# which the systemd unit loads:
+#   VPS_SERVICE_TOKEN=<random, 32+ chars>     # the Worker sends it as "Authorization: Bearer"
+#   CRON_SERVICE_TOKEN=<the Worker's secret>  # sent to /api/jobs/tick
+
+# Time zone the schedules below are written in.
+timezone = "Asia/Ho_Chi_Minh"
+
+[server]
+# Loopback only: Cloudflare Tunnel (cloudflared) forwards the public hostname here.
+listen = "127.0.0.1:8787"
+# Index generations, and scratch space for the weekly OSM run (~1.5 GB while it runs).
+data_dir = "/var/lib/vps-service"
+
+[indexer]
+# Mondays 03:30. A run first compares Geofabrik's published MD5 with the
+# current index's source and stops there when nothing changed.
+schedule = "30 3 * * 1"
+pbf_url = "https://download.geofabrik.de/asia/vietnam-latest.osm.pbf"
+# travel (~23k places) | landmarks (~39k) | full (~118k) | all (~300k)
+profile = "all"
+min_places = 15000
+# Refuse a new index that lost more than 20% of the current one's places.
+max_shrink = 0.2
+# The current index plus one rollback; older generations are deleted.
+keep_generations = 2
+
+# The Worker's job executor: holds sweep, coupon expiry (campaigns), trip
+# warming, retention. Every minute, like the Cron Trigger it replaces; the
+# Worker's own trigger only steps in when these ticks stop arriving.
+[[jobs]]
+name = "worker-tick"
+schedule = "* * * * *"
+url = "https://datxevui.com/api/jobs/tick"
+method = "POST"
+token_env = "CRON_SERVICE_TOKEN"
+token_header = "x-cron-token"
+timeout_secs = 50
+retries = 2

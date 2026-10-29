@@ -7,29 +7,44 @@ limits come from Cloudflare's documentation (linked) and should be re-read befor
 
 ## Everything that runs on a schedule or in the background
 
-| What                                                                                                             | Where it runs                                          | Cadence                               | Cost on Free                                                                                               |
-| ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ | ------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| **Cron Trigger**: `holds.sweep` (cancel expired seat holds), then whichever table-driven job is due              | the Worker, `scheduled()` in `custom-worker.ts`        | every minute (1,440 runs/day)         | ~10 indexed D1 rows read per idle tick, one heartbeat row written per 10 min                               |
-| `trips.warm` (create trip sessions for the 14-day sales window)                                                  | same tick, gated to once per 6 h                       | 4 runs/day                            | creates only the missing `trip_session` rows; seat inventory is created lazily on the first hold           |
-| `coupons.expire` (the campaign scan: expire unused coupons whose window passed), `jobs.retention`, `trips.prune` | same tick, claimed through `scheduled_job.next_run_at` | daily (editable in the admin console) | a handful of rows each                                                                                     |
-| **OpenStreetMap place index** (Rust `osm.import`)                                                                | GitHub Actions `place-index.yml`, a free runner        | weekly (Sunday 20:17 UTC)             | nothing on Cloudflare at runtime: the shards ship as static assets, search needs no database or cron       |
-| Realtime chat and audio-call signalling                                                                          | Durable Objects `ChatHub` / `CallHub`                  | event driven, no cron                 | idle sockets hibernate (no duration billed); heartbeats are answered by the platform without waking the DO |
-| Call ring timeout and grace period                                                                               | `CallHub` storage alarm                                | only while a call is ringing          | one alarm per call                                                                                         |
+| What                                                                                                             | Where it runs                                                           | Cadence                               | Cost on Free                                                                                               |
+| ---------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | ------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| **Job tick**: `holds.sweep` (cancel expired seat holds), then whichever table-driven job is due                  | the Worker, called by the VPS service (`vps/`) at `POST /api/jobs/tick` | every minute (1,440 runs/day)         | ~10 indexed D1 rows read per idle tick, one heartbeat row per 10 min, one driver heartbeat per 5 min       |
+| **Cron Trigger** (safety net)                                                                                    | the Worker, `scheduled()` in `custom-worker.ts`                         | every minute                          | one indexed row read; runs the tick itself only when the VPS has not ticked for 7 minutes                  |
+| `trips.warm` (create trip sessions for the 14-day sales window)                                                  | same tick, gated to once per 6 h                                        | 4 runs/day                            | creates only the missing `trip_session` rows; seat inventory is created lazily on the first hold           |
+| `coupons.expire` (the campaign scan: expire unused coupons whose window passed), `jobs.retention`, `trips.prune` | same tick, claimed through `scheduled_job.next_run_at`                  | daily (editable in the admin console) | a handful of rows each                                                                                     |
+| **OpenStreetMap place index** (Rust `osm.import`)                                                                | the VPS service, in memory                                              | weekly (Monday 03:30 Vietnam time)    | nothing on Cloudflare; one VPS core for ~45 s at the lowest priority                                       |
+| Static fallback place index                                                                                      | GitHub Actions `place-index.yml`, a free runner                         | weekly (Sunday 20:17 UTC)             | nothing at runtime: the shards ship as static assets, used only when the VPS does not answer               |
+| Realtime chat and audio-call signalling                                                                          | Durable Objects `ChatHub` / `CallHub`                                   | event driven, no cron                 | idle sockets hibernate (no duration billed); heartbeats are answered by the platform without waking the DO |
+| Call ring timeout and grace period                                                                               | `CallHub` storage alarm                                                 | only while a call is ringing          | one alarm per call                                                                                         |
 
 There are no other Cron Triggers, queues or workflows. The single trigger uses one of the Free
 plan's five cron slots.
 
-## Why one trigger every minute is the right shape
+## Why the VPS drives the jobs, and the Worker only backs it up
+
+- The VPS calls the tick every minute with retries and keeps a per-job record (`/admin/system`),
+  so a failing job is visible in one place; the Worker's trigger costs one indexed read a minute
+  while it stands down.
+- Both paths run the same executor in the Worker, so the D1 rules below apply to either.
+- If the VPS stops, the trigger notices the stale `cron.driver` heartbeat and runs the jobs within
+  7 minutes; nothing needs to be switched by hand.
+
+## Why one tick every minute is the right shape
 
 - A held seat is only released by the sweep (the seat claim does not treat an expired hold as
   free), so the cadence is the delay a customer sees before a lapsed seat can be bought again.
   Every minute matches the Rust scheduler and costs almost nothing now.
 - Everything else rides the same tick and is throttled by its own gate, so there is exactly one
   Worker invocation per minute and no second schedule to keep alive.
-- The tick runs the job executor directly, not through the Next.js handler (`src/lib/cron.ts`).
-- The OSM index is the opposite case: it changes weekly and is heavy, so it belongs on a free
-  GitHub runner and ships as static files. `cloudflare/scripts/build-place-shards.ts` warns when
-  the file count nears the plan's 20,000-asset limit (currently 16,437 index files plus the app).
+- The tick runs the job executor directly, not through the Next.js handler (`src/lib/cron.ts`),
+  whether the VPS or the Cron Trigger starts it.
+- The OSM index is the opposite case: it changes weekly and is heavy, so the VPS builds it (and a
+  free GitHub runner builds the static fallback). `cloudflare/scripts/build-place-shards.ts` warns
+  when the fallback's file count nears the plan's 20,000-asset limit (16,437 index files plus the
+  app).
+- Place search on the VPS takes the CPU-heavy scoring off the Worker: a search costs the Worker a
+  `fetch` (I/O time is not CPU time) and repeated queries are answered from the edge cache.
 
 ## Free-plan limits that matter here
 

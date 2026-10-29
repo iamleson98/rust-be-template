@@ -19,10 +19,12 @@ import {
  *  - re-exports the generated Next.js handler
  *  - adds the `ChatHub` / `CallHub` Durable Objects that power the SPA's
  *    `/ws` chat socket and `/ws-call` audio signalling
- *  - adds a `scheduled` handler (Worker Cron Trigger, every minute) that runs
- *    the job executor in-process, in OpenNext's request context so it sees the
- *    exact same bindings as any API route. No container, no public round
- *    trip, and no Next.js render on the way (Free plan: 10 ms CPU).
+ *  - answers `POST /api/jobs/tick` (the VPS service's cron driver) and a
+ *    `scheduled` handler (Worker Cron Trigger, every minute, a safety net
+ *    that only works while the VPS has stopped ticking) with the job
+ *    executor in-process, in OpenNext's request context so it sees the exact
+ *    same bindings as any API route. No Next.js render on the way (Free plan:
+ *    10 ms CPU).
  *
  * Deploy-time wiring (wrangler.jsonc):
  *   main: "custom-worker.ts"
@@ -58,6 +60,13 @@ export default {
       }
     }
 
+    if (url.pathname === "/api/jobs/tick") {
+      const { handleTickRequest } = await import("./src/lib/cron");
+      return withSecurityHeaders(
+        await runWithCloudflareRequestContext(request, env, ctx, () => handleTickRequest(request)),
+      );
+    }
+
     const dynamic = () => handler.fetch(request, env, ctx) as Promise<Response>;
     const response = isCacheablePublicRead(request)
       ? await cachedPublicRead(request, ctx, dynamic)
@@ -68,12 +77,12 @@ export default {
   async scheduled(_event: ScheduledController, env: CloudflareEnv, ctx: ExecutionContext) {
     // Straight to the job executor (see `src/lib/cron.ts`), loaded lazily so a
     // normal request never pays for it.
-    const { runCron } = await import("./src/lib/cron");
+    const { runScheduledCron } = await import("./src/lib/cron");
     const summary = await runWithCloudflareRequestContext(
       new Request("https://internal.invalid/cron"),
       env,
       ctx,
-      runCron,
+      runScheduledCron,
     );
     console.info(`[cron] ${summary}`);
   },

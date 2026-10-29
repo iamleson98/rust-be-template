@@ -4,7 +4,7 @@
  *
  * Bindings (wrangler.jsonc): DB (D1), UPLOADS (R2), ASSETS, WORKER_SELF_REFERENCE.
  * Secrets (wrangler secret put): JWT_SECRET, CRON_SERVICE_TOKEN, REALTIME_API_TOKEN,
- *   VNPAY_TMN_CODE, VNPAY_HASH_SECRET, VIETQR_*, MOMO_*, ZALOPAY_*
+ *   VNPAY_TMN_CODE, VNPAY_HASH_SECRET, VIETQR_*, MOMO_*, ZALOPAY_*, VPS_SERVICE_TOKEN
  */
 declare interface CloudflareEnv {
   // ── Bindings ────────────────────────────────────────────────────────
@@ -116,6 +116,11 @@ declare interface CloudflareEnv {
   GOOGLE_ADS_API_VERSION?: string;
   /** JSON: event name → conversion action resource name. */
   GOOGLE_ADS_CONVERSION_ACTIONS?: string;
+
+  /** VPS companion service (`vps/`): place search + cron driver, via Cloudflare Tunnel. */
+  VPS_URL?: string;
+  /** Bearer token for VPS_URL (same value as the service's VPS_SERVICE_TOKEN). */
+  VPS_SERVICE_TOKEN?: string;
 
   /** Valhalla routing server base URL for /api/routing/* (absent → routing answers "not configured"). */
   VALHALLA_URL?: string;

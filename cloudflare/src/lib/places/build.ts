@@ -104,7 +104,18 @@ function provinceKey(name: string): string {
     .trim();
 }
 
-const PROVINCES = new Map(VIETNAMESE_CITIES.map((c) => [provinceKey(c.name), c.name]));
+/**
+ * Province key → the app's name. Aliases go in first so a province's own name
+ * wins a clash; they matter where a city became the province (OSM now says
+ * "Thành phố Huế" for the list's "Thừa Thiên Huế", alias "Huế"). Same rule as
+ * `tools/place-extract/src/prepare.rs`.
+ */
+const PROVINCES = new Map([
+  ...VIETNAMESE_CITIES.flatMap((c) =>
+    (c.aliases ?? []).map((a) => [provinceKey(a), c.name] as const),
+  ),
+  ...VIETNAMESE_CITIES.map((c) => [provinceKey(c.name), c.name] as const),
+]);
 
 /**
  * The app's own spelling of a province (OSM says "Tỉnh Lâm Đồng", the city

@@ -1,12 +1,11 @@
 /**
- * Place search — static shard index (replaces the D1 FTS5 port of Tantivy).
+ * Place search. Primary: the VPS service (`vps/`), an in-memory index of
+ * every named place in Vietnam with typo tolerance, intent and context
+ * ranking, rebuilt weekly from OpenStreetMap. Fallback: the static shard
+ * index shipped with the deploy (`/places/*`, built by the weekly CI job),
+ * used when the VPS is not configured or does not answer in time.
  *
- * The index is built weekly by CI from the Geofabrik Vietnam extract
- * (tools/place-extract → scripts/build-place-shards.ts) and ships with the
- * deploy as static assets under /places/. Reading it costs no D1 rows and
- * needs no container: the Worker fetches the one or two small shard files a
- * query needs through the ASSETS binding and keeps them in a bounded
- * per-isolate cache.
+ * Callers learn which engine answered, so a degraded answer is cached briefly.
  */
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import {
@@ -17,8 +16,16 @@ import {
   type Loader,
   type PlaceHit,
 } from "@/lib/places/search";
+import { vpsGet, vpsConfigured, VpsUnavailable, type VpsEnv } from "@/lib/vps";
 
 export type { PlaceHit };
+
+export type PlaceEngine = "vps" | "static-shards";
+
+export interface PlaceResult {
+  items: PlaceHit[];
+  engine: PlaceEngine;
+}
 
 let loader: Loader | null = null;
 
@@ -39,16 +46,75 @@ async function getLoader(): Promise<Loader> {
   return loader;
 }
 
-export async function searchPlaces(raw: string, limit = 10): Promise<PlaceHit[]> {
-  return searchIndex(await getLoader(), raw, limit);
+async function vpsEnv(): Promise<VpsEnv> {
+  return (await getCloudflareContext({ async: true })).env;
+}
+
+/**
+ * Asks the VPS, else the static index. `ask` returns null when the VPS is
+ * not set up, so an unconfigured deploy never logs a warning per request.
+ */
+async function withFallback(
+  ask: (env: VpsEnv) => Promise<PlaceHit[]> | null,
+  fallback: () => Promise<PlaceHit[]>,
+): Promise<PlaceResult> {
+  const env = await vpsEnv();
+  const pending = vpsConfigured(env) ? ask(env) : null;
+  if (pending) {
+    try {
+      return { items: await pending, engine: "vps" };
+    } catch (e) {
+      if (!(e instanceof VpsUnavailable) || e.message !== "recently unreachable") {
+        console.warn(`[places] VPS search unavailable, using the static index: ${String(e)}`);
+      }
+    }
+  }
+  return { items: await fallback(), engine: "static-shards" };
+}
+
+const query = (params: Record<string, string | number | undefined>) =>
+  new URLSearchParams(
+    Object.entries(params)
+      .filter(([, v]) => v !== undefined)
+      .map(([k, v]) => [k, String(v)]),
+  ).toString();
+
+export async function searchPlaces(
+  raw: string,
+  limit = 10,
+  near?: { lat: number; lon: number },
+): Promise<PlaceResult> {
+  return withFallback(
+    async (env) =>
+      (
+        await vpsGet<{ items: PlaceHit[] }>(
+          env,
+          `/v1/places/search?${query({ q: raw, limit, lat: near?.lat, lon: near?.lon })}`,
+        )
+      ).items,
+    async () => searchIndex(await getLoader(), raw, limit),
+  );
 }
 
 /** Popular places for the default autocomplete list. */
-export async function popularPlaces(limit = 20): Promise<PlaceHit[]> {
-  return popularIndex(await getLoader(), limit);
+export async function popularPlaces(limit = 20, offset = 0): Promise<PlaceResult> {
+  return withFallback(
+    async (env) =>
+      (await vpsGet<{ items: PlaceHit[] }>(env, `/v1/places/popular?${query({ limit, offset })}`))
+        .items,
+    async () => (await popularIndex(await getLoader(), offset + limit)).slice(offset),
+  );
 }
 
 /** Reverse geocode: nearest indexed places to a point. */
-export async function reverseGeocode(lat: number, lon: number, limit = 5): Promise<PlaceHit[]> {
-  return reverseIndex(await getLoader(), lat, lon, limit);
+export async function reverseGeocode(lat: number, lon: number, limit = 5): Promise<PlaceResult> {
+  return withFallback(
+    (env) => vpsGet<PlaceHit[]>(env, `/v1/places/reverse?${query({ lat, lon, limit })}`),
+    async () => reverseIndex(await getLoader(), lat, lon, limit),
+  );
+}
+
+/** Browser + edge cache lifetime: a degraded answer is not kept long. */
+export function placeCacheControl(engine: PlaceEngine, maxAge: number): string {
+  return `public, max-age=${engine === "vps" ? maxAge : Math.min(maxAge, 60)}`;
 }

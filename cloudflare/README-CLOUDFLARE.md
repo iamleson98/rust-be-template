@@ -8,11 +8,11 @@ The former Rust/axum backend + React SPA now run as a single **Next.js 16 app on
 | ------------------------------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Frontend + API                              | axum + Vite React SPA (2 deploys) | **The original SPA verbatim** (`src/spa/`) + App Router API routes on Workers (1 deploy)                                                               |
 | SQLite storage                              | rustqlite file on VPS             | **Cloudflare D1** (SQLite at the edge)                                                                                                                 |
-| Full-text place search                      | Tantivy (in-process index)        | **Static shard index** built weekly by CI, served as Worker static assets (see below)                                                                  |
+| Full-text place search                      | Tantivy (in-process index)        | **VPS service** (`vps/`, in-memory index refreshed weekly from OSM); fallback: the static shard index built weekly by CI (see below)                   |
 | Image storage (brand logos, route pictures) | S3/rustfs                         | **R2 bucket** (`/api/media/*` proxy + admin upload)                                                                                                    |
 | Chat socket (`/ws`)                         | tokio WS hub                      | **ChatHub Durable Object** (`chat-hub.ts`) — same JSON frame protocol: join/leave/message/typing, presence fan-out, clientMsgId-idempotent persistence |
 | Audio-call signalling (`/ws-call`)          | tokio WS hub + coturn             | **CallHub Durable Object** (`call-hub.ts`) — SDP/ICE relay, `to: "agent"` routing, presence + public STUN                                              |
-| Cron jobs                                   | tokio scheduler in-process        | **Worker Cron Trigger** (every minute) running the job executor in-process — no container                                                              |
+| Cron jobs                                   | tokio scheduler in-process        | **VPS service** calls `POST /api/jobs/tick` every minute; the Worker Cron Trigger runs the executor itself only while those ticks stop                 |
 | Auth                                        | JWT + argon2 + refresh rotation   | JWT (jose, HS256) + PBKDF2 (WebCrypto) + refresh rotation — same cookie semantics                                                                      |
 
 ## Local development
@@ -70,13 +70,18 @@ datxevui-uploads` (ids go in `wrangler.jsonc`), `wrangler secret put JWT_SECRET`
 `CRON_SERVICE_TOKEN`, and the TURN key (`TURN_KEY_ID`, `TURN_KEY_API_TOKEN`). **Register the
 first account yourself right after the first deploy: the first registrant becomes admin.**
 
-## Cron jobs (no container)
+## Cron jobs
 
-The Worker's Cron Trigger (`* * * * *`, see `wrangler.jsonc`) calls `scheduled()` in
-`custom-worker.ts`, which runs the job executor (`src/lib/cron.ts`) in-process inside OpenNext's
-request context — same bindings as any API route, no public round trip, no Next.js render on the
-way (the Free plan allows 10 ms of CPU per invocation) and no secret needed. `POST
-/api/jobs/tick` stays callable with the `CRON_SERVICE_TOKEN` for manual runs.
+The **VPS service** (`vps/`, see `vps/README.md`) is the driver: every minute it calls `POST
+/api/jobs/tick` with the `CRON_SERVICE_TOKEN`, retrying network errors and 5xx answers.
+`custom-worker.ts` answers that path before Next.js and runs the job executor
+(`src/lib/cron.ts`) in-process inside OpenNext's request context (the Free plan allows 10 ms of
+CPU per invocation). Each external tick leaves a `cron.driver` heartbeat row at most every 5
+minutes.
+
+The Worker's own Cron Trigger (`* * * * *`, `wrangler.jsonc`) is the safety net: `scheduled()`
+reads that heartbeat (one indexed row) and runs the tick itself only when it is older than 7
+minutes, so jobs keep running if the VPS is down. `/admin/system` shows which driver is live.
 
 Table-driven jobs are **claimed** with a compare-and-swap lease on `scheduled_job.next_run_at`
 before they run, so overlapping ticks (a slow run, the admin "trigger" button) never run a
@@ -95,9 +100,18 @@ Every run is recorded in `job_run` (30-day retention) and visible on the admin
 cron-jobs page; `PATCH /api/admin/cron-jobs/{jobType}` reschedules table-driven
 rows live.
 
-## Place search (static shard index)
+## Place search
 
-Place search has no database, container or native binary at runtime.
+`/api/places/search`, `/api/places/reverse` and `/api/places` ask the **VPS service** first
+(`VPS_URL` + the `VPS_SERVICE_TOKEN` secret; 1.5 s timeout): every named place in Vietnam with
+typo tolerance, intent and context ranking. Answers are cached at the edge (5 min for search,
+1 h for reverse and popular). When the VPS is unset or does not answer, the Worker stops asking
+for 30 s and serves the **static shard index** below (cached for 1 min only); the response's
+`engine` says which one answered.
+
+### Static shard index (fallback)
+
+The fallback has no database, container or native binary at runtime.
 
 ```text
 Geofabrik Vietnam .osm.pbf ──► tools/place-extract (Rust) ──► places.ndjson

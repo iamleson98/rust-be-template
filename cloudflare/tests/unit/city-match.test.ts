@@ -34,9 +34,10 @@ describe("city table", () => {
     expect(new Set(slugs).size).toBe(slugs.length);
   });
 
-  it("has every city of the Rust table (62, Hải Dương included)", () => {
-    expect(VIETNAMESE_CITIES).toHaveLength(62);
+  it("has all 63 first-level divisions (Hải Dương and Hưng Yên included)", () => {
+    expect(VIETNAMESE_CITIES).toHaveLength(63);
     expect(findCity("hai-duong")?.name).toBe("Hải Dương");
+    expect(findCity("hung-yen")?.name).toBe("Hưng Yên");
   });
 });
 

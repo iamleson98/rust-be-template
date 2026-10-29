@@ -45,6 +45,7 @@ on:
       - 'tools/place-extract/**'
       - 'cloudflare/src/lib/places/**'
       - 'cloudflare/src/lib/cities.ts'
+      - 'cloudflare/src/lib/cities.json'
       - 'cloudflare/scripts/build-place-shards.ts'
       - '.github/workflows/place-index.yml'
 

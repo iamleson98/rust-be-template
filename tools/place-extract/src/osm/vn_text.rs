@@ -50,17 +50,25 @@ pub fn tokens(input: &str) -> Vec<String> {
 // Synonym / abbreviation expansion
 // -----------------------------------------------------------------------
 
-/// Compiled regexes for common Vietnamese administrative abbreviations.
+/// Common Vietnamese administrative abbreviations and their full forms, as
+/// case-insensitive regexes: people type "p. bến nghé" as often as "P. Bến Nghé".
 /// Word boundaries (`\b`) prevent false matches inside longer words.
-static RE_P: Lazy<Regex> = Lazy::new(|| Regex::new(r"\bP\.\s*").unwrap());
-static RE_Q: Lazy<Regex> = Lazy::new(|| Regex::new(r"\bQ\.\s*").unwrap());
-static RE_TP: Lazy<Regex> = Lazy::new(|| Regex::new(r"\bTP\.\s*").unwrap());
-static RE_TX: Lazy<Regex> = Lazy::new(|| Regex::new(r"\bTX\.\s*").unwrap());
-static RE_TT: Lazy<Regex> = Lazy::new(|| Regex::new(r"\bTT\.\s*").unwrap());
-static RE_X: Lazy<Regex> = Lazy::new(|| Regex::new(r"\bX\.\s*").unwrap());
-static RE_D: Lazy<Regex> = Lazy::new(|| Regex::new(r"\bD\.\s*").unwrap());
-static RE_ST: Lazy<Regex> = Lazy::new(|| Regex::new(r"\bSt\.\s*").unwrap());
-static RE_DD: Lazy<Regex> = Lazy::new(|| Regex::new(r"\bĐ\.\s*").unwrap());
+static ABBREVIATIONS: Lazy<Vec<(Regex, &'static str)>> = Lazy::new(|| {
+    [
+        (r"P\.", "Phường "),
+        (r"Q\.", "Quận "),
+        (r"TP\.", "Thành phố "),
+        (r"TX\.", "Thị xã "),
+        (r"TT\.", "Thị trấn "),
+        (r"X\.", "Xã "),
+        (r"D\.", "Đường "),
+        (r"St\.", "Đường "),
+        (r"Đ\.", "Đường "),
+    ]
+    .into_iter()
+    .map(|(abbr, full)| (Regex::new(&format!(r"(?i)\b{abbr}\s*")).unwrap(), full))
+    .collect()
+});
 
 /// Expand common Vietnamese administrative abbreviations to their full forms.
 ///
@@ -80,16 +88,11 @@ static RE_DD: Lazy<Regex> = Lazy::new(|| Regex::new(r"\bĐ\.\s*").unwrap());
 /// | `D. Lê Lợi`          | `Đường Lê Lợi`          |
 /// | `St. Lê Lợi`         | `Đường Lê Lợi`          |
 pub fn expand_synonyms(input: &str) -> String {
-    let s = RE_P.replace_all(input, "Phường ");
-    let s = RE_Q.replace_all(&s, "Quận ");
-    let s = RE_TP.replace_all(&s, "Thành phố ");
-    let s = RE_TX.replace_all(&s, "Thị xã ");
-    let s = RE_TT.replace_all(&s, "Thị trấn ");
-    let s = RE_X.replace_all(&s, "Xã ");
-    let s = RE_D.replace_all(&s, "Đường ");
-    let s = RE_ST.replace_all(&s, "Đường ");
-    let s = RE_DD.replace_all(&s, "Đường ");
-    s.into_owned()
+    ABBREVIATIONS
+        .iter()
+        .fold(input.to_string(), |s, (re, full)| {
+            re.replace_all(&s, *full).into_owned()
+        })
 }
 
 #[cfg(test)]
@@ -136,8 +139,12 @@ mod tests {
         assert_eq!(expand_synonyms("X. Tân Bình"), "Xã Tân Bình");
         assert_eq!(expand_synonyms("D. Lê Lợi"), "Đường Lê Lợi");
         assert_eq!(expand_synonyms("St. Lê Lợi"), "Đường Lê Lợi");
+        // Typed in lower case too.
+        assert_eq!(expand_synonyms("p. bến nghé"), "Phường bến nghé");
+        assert_eq!(expand_synonyms("tp.hcm"), "Thành phố hcm");
         // No false match inside words
         assert_eq!(expand_synonyms("AP. something"), "AP. something");
+        assert_eq!(expand_synonyms("1st. street"), "1st. street");
     }
 
     #[test]
