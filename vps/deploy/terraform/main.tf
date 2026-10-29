@@ -2,11 +2,10 @@
 #
 # OpenTofu orders it, and once its SSH key is installed (see image_id)
 # prepares the host over SSH: firewall (SSH only; Cloudflare Tunnel is the
-# way in), automatic security updates, key-only login, cloudflared, a CI
-# `deploy` user that may only run the release updater, and vps-service from
-# its rolling GitHub release when one is published.
-# Wiring the tunnel and the tokens stays manual (vps/README.md): those need
-# your Cloudflare login and secrets that do not belong in OpenTofu state.
+# way in), automatic security updates, hardened key-only SSH with sshguard,
+# cloudflared, and vps-service with its timer that pulls signed releases.
+# The tunnel's connector token and the service tokens are installed by hand
+# (vps/README.md): secrets do not belong in OpenTofu state.
 
 provider "ovh" {
   # Credentials: ~/.ovh.conf or OVH_* environment variables.
@@ -15,9 +14,7 @@ provider "ovh" {
 
 locals {
   ssh_public_key = trimspace(file(pathexpand(var.ssh_public_key_path)))
-  # The CI deploy user's key (release.yml); its private half is a GitHub secret.
-  deploy_public_key = trimspace(file(pathexpand(var.deploy_public_key_path)))
-  model             = replace(var.plan, "vps-2027-", "")
+  model          = replace(var.plan, "vps-2027-", "")
   options = concat(
     # Local NVMe storage: free, and mandatory in some regions.
     [{ duration = "P1M", plan_code = "option-storage-local-2027-${local.model}", pricing_mode = "default", quantity = 1 }],
@@ -68,7 +65,6 @@ resource "terraform_data" "bootstrap" {
   triggers_replace = {
     ip     = local.ipv4
     script = filesha256("${path.module}/templates/bootstrap.sh")
-    deploy = sha256(local.deploy_public_key)
   }
 
   connection {
@@ -83,7 +79,7 @@ resource "terraform_data" "bootstrap" {
   }
   provisioner "remote-exec" {
     inline = [
-      "sudo NAME='${var.name}' DEPLOY_KEY='${local.deploy_public_key}' bash /tmp/datxevui-bootstrap.sh",
+      "sudo NAME='${var.name}' bash /tmp/datxevui-bootstrap.sh",
       "rm -f /tmp/datxevui-bootstrap.sh",
     ]
   }

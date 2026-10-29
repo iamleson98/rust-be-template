@@ -1,4 +1,4 @@
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { getDb } from "@/lib/db/client";
 import { jobRuns } from "@/lib/db/schema";
 import { systemReport } from "@/lib/services/system-status";
@@ -13,7 +13,18 @@ import { migrate } from "../helpers/fixture";
  * the VPS section is the service's own `/v1/status` (or why it is missing).
  */
 
-const VPS = { VPS_URL: "https://vps.example.test", VPS_SERVICE_TOKEN: "t0ken" };
+/** A VPC binding answering with `respond`, recording what was fetched. */
+function vpsBinding(respond: () => Response, calls: string[] = []) {
+  return {
+    VPS: {
+      fetch: async (input: string) => {
+        calls.push(input);
+        return respond();
+      },
+    },
+    VPS_SERVICE_TOKEN: "t0ken",
+  };
+}
 const STATUS = {
   service: { version: "0.1.0", startedAt: "t", uptimeSecs: 60, timezone: "Asia/Ho_Chi_Minh" },
   system: { cpus: 2, cpuPercent: 3.5, processCpuPercent: 0.4, loadAverage: [0.1, 0.1, 0.1] },
@@ -27,7 +38,6 @@ beforeEach(async () => {
   resetVpsBreaker();
   await (await getDb()).delete(jobRuns);
 });
-afterEach(() => vi.unstubAllGlobals());
 
 async function heartbeat(jobType: string, ageMs: number) {
   const at = new Date(Date.now() - ageMs).toISOString();
@@ -59,15 +69,11 @@ describe("systemReport", () => {
   });
 
   it("includes the VPS status and names the live cron driver", async () => {
-    setCloudflareContext(VPS);
     const calls: string[] = [];
-    vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
-      calls.push(String(input));
-      return Response.json(STATUS);
-    });
+    setCloudflareContext(vpsBinding(() => Response.json(STATUS), calls));
     await heartbeat(DRIVER_JOB, 60_000);
     const report = await systemReport();
-    expect(calls).toEqual(["https://vps.example.test/v1/status"]);
+    expect(calls).toEqual(["http://127.0.0.1:8787/v1/status"]);
     expect(report.vps.reachable).toBe(true);
     expect(report.vps.status?.index.places).toBe(325_721);
     expect(report.placeSearch.engine).toBe("vps");
@@ -75,8 +81,7 @@ describe("systemReport", () => {
   });
 
   it("reports an unreachable VPS and the Worker's fallback trigger", async () => {
-    setCloudflareContext(VPS);
-    vi.stubGlobal("fetch", async () => new Response("bad gateway", { status: 502 }));
+    setCloudflareContext(vpsBinding(() => new Response("bad gateway", { status: 502 })));
     await heartbeat(DRIVER_JOB, 60 * 60_000);
     await heartbeat("holds.sweep", 60_000);
     const report = await systemReport();

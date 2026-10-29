@@ -117,10 +117,12 @@ declare interface CloudflareEnv {
   /** JSON: event name → conversion action resource name. */
   GOOGLE_ADS_CONVERSION_ACTIONS?: string;
 
-  /** VPS companion service (`vps/`): place search + cron driver, via Cloudflare Tunnel. */
-  VPS_URL?: string;
-  /** Bearer token for VPS_URL (same value as the service's VPS_SERVICE_TOKEN). */
+  /** VPS companion service (`vps/`): Workers VPC binding over Cloudflare Tunnel (no public hostname). */
+  VPS?: Fetcher;
+  /** Bearer token the VPS service also requires (same value as its VPS_SERVICE_TOKEN). */
   VPS_SERVICE_TOKEN?: string;
+  /** Comma-separated addresses `POST /api/jobs/tick` is accepted from (the VPS); unset = any. */
+  CRON_ALLOWED_IPS?: string;
 
   /** Valhalla routing server base URL for /api/routing/* (absent → routing answers "not configured"). */
   VALHALLA_URL?: string;

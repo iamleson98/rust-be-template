@@ -2,7 +2,10 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { resetVpsBreaker, vpsConfigured, vpsGet, VpsUnavailable } from "@/lib/vps";
 import { placeCacheControl } from "@/lib/services/place-search";
 
-const env = { VPS_URL: "https://search.example.test/", VPS_SERVICE_TOKEN: "t0ken" };
+const env = {
+  VPS: { fetch: () => Promise.reject(new Error("unused")) } as unknown as Fetcher,
+  VPS_SERVICE_TOKEN: "t0ken",
+};
 
 function fakeFetch(respond: () => Response | Promise<Response>) {
   const calls: Array<{ url: string; auth: string | null }> = [];
@@ -23,12 +26,13 @@ describe("vpsGet", () => {
     const { impl, calls } = fakeFetch(() => Response.json({ items: [1] }));
     expect(await vpsGet(env, "/v1/places/search?q=x", { fetchImpl: impl })).toEqual({ items: [1] });
     expect(calls).toEqual([
-      { url: "https://search.example.test/v1/places/search?q=x", auth: "Bearer t0ken" },
+      { url: "http://127.0.0.1:8787/v1/places/search?q=x", auth: "Bearer t0ken" },
     ]);
   });
 
   it("is not configured without both the URL and the token", async () => {
-    expect(vpsConfigured({ VPS_URL: env.VPS_URL })).toBe(false);
+    expect(vpsConfigured({ VPS: env.VPS })).toBe(false);
+    expect(vpsConfigured({ VPS_SERVICE_TOKEN: "t0ken" })).toBe(false);
     await expect(vpsGet({}, "/x")).rejects.toBeInstanceOf(VpsUnavailable);
   });
 
@@ -52,6 +56,20 @@ describe("vpsGet", () => {
     expect(await vpsGet(env, "/x", { fetchImpl: healthy.impl, now: () => now })).toEqual({
       ok: true,
     });
+  });
+});
+
+describe("the binding", () => {
+  it("is what vpsGet calls by default", async () => {
+    const seen: string[] = [];
+    const VPS = {
+      fetch: async (input: string) => {
+        seen.push(input);
+        return Response.json({ ok: true });
+      },
+    } as unknown as Fetcher;
+    expect(await vpsGet({ VPS, VPS_SERVICE_TOKEN: "t" }, "/v1/status")).toEqual({ ok: true });
+    expect(seen).toEqual(["http://127.0.0.1:8787/v1/status"]);
   });
 });
 

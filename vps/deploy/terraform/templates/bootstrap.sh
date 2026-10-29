@@ -10,24 +10,38 @@ hostnamectl set-hostname "${NAME:-datxevui-vps}"
 timedatectl set-timezone Asia/Ho_Chi_Minh
 
 apt-get update -y
-apt-get install -y --no-install-recommends ca-certificates curl ufw unattended-upgrades jq
+apt-get install -y --no-install-recommends ca-certificates curl ufw unattended-upgrades jq sshguard
 dpkg-reconfigure -f noninteractive unattended-upgrades
 
 # Firewall: SSH only. The service listens on 127.0.0.1 and Cloudflare
 # Tunnel connects outwards, so nothing else is opened.
 ufw default deny incoming
 ufw default allow outgoing
-ufw allow OpenSSH
+ufw delete allow OpenSSH >/dev/null 2>&1 || true
+# Rate-limited: an address opening 6+ connections in 30 s is dropped.
+ufw limit OpenSSH
 ufw --force enable
 
-# Key-only SSH. sshd keeps the first value it reads, so this file must sort
-# before cloud-init's 50-cloud-init.conf.
+# SSH: keys only, one user, few tries, no forwarding but local ports (for
+# `ssh -L 8787:127.0.0.1:8787`). sshd keeps the first value it reads, so
+# this file must sort before cloud-init's 50-cloud-init.conf. sshguard bans
+# addresses that keep failing. Break-glass: the OVHcloud KVM console.
 cat > /etc/ssh/sshd_config.d/01-datxevui.conf <<'SSHD'
 PasswordAuthentication no
 KbdInteractiveAuthentication no
-PermitRootLogin prohibit-password
+PubkeyAuthentication yes
+PermitRootLogin no
+AllowUsers ubuntu
+MaxAuthTries 3
+LoginGraceTime 20
+X11Forwarding no
+AllowAgentForwarding no
+AllowTcpForwarding local
+PermitTunnel no
 SSHD
+sshd -t
 systemctl reload ssh || systemctl reload sshd
+systemctl enable --now sshguard
 
 # The journal keeps the service's logs; cap it on a 40 GB disk.
 mkdir -p /etc/systemd/journald.conf.d
@@ -58,32 +72,18 @@ if ! command -v cloudflared >/dev/null; then
   apt-get install -y cloudflared
 fi
 
-# CI deploy user (release.yml): key login, and sudo for exactly one command,
-# the release updater (vps/deploy/update.sh installed as root-owned
-# /usr/local/sbin/vps-service-update; it accepts a release name only).
-if [ -n "${DEPLOY_KEY:-}" ]; then
-  id deploy >/dev/null 2>&1 || useradd --create-home --shell /bin/bash deploy
-  install -d -m 0700 -o deploy -g deploy /home/deploy/.ssh
-  echo "$DEPLOY_KEY" > /home/deploy/.ssh/authorized_keys
-  chown deploy:deploy /home/deploy/.ssh/authorized_keys
-  chmod 0600 /home/deploy/.ssh/authorized_keys
-  echo 'deploy ALL=(root) NOPASSWD: /usr/local/sbin/vps-service-update *' > /etc/sudoers.d/90-datxevui-deploy
-  chmod 0440 /etc/sudoers.d/90-datxevui-deploy
-  visudo -cf /etc/sudoers.d/90-datxevui-deploy
-fi
+# No inbound deploys: the vps-service-update timer pulls signed releases.
+# (An earlier version had a CI `deploy` user; make sure it is gone.)
+if id deploy >/dev/null 2>&1; then userdel --remove deploy 2>/dev/null || true; fi
+rm -f /etc/sudoers.d/90-datxevui-deploy
+
+# vps-service: the first install fetches the updater, which then installs
+# the newest signed release and its own 5-minute timer.
 if [ ! -x /usr/local/sbin/vps-service-update ]; then
   curl -fsSL -o /usr/local/sbin/vps-service-update \
-    "https://raw.githubusercontent.com/iamleson98/rust-be-template/HEAD/vps/deploy/update.sh" \
-    && chmod 0755 /usr/local/sbin/vps-service-update \
-    || echo "update.sh not on the default branch yet (PR #111): installed by the first deploy"
+    "https://raw.githubusercontent.com/iamleson98/rust-be-template/HEAD/vps/deploy/update.sh"
+  chmod 0755 /usr/local/sbin/vps-service-update
 fi
-
-# vps-service, once its release exists (published when PR #111 merges).
-repo=iamleson98/rust-be-template
-if curl -fsI -o /dev/null "https://github.com/$repo/releases/download/vps-service/vps-service-x86_64-linux.tar.gz" 2>/dev/null; then
-  /usr/local/sbin/vps-service-update
-else
-  echo "vps-service release not published yet: run vps/deploy/update.sh after it is"
-fi
+/usr/local/sbin/vps-service-update auto
 
 echo "== bootstrap done"

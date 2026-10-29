@@ -120,14 +120,26 @@ jobs:
             | vps/target/release/vps-service query --records "$gen" | tee "$RUNNER_TEMP/vps/queries.txt"
           grep -A1 "== hue" "$RUNNER_TEMP/vps/queries.txt" | grep -q "Huế"
 
-      - name: Package
+      - name: Package and sign
         if: env.PUBLISH_TO != ''
+        env:
+          # Private half of the key vps/deploy/update.sh pins; the VPS refuses
+          # anything it did not sign.
+          RELEASE_SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
         run: |
-          mkdir -p dist/vps-service
+          if [ -z "$RELEASE_SIGNING_KEY" ]; then
+            echo "::error::RELEASE_SIGNING_KEY is not set: an unsigned build would never be installed."
+            exit 1
+          fi
+          mkdir -p dist/vps-service/deploy
           cp vps/target/release/vps-service vps/config.example.toml dist/vps-service/
-          cp -r vps/deploy dist/vps-service/
+          cp vps/deploy/update.sh vps/deploy/*.service vps/deploy/*.timer dist/vps-service/deploy/
           tar -czf vps-service-x86_64-linux.tar.gz -C dist vps-service
           sha256sum vps-service-x86_64-linux.tar.gz > vps-service-x86_64-linux.tar.gz.sha256
+          key="$RUNNER_TEMP/release-key"
+          (umask 077 && printf '%s\n' "$RELEASE_SIGNING_KEY" > "$key")
+          ssh-keygen -Y sign -f "$key" -n vps-service-release vps-service-x86_64-linux.tar.gz
+          rm -f "$key"
 
       - uses: actions/upload-artifact@v4
         if: env.PUBLISH_TO != ''
@@ -152,12 +164,17 @@ jobs:
           GH_REPO: ${{ github.repository }}
           RELEASE: ${{ inputs.release_tag || 'vps-service' }}
         run: |
+          files=(vps-service-x86_64-linux.tar.gz vps-service-x86_64-linux.tar.gz.sha256 vps-service-x86_64-linux.tar.gz.sig)
           if [ "$RELEASE" = vps-service ]; then
+            # A prerelease, so the VPS's `releases/latest` is always a tag.
             gh release view vps-service >/dev/null 2>&1 || \
-              gh release create vps-service --title "VPS service (rolling)" --target "$GITHUB_SHA" \
-                --notes "Latest vps-service build from the default branch. Installed by vps/deploy/update.sh."
+              gh release create vps-service --prerelease --title "VPS service (rolling)" --target "$GITHUB_SHA" \
+                --notes "Latest vps-service build from the default branch (vps-service-update vps-service)."
+            gh release edit vps-service --prerelease
+            gh release upload vps-service "${files[@]}" --clobber
+          elif gh release view "$RELEASE" >/dev/null 2>&1; then
+            gh release upload "$RELEASE" "${files[@]}" --clobber
           else
-            gh release view "$RELEASE" >/dev/null 2>&1 || \
-              gh release create "$RELEASE" --verify-tag --title "$RELEASE" --generate-notes
+            # Created with its files in one step: the VPS never sees a release without them.
+            gh release create "$RELEASE" "${files[@]}" --verify-tag --title "$RELEASE" --generate-notes
           fi
-          gh release upload "$RELEASE" vps-service-x86_64-linux.tar.gz vps-service-x86_64-linux.tar.gz.sha256 --clobber

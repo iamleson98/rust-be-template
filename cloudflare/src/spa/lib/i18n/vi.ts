@@ -750,7 +750,7 @@ export const vi: TranslationMap = {
   "adminSystem.vpsTitle": "Dịch vụ VPS",
   "adminSystem.vpsDetail": "v{version} · đã chạy {uptime} · phản hồi trong {latency}",
   "adminSystem.vpsNotConfigured":
-    "Chưa cấu hình VPS. Đặt VPS_URL và secret VPS_SERVICE_TOKEN cho Worker.",
+    "Chưa cấu hình VPS: Worker cần binding VPS và secret VPS_SERVICE_TOKEN.",
   "adminSystem.vpsUnreachable": "VPS không phản hồi: {error}",
   "adminSystem.cpuDetail": "{cores} nhân · tải {load}",
   "adminSystem.serviceCpu": "Dịch vụ: {pct} một nhân",

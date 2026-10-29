@@ -1,8 +1,12 @@
 /**
  * Client for the VPS companion service (`vps/` in the repository): place
  * search over the full OpenStreetMap index, and the machine/index/cron report
- * the admin system page shows. It sits behind Cloudflare Tunnel at `VPS_URL`
- * and wants `Authorization: Bearer VPS_SERVICE_TOKEN`.
+ * the admin system page shows.
+ *
+ * It is reached through the `VPS` binding, a Workers VPC service over a
+ * Cloudflare Tunnel: the service listens on the VPS's 127.0.0.1 and has no
+ * public hostname, so nothing on the internet can reach it. The bearer token
+ * (`VPS_SERVICE_TOKEN`) is a second lock behind that one.
  *
  * The VPS is one machine, so every caller has a fallback. After a failure
  * the client stops calling for `BREAK_MS` (per isolate): a dead VPS costs one
@@ -10,9 +14,12 @@
  */
 
 export interface VpsEnv {
-  VPS_URL?: string;
+  VPS?: Fetcher;
   VPS_SERVICE_TOKEN?: string;
 }
+
+/** The URL the binding routes; the VPC service decides where it goes (127.0.0.1:8787). */
+const ORIGIN = "http://127.0.0.1:8787";
 
 /** Search must answer fast or fall back; the VPS answers in milliseconds. */
 export const SEARCH_TIMEOUT_MS = 1500;
@@ -96,26 +103,30 @@ export interface VpsLatency {
 }
 
 export function vpsConfigured(env: VpsEnv): boolean {
-  return !!env.VPS_URL && !!env.VPS_SERVICE_TOKEN;
+  return !!env.VPS && !!env.VPS_SERVICE_TOKEN;
 }
 
 export interface VpsGetOptions {
   timeoutMs?: number;
   /** Call even while the breaker is open (the admin page wants the truth). */
   ignoreBreaker?: boolean;
+  /** Replaces the binding's fetch (tests). */
   fetchImpl?: typeof fetch;
   now?: () => number;
 }
 
 /** GET a JSON resource of the VPS service; throws `VpsUnavailable` on any failure. */
 export async function vpsGet<T>(env: VpsEnv, path: string, opts: VpsGetOptions = {}): Promise<T> {
-  const { timeoutMs = SEARCH_TIMEOUT_MS, ignoreBreaker = false, fetchImpl = fetch } = opts;
+  const { timeoutMs = SEARCH_TIMEOUT_MS, ignoreBreaker = false } = opts;
   const now = opts.now ?? Date.now;
-  const { VPS_URL: base, VPS_SERVICE_TOKEN: token } = env;
-  if (!base || !token) throw new VpsUnavailable("VPS_URL / VPS_SERVICE_TOKEN not set");
+  const { VPS: binding, VPS_SERVICE_TOKEN: token } = env;
+  if (!binding || !token) throw new VpsUnavailable("VPS binding / VPS_SERVICE_TOKEN not set");
   if (!ignoreBreaker && now() < brokenUntil) throw new VpsUnavailable("recently unreachable");
+  const fetchImpl =
+    opts.fetchImpl ??
+    ((input: RequestInfo | URL, init?: RequestInit) => binding.fetch(input as string, init));
   try {
-    const res = await fetchImpl(`${base.replace(/\/+$/, "")}${path}`, {
+    const res = await fetchImpl(`${ORIGIN}${path}`, {
       headers: { authorization: `Bearer ${token}`, accept: "application/json" },
       signal: AbortSignal.timeout(timeoutMs),
     });

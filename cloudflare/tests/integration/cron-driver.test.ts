@@ -2,7 +2,7 @@ import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db/client";
 import { jobRuns } from "@/lib/db/schema";
-import { handleTickRequest, runScheduledCron } from "@/lib/cron";
+import { handleTickRequest, runScheduledCron, sourceAllowed } from "@/lib/cron";
 import { DRIVER_JOB, DRIVER_STALE_MS, externalDriverActive } from "@/lib/services/jobs";
 import { setCloudflareContext } from "../helpers/context";
 import { migrate } from "../helpers/fixture";
@@ -14,10 +14,10 @@ import { migrate } from "../helpers/fixture";
  */
 
 const TOKEN = "cron-token-0123456789";
-const tickRequest = (token?: string, method = "POST") =>
+const tickRequest = (token?: string, method = "POST", ip = "15.235.247.54") =>
   new Request("https://datxevui.com/api/jobs/tick", {
     method,
-    headers: token ? { "x-cron-token": token } : {},
+    headers: { "cf-connecting-ip": ip, ...(token ? { "x-cron-token": token } : {}) },
   });
 
 async function driverRows(): Promise<number> {
@@ -50,6 +50,23 @@ describe("POST /api/jobs/tick", () => {
     await handleTickRequest(tickRequest(TOKEN));
     expect(await driverRows()).toBe(1);
     expect(await externalDriverActive()).toBe(true);
+  });
+});
+
+describe("cron source allowlist", () => {
+  it("accepts only the listed addresses, and any when none are listed", () => {
+    const list = "15.235.247.54, 2402:1f00:8000:800::3dbe";
+    expect(sourceAllowed("15.235.247.54", list)).toBe(true);
+    expect(sourceAllowed("2402:1F00:8000:800::3DBE", list)).toBe(true);
+    expect(sourceAllowed("203.0.113.9", list)).toBe(false);
+    expect(sourceAllowed(null, list)).toBe(false);
+    expect(sourceAllowed("203.0.113.9", undefined)).toBe(true);
+  });
+
+  it("refuses a valid token from another address before running anything", async () => {
+    setCloudflareContext({ CRON_SERVICE_TOKEN: TOKEN, CRON_ALLOWED_IPS: "15.235.247.54" });
+    expect((await handleTickRequest(tickRequest(TOKEN, "POST", "203.0.113.9"))).status).toBe(403);
+    expect((await handleTickRequest(tickRequest(TOKEN))).status).toBe(200);
   });
 });
 

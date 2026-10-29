@@ -40,6 +40,15 @@ export async function runScheduledCron(): Promise<string> {
   return `fallback tick: ${await runCron()}`;
 }
 
+/** Is `ip` one of the comma-separated `allowed` addresses? Unset or empty allows any. */
+export function sourceAllowed(ip: string | null, allowed: string | undefined): boolean {
+  const list = (allowed ?? "")
+    .split(",")
+    .map((a) => a.trim().toLowerCase())
+    .filter(Boolean);
+  return list.length === 0 || (ip !== null && list.includes(ip.trim().toLowerCase()));
+}
+
 /**
  * `POST /api/jobs/tick`. 200 `{ ok: true, ran }` when every due job
  * succeeded; 500 `{ ok: false, ran }` when one failed, so the driver retries
@@ -47,7 +56,12 @@ export async function runScheduledCron(): Promise<string> {
  */
 export async function handleTickRequest(req: Request): Promise<Response> {
   if (req.method !== "POST") return err(405, "method_not_allowed", "POST only");
-  const expected = (await getEnv()).CRON_SERVICE_TOKEN;
+  const env = await getEnv();
+  // Only the VPS drives the tick in production: a stolen token is useless elsewhere.
+  if (!sourceAllowed(req.headers.get("cf-connecting-ip"), env.CRON_ALLOWED_IPS)) {
+    return err(403, "forbidden", "Not an allowed cron source");
+  }
+  const expected = env.CRON_SERVICE_TOKEN;
   const provided = req.headers.get("x-cron-token");
   if (!expected || !provided || !timingSafeEqualStr(provided, expected)) {
     return err(401, "unauthorized", "Invalid cron service token");
