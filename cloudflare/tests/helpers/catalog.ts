@@ -203,6 +203,8 @@ export interface StopSpec {
   lat: number;
   lon: number;
   arrival?: string;
+  /** The city (slug) the stop is in. */
+  cityId?: string;
 }
 
 /** A timetable for a schedule: one address and one schedule point per stop, in order. */
@@ -217,6 +219,7 @@ export async function addTimetable(brandId: string, scheduleId: string, stops: S
       address: `${s.name} street`,
       lat: s.lat,
       lon: s.lon,
+      cityId: s.cityId ?? null,
     });
     await db.insert(schedulePoints).values({
       id: crypto.randomUUID(),

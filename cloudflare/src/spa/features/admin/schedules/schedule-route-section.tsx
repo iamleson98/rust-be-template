@@ -91,6 +91,7 @@ export function ScheduleRouteSection({
                 <FormControl>
                   <AddressPointSelect
                     kind="pickup"
+                    invalid={!!form.formState.errors.startPointId}
                     value={field.value}
                     onChange={field.onChange}
                     brandId={brandId}
@@ -131,56 +132,61 @@ export function ScheduleRouteSection({
               </FormLabel>
               <div className="space-y-2">
                 {field.value.map((mid, i: number) => (
-                  <div
-                    key={i}
-                    className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto_auto] gap-1.5 items-center"
-                  >
-                    <span className="h-6 w-6 shrink-0 rounded-full bg-amber-100 text-amber-700 text-[11px] font-semibold flex items-center justify-center border border-amber-200">
-                      {i + 1}
-                    </span>
-                    <AddressPointSelect
-                      kind="middle"
-                      value={mid.id || undefined}
-                      onChange={(v) => setMiddle(i, v)}
-                      brandId={brandId}
-                      extraAddresses={knownAddresses}
-                      onCreateNew={() => openCreateFor(i)}
-                    />
-                    <div className="w-28">
-                      <TimePicker
-                        value={mid.time ?? null}
-                        onChange={(t) => setMiddleTime(i, t)}
-                        placeholder="--:--"
+                  <div key={i} className="grid gap-1">
+                    <div className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto_auto] gap-1.5 items-center">
+                      <span className="h-6 w-6 shrink-0 rounded-full bg-amber-100 text-amber-700 text-[11px] font-semibold flex items-center justify-center border border-amber-200">
+                        {i + 1}
+                      </span>
+                      <AddressPointSelect
+                        kind="middle"
+                        invalid={!!form.formState.errors.middlePoints?.[i]?.id}
+                        value={mid.id || undefined}
+                        onChange={(v) => setMiddle(i, v)}
+                        brandId={brandId}
+                        extraAddresses={knownAddresses}
+                        onCreateNew={() => openCreateFor(i)}
                       />
-                    </div>
-                    <div className="flex flex-col gap-0.5">
+                      <div className="w-28">
+                        <TimePicker
+                          value={mid.time ?? null}
+                          onChange={(t) => setMiddleTime(i, t)}
+                          placeholder="--:--"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-0.5">
+                        <button
+                          type="button"
+                          aria-label={t("adminSchedules.moveUp")}
+                          disabled={i === 0}
+                          onClick={() => moveMiddle(i, -1)}
+                          className="h-4 w-6 rounded text-muted-foreground hover:text-foreground hover:bg-slate-100 disabled:opacity-30 flex items-center justify-center"
+                        >
+                          <ArrowUp className="h-3 w-3" />
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={t("adminSchedules.moveDown")}
+                          disabled={i === field.value.length - 1}
+                          onClick={() => moveMiddle(i, 1)}
+                          className="h-4 w-6 rounded text-muted-foreground hover:text-foreground hover:bg-slate-100 disabled:opacity-30 flex items-center justify-center"
+                        >
+                          <ArrowDown className="h-3 w-3" />
+                        </button>
+                      </div>
                       <button
                         type="button"
-                        aria-label={t("adminSchedules.moveUp")}
-                        disabled={i === 0}
-                        onClick={() => moveMiddle(i, -1)}
-                        className="h-4 w-6 rounded text-muted-foreground hover:text-foreground hover:bg-slate-100 disabled:opacity-30 flex items-center justify-center"
+                        aria-label={t("adminSchedules.removeMiddlePoint")}
+                        onClick={() => removeMiddle(i)}
+                        className="h-9 w-9 shrink-0 rounded-md text-muted-foreground hover:text-rose-600 hover:bg-rose-50 flex items-center justify-center transition-colors"
                       >
-                        <ArrowUp className="h-3 w-3" />
-                      </button>
-                      <button
-                        type="button"
-                        aria-label={t("adminSchedules.moveDown")}
-                        disabled={i === field.value.length - 1}
-                        onClick={() => moveMiddle(i, 1)}
-                        className="h-4 w-6 rounded text-muted-foreground hover:text-foreground hover:bg-slate-100 disabled:opacity-30 flex items-center justify-center"
-                      >
-                        <ArrowDown className="h-3 w-3" />
+                        <Trash2 className="h-4 w-4" />
                       </button>
                     </div>
-                    <button
-                      type="button"
-                      aria-label={t("adminSchedules.removeMiddlePoint")}
-                      onClick={() => removeMiddle(i)}
-                      className="h-9 w-9 shrink-0 rounded-md text-muted-foreground hover:text-rose-600 hover:bg-rose-50 flex items-center justify-center transition-colors"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                    {form.formState.errors.middlePoints?.[i]?.id ? (
+                      <p className="pl-8 text-xs text-destructive">
+                        {form.formState.errors.middlePoints[i]?.id?.message}
+                      </p>
+                    ) : null}
                   </div>
                 ))}
                 <button
@@ -213,6 +219,7 @@ export function ScheduleRouteSection({
                 <FormControl>
                   <AddressPointSelect
                     kind="drop"
+                    invalid={!!form.formState.errors.endPointId}
                     value={field.value}
                     onChange={field.onChange}
                     brandId={brandId}

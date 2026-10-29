@@ -279,9 +279,7 @@ export function ScheduleFormDialog({
       // point carries its optional arrivalTime.
       const points = [
         { addressId: values.startPointId, arrivalTime: values.startPointTime ?? null },
-        ...values.middlePoints
-          .filter((m) => !!m.id)
-          .map((m) => ({ addressId: m.id, arrivalTime: m.time ?? null })),
+        ...values.middlePoints.map((m) => ({ addressId: m.id, arrivalTime: m.time ?? null })),
         { addressId: values.endPointId, arrivalTime: values.endPointTime ?? null },
       ];
       const payload: Record<string, unknown> = {

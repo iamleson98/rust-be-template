@@ -505,6 +505,10 @@ export type AdminSchedulePointOut = {
      * Optional `HH:MM` — when the vehicle reaches this stop.
      */
     arrivalTime?: string | null;
+    /**
+     * Slug of the city the stop is in; absent on stops older than the field.
+     */
+    cityId?: string | null;
     id: string;
     /**
      * `pickup` (first) / `middle` / `drop` (last).
@@ -2952,12 +2956,12 @@ export type RoutePictureOut = {
      */
     sortOrder: number;
     /**
-     * Public URL of the JPEG thumbnail (long edge ≤ 640px) — use this
+     * Public URL of the WebP thumbnail (long edge ≤ 640px) — use this
      * in lists/grids, `url` in the detail gallery.
      */
     thumbUrl: string;
     /**
-     * Public URL of the ORIGINAL image (content-addressed, immutable).
+     * Public URL of the stored WebP picture (long edge ≤ 1920px, content-addressed, immutable).
      */
     url: string;
     /**
@@ -3423,6 +3427,10 @@ export type TripDetail = {
 };
 
 export type TripEndpoint = {
+    /**
+     * City slug (e.g. `"ha-noi"`) — what a stop's `cityId` is compared with.
+     */
+    cityId?: string | null;
     lat: number;
     lon: number;
     name?: string | null;
@@ -3549,6 +3557,10 @@ export type TripSchedulePoint = {
      * Optional `HH:MM` — when the vehicle reaches this stop.
      */
     arrivalTime?: string | null;
+    /**
+     * Slug of the city the stop is in; absent on stops older than the field.
+     */
+    cityId?: string | null;
     id: string;
     /**
      * `pickup` (first) / `middle` / `drop` (last) — derived from the

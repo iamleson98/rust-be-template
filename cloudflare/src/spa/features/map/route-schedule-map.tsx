@@ -12,7 +12,10 @@ import { BasemapLayer } from "@spa/features/map/basemap-layer";
 export type RouteScheduleStop = Pick<
   TripPickupPoint,
   "id" | "name" | "stopOrder" | "lat" | "lon" | "kind"
->;
+> & {
+  /** Slug of the city the stop is in; unknown on stops that predate the field. */
+  cityId?: string | null;
+};
 
 type Props = {
   /** Route polyline [lat, lon][] — straight-line fallback is supplied
@@ -21,25 +24,32 @@ type Props = {
   pickupPoints: RouteScheduleStop[];
   fromName: string;
   toName: string;
+  /** Slugs of the route's two cities: a stop in one is blue, in the other red. */
+  fromCityId?: string | null;
+  toCityId?: string | null;
 };
 
 /** The route line and intermediate stops, in the brand blue. */
 const LINE = "#0063c4";
 
-/** Numbered circular marker: order badge on a colored disc. */
-function stopIcon(index: number, total: number): L.DivIcon {
-  const isFirst = index === 0;
-  const isLast = index === total - 1;
-  const bg = isFirst ? "#2563eb" : isLast ? "#dc2626" : LINE;
-  const ring = isFirst ? "#1e40af" : isLast ? "#991b1b" : "white";
-  const label = isFirst ? "A" : isLast ? "B" : String(index);
+/** Where a stop is: in the city the trip leaves, in the one it arrives at, or somewhere else. */
+type Place = "start" | "end" | "other";
+
+const PLACE_COLORS: Record<Place, { fill: string; ring: string }> = {
+  start: { fill: "#2563eb", ring: "#1e40af" },
+  end: { fill: "#dc2626", ring: "#991b1b" },
+  other: { fill: "#64748b", ring: "#ffffff" },
+};
+
+/** Numbered circular marker: the stop's place in the timetable on a disc coloured by its city. */
+function stopIcon(index: number, place: Place): L.DivIcon {
+  const { fill, ring } = PLACE_COLORS[place];
+  const label = String(index + 1);
+  const size = label.length > 1 ? 11 : 13;
   const svg =
     `<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 30 30">` +
-    `<circle cx="15" cy="15" r="13" fill="${bg}" stroke="${ring}" stroke-width="2.5"/>` +
-    (isFirst || isLast
-      ? `<circle cx="15" cy="15" r="13" fill="none" stroke="${bg}" stroke-width="1.5" opacity="0.4"/>`
-      : "") +
-    `<text x="15" y="15" text-anchor="middle" dominant-baseline="central" font-family="system-ui, sans-serif" font-size="13" font-weight="700" fill="white">${label}</text>` +
+    `<circle cx="15" cy="15" r="13" fill="${fill}" stroke="${ring}" stroke-width="2.5"/>` +
+    `<text x="15" y="15" text-anchor="middle" dominant-baseline="central" font-family="system-ui, sans-serif" font-size="${size}" font-weight="700" fill="white">${label}</text>` +
     `</svg>`;
   return L.divIcon({
     html: svg,
@@ -102,7 +112,14 @@ function FixSize() {
   return null;
 }
 
-export function RouteScheduleMap({ geometry, pickupPoints, fromName, toName }: Props) {
+export function RouteScheduleMap({
+  geometry,
+  pickupPoints,
+  fromName,
+  toName,
+  fromCityId,
+  toCityId,
+}: Props) {
   const t = useT();
 
   const geo = useMemo(() => geometry ?? [], [geometry]);
@@ -115,6 +132,18 @@ export function RouteScheduleMap({ geometry, pickupPoints, fromName, toName }: P
         .map((p) => ({ ...p, lat: p.lat as number, lon: p.lon as number })),
     [pickupPoints],
   );
+
+  // Each stop's city decides its colour. Stops without one (a route's old
+  // pickup points) fall back to their position: first is the start, last the end.
+  const places = useMemo<Place[]>(() => {
+    const known = stops.some((s) => s.cityId);
+    return stops.map((s, i): Place => {
+      if (!known) return i === 0 ? "start" : i === stops.length - 1 ? "end" : "other";
+      if (fromCityId && s.cityId === fromCityId) return "start";
+      if (toCityId && s.cityId === toCityId) return "end";
+      return "other";
+    });
+  }, [stops, fromCityId, toCityId]);
 
   // Everything the view must show: geometry + stop coordinates.
   const allPoints = useMemo<[number, number][]>(
@@ -157,10 +186,12 @@ export function RouteScheduleMap({ geometry, pickupPoints, fromName, toName }: P
           )}
 
           {stops.map((s, i) => (
-            <Marker key={s.id} position={[s.lat, s.lon]} icon={stopIcon(i, stops.length)}>
+            <Marker key={s.id} position={[s.lat, s.lon]} icon={stopIcon(i, places[i])}>
               <Popup>
                 <div className="text-sm min-w-40">
-                  <div className="font-semibold">{s.name ?? "—"}</div>
+                  <div className="font-semibold">
+                    {i + 1}. {s.name ?? "—"}
+                  </div>
                   <div className="text-xs text-slate-500 capitalize">
                     {(s.kind ?? "").replace(/_/g, " ")}
                   </div>
@@ -180,20 +211,22 @@ export function RouteScheduleMap({ geometry, pickupPoints, fromName, toName }: P
         </div>
       </div>
 
-      {/* Legend under the map — explains the numbered pins. */}
+      {/* Legend under the map: what the pin colours mean. */}
       <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground px-1">
         <span className="inline-flex items-center gap-1.5">
           <span className="h-2.5 w-2.5 rounded-full bg-blue-600 ring-2 ring-blue-300" />
-          {t("mapNav.firstStop")}
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-full bg-slate-400 ring-2 ring-white" />
-          {t("mapNav.middleStop")}
+          {t("mapNav.inCity", { city: fromName })}
         </span>
         <span className="inline-flex items-center gap-1.5">
           <span className="h-2.5 w-2.5 rounded-full bg-rose-600 ring-2 ring-rose-300" />
-          {t("mapNav.lastStop")}
+          {t("mapNav.inCity", { city: toName })}
         </span>
+        {places.includes("other") && (
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-full bg-slate-500 ring-2 ring-white" />
+            {t("mapNav.elsewhere")}
+          </span>
+        )}
       </div>
     </div>
   );

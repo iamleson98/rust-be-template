@@ -82,15 +82,17 @@ export function BrandAddressList({ brandId, brandName }: { brandId: string; bran
           {t("brandForm.noLocations")}
         </p>
       ) : (
-        <ul className="max-h-[26rem] divide-y overflow-y-auto overscroll-contain rounded-lg border">
+        // Scrolls on its own: a brand can have many locations. As tall as the
+        // brand form beside it from md up, shorter on phones.
+        <ul className="max-h-72 divide-y overflow-y-auto overscroll-contain rounded-lg border md:max-h-[26rem]">
           {items.map((a) => {
             const used = a.stopCount ?? 0;
             return (
-              <li key={a.id} className="flex items-center gap-2.5 px-3 py-2">
-                <MapPin className="h-4 w-4 shrink-0 text-blue-600" />
+              <li key={a.id} className="flex items-center gap-2 px-2.5 py-1">
+                <MapPin className="h-3.5 w-3.5 shrink-0 text-blue-600" />
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-medium">{a.name}</div>
-                  <div className="truncate text-[11px] text-muted-foreground">
+                  <div className="truncate text-[13px] leading-5 font-medium">{a.name}</div>
+                  <div className="truncate text-[11px] leading-4 text-muted-foreground">
                     {a.cityId ? (
                       [a.province, a.district].filter(Boolean).join(" · ")
                     ) : (
@@ -103,7 +105,7 @@ export function BrandAddressList({ brandId, brandName }: { brandId: string; bran
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 shrink-0"
+                  className="h-7 w-7 shrink-0"
                   aria-label={t("brandForm.editLocation", { name: a.name })}
                   onClick={() => openDialog(a)}
                 >
@@ -116,7 +118,7 @@ export function BrandAddressList({ brandId, brandName }: { brandId: string; bran
                       <span
                         tabIndex={0}
                         aria-label={t("adminAddresses.inUse")}
-                        className="inline-flex h-8 w-8 shrink-0 items-center justify-center"
+                        className="inline-flex h-7 w-7 shrink-0 items-center justify-center"
                       >
                         <Trash2 className="h-3.5 w-3.5 text-muted-foreground/40" />
                       </span>
@@ -128,7 +130,7 @@ export function BrandAddressList({ brandId, brandName }: { brandId: string; bran
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8 shrink-0 text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+                    className="h-7 w-7 shrink-0 text-rose-600 hover:bg-rose-50 hover:text-rose-700"
                     aria-label={t("brandForm.deleteLocation", { name: a.name })}
                     onClick={() => setDeleteTarget(a)}
                   >

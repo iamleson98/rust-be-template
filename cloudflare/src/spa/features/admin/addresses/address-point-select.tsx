@@ -47,6 +47,8 @@ type Props = {
   /** Opens the "create address" map modal (owned by the parent form). */
   onCreateNew: () => void;
   disabled?: boolean;
+  /** Shows the select in its error state. */
+  invalid?: boolean;
   className?: string;
 };
 
@@ -59,6 +61,7 @@ export function AddressPointSelect({
   kind,
   onCreateNew,
   disabled,
+  invalid,
   className,
 }: Props) {
   const t = useT();
@@ -81,7 +84,8 @@ export function AddressPointSelect({
           placeholder={meta.placeholder}
           searchPlaceholder={meta.searchPlaceholder}
           disabled={disabled}
-          className="flex-1 w-auto"
+          aria-invalid={invalid || undefined}
+          className={cn("flex-1 w-auto", invalid && "border-destructive")}
           renderValue={(item, rawValue) => (
             <span className="flex min-w-0 items-center gap-2">
               <Icon className={cn("h-3.5 w-3.5 shrink-0", meta.iconClass)} />

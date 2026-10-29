@@ -292,18 +292,8 @@ export function AddressMapDialog({
       toast.error(t("adminAddresses.noBrandForAddress"));
       return;
     }
-    if (!form.name.trim()) {
-      toast.error(t("adminAddresses.nameRequired"));
-      return;
-    }
-    if (form.lat == null || form.lon == null) {
-      toast.error(t("adminAddresses.positionRequired"));
-      return;
-    }
-    if (!form.cityId) {
-      setSubmitted(true);
-      return;
-    }
+    setSubmitted(true);
+    if (!form.name.trim() || form.lat == null || form.lon == null || !form.cityId) return;
     const fields = {
       name: form.name.trim(),
       address: form.address.trim() || null,
@@ -377,7 +367,11 @@ export function AddressMapDialog({
                 value={form.name}
                 onChange={(e) => update("name", e.target.value)}
                 placeholder={t("adminAddresses.namePh")}
+                aria-invalid={submitted && !form.name.trim() ? true : undefined}
               />
+              {submitted && !form.name.trim() ? (
+                <p className="text-xs text-destructive">{t("adminAddresses.nameRequired")}</p>
+              ) : null}
             </div>
             <div className="grid gap-1.5">
               <Label htmlFor="addr-detail">{t("adminAddresses.detailLabel")}</Label>
@@ -455,6 +449,11 @@ export function AddressMapDialog({
                   className="font-mono text-base md:text-xs bg-muted/40"
                 />
               </div>
+              {submitted && (form.lat == null || form.lon == null) ? (
+                <p className="col-span-2 text-xs text-destructive">
+                  {t("adminAddresses.positionRequired")}
+                </p>
+              ) : null}
             </div>
           </div>
 
@@ -581,12 +580,7 @@ export function AddressMapDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
             {t("common.cancel")}
           </Button>
-          <Button
-            onClick={handleSave}
-            disabled={
-              saving || !form.name.trim() || form.lat == null || form.lon == null || !brandId
-            }
-          >
+          <Button onClick={handleSave} disabled={saving || !brandId}>
             {saving ? (
               <>
                 <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> {t("common.saving")}

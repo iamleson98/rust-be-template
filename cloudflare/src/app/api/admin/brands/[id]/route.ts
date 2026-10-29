@@ -14,7 +14,8 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
       description?: string;
       contactPhone?: string;
       contactEmail?: string;
-      logoUrl?: string;
+      /** `null` or `""` removes the logo; absent keeps it. */
+      logoUrl?: string | null;
       status?: string;
       childMaxAge?: number;
       childDiscountAmount?: number;
@@ -29,7 +30,7 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
         description: body.description ?? existing.description,
         contactPhone: body.contactPhone ?? existing.contactPhone,
         contactEmail: body.contactEmail ?? existing.contactEmail,
-        logoUrl: body.logoUrl ?? existing.logoUrl,
+        logoUrl: body.logoUrl === undefined ? existing.logoUrl : body.logoUrl || null,
         status: body.status ?? existing.status,
         childMaxAge: body.childMaxAge ?? existing.childMaxAge,
         childDiscountAmount: body.childDiscountAmount ?? existing.childDiscountAmount,
