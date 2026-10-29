@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import {
   Building2,
   Droplet,
@@ -159,7 +159,11 @@ function PriceRange({ rf }: { rf: ResultFilters }) {
   const t = useT();
   const currency = usePrefs((s) => s.currency);
   const money = (n: number) => formatCurrency(n, currency);
-  const { bounds, range } = rf;
+  const { bounds } = rf;
+  // While a thumb moves, the range is only shown; letting go writes it to the
+  // URL and searches, once per drag instead of once per step.
+  const [dragging, setDragging] = useState<[number, number] | null>(null);
+  const range = dragging ?? rf.range;
   return (
     <div>
       <div className="mb-2 flex items-center justify-between gap-2">
@@ -177,9 +181,13 @@ function PriceRange({ rf }: { rf: ResultFilters }) {
         min={bounds[0]}
         max={bounds[1]}
         step={50000}
-        onValueChange={([priceMin, priceMax]) =>
-          rf.setFilters({ ...rf.filters, priceMin, priceMax })
-        }
+        onValueChange={([lo, hi]) => setDragging([lo, hi])}
+        onValueCommitted={(value) => {
+          setDragging(null);
+          if (!Array.isArray(value)) return;
+          const [priceMin, priceMax] = value as readonly number[];
+          rf.setFilters({ ...rf.filters, priceMin, priceMax });
+        }}
         thumbLabels={[t("searchPage.priceMinLabel"), t("searchPage.priceMaxLabel")]}
         className="py-2"
       />

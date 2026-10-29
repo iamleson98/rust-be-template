@@ -12,6 +12,37 @@ export type SortKey = (typeof SORT_KEYS)[number];
 
 export type Leg = "out" | "return";
 
+export const TIME_RANGES = ["0-6", "6-12", "12-18", "18-24"] as const;
+export type TimeRange = (typeof TIME_RANGES)[number];
+
+/**
+ * The results page's filters. The server applies them over every match (so a
+ * match on a later page is never missed) and counts the options in `facets`.
+ */
+export type Filters = {
+  /** 0 means "no lower bound chosen" — the range then follows the matches. */
+  priceMin: number;
+  priceMax: number;
+  /** Boarding hour bands. */
+  timeRanges: TimeRange[];
+  minRating: number;
+  /** More than 5 seats left. */
+  availableOnly: boolean;
+  amenities: string[];
+  /** Brand slugs to include (empty = all brands). */
+  brands: string[];
+};
+
+export const NO_FILTERS: Filters = {
+  priceMin: 0,
+  priceMax: 0,
+  timeRanges: [],
+  minRating: 0,
+  availableOnly: false,
+  amenities: [],
+  brands: [],
+};
+
 export type SearchParams = {
   from: string;
   to: string;
@@ -36,19 +67,34 @@ export type SearchParams = {
   /** Province of a precise pick, used when only one end is precise. */
   fromCity?: string;
   toCity?: string;
+  /** In the URL too, so a reload, a shared link or Back keeps them. */
+  filters: Filters;
+};
+
+/** The filters as the address bar carries them: lists comma-separated, like `vt`. */
+type FilterQuery = {
+  priceMin: number;
+  priceMax: number;
+  hours: string;
+  minRating: number;
+  seats: boolean;
+  amenities: string;
+  brands: string;
 };
 
 /**
  * What callers may pass to `navigate` / `<Link search>`: any subset, with
  * vehicle types either as an array or already as the URL's `vt`.
  */
-export type SearchInput = Partial<SearchParams> & { vt?: string };
+export type SearchInput = Partial<SearchParams> & { vt?: string } & Partial<FilterQuery>;
 
 /**
  * The address bar's form of the search: vehicle types travel as one
  * comma-separated `vt` (`vt=limousine,sleeper`), never as a JSON array.
  */
-export type SearchQuery = Omit<SearchParams, "vehicleTypes"> & { vt: string };
+export type SearchQuery = Omit<SearchParams, "vehicleTypes" | "filters"> & {
+  vt: string;
+} & FilterQuery;
 
 /** Values omitted from the URL (`stripSearchParams` on the route). */
 export const SEARCH_DEFAULTS = {
@@ -63,6 +109,13 @@ export const SEARCH_DEFAULTS = {
   roundTrip: false,
   returnDate: "",
   leg: "out",
+  priceMin: 0,
+  priceMax: 0,
+  hours: "",
+  minRating: 0,
+  seats: false,
+  amenities: "",
+  brands: "",
 } satisfies Partial<SearchQuery>;
 
 const YMD = /^\d{4}-\d{2}-\d{2}$/;
@@ -95,6 +148,31 @@ function list(v: unknown): string[] {
   return items.map((s) => String(s).trim()).filter(Boolean);
 }
 
+const isTimeRange = (v: string): v is TimeRange => (TIME_RANGES as readonly string[]).includes(v);
+
+function parseFilters(raw: Record<string, unknown>): Filters {
+  const rating = num(raw.minRating) ?? 0;
+  return {
+    priceMin: atLeast(raw.priceMin, 0),
+    priceMax: atLeast(raw.priceMax, 0),
+    timeRanges: list(raw.hours).filter(isTimeRange),
+    minRating: rating > 0 && rating <= 5 ? rating : 0,
+    availableOnly: raw.seats === true || raw.seats === "true",
+    amenities: list(raw.amenities),
+    brands: list(raw.brands),
+  };
+}
+
+const filterQuery = (f: Filters): FilterQuery => ({
+  priceMin: f.priceMin,
+  priceMax: f.priceMax,
+  hours: f.timeRanges.join(","),
+  minRating: f.minRating,
+  seats: f.availableOnly,
+  amenities: f.amenities.join(","),
+  brands: f.brands.join(","),
+});
+
 /** Parse a raw search object (router-parsed values or `URLSearchParams` strings). */
 export function parseSearch(raw: Record<string, unknown>): SearchParams {
   const sort = SORT_KEYS.find((k) => k === raw.sort) ?? SEARCH_DEFAULTS.sort;
@@ -120,12 +198,13 @@ export function parseSearch(raw: Record<string, unknown>): SearchParams {
     toLon,
     fromCity: text(raw.fromCity) || undefined,
     toCity: text(raw.toCity) || undefined,
+    filters: parseFilters(raw),
   };
 }
 
-/** The URL form of parsed params (`vt` instead of `vehicleTypes`). */
-export function toQuery({ vehicleTypes, ...rest }: SearchParams): SearchQuery {
-  return { ...rest, vt: vehicleTypes.join(",") };
+/** The URL form of parsed params (`vt` instead of `vehicleTypes`, the filters flat). */
+export function toQuery({ vehicleTypes, filters, ...rest }: SearchParams): SearchQuery {
+  return { ...rest, vt: vehicleTypes.join(","), ...filterQuery(filters) };
 }
 
 /**
@@ -136,8 +215,13 @@ export function toQuery({ vehicleTypes, ...rest }: SearchParams): SearchQuery {
  * unresolvable place name.
  */
 export function buildSearchInput(input: SearchInput): SearchInput {
-  const { vehicleTypes, vt, fromLat, fromLon, toLat, toLon, fromCity, toCity, ...rest } = input;
-  const out: SearchInput = { ...rest, vt: vehicleTypes ? vehicleTypes.join(",") : vt };
+  const { vehicleTypes, vt, filters, fromLat, fromLon, toLat, toLon, fromCity, toCity, ...rest } =
+    input;
+  const out: SearchInput = {
+    ...rest,
+    vt: vehicleTypes ? vehicleTypes.join(",") : vt,
+    ...(filters && filterQuery(filters)),
+  };
   for (const key of Object.keys(SEARCH_DEFAULTS) as (keyof typeof SEARCH_DEFAULTS)[]) {
     if (out[key] === SEARCH_DEFAULTS[key] || out[key] === undefined) delete out[key];
   }

@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useT } from "@spa/lib/i18n";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { Form } from "@spa/components/ui/form";
 import { Button } from "@spa/components/ui/button";
 import { Search } from "lucide-react";
@@ -34,6 +34,7 @@ function searchSort(v: SearchFormValues): SearchFormValues["sort"] {
 export function SearchWidget({ compact = false }: { compact?: boolean }) {
   const t = useT();
   const searchParams = useSearchForm((s) => s.searchParams);
+  const onResults = useRouterState({ select: (s) => s.location.pathname === "/search" });
   const setSearchParams = useSearchForm((s) => s.setSearchParams);
   const navigate = useNavigate();
   // Below lg (phones and tablets) the results page shows a one-line summary instead of the form row.
@@ -139,11 +140,16 @@ export function SearchWidget({ compact = false }: { compact?: boolean }) {
         fromCity: values.fromCity,
         toCity: values.toCity,
       });
+      // On the results page, a new day or party for the same corridor keeps its
+      // filters (the store mirrors the URL there); anything else starts without.
+      const sameCorridor =
+        onResults && values.from === searchParams.from && values.to === searchParams.to;
       setSubmitting(true);
       try {
         navigate({
           to: "/search",
           search: buildSearchInput({
+            filters: sameCorridor ? searchParams.filters : undefined,
             from: values.from,
             to: values.to,
             date: values.date,
@@ -167,7 +173,14 @@ export function SearchWidget({ compact = false }: { compact?: boolean }) {
         setTimeout(() => setSubmitting(false), 300);
       }
     },
-    [setSearchParams, navigate],
+    [
+      setSearchParams,
+      navigate,
+      onResults,
+      searchParams.from,
+      searchParams.to,
+      searchParams.filters,
+    ],
   );
 
   // Form submission can also be triggered programmatically (the search
