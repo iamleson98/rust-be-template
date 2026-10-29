@@ -262,10 +262,12 @@ export const vi: TranslationMap = {
   "brandForm.hotline": "Hotline",
   "brandForm.email": "Email",
   "brandForm.locations": "Địa điểm đón / trả",
-  "brandForm.locationsHint": "Lịch trình của hãng chọn điểm đón, trả và trung gian từ danh sách này.",
+  "brandForm.locationsHint":
+    "Lịch trình của hãng chọn điểm đón, trả và trung gian từ danh sách này.",
   "brandForm.addLocation": "Thêm địa điểm",
   "brandForm.noLocations": "Chưa có địa điểm nào.",
-  "brandForm.locationsAfterCreate": "Tạo hãng xe xong, bạn có thể thêm địa điểm đón / trả ngay tại đây.",
+  "brandForm.locationsAfterCreate":
+    "Tạo hãng xe xong, bạn có thể thêm địa điểm đón / trả ngay tại đây.",
   "brandForm.createdAddLocations": "Đã thêm hãng xe — giờ có thể thêm địa điểm đón / trả bên dưới",
   "brandForm.locationNoCity": "Chưa chọn tỉnh / thành phố",
   "brandForm.locationStops": "{count} điểm dừng lịch trình",
@@ -546,7 +548,8 @@ export const vi: TranslationMap = {
   "adminAddresses.updateFailed": "Không thể lưu địa điểm",
   "adminAddresses.deleted": "Đã xoá địa điểm",
   "adminAddresses.deleteFailed": "Không thể xoá địa điểm",
-  "adminAddresses.inUse": "Địa điểm đang là điểm dừng của lịch trình — đổi điểm trong các lịch trình đó trước khi xoá",
+  "adminAddresses.inUse":
+    "Địa điểm đang là điểm dừng của lịch trình — đổi điểm trong các lịch trình đó trước khi xoá",
   "adminAddresses.created": "Đã tạo địa điểm mới",
   "adminAddresses.createFailed": "Không thể tạo địa điểm",
   "adminAddresses.tryAgain": "Vui lòng thử lại",

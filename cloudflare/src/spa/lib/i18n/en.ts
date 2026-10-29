@@ -262,11 +262,14 @@ export const en: TranslationMap = {
   "brandForm.hotline": "Hotline",
   "brandForm.email": "Email",
   "brandForm.locations": "Pickup / drop-off locations",
-  "brandForm.locationsHint": "The brand's schedules pick their pickup, drop-off and middle stops from this list.",
+  "brandForm.locationsHint":
+    "The brand's schedules pick their pickup, drop-off and middle stops from this list.",
   "brandForm.addLocation": "Add location",
   "brandForm.noLocations": "No locations yet.",
-  "brandForm.locationsAfterCreate": "Once the brand is created, you can add its pickup / drop-off locations right here.",
-  "brandForm.createdAddLocations": "Brand created — you can add its pickup / drop-off locations below",
+  "brandForm.locationsAfterCreate":
+    "Once the brand is created, you can add its pickup / drop-off locations right here.",
+  "brandForm.createdAddLocations":
+    "Brand created — you can add its pickup / drop-off locations below",
   "brandForm.locationNoCity": "No province / city chosen",
   "brandForm.locationStops": "{count} schedule stop(s)",
   "brandForm.editLocation": "Edit {name}",
