@@ -15,7 +15,7 @@
  *    a strict time budget, and degrades to "serve what exists" when another
  *    fill of that date is already running (Rust `Warmer::try_fill`).
  */
-import { and, eq, sql } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import { atomicBatch, getDb, inList, rawRun, type Database } from "@/lib/db/client";
 import {
   scheduleFares,
@@ -308,14 +308,51 @@ export async function pruneDepartedSeats(today: string): Promise<number> {
   return deleted;
 }
 
-/** Cron: materialize the trips of the whole sell window, then prune departed seats. */
-export async function warmTrips(): Promise<{ created: number; pruned: number }> {
+/** How often the cron may attempt a warm pass (see `warmTrips`). */
+export const WARM_INTERVAL_MS = 10 * 60_000;
+/** Schedules one warm invocation may load and materialize (CPU-bounded slice). */
+export const WARM_SLICE_SCHEDULES = 300;
+/** Wall-clock budget of one warm invocation (D1 waits do not burn CPU). */
+export const WARM_WALL_BUDGET_MS = 20_000;
+
+/**
+ * Cron: materialize trips for the sell window, then prune departed seats.
+ *
+ * One invocation stays inside the Free plan's CPU budget: a catalog larger
+ * than `WARM_SLICE_SCHEDULES` is warmed one deterministic (date, page) slice
+ * per invocation — `slot` rotates through the whole window over successive
+ * cron passes, so the window converges without any request ever loading all
+ * schedules at once (the 2026-10-31 warmer storm: one unbounded pass was
+ * killed by the CPU cap without recording a run, retried every minute, and
+ * took the whole Worker down with it). A small catalog (≤ one page) is fully
+ * warmed in a single pass, as before.
+ */
+export async function warmTrips(
+  slot: number = Math.floor(Date.now() / WARM_INTERVAL_MS),
+): Promise<{ created: number; pruned: number }> {
   const db = await getDb();
   const today = localToday();
-  const all = await db.select().from(schedules).limit(100_000);
+  const deadline = Date.now() + WARM_WALL_BUDGET_MS;
+  const dates = sellWindow(today, SELL_WINDOW_DAYS);
+  const [{ n }] = await db.select({ n: sql<number>`COUNT(*)` }).from(schedules);
+  const pages = Math.max(1, Math.ceil(Number(n) / WARM_SLICE_SCHEDULES));
   let created = 0;
-  for (const date of sellWindow(today, SELL_WINDOW_DAYS)) {
-    created += await materializeMissing(all, date);
+  if (pages === 1 || dates.length === 0) {
+    const all = dates.length ? await db.select().from(schedules).limit(WARM_SLICE_SCHEDULES) : [];
+    for (const date of dates) {
+      if (Date.now() >= deadline) break;
+      created += await materializeMissing(all, date, deadline);
+    }
+  } else {
+    const date = dates[Math.abs(slot) % dates.length];
+    const page = Math.floor(Math.abs(slot) / dates.length) % pages;
+    const slice = await db
+      .select()
+      .from(schedules)
+      .orderBy(asc(schedules.id))
+      .limit(WARM_SLICE_SCHEDULES)
+      .offset(page * WARM_SLICE_SCHEDULES);
+    created = await materializeMissing(slice, date, deadline);
   }
   return { created, pruned: await pruneDepartedSeats(today) };
 }
