@@ -94,8 +94,10 @@ async function writePoints(
     }))
     .filter((r) => r.addressId.length > 0);
   if (rows.length >= 2) {
-    for (let i = 0; i < rows.length; i += 40) {
-      await db.insert(schedulePoints).values(rows.slice(i, i + 40));
+    // 14 rows × 7 bound params = 98 ≤ D1's 100-param-per-query cap
+    // (40 rows exceeded it: every schedule with >14 stops failed with 500).
+    for (let i = 0; i < rows.length; i += 14) {
+      await db.insert(schedulePoints).values(rows.slice(i, i + 14));
     }
   }
 }
@@ -118,8 +120,9 @@ async function writeFares(
       updatedAt: new Date().toISOString(),
     }));
   if (rows.length > 0) {
-    for (let i = 0; i < rows.length; i += 40) {
-      await db.insert(scheduleFares).values(rows.slice(i, i + 40));
+    // 14 rows × 7 bound params = 98 ≤ D1's 100-param-per-query cap
+    for (let i = 0; i < rows.length; i += 14) {
+      await db.insert(scheduleFares).values(rows.slice(i, i + 14));
     }
   }
 }

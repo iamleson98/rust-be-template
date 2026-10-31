@@ -475,9 +475,12 @@ export async function applySeatPlan(
       isWindow: spec.isWindow,
       floor: spec.floor,
     }));
-    // D1 batched insert — chunk to stay under the 100-bound-param ceiling.
-    for (let i = 0; i < rows.length; i += 40) {
-      stmts.push(db.insert(seats).values(rows.slice(i, i + 40)));
+    // D1 batched insert — chunk to stay under the 100-bound-param ceiling:
+    // each row binds 9 params (8 columns + the client-side $defaultFn
+    // createdAt), so 11 rows = 99. 40 rows = 360 params failed every
+    // layout above 11 seats with a 500.
+    for (let i = 0; i < rows.length; i += 11) {
+      stmts.push(db.insert(seats).values(rows.slice(i, i + 11)));
     }
   }
   const sellable = plan.decks.reduce(

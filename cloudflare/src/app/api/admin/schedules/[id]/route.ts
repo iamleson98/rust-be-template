@@ -62,8 +62,9 @@ export async function PUT(req: Request, ctx: Params) {
           createdAt: new Date().toISOString(),
         }))
         .filter((r) => r.addressId.length > 0);
-      for (let i = 0; i < rows.length; i += 40) {
-        await db.insert(schedulePoints).values(rows.slice(i, i + 40));
+      for (let i = 0; i < rows.length; i += 14) {
+        // 14 rows × 7 bound params = 98 ≤ D1's 100-param-per-query cap
+        await db.insert(schedulePoints).values(rows.slice(i, i + 14));
       }
     }
     if (body.classFares) {
@@ -79,8 +80,9 @@ export async function PUT(req: Request, ctx: Params) {
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         }));
-      for (let i = 0; i < rows.length; i += 40) {
-        await db.insert(scheduleFares).values(rows.slice(i, i + 40));
+      for (let i = 0; i < rows.length; i += 14) {
+        // 14 rows × 7 bound params = 98 ≤ D1's 100-param-per-query cap
+        await db.insert(scheduleFares).values(rows.slice(i, i + 14));
       }
     }
     // Seats still for sale on upcoming trips follow the new fares.
