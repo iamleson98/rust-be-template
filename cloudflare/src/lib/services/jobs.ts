@@ -7,7 +7,8 @@
  *
  * Cadences (port of the Rust scheduler + in-process timers):
  *  - holds.sweep   — fixed, every tick (60s): cancel expired pending bookings
- *  - trips.warm    — fixed, every 6h: materialize trip_session rows (14-day window)
+ *  - trips.warm    — fixed, paced every 10 min: one bounded slice of the
+ *                    14-day window per pass (claim-first, crash-safe)
  *  - coupons.expire / jobs.retention / trips.prune —
  *    scheduled_job-table rows (daily/periodic, admin-editable via PATCH /api/admin/cron-jobs)
  *
@@ -23,11 +24,11 @@
  */
 import { getDb, getEnv } from "@/lib/db/client";
 import { jobRuns, scheduledJobs, coupons, seatInventory, tripSessions } from "@/lib/db/schema";
-import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, lte } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lt, lte } from "drizzle-orm";
 import { catchUp, DEFAULT_TZ_OFFSET_MINUTES, nextOccurrence } from "@/lib/scheduler";
 import { badRequest, conflict, notFound } from "@/lib/services/http-errors";
 import { sweepExpiredHolds } from "./booking";
-import { warmTrips } from "./trip-warmer";
+import { warmTrips, WARM_INTERVAL_MS } from "./trip-warmer";
 
 /**
  * The job catalog (Rust `jobs::catalog`). Rust ships `osm.import` (place
@@ -43,7 +44,7 @@ export const JOB_CATALOG: readonly { kind: string; description: string }[] = [
   {
     kind: "trips.warm",
     description:
-      "Materialise trip sessions and seat inventory for the sales window (every 6 hours).",
+      "Materialise trip sessions and seat inventory for the sales window (paced: one bounded slice every 10 minutes).",
   },
   {
     kind: "coupons.expire",
@@ -300,9 +301,12 @@ export const triggerJob = (jobType: string): Promise<JobOutcome> =>
 export async function tick(): Promise<{ ran: JobOutcome[] }> {
   const frequent = await runFrequentJobs();
   const scheduled = await runDueScheduledJobs();
-  // trips.warm every 6h: gate on the newest run. Ordered by created_at so the
-  // (job_type, created_at) index answers it without scanning the table.
-  if (await lastRunOlderThan("trips.warm", 6 * 3600_000)) {
+  // trips.warm, paced: the claim row is written BEFORE the body runs, so a
+  // Worker killed by the CPU cap mid-warm still counts as an attempt — an
+  // unrecorded death used to be retried every minute (the 2026-10-31
+  // warmer storm that starved every request on the Worker).
+  if (await lastRunOlderThan("trips.warm", WARM_INTERVAL_MS)) {
+    await recordRun("trips.warm", "running");
     scheduled.push(await runJob("trips.warm", async () => JSON.stringify(await warmTrips())));
   }
   return { ran: [...frequent, ...scheduled] };
@@ -476,6 +480,9 @@ export async function updateCronJob(jobType: string, body: UpdateCronJobBody) {
   return scheduleOut(updated, await latestRun(jobType));
 }
 
+/** A queued/running row older than this is a dead claim (Worker killed mid-run), not a live one. */
+export const LIVE_RUN_MAX_AGE_MS = 15 * 60_000;
+
 /**
  * `POST /api/admin/cron-jobs/{jobType}/trigger`. DELIBERATE: the run happens
  * inside the request (there is no background queue on Workers), so the
@@ -488,7 +495,15 @@ export async function triggerCronJob(jobType: string): Promise<CronJobRunOut> {
     await db
       .select({ id: jobRuns.id })
       .from(jobRuns)
-      .where(and(eq(jobRuns.jobType, jobType), inArray(jobRuns.status, ["queued", "running"])))
+      .where(
+        and(
+          eq(jobRuns.jobType, jobType),
+          inArray(jobRuns.status, ["queued", "running"]),
+          // A claim row the Worker died on (CPU cap) is stale, not live —
+          // it must not block manual triggers forever.
+          gt(jobRuns.createdAt, new Date(Date.now() - LIVE_RUN_MAX_AGE_MS).toISOString()),
+        ),
+      )
       .limit(1)
   )[0];
   if (live)
