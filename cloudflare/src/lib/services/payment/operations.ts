@@ -191,10 +191,17 @@ export async function cancelPayment(id: string, callerId: string | null, reason?
     throw badRequest(`payment is not in pending status (current: ${p.status})`);
   const now = nowIso();
   const db = await getDb();
-  await db
+  // Only while still pending: a provider notification completing it a moment
+  // ago must not be overwritten by the cancel.
+  const cancelled = await db
     .update(payments)
     .set({ status: "cancelled", updatedAt: now, failureReason: reason ?? null })
-    .where(eq(payments.id, id));
+    .where(and(eq(payments.id, id), eq(payments.status, "pending")))
+    .returning({ id: payments.id });
+  if (cancelled.length === 0) {
+    const current = await findPayment(id);
+    throw badRequest(`payment is not in pending status (current: ${current.status})`);
+  }
   return { paymentId: id, status: "cancelled", cancelledAt: now, reason: reason ?? undefined };
 }
 
