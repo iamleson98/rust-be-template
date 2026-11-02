@@ -3,7 +3,7 @@
  * Cloudflare bindings & environment for the datxevui Workers deployment.
  *
  * Bindings (wrangler.jsonc): DB (D1), UPLOADS (R2), ASSETS, WORKER_SELF_REFERENCE.
- * Secrets (wrangler secret put): JWT_SECRET, CRON_SERVICE_TOKEN, REALTIME_API_TOKEN,
+ * Secrets (wrangler secret put): JWT_SECRET, CRON_SERVICE_TOKEN,
  *   VNPAY_TMN_CODE, VNPAY_HASH_SECRET, VIETQR_*, MOMO_*, ZALOPAY_*, VPS_SERVICE_TOKEN
  */
 declare interface CloudflareEnv {
@@ -88,12 +88,6 @@ declare interface CloudflareEnv {
   APNS_TEAM_ID?: string;
   APNS_TOPIC?: string;
   APNS_SANDBOX?: string;
-
-  // Cloudflare Realtime (RealtimeKit)
-  REALTIME_ENABLED?: string;
-  REALTIME_APP_ID?: string;
-  REALTIME_ACCOUNT_ID?: string;
-  REALTIME_API_TOKEN?: string;
 
   // OAuth (optional — unset ⇒ the SPA hides the social sign-in buttons)
   OAUTH_REDIRECT_BASE_URL?: string;

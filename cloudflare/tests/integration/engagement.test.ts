@@ -14,7 +14,16 @@ import {
   validatePost,
 } from "@/lib/services/posts";
 import { cancelPriceAlert, createPriceAlert, listPriceAlerts } from "@/lib/services/price-alerts";
-import { fixture, hold, migrate, owner, rejection, type Fixture } from "../helpers/fixture";
+import {
+  fixture,
+  hold,
+  migrate,
+  owner,
+  payment,
+  rejection,
+  STANDARD_FARE,
+  type Fixture,
+} from "../helpers/fixture";
 
 /** Price alerts, loyalty, posts and the ads beacon: the small services of the engagement domain. */
 
@@ -196,17 +205,22 @@ describe("posts", () => {
 });
 
 describe("ads conversions", () => {
+  let f: Fixture;
+  let u: string;
   beforeEach(async () => {
     setCloudflareContext();
+    f = await fixture(3);
+    u = await owner();
     await (await getDb()).delete(adConversions);
   });
 
-  it("stores a normalised record, dedupes on (event, transactionId) and marks it unconfigured", async () => {
+  it("records a held booking at the booking's own value, deduped on (event, code)", async () => {
+    const held = await hold(f, u, 2); // 2 × 350,000
     const first = await reportConversion({
-      event: " Purchase ",
-      transactionId: "t-1",
-      value: " 350000 ",
-      currency: "vnd",
+      event: " Booking ",
+      transactionId: held.code,
+      value: "999999999", // a forged value is ignored
+      currency: "usd",
       clickIds: { gclid: " abc " },
     });
     expect(first).toEqual({
@@ -215,42 +229,62 @@ describe("ads conversions", () => {
       uploadAttempted: false,
       serverUploadEnabled: false,
     });
-    expect(await reportConversion({ event: "purchase", transactionId: "t-1" })).toMatchObject({
+    expect(await reportConversion({ event: "booking", transactionId: held.code })).toMatchObject({
       stored: false,
     });
-
     const rows = await (await getDb()).select().from(adConversions);
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
-      event: "purchase",
-      conversionValue: "350000",
+      event: "booking",
+      transactionId: held.code,
+      conversionValue: "700000",
       currency: "VND",
       gclid: "abc",
       status: "unconfigured",
     });
   });
 
-  it("mints an id for an id-less beacon, so each fire records distinctly", async () => {
-    await reportConversion({ event: "booking" });
-    await reportConversion({ event: "booking" });
-    expect(await (await getDb()).select().from(adConversions)).toHaveLength(2);
+  it("records a purchase only once a payment has completed, at the paid amount", async () => {
+    const held = await hold(f, u, 1);
+    await payment(held, u, "pending");
+    expect(
+      (await rejection(reportConversion({ event: "purchase", transactionId: held.code }))).status,
+    ).toBe(404);
+    await payment(held, u, "completed");
+    await reportConversion({ event: "purchase", transactionId: held.code });
+    expect((await (await getDb()).select().from(adConversions))[0]).toMatchObject({
+      event: "purchase",
+      conversionValue: String(STANDARD_FARE),
+    });
   });
 
-  it("rejects an empty or over-long event and transaction id; drops absurd values and click ids", async () => {
-    expect((await rejection(reportConversion({ event: "  " }))).status).toBe(400);
-    expect((await rejection(reportConversion({ event: "e".repeat(33) }))).status).toBe(400);
-    expect(
-      (await rejection(reportConversion({ event: "x", transactionId: "t".repeat(129) }))).status,
-    ).toBe(400);
+  it("writes nothing for an unknown or cancelled booking, an unknown event or a missing code", async () => {
+    const held = await hold(f, u, 1);
+    await (
+      await getDb()
+    )
+      .update(bookings)
+      .set({ status: "cancelled" })
+      .where(eq(bookings.id, held.bookingId));
+    for (const body of [
+      { event: "booking", transactionId: "NOPE-123456" },
+      { event: "booking", transactionId: held.code },
+      { event: "signup", transactionId: held.code },
+      { event: "booking" },
+      { event: "booking", transactionId: "t".repeat(129) },
+    ]) {
+      expect([400, 404]).toContain((await rejection(reportConversion(body))).status);
+    }
+    expect(await (await getDb()).select().from(adConversions)).toHaveLength(0);
+  });
+
+  it("drops an over-long click id", async () => {
+    const held = await hold(f, u, 1);
     await reportConversion({
-      event: "x",
-      transactionId: "t",
-      value: "9".repeat(33),
+      event: "booking",
+      transactionId: held.code,
       clickIds: { gclid: "g".repeat(1025) },
     });
-    expect((await (await getDb()).select().from(adConversions))[0]).toMatchObject({
-      conversionValue: null,
-      gclid: null,
-    });
+    expect((await (await getDb()).select().from(adConversions))[0]).toMatchObject({ gclid: null });
   });
 });

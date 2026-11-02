@@ -4,40 +4,38 @@ import { eq } from "drizzle-orm";
 import { handleRouteError, requireStaff, readJson, err } from "@/lib/api";
 import { purgeRoute } from "@/lib/services/route-media";
 import { requirePermission } from "@/lib/auth/rbac";
+import {
+  objectBody,
+  optionalOneOf,
+  optionalText,
+  requiredText,
+  STATUSES,
+} from "@/lib/services/input";
 
 type Params = { params: Promise<{ id: string }> };
 
-interface RouteBody {
-  brandId?: string;
-  name?: string;
-  startLocationId?: string;
-  endLocationId?: string;
-  status?: string;
-}
-
-/** `PUT /api/admin/routes/{id}` — update a route. */
+/** `PUT /api/admin/routes/{id}` — update a route; fields left out keep their values. */
 export async function PUT(req: Request, ctx: Params) {
   try {
     const staff = await requireStaff(req);
     await requirePermission(staff, "admin:routes:write");
     const { id } = await ctx.params;
-    const body = await readJson<RouteBody>(req);
+    const body = objectBody(await readJson(req));
+    const set = {
+      // `null` detaches the route from its brand; absent keeps it.
+      brandId: optionalText(body, "brandId", 64),
+      name: requiredText(body, "name", 200),
+      startLocationId: requiredText(body, "startLocationId", 64),
+      endLocationId: requiredText(body, "endLocationId", 64),
+      status: optionalOneOf(body, "status", STATUSES),
+    };
     const db = await getDb();
-    const existing = (await db.select().from(routes).where(eq(routes.id, id)).limit(1))[0];
-    if (!existing) return err(404, "not-found", "route not found");
-    const start = body.startLocationId?.trim() || existing.startLocationId;
-    const end = body.endLocationId?.trim() || existing.endLocationId;
-    await db
+    const updated = await db
       .update(routes)
-      .set({
-        brandId: body.brandId?.trim() || null,
-        name: body.name?.trim() || existing.name,
-        startLocationId: start,
-        endLocationId: end,
-        status: body.status ?? existing.status,
-        updatedAt: new Date().toISOString(),
-      })
-      .where(eq(routes.id, id));
+      .set({ ...set, updatedAt: new Date().toISOString() })
+      .where(eq(routes.id, id))
+      .returning({ id: routes.id });
+    if (updated.length === 0) return err(404, "not-found", "route not found");
     return Response.json({ id });
   } catch (e) {
     return handleRouteError(e);
