@@ -4,12 +4,15 @@ import { cn } from "@spa/lib/utils";
 
 /** A landing-page band: one page width, one rhythm. */
 export function HomeSection({
+  id,
   title,
   subtitle,
   action,
   className,
   children,
 }: {
+  /** Anchor for in-page links. */
+  id?: string;
   title: ReactNode;
   subtitle?: ReactNode;
   /** A link or button on the heading's right ("see all"). */
@@ -18,7 +21,7 @@ export function HomeSection({
   children: ReactNode;
 }) {
   return (
-    <section className={cn("page-x py-8 md:py-11", className)}>
+    <section id={id} className={cn("page-x py-8 md:py-11", className)}>
       <div className="mb-5 flex flex-wrap items-end justify-between gap-x-4 gap-y-2 md:mb-6">
         <div className="min-w-0 flex-1 basis-64">
           <h2 className="text-xl font-bold tracking-tight text-balance text-slate-900 md:text-2xl">

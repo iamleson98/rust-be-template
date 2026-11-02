@@ -85,7 +85,7 @@ export async function getBrandBySlug(slug: string) {
 // ── Routes ─────────────────────────────────────────────────────
 
 /** A route's endpoints: its cities' names, or — when neither city is known — the name split at `→`. */
-function endpointNames(r: { name: string; startLocationId: string; endLocationId: string }) {
+export function endpointNames(r: { name: string; startLocationId: string; endLocationId: string }) {
   const from = nameForSlug(r.startLocationId);
   const to = nameForSlug(r.endLocationId);
   if (from !== r.startLocationId || to !== r.endLocationId) return { from, to };

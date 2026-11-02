@@ -12,6 +12,7 @@ import {
   enforceIpLimit,
   enforceOrigin,
   isCacheablePublicRead,
+  publicReadRequest,
   withSecurityHeaders,
 } from "./src/lib/edge-guard";
 import { cachedPage, isCacheablePage } from "./src/lib/page-cache";
@@ -98,7 +99,7 @@ export default {
     const dynamic = () => handler.fetch(request, env, ctx) as Promise<Response>;
     const version = env.CF_VERSION_METADATA?.id;
     const response = isCacheablePublicRead(request)
-      ? await cachedPublicRead(request, ctx, dynamic)
+      ? await cachedPublicRead(publicReadRequest(request), ctx, dynamic)
       : version && isCacheablePage(request)
         ? await cachedPage(request, version, ctx, dynamic)
         : await dynamic();

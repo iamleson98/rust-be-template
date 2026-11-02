@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { routesOptions } from "@spa/api";
+import { CATALOG_QUERY } from "@spa/api/catalog-cache";
 import { useT } from "@spa/lib/i18n";
 import { buildSearchInput, type SearchParams } from "@spa/lib/search-params";
 import { cn } from "@spa/lib/utils";
@@ -23,7 +24,7 @@ export function PopularRoutesQuickSelect({
 }) {
   const t = useT();
   const navigate = useNavigate();
-  const { data } = useQuery(routesOptions());
+  const { data } = useQuery({ ...routesOptions(), ...CATALOG_QUERY });
   const routes = useMemo(() => {
     const seen = new Set<string>();
     return (data?.items ?? [])

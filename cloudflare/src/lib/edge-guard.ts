@@ -204,6 +204,8 @@ const CACHEABLE_PATHS = new Set([
   "/api/places/search",
   "/api/places/reverse",
 ]);
+/** One brand's reads (detail and page data): one entry per brand, whatever query string a crawler appends. */
+const BRAND_PATH = /^\/api\/brands\/[^/]+(\/profile)?$/;
 export const PUBLIC_JSON_CACHE_CONTROL = "public, s-maxage=30, stale-while-revalidate=120";
 
 /**
@@ -216,10 +218,22 @@ export function isCacheablePublicRead(request: Request): boolean {
   const path = new URL(request.url).pathname;
   return (
     request.method === "GET" &&
-    CACHEABLE_PATHS.has(path) &&
+    (CACHEABLE_PATHS.has(path) || BRAND_PATH.test(path)) &&
     // Otherwise a signed-in caller always reads fresh: their own writes must show on the next fetch.
     (PLACE_PATHS.has(path) || !carriesSession(request.headers))
   );
+}
+
+/**
+ * The request a cacheable public read is served as: a brand read takes no
+ * parameters, so every query string shares its one entry (and its one set of
+ * D1 reads); other reads keep theirs.
+ */
+export function publicReadRequest(request: Request): Request {
+  const url = new URL(request.url);
+  if (!BRAND_PATH.test(url.pathname) || !url.search) return request;
+  url.search = "";
+  return new Request(url, request);
 }
 
 /** Decimals kept of a place read's `lat` / `lon`: 3 is ~110 m, finer than the bias needs. */
