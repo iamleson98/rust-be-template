@@ -62,3 +62,26 @@ export function optionalInt(
 
 /** Active or not: the status every catalog row carries. */
 export const STATUSES = ["active", "inactive"] as const;
+
+/** A finite number in `min..max`, or absent; `null` clears it. */
+export function optionalNumber(
+  body: Body,
+  key: string,
+  min: number,
+  max: number,
+): number | null | undefined {
+  const v = body[key];
+  if (v === undefined || v === null) return v;
+  if (typeof v !== "number" || !Number.isFinite(v) || v < min || v > max)
+    throw badRequest(`${key} must be a number from ${min} to ${max}`);
+  return v;
+}
+
+/** A latitude/longitude pair; either both or neither (a lone coordinate is a 400). */
+export function optionalCoords(body: Body): { lat?: number | null; lon?: number | null } {
+  const lat = optionalNumber(body, "lat", -90, 90);
+  const lon = optionalNumber(body, "lon", -180, 180);
+  if ((lat == null) !== (lon == null) && lat !== undefined && lon !== undefined)
+    throw badRequest("lat and lon go together");
+  return { lat, lon };
+}

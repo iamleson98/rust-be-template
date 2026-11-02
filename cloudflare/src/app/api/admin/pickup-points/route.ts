@@ -1,9 +1,10 @@
 import { getDb } from "@/lib/db/client";
 import { pickupPoints } from "@/lib/db/schema";
 import { asc, eq } from "drizzle-orm";
-import { handleRouteError, requireStaff, readJson, err } from "@/lib/api";
+import { handleRouteError, requireStaff, readJson } from "@/lib/api";
 import { requirePermission } from "@/lib/auth/rbac";
 import { adminPickupPointOut } from "@/lib/services/admin-out";
+import { createPickupPoint } from "@/lib/services/admin-pickup-points";
 
 /** `GET /api/admin/pickup-points?routeId=` — a route's boarding points. */
 export async function GET(req: Request) {
@@ -24,38 +25,12 @@ export async function GET(req: Request) {
   }
 }
 
-interface PpBody {
-  routeId?: string;
-  name?: string;
-  address?: string;
-  lat?: number;
-  lon?: number;
-  stopOrder?: number;
-  kind?: string;
-}
-
 /** `POST /api/admin/pickup-points` — create a pickup/dropoff point. */
 export async function POST(req: Request) {
   try {
     const staff = await requireStaff(req);
     await requirePermission(staff, "admin:pickup_points:write");
-    const body = await readJson<PpBody>(req);
-    const routeId = (body.routeId ?? "").trim();
-    if (!routeId) return err(400, "validation", "routeId is required");
-    const db = await getDb();
-    const id = crypto.randomUUID();
-    await db.insert(pickupPoints).values({
-      id,
-      routeId,
-      name: body.name ?? null,
-      address: body.address ?? null,
-      lat: body.lat ?? null,
-      lon: body.lon ?? null,
-      stopOrder: body.stopOrder ?? 0,
-      kind: body.kind ?? null,
-      createdAt: new Date().toISOString(),
-    });
-    return Response.json({ id }, { status: 201 });
+    return Response.json(await createPickupPoint(await readJson(req)), { status: 201 });
   } catch (e) {
     return handleRouteError(e);
   }

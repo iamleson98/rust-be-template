@@ -258,6 +258,9 @@ describe("public JSON cache", () => {
     expect(isCacheablePublicRead(req("/api/stats"))).toBe(true);
     expect(isCacheablePublicRead(req("/api/routes?limit=5"))).toBe(true);
     expect(isCacheablePublicRead(req("/api/reviews/tags"))).toBe(true);
+    expect(isCacheablePublicRead(req("/api/reviews?brand_id=x"))).toBe(true);
+    expect(isCacheablePublicRead(req("/api/reviews/stats?brand_id=x"))).toBe(true);
+    expect(isCacheablePublicRead(req("/api/reviews", { method: "POST" }))).toBe(false);
     expect(isCacheablePublicRead(req("/api/recommendations"))).toBe(true);
     expect(isCacheablePublicRead(req("/api/brands", { method: "POST" }))).toBe(false);
     for (const p of [

@@ -202,6 +202,8 @@ const CACHEABLE_PATHS = new Set([
   "/api/stats",
   "/api/routes",
   "/api/recommendations",
+  "/api/reviews",
+  "/api/reviews/stats",
   "/api/reviews/tags",
   // Place search: a repeated query never reaches the Worker's Next.js handler
   // or the VPS; the routes set how long (shorter for a fallback answer).

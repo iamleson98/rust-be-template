@@ -3,6 +3,7 @@ import { addresses } from "@/lib/db/schema";
 import { and, asc, eq, like, or, sql, type SQL } from "drizzle-orm";
 import { handleRouteError, requireStaff, readJson, err } from "@/lib/api";
 import { requirePermission } from "@/lib/auth/rbac";
+import { objectBody, optionalCoords } from "@/lib/services/input";
 import { adminAddressOut } from "@/lib/services/admin-out";
 import { findCity } from "@/lib/city-match";
 
@@ -72,10 +73,11 @@ export async function POST(req: Request) {
     const staff = await requireStaff(req);
     await requirePermission(staff, "admin:addresses:write");
     const body = await readJson<AddressBody>(req);
-    const brandId = (body.brandId ?? "").trim();
-    const name = (body.name ?? "").trim();
+    const { lat, lon } = optionalCoords(objectBody(body));
+    const brandId = String(body.brandId ?? "").trim();
+    const name = String(body.name ?? "").trim();
     if (!brandId || !name) return err(400, "validation", "brandId and name are required");
-    const cityId = (body.cityId ?? "").trim();
+    const cityId = String(body.cityId ?? "").trim();
     if (!cityId) return err(400, "validation", "cityId is required");
     const city = findCity(cityId);
     if (!city) return err(400, "validation", `cityId: unknown city ${JSON.stringify(cityId)}`);
@@ -87,8 +89,8 @@ export async function POST(req: Request) {
       brandId,
       name,
       address: body.address ?? null,
-      lat: body.lat ?? null,
-      lon: body.lon ?? null,
+      lat: lat ?? null,
+      lon: lon ?? null,
       cityId: city.slug,
       province: city.name,
       district: body.district ?? null,

@@ -2,6 +2,13 @@ import { getDb } from "@/lib/db/client";
 import { routes } from "@/lib/db/schema";
 import { handleRouteError, requireStaff, readJson, err } from "@/lib/api";
 import { requirePermission } from "@/lib/auth/rbac";
+import {
+  objectBody,
+  optionalOneOf,
+  optionalText,
+  requiredText,
+  STATUSES,
+} from "@/lib/services/input";
 import { adminRouteList } from "@/lib/services/admin-out";
 
 /** `GET /api/admin/routes?brandId=&q=&startLocationId=&endLocationId=` — staff list (all statuses). */
@@ -25,35 +32,29 @@ export async function GET(req: Request) {
   }
 }
 
-interface RouteBody {
-  brandId?: string;
-  name?: string;
-  startLocationId?: string;
-  endLocationId?: string;
-  status?: string;
-}
-
 /** `POST /api/admin/routes` — create a route. */
 export async function POST(req: Request) {
   try {
     const staff = await requireStaff(req);
     await requirePermission(staff, "admin:routes:write");
-    const body = await readJson<RouteBody>(req);
-    const start = (body.startLocationId ?? "").trim();
-    const end = (body.endLocationId ?? "").trim();
+    const body = objectBody(await readJson(req));
+    const start = requiredText(body, "startLocationId", 64);
+    const end = requiredText(body, "endLocationId", 64);
     if (!start || !end)
       return err(400, "validation", "startLocationId and endLocationId are required");
-    const name = (body.name ?? "").trim() || `${start} → ${end}`;
+    const name = requiredText(body, "name", 200) ?? `${start} → ${end}`;
+    const brandId = optionalText(body, "brandId", 64) ?? null;
+    const status = optionalOneOf(body, "status", STATUSES) ?? "active";
     const db = await getDb();
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
     await db.insert(routes).values({
       id,
-      brandId: body.brandId?.trim() || null,
+      brandId,
       name,
       startLocationId: start,
       endLocationId: end,
-      status: body.status === "inactive" ? "inactive" : "active",
+      status,
       createdAt: now,
       updatedAt: now,
     });

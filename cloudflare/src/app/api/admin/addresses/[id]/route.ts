@@ -4,6 +4,7 @@ import { count, eq } from "drizzle-orm";
 import { handleRouteError, requireStaff, readJson, err } from "@/lib/api";
 import { requirePermission } from "@/lib/auth/rbac";
 import { findCity } from "@/lib/city-match";
+import { objectBody, optionalCoords } from "@/lib/services/input";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -26,12 +27,13 @@ export async function PUT(req: Request, ctx: Params) {
     await requirePermission(staff, "admin:addresses:write");
     const { id } = await ctx.params;
     const body = await readJson<AddressBody>(req);
+    const { lat, lon } = optionalCoords(objectBody(body));
     const db = await getDb();
     const existing = (await db.select().from(addresses).where(eq(addresses.id, id)).limit(1))[0];
     if (!existing) return err(404, "not-found", "address not found");
     const name = body.name?.trim();
     if (body.name !== undefined && !name) return err(400, "validation", "name must not be empty");
-    const city = body.cityId === undefined ? null : findCity(body.cityId.trim());
+    const city = body.cityId === undefined ? null : findCity(String(body.cityId).trim());
     if (body.cityId !== undefined && !city) {
       return err(400, "validation", `cityId: unknown city ${JSON.stringify(body.cityId)}`);
     }
@@ -41,8 +43,8 @@ export async function PUT(req: Request, ctx: Params) {
         brandId: body.brandId?.trim() || existing.brandId,
         name: name || existing.name,
         address: text(body.address, existing.address),
-        lat: body.lat ?? existing.lat,
-        lon: body.lon ?? existing.lon,
+        lat: lat === undefined ? existing.lat : lat,
+        lon: lon === undefined ? existing.lon : lon,
         cityId: city?.slug ?? existing.cityId,
         province: city?.name ?? existing.province,
         district: text(body.district, existing.district),

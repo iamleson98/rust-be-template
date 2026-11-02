@@ -3,6 +3,13 @@ import { vehicleTypes } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { handleRouteError, requireStaff, readJson, err } from "@/lib/api";
 import { requirePermission } from "@/lib/auth/rbac";
+import {
+  objectBody,
+  optionalInt,
+  optionalOneOf,
+  requiredText,
+  STATUSES,
+} from "@/lib/services/input";
 import { adminVehicleTypeList } from "@/lib/services/admin-out";
 
 /** `GET /api/admin/vehicle-types?q=&limit=&offset=` — staff catalog list. */
@@ -24,23 +31,18 @@ export async function GET(req: Request) {
   }
 }
 
-interface VtBody {
-  code?: string;
-  label?: string;
-  totalSeats?: number;
-  sortOrder?: number;
-  status?: string;
-}
-
 /** `POST /api/admin/vehicle-types` — create a vehicle type. */
 export async function POST(req: Request) {
   try {
     const staff = await requireStaff(req);
     await requirePermission(staff, "admin:vehicle_types:write");
-    const body = await readJson<VtBody>(req);
-    const code = (body.code ?? "").trim();
-    const label = (body.label ?? "").trim();
+    const body = objectBody(await readJson(req));
+    const code = requiredText(body, "code", 32);
+    const label = requiredText(body, "label", 100);
     if (!code || !label) return err(400, "validation", "code and label are required");
+    const totalSeats = optionalInt(body, "totalSeats", 1, 100) ?? null;
+    const sortOrder = optionalInt(body, "sortOrder", -1000, 1000) ?? 0;
+    const status = optionalOneOf(body, "status", STATUSES) ?? "active";
     const db = await getDb();
     const dupe = await db
       .select({ id: vehicleTypes.id })
@@ -54,9 +56,9 @@ export async function POST(req: Request) {
       id,
       code,
       label,
-      totalSeats: body.totalSeats ?? null,
-      sortOrder: body.sortOrder ?? 0,
-      status: body.status === "inactive" ? "inactive" : "active",
+      totalSeats,
+      sortOrder,
+      status,
       createdAt: now,
       updatedAt: now,
     });
