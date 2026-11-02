@@ -23,6 +23,7 @@ import { useGuest } from "@spa/stores/guest";
 import { usePrefs } from "@spa/stores/prefs";
 import { useUi } from "@spa/stores/ui";
 import { brandInitials } from "@spa/lib/text";
+import { TRIP_FRESH_MS } from "@spa/features/trips/api";
 
 const AMENITY_ICON: Record<string, typeof Wifi> = {
   wifi: Wifi,
@@ -77,7 +78,7 @@ export const TripCard = memo(function TripCard({
   const prefetch = useCallback(() => {
     void queryClient.prefetchQuery({
       ...tripDetailOptions({ path: { id: trip.tripId } }),
-      staleTime: 60_000,
+      staleTime: TRIP_FRESH_MS,
     });
   }, [queryClient, trip.tripId]);
 

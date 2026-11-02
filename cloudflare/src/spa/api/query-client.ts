@@ -59,10 +59,16 @@ export function createQueryClient() {
     }),
     defaultOptions: {
       queries: {
-        staleTime: 5 * 60 * 1000,
+        // A screen opened again within 30 s shows what it showed; after that it
+        // asks again. Asking on every mount bought nothing for the public reads
+        // (the edge answers them from a 60 s cache) and cost a Worker request
+        // each, against the Free plan's 100,000 a day. Mutations still refresh
+        // their resources at once, and live data sets its own policy
+        // (seat maps refetch on every open, payments poll).
+        staleTime: 30 * 1000,
         gcTime: 30 * 60 * 1000,
         refetchOnWindowFocus: false, // no reload flicker on alt-tab
-        refetchOnMount: "always",
+        refetchOnMount: true,
         refetchOnReconnect: true,
         // 429s back off exponentially (3 tries); anything else retries once.
         retry: (failureCount, error) =>
