@@ -10,6 +10,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db/client";
 import { brands } from "@/lib/db/schema";
 import { ApiError } from "@/lib/auth/rbac";
+import { stripTones } from "@/lib/format";
 import { badRequest, notFound } from "./http-errors";
 import {
   type Body,
@@ -92,11 +93,7 @@ export function parseBrandPatch(raw: unknown): BrandPatch {
 
 /** The URL slug of a brand name: lowercase ASCII words joined by `-` ("Sao Việt" → "sao-viet"). */
 export function brandSlug(raw: string): string {
-  return raw
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/đ/g, "d")
+  return stripTones(raw)
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "")
     .slice(0, 100);

@@ -22,6 +22,7 @@ import { cn } from "@spa/lib/utils";
 import { useGuest } from "@spa/stores/guest";
 import { usePrefs } from "@spa/stores/prefs";
 import { useUi } from "@spa/stores/ui";
+import { brandInitials } from "@spa/lib/text";
 
 const AMENITY_ICON: Record<string, typeof Wifi> = {
   wifi: Wifi,
@@ -46,14 +47,6 @@ function minutesBetween(departureAt?: string | null, arrivalAt?: string | null) 
   const arr = parseDateSafe(arrivalAt);
   return dep && arr && arr > dep ? Math.round((arr.getTime() - dep.getTime()) / 60_000) : null;
 }
-
-const initials = (name: string) =>
-  name
-    .split(/\s+/)
-    .map((w) => w[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
 
 /**
  * One search result. The times and the journey lead (what people compare
@@ -178,7 +171,7 @@ export const TripCard = memo(function TripCard({
               </span>
             ) : (
               <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary text-xs font-bold text-primary-foreground">
-                {initials(trip.brandName)}
+                {brandInitials(trip.brandName)}
               </span>
             )}
             <div className="min-w-0 flex-1">

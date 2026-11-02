@@ -7,13 +7,27 @@ import * as schema from "./schema";
 export type Database = ReturnType<typeof drizzle<typeof schema>>;
 
 /**
+ * One client per D1 binding. `drizzle(.., { schema })` walks every table to
+ * build its relational config (about 0.05 ms, measured locally), and a
+ * request calls `getDb()` many times (168 call sites), so the rebuild came out
+ * of the Free plan's 10 ms of CPU again and again. Keyed weakly, so a
+ * binding that goes away takes its client with it.
+ */
+const clients = new WeakMap<D1Database, Database>();
+
+/**
  * Get the Drizzle client bound to the request's D1 binding.
  * Works in `next dev` (miniflare via initOpenNextCloudflareForDev)
  * and in production (OpenNext worker).
  */
 export async function getDb(): Promise<Database> {
   const { env } = await getCloudflareContext({ async: true });
-  return drizzle(env.DB, { schema });
+  let db = clients.get(env.DB);
+  if (!db) {
+    db = drizzle(env.DB, { schema });
+    clients.set(env.DB, db);
+  }
+  return db;
 }
 
 /** Raw D1 binding for FTS5 queries + batch statements. */

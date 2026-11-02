@@ -9,6 +9,7 @@
  */
 import { VIETNAMESE_CITIES } from "@/lib/cities";
 import { CITY_COORDS } from "@/lib/city-coords";
+import { stripTones } from "@/lib/format";
 
 /**
  * Colloquial names that do not derive from the official province name
@@ -43,12 +44,7 @@ const CITY_ALIASES: Record<string, string[]> = {
 
 /** Lower-case, strip Vietnamese diacritics (`đ` → `d`), keep letters and digits only. */
 export function normalizeForMatch(input: string): string {
-  return input
-    .replace(/[đĐ]/g, "d")
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, "");
+  return stripTones(input).replace(/[^a-z0-9]/g, "");
 }
 
 /** A city the way the search shows it: official name and province-seat coordinates. */

@@ -6,7 +6,6 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { Search, Loader2, MapPin, Crosshair, X, Check } from "lucide-react";
 import { toast } from "sonner";
-import { placesReverse as sdkReverseGeocode } from "@spa/api";
 import { usePlaceSearch } from "@spa/features/map/api";
 import { formatPlaceType } from "@spa/lib/place-type";
 import { useT } from "@spa/lib/i18n";
@@ -16,6 +15,9 @@ import {
   type MyLocationErrorCode,
   type MyLocation,
 } from "@spa/features/map/use-my-location";
+import { reverseGeocode, type PickedPlace, type PlaceHit } from "@spa/features/map/geocode";
+
+export type { PickedPlace };
 
 // ── Fix leaflet's default marker icons (broken under bundlers) ──
 // We use custom divIcons instead, so this is just a safety net.
@@ -25,25 +27,6 @@ L.Icon.Default.mergeOptions({
   iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
   shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
 });
-
-export type PickedPlace = {
-  name: string;
-  lat: number;
-  lon: number;
-  type?: string;
-  province?: string | null;
-  district?: string | null;
-};
-
-type PlaceHit = {
-  id?: string | null;
-  name: string;
-  type: string;
-  province?: string | null;
-  district?: string | null;
-  lat: number;
-  lon: number;
-};
 
 // Centered on Vietnam
 const VIETNAM_CENTER: [number, number] = [16.0, 106.0];
@@ -263,31 +246,6 @@ function MapSearchBox({
   );
 }
 
-// ── Reverse geocode helper (Tantivy) ────────────────────────
-// Returns a PickedPlace with the NAME of the nearest known place
-// (for display) but keeps the EXACT lat/lon the user clicked (so
-// the marker doesn't jump to a nearby indexed place).
-async function reverseGeocode(lat: number, lon: number): Promise<PickedPlace> {
-  try {
-    const { data } = await sdkReverseGeocode({ query: { lat, lon, limit: 1 } });
-    const hits: PlaceHit[] = (data ?? []) as PlaceHit[];
-    const h = hits[0];
-    if (!h) return { name: `${lat.toFixed(3)}, ${lon.toFixed(3)}`, lat, lon };
-    return {
-      name: h.name,
-      // Keep the EXACT clicked coordinates — NOT h.lat/h.lon (which is
-      // the nearest indexed place, potentially hundreds of meters away).
-      lat,
-      lon,
-      type: h.type,
-      province: h.province,
-      district: h.district,
-    };
-  } catch {
-    return { name: `${lat.toFixed(3)}, ${lon.toFixed(3)}`, lat, lon };
-  }
-}
-
 // ── Full Map Picker (used inside a Dialog) ──────────────────
 type MapPickerProps = {
   /** Color of the picked-location pin. */
@@ -492,8 +450,6 @@ export function MapPicker({
     </div>
   );
 }
-
-export { reverseGeocode };
 
 /** Fix leaflet's tile rendering when the container mounts inside a
  *  dynamically-sized wrapper (an animating Dialog, a swapping layout).

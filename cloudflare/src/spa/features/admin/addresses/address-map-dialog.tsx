@@ -17,7 +17,7 @@ import { MapPin, Loader2, Plus, Search, X, Crosshair, Check } from "lucide-react
 import { toast } from "sonner";
 import { usePlaceSearch } from "@spa/features/map/api";
 import { useT } from "@spa/lib/i18n";
-import { reverseGeocode } from "@spa/features/map/leaflet-map";
+import { reverseGeocode } from "@spa/features/map/geocode";
 import { useMyLocation } from "@spa/features/map/use-my-location";
 import type { AdminAddressOut, PlaceSearchHit } from "@spa/api";
 import { LatLongRegex, parseLatLong } from "./lat-long";
