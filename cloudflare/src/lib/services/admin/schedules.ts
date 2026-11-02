@@ -1,5 +1,6 @@
 /**
- * Admin schedule writes — `POST /api/admin/schedules` and
+ * Admin schedules — the staff list (`GET /api/admin/schedules`) and the writes,
+ * `POST /api/admin/schedules` and
  * `PUT /api/admin/schedules/{id}`.
  *
  * One parser checks what the schedule form sends, for both. On an update a
@@ -8,12 +9,81 @@
  * row and its lists are written in one D1 batch, so a failure part-way can
  * never leave a schedule without its stops.
  */
-import { eq } from "drizzle-orm";
-import { atomicBatch, getDb, type AtomicStatement, type Database } from "@/lib/db/client";
-import { routes, scheduleFares, schedulePoints, schedules } from "@/lib/db/schema";
-import { badRequest, notFound } from "./http-errors";
-import { repriceUpcoming } from "./fares";
-import { type Body, isRecord, objectBody, optionalText, requiredText } from "./input";
+import { getDb, atomicBatch, type AtomicStatement, type Database } from "@/lib/db/client";
+import { eq, inArray } from "drizzle-orm";
+import {
+  addresses,
+  schedules,
+  schedulePoints,
+  scheduleFares,
+  vehicleTypes,
+  routes,
+} from "@/lib/db/schema";
+import { adminAddressOut } from "./addresses";
+import { badRequest, notFound } from "../http-errors";
+import { repriceUpcoming } from "../fares";
+import { type Body, isRecord, objectBody, optionalText, requiredText } from "../input";
+
+/** `AdminScheduleOut` — schedule + class fares + ordered points (w/ address). */
+export async function adminScheduleList(routeId?: string) {
+  const db = await getDb();
+  const scheds = await db
+    .select()
+    .from(schedules)
+    .where(routeId ? eq(schedules.routeId, routeId) : undefined)
+    .orderBy(schedules.departureTime);
+  if (scheds.length === 0) return [];
+  const ids = scheds.map((s) => s.id);
+
+  const fareRows = await db
+    .select()
+    .from(scheduleFares)
+    .where(inArray(scheduleFares.scheduleId, ids));
+  const pointRows = await db
+    .select({ point: schedulePoints, address: addresses })
+    .from(schedulePoints)
+    .innerJoin(addresses, eq(addresses.id, schedulePoints.addressId))
+    .where(inArray(schedulePoints.scheduleId, ids))
+    .orderBy(schedulePoints.stopOrder);
+  const vtRows = await db.select().from(vehicleTypes);
+
+  return scheds.map((s) => {
+    const vt = vtRows.find((v) => v.id === s.vehicleTypeId);
+    return {
+      id: s.id,
+      routeId: s.routeId,
+      departureTime: s.departureTime,
+      effectiveFrom: s.effectiveFrom,
+      effectiveTo: s.effectiveTo,
+      daysOfWeek: s.daysOfWeek,
+      busLayoutId: s.busLayoutId,
+      basePriceAdult: s.basePriceAdult,
+      basePriceChild: s.basePriceChild,
+      amenities: s.amenities,
+      vehicleTypeId: s.vehicleTypeId,
+      vehicleType: vt ? { id: vt.id, code: vt.code, label: vt.label } : null,
+      classFares: fareRows
+        .filter((f) => f.scheduleId === s.id)
+        .map((f) => ({
+          seatClass: f.seatClass,
+          priceAdult: f.priceAdult,
+          priceChild: f.priceChild,
+        })),
+      points: pointRows
+        .filter((p) => p.point.scheduleId === s.id)
+        .map((p) => ({
+          id: p.point.id,
+          scheduleId: p.point.scheduleId,
+          addressId: p.point.addressId,
+          stopOrder: p.point.stopOrder,
+          kind: p.point.kind,
+          arrivalTime: p.point.arrivalTime,
+          address: adminAddressOut(p.address),
+        })),
+      createdAt: s.createdAt,
+    };
+  });
+}
 
 type ScheduleRow = typeof schedules.$inferSelect;
 type ScheduleFields = Partial<Omit<ScheduleRow, "id" | "createdAt">>;
@@ -209,5 +279,16 @@ export async function updateSchedule(id: string, body: unknown): Promise<{ id: s
   ];
   if (writes.length > 0) await atomicBatch(writes);
   await repriceUpcoming(id);
+  return { id };
+}
+
+/** `DELETE /api/admin/schedules/{id}`: points and fares go with it. */
+export async function deleteSchedule(id: string): Promise<{ id: string }> {
+  const db = await getDb();
+  const deleted = await db
+    .delete(schedules)
+    .where(eq(schedules.id, id))
+    .returning({ id: schedules.id });
+  if (deleted.length === 0) throw notFound("schedule not found");
   return { id };
 }

@@ -1,8 +1,6 @@
-import { err, readJson, staffRoute } from "@/lib/api";
-import { adminBusLayoutDetail, findPreset } from "@/lib/services/admin-out";
+import { err, readJson, staffRoute, type IdParams } from "@/lib/api";
+import { adminBusLayoutDetail, findPreset } from "@/lib/services/admin";
 import { fitToSeats, layoutSeats } from "@/lib/services/seat-plan";
-
-type Params = { params: Promise<{ id: string }> };
 
 /**
  * `POST /api/admin/bus-layouts/{id}/plan/fit` — lay a catalog template
@@ -12,7 +10,7 @@ type Params = { params: Promise<{ id: string }> };
  * Send the result to `PUT …/plan` to apply it. 400 when the template
  * cannot hold exactly these seats.
  */
-export const POST = staffRoute<Params>("admin:bus_layouts:read", async (req, ctx) => {
+export const POST = staffRoute<IdParams>("admin:bus_layouts:read", async (req, ctx) => {
   const { id } = await ctx.params;
   const detail = await adminBusLayoutDetail(id);
   if (!detail) return err(404, "not-found", "bus layout not found");

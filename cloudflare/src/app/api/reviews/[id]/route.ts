@@ -1,4 +1,4 @@
-import { handleRouteError, requireUser, readJson } from "@/lib/api";
+import { handleRouteError, requireUser, readJson, type IdParams } from "@/lib/api";
 import { uuidParam } from "@/lib/services/http-errors";
 import {
   getPublicReview,
@@ -8,14 +8,12 @@ import {
   type UpdateReviewInput,
 } from "@/lib/services/reviews";
 
-type Params = { params: Promise<{ id: string }> };
-
-async function reviewId(ctx: Params): Promise<string> {
+async function reviewId(ctx: IdParams): Promise<string> {
   return uuidParam("id", (await ctx.params).id) as string;
 }
 
 /** `GET /api/reviews/{id}` — an approved review (the author's phone left out). */
-export async function GET(_req: Request, ctx: Params) {
+export async function GET(_req: Request, ctx: IdParams) {
   try {
     return Response.json(await getPublicReview(await reviewId(ctx)));
   } catch (e) {
@@ -24,7 +22,7 @@ export async function GET(_req: Request, ctx: Params) {
 }
 
 /** `PATCH /api/reviews/{id}` — the author edits the fields they send. */
-export async function PATCH(req: Request, ctx: Params) {
+export async function PATCH(req: Request, ctx: IdParams) {
   try {
     const user = await requireUser(req);
     const id = await reviewId(ctx);
@@ -38,7 +36,7 @@ export async function PATCH(req: Request, ctx: Params) {
 }
 
 /** `DELETE /api/reviews/{id}` — the author withdraws their review. */
-export async function DELETE(req: Request, ctx: Params) {
+export async function DELETE(req: Request, ctx: IdParams) {
   try {
     const user = await requireUser(req);
     await removeReview(await reviewId(ctx), user.id);

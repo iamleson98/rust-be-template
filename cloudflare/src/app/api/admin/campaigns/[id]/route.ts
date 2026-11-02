@@ -2,13 +2,11 @@ import { getDb, atomicBatch, type AtomicStatement } from "@/lib/db/client";
 import { invalidateCampaigns } from "@/lib/services/campaign-public";
 import { and, eq, notInArray, sql } from "drizzle-orm";
 import { discountCampaignBrands, discountCampaigns, discountTiers } from "@/lib/db/schema";
-import { adminRoute, err, readJson } from "@/lib/api";
+import { adminRoute, err, readJson, type IdParams } from "@/lib/api";
 import { campaignOut } from "@/lib/services/campaign-out";
 
-type Params = { params: Promise<{ id: string }> };
-
 /** `GET /api/admin/campaigns/{id}` — one campaign, full detail. */
-export const GET = adminRoute<Params>(async (req, ctx) => {
+export const GET = adminRoute<IdParams>(async (req, ctx) => {
   const { id } = await ctx.params;
   const out = await campaignOut(id);
   if (!out) return err(404, "not-found", "campaign not found");
@@ -38,7 +36,7 @@ interface CampaignBody {
  * Brand scope and window editable while no coupon has been redeemed.
  * Every mutation is a typed drizzle statement inside one atomic batch.
  */
-export const PATCH = adminRoute<Params>(async (req, ctx) => {
+export const PATCH = adminRoute<IdParams>(async (req, ctx) => {
   const { id } = await ctx.params;
   const body = await readJson<CampaignBody>(req);
   const db = await getDb();
@@ -130,7 +128,7 @@ export const PATCH = adminRoute<Params>(async (req, ctx) => {
 });
 
 /** `DELETE /api/admin/campaigns/{id}` — remove a campaign (cascades tiers/brand links). */
-export const DELETE = adminRoute<Params>(async (req, ctx) => {
+export const DELETE = adminRoute<IdParams>(async (req, ctx) => {
   const { id } = await ctx.params;
   const db = await getDb();
   const existing = (

@@ -1,28 +1,12 @@
-import { getDb } from "@/lib/db/client";
-import { brands } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
-import { readJson, staffRoute } from "@/lib/api";
-import { updateBrand } from "@/lib/services/admin-brands";
+import { readJson, staffRoute, type IdParams } from "@/lib/api";
+import { deactivateBrand, updateBrand } from "@/lib/services/admin";
 
 /** `PUT /api/admin/brands/{id}` — update a brand; fields left out keep their values. */
-export const PUT = staffRoute<{ params: Promise<{ id: string }> }>(
-  "admin:brands:write",
-  async (req, ctx) => {
-    const { id } = await ctx.params;
-    return Response.json(await updateBrand(id, await readJson(req)));
-  },
+export const PUT = staffRoute<IdParams>("admin:brands:write", async (req, { params }) =>
+  Response.json(await updateBrand((await params).id, await readJson(req))),
 );
 
-export const DELETE = staffRoute<{ params: Promise<{ id: string }> }>(
-  "admin:brands:write",
-  async (req, ctx) => {
-    const { id } = await ctx.params;
-    const db = await getDb();
-    // Soft-delete: deactivate instead of removing (routes reference brands).
-    await db
-      .update(brands)
-      .set({ status: "inactive", updatedAt: new Date().toISOString() })
-      .where(eq(brands.id, id));
-    return Response.json({ id, status: "inactive" });
-  },
+/** `DELETE /api/admin/brands/{id}` — deactivate the brand (routes and bookings still point at it). */
+export const DELETE = staffRoute<IdParams>("admin:brands:write", async (_req, { params }) =>
+  Response.json(await deactivateBrand((await params).id)),
 );

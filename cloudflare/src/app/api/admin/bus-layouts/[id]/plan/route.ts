@@ -1,9 +1,7 @@
-import { handleRouteError, requireStaff, readJson, err } from "@/lib/api";
+import { handleRouteError, requireStaff, readJson, err, type IdParams } from "@/lib/api";
 import { requirePermission } from "@/lib/auth/rbac";
-import { adminBusLayoutDetail, type SeatPlan } from "@/lib/services/admin-out";
+import { adminBusLayoutDetail, type SeatPlan } from "@/lib/services/admin";
 import { replaceSeatPlan, InUseError } from "@/lib/services/seat-plan";
-
-type Params = { params: Promise<{ id: string }> };
 
 /**
  * `PUT /api/admin/bus-layouts/{id}/plan` — replace the whole floor plan
@@ -12,7 +10,7 @@ type Params = { params: Promise<{ id: string }> };
  * sell the layout seats may only move or relabel — never appear or
  * disappear (409 with a human reason).
  */
-export async function PUT(req: Request, ctx: Params) {
+export async function PUT(req: Request, ctx: IdParams) {
   try {
     const staff = await requireStaff(req);
     await requirePermission(staff, "admin:bus_layouts:write");

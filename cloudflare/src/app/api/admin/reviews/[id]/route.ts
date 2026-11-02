@@ -1,12 +1,10 @@
-import { handleRouteError, readJson, requireStaff, staffRoute } from "@/lib/api";
+import { handleRouteError, readJson, requireStaff, staffRoute, type IdParams } from "@/lib/api";
 import { requirePermission } from "@/lib/auth/rbac";
 import { uuidParam } from "@/lib/services/http-errors";
 import { moderateReview, removeReview } from "@/lib/services/reviews";
 
-type Params = { params: Promise<{ id: string }> };
-
 /** `PATCH /api/admin/reviews/{id}` — set the status and/or the brand's reply. */
-export async function PATCH(req: Request, ctx: Params) {
+export async function PATCH(req: Request, ctx: IdParams) {
   try {
     const staff = await requireStaff(req);
     const id = uuidParam("id", (await ctx.params).id) as string;
@@ -19,7 +17,7 @@ export async function PATCH(req: Request, ctx: Params) {
 }
 
 /** `DELETE /api/admin/reviews/{id}` — remove any review (empty 200, as Rust). */
-export const DELETE = staffRoute<Params>("admin:reviews:moderate", async (req, ctx) => {
+export const DELETE = staffRoute<IdParams>("admin:reviews:moderate", async (req, ctx) => {
   await removeReview(uuidParam("id", (await ctx.params).id) as string, null);
   return new Response(null, { status: 200 });
 });

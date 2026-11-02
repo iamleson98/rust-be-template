@@ -1,4 +1,4 @@
-import { handleRouteError, requireStaff, staffRoute } from "@/lib/api";
+import { handleRouteError, requireStaff, staffRoute, type IdParams } from "@/lib/api";
 import { requirePermission } from "@/lib/auth/rbac";
 import { badRequest, uuidParam } from "@/lib/services/http-errors";
 import {
@@ -8,14 +8,12 @@ import {
   uploadPicture,
 } from "@/lib/services/route-media";
 
-type Params = { params: Promise<{ id: string }> };
-
 /** The multipart envelope around the largest picture (Rust `UPLOAD_BODY_LIMIT`). */
 const UPLOAD_BODY_LIMIT = MAX_PICTURE_BYTES + 64 * 1024;
 const MAX_ALT_BYTES = 255;
 
 /** `GET /api/admin/routes/{id}/pictures`. */
-export const GET = staffRoute<Params>("admin:routes:read", async (req, ctx) => {
+export const GET = staffRoute<IdParams>("admin:routes:read", async (req, ctx) => {
   return Response.json(await listPictures(uuidParam("id", (await ctx.params).id) as string));
 });
 
@@ -24,7 +22,7 @@ export const GET = staffRoute<Params>("admin:routes:read", async (req, ctx) => {
  * and an optional `alt_text`. 201 for a new picture, 200 when the same
  * content was already attached.
  */
-export async function POST(req: Request, ctx: Params) {
+export async function POST(req: Request, ctx: IdParams) {
   try {
     const staff = await requireStaff(req);
     const routeId = uuidParam("id", (await ctx.params).id) as string;
@@ -58,6 +56,6 @@ export async function POST(req: Request, ctx: Params) {
 }
 
 /** `DELETE /api/admin/routes/{id}/pictures` — clear the gallery. */
-export const DELETE = staffRoute<Params>("admin:routes:write", async (req, ctx) => {
+export const DELETE = staffRoute<IdParams>("admin:routes:write", async (req, ctx) => {
   return Response.json(await deleteAllPictures(uuidParam("id", (await ctx.params).id) as string));
 });

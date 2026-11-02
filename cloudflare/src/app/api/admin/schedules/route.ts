@@ -1,6 +1,5 @@
 import { readJson, staffRoute } from "@/lib/api";
-import { adminScheduleList } from "@/lib/services/admin-out";
-import { createSchedule } from "@/lib/services/admin-schedules";
+import { adminScheduleList, createSchedule } from "@/lib/services/admin";
 
 /** `GET /api/admin/schedules?routeId=` — a route's schedules with fares + points. */
 export const GET = staffRoute("admin:schedules:read", async (req) => {

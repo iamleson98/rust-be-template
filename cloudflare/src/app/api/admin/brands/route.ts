@@ -1,6 +1,5 @@
 import { readJson, staffRoute } from "@/lib/api";
-import { adminBrandList } from "@/lib/services/admin-out";
-import { createBrand } from "@/lib/services/admin-brands";
+import { adminBrandList, createBrand } from "@/lib/services/admin";
 
 export const GET = staffRoute("admin:brands:read", async () => {
   const items = await adminBrandList();

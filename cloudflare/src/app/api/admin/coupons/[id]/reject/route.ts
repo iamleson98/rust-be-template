@@ -1,15 +1,13 @@
 import { rawAll, rawRun } from "@/lib/db/client";
 import { sql } from "drizzle-orm";
-import { adminRoute, err, readJson } from "@/lib/api";
-
-type Params = { params: Promise<{ id: string }> };
+import { adminRoute, err, readJson, type IdParams } from "@/lib/api";
 
 /**
  * `POST /api/admin/coupons/{id}/reject` — refuse to honour a redeemed
  * coupon (fraud / rule violation). Requires a reason; returns the
  * updated `CouponOut`.
  */
-export const POST = adminRoute<Params>(async (req, ctx) => {
+export const POST = adminRoute<IdParams>(async (req, ctx) => {
   const { id } = await ctx.params;
   const body = await readJson<{ reason?: string }>(req);
   const reason = (body.reason ?? "").trim();

@@ -1,9 +1,9 @@
-import { handleRouteError, requireUser } from "@/lib/api";
+import { handleRouteError, requireUser, type IdParams } from "@/lib/api";
 import { uuidParam } from "@/lib/services/http-errors";
 import { releaseChannel } from "@/lib/services/chat";
 
 /** `POST /api/chat/channels/{id}/release` — an admin gives the channel back to the queue. */
-export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
+export async function POST(req: Request, ctx: IdParams) {
   try {
     const user = await requireUser(req);
     return Response.json(

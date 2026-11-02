@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findPreset, presetCatalog } from "@/lib/services/admin-out";
+import { findPreset, presetCatalog } from "@/lib/services/admin";
 import { isSellable, validateSeatPlan, type SeatPlan } from "@/lib/services/seat-plan";
 
 /** Port of the `seat_plan_presets.rs` unit tests (the catalog infer_id is CLI-only in Rust). */

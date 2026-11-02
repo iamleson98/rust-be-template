@@ -1,17 +1,19 @@
 /**
- * Admin brand writes — `POST /api/admin/brands` and `PUT /api/admin/brands/{id}`.
+ * Admin brands — the staff list (`GET /api/admin/brands`) and the writes
+ * (`POST /api/admin/brands`, `PUT /api/admin/brands/{id}`).
  *
  * One parser checks what the brand form sends, for both: lengths, the status,
  * the logo, and the child-fare policy (`childFare: { maxAge, discountAmount }`
  * or `null` to turn it off), which is stored as `child_max_age` +
  * `child_discount_amount`. A field left out keeps its value on an update.
  */
-import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db/client";
-import { brands } from "@/lib/db/schema";
+import { desc, eq } from "drizzle-orm";
+import { busLayouts, routes, brands } from "@/lib/db/schema";
+import { countOf, groupedCounts } from "@/lib/db/counts";
 import { ApiError } from "@/lib/auth/rbac";
 import { stripTones } from "@/lib/format";
-import { badRequest, notFound } from "./http-errors";
+import { badRequest, notFound } from "../http-errors";
 import {
   type Body,
   isRecord,
@@ -20,7 +22,38 @@ import {
   optionalText as text,
   requiredText,
   STATUSES,
-} from "./input";
+} from "../input";
+
+/** `AdminBrandOut` — brand row + route/layout counts + child fare policy.
+ * (Counts via batched GROUP BY maps — the Rust admin_service pattern; the
+ * correlated-subquery form silently returned 0, see db/counts.ts.) */
+export async function adminBrandList() {
+  const db = await getDb();
+  const rows = await db.select({ brand: brands }).from(brands).orderBy(desc(brands.createdAt));
+  const ids = rows.map((r) => r.brand.id);
+  const [routeCounts, layoutCounts] = await Promise.all([
+    groupedCounts(routes, routes.brandId, ids),
+    groupedCounts(busLayouts, busLayouts.brandId, ids),
+  ]);
+  return rows.map(({ brand: b }) => ({
+    id: b.id,
+    slug: b.slug,
+    name: b.name,
+    logoUrl: b.logoUrl,
+    rating: b.rating,
+    status: b.status,
+    contactPhone: b.contactPhone,
+    contactEmail: b.contactEmail,
+    createdAt: b.createdAt,
+    updatedAt: b.updatedAt,
+    routeCount: countOf(routeCounts, b.id),
+    layoutCount: countOf(layoutCounts, b.id),
+    childFare:
+      b.childMaxAge != null && b.childDiscountAmount != null
+        ? { maxAge: b.childMaxAge, discountAmount: b.childDiscountAmount }
+        : null,
+  }));
+}
 
 type BrandRow = typeof brands.$inferSelect;
 
@@ -142,4 +175,16 @@ export async function updateBrand(
     .returning({ id: brands.id });
   if (updated.length === 0) throw notFound("Brand not found");
   return { id, updated: true };
+}
+
+/** `DELETE /api/admin/brands/{id}`: a soft delete, since routes, bookings and reviews point at the brand. */
+export async function deactivateBrand(id: string): Promise<{ id: string; status: "inactive" }> {
+  const db = await getDb();
+  const updated = await db
+    .update(brands)
+    .set({ status: "inactive", updatedAt: new Date().toISOString() })
+    .where(eq(brands.id, id))
+    .returning({ id: brands.id });
+  if (updated.length === 0) throw notFound("Brand not found");
+  return { id, status: "inactive" };
 }

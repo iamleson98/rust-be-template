@@ -55,6 +55,9 @@ export async function requireStaff(req: Request): Promise<SessionUser> {
   return user;
 }
 
+/** The context of a route with one `[id]` segment. */
+export type IdParams = { params: Promise<{ id: string }> };
+
 /** A route handler's arguments: the request, then the context only for a route that has one. */
 type RouteArgs<Ctx> = [Ctx] extends [undefined] ? [req: Request] : [req: Request, ctx: Ctx];
 

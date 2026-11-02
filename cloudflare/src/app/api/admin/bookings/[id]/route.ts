@@ -1,10 +1,8 @@
-import { readJson, staffRoute } from "@/lib/api";
+import { readJson, staffRoute, type IdParams } from "@/lib/api";
 import { adminGetBooking, adminUpdateBookingStatus } from "@/lib/services/admin-bookings";
 
-type Params = { params: Promise<{ id: string }> };
-
 /** `GET /api/admin/bookings/{id}` — admin booking detail. */
-export const GET = staffRoute<Params>("admin:bookings:read", async (req, ctx) => {
+export const GET = staffRoute<IdParams>("admin:bookings:read", async (req, ctx) => {
   const { id } = await ctx.params;
   return Response.json(await adminGetBooking(id));
 });
@@ -13,7 +11,7 @@ export const GET = staffRoute<Params>("admin:bookings:read", async (req, ctx) =>
  * `PATCH /api/admin/bookings/{id}` — confirm (after phoning the customer),
  * complete or cancel a ticket. Completed and cancelled tickets are final.
  */
-export const PATCH = staffRoute<Params>("admin:bookings:write", async (req, ctx, staff) => {
+export const PATCH = staffRoute<IdParams>("admin:bookings:write", async (req, ctx, staff) => {
   const { id } = await ctx.params;
   const body = await readJson<{ status: string; reason?: string | null }>(req);
   return Response.json(await adminUpdateBookingStatus(staff.id, id, body));

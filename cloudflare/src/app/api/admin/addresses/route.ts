@@ -1,10 +1,5 @@
-import { getDb } from "@/lib/db/client";
-import { addresses } from "@/lib/db/schema";
-import { and, asc, eq, like, or, sql, type SQL } from "drizzle-orm";
-import { err, readJson, staffRoute } from "@/lib/api";
-import { objectBody, optionalCoords } from "@/lib/services/input";
-import { adminAddressOut } from "@/lib/services/admin-out";
-import { findCity } from "@/lib/city-match";
+import { readJson, staffRoute } from "@/lib/api";
+import { adminAddressList, createAddress } from "@/lib/services/admin";
 
 /**
  * `GET /api/admin/addresses?brandId=&q=&limit=&offset=` — a brand's
@@ -13,80 +8,19 @@ import { findCity } from "@/lib/city-match";
  * picker; omitting `limit` returns all.
  */
 export const GET = staffRoute("admin:addresses:read", async (req) => {
-  const url = new URL(req.url);
-  const brandId = url.searchParams.get("brandId") ?? undefined;
-  const q = url.searchParams.get("q")?.trim() || undefined;
-  const limitRaw = url.searchParams.get("limit");
-  const limit = limitRaw ? Math.min(Math.max(parseInt(limitRaw, 10) || 50, 1), 500) : undefined;
-  const offset = Math.max(parseInt(url.searchParams.get("offset") ?? "0", 10) || 0, 0);
-  const db = await getDb();
-  const conditions: SQL[] = [];
-  if (brandId) conditions.push(eq(addresses.brandId, brandId));
-  if (q) {
-    const m = or(like(addresses.name, `%${q}%`), like(addresses.address, `%${q}%`));
-    if (m) conditions.push(m);
-  }
-  const where = conditions.length > 0 ? and(...conditions) : undefined;
-  const rows = await db
-    .select({
-      address: addresses,
-      // Spelled out: inside the subquery drizzle would print both ids unqualified.
-      stopCount: sql<number>`(SELECT COUNT(*) FROM "schedule_point" sp WHERE sp."address_id" = "address"."id")`,
-    })
-    .from(addresses)
-    .where(where)
-    .orderBy(asc(addresses.name))
-    .limit(limit ?? 1000)
-    .offset(offset);
-  const total = await db
-    .select({ n: sql<number>`count(*)` })
-    .from(addresses)
-    .where(where);
-  return Response.json({
-    items: rows.map((r) => ({ ...adminAddressOut(r.address), stopCount: Number(r.stopCount) })),
-    total: Number(total[0]?.n ?? 0),
-  });
+  const q = new URL(req.url).searchParams;
+  const limit = q.get("limit");
+  return Response.json(
+    await adminAddressList({
+      brandId: q.get("brandId") ?? undefined,
+      q: q.get("q")?.trim() || undefined,
+      limit: limit ? Math.min(Math.max(parseInt(limit, 10) || 50, 1), 500) : undefined,
+      offset: Math.max(parseInt(q.get("offset") ?? "0", 10) || 0, 0),
+    }),
+  );
 });
-
-interface AddressBody {
-  brandId?: string;
-  name?: string;
-  address?: string;
-  lat?: number;
-  lon?: number;
-  /** Slug of one of our cities (`cities.json`); `province` follows from it. */
-  cityId?: string;
-  district?: string;
-  ward?: string;
-}
 
 /** `POST /api/admin/addresses` — create an address in one of our cities. */
-export const POST = staffRoute("admin:addresses:write", async (req) => {
-  const body = await readJson<AddressBody>(req);
-  const { lat, lon } = optionalCoords(objectBody(body));
-  const brandId = String(body.brandId ?? "").trim();
-  const name = String(body.name ?? "").trim();
-  if (!brandId || !name) return err(400, "validation", "brandId and name are required");
-  const cityId = String(body.cityId ?? "").trim();
-  if (!cityId) return err(400, "validation", "cityId is required");
-  const city = findCity(cityId);
-  if (!city) return err(400, "validation", `cityId: unknown city ${JSON.stringify(cityId)}`);
-  const db = await getDb();
-  const id = crypto.randomUUID();
-  const now = new Date().toISOString();
-  await db.insert(addresses).values({
-    id,
-    brandId,
-    name,
-    address: body.address ?? null,
-    lat: lat ?? null,
-    lon: lon ?? null,
-    cityId: city.slug,
-    province: city.name,
-    district: body.district ?? null,
-    ward: body.ward ?? null,
-    createdAt: now,
-    updatedAt: now,
-  });
-  return Response.json({ id }, { status: 201 });
-});
+export const POST = staffRoute("admin:addresses:write", async (req) =>
+  Response.json(await createAddress(await readJson(req)), { status: 201 }),
+);

@@ -1,8 +1,6 @@
-import { getDb } from "@/lib/db/client";
-import { busLayouts } from "@/lib/db/schema";
-import { err, readJson, staffRoute } from "@/lib/api";
-import { adminBusLayoutList, type SeatPlan } from "@/lib/services/admin-out";
-import { replaceSeatPlan, toStored, validateSeatPlan } from "@/lib/services/seat-plan";
+import { readJson, staffRoute } from "@/lib/api";
+import { pageOf } from "@/lib/query";
+import { adminBusLayoutList, createBusLayout } from "@/lib/services/admin";
 
 /**
  * `GET /api/admin/bus-layouts?brandId=&includeShared=&limit=&offset=` —
@@ -10,88 +8,17 @@ import { replaceSeatPlan, toStored, validateSeatPlan } from "@/lib/services/seat
  * to a brand's own layouts, as the schedule form offers both.
  */
 export const GET = staffRoute("admin:bus_layouts:read", async (req) => {
-  const url = new URL(req.url);
-  const result = await adminBusLayoutList({
-    brandId: url.searchParams.get("brandId") ?? undefined,
-    includeShared: url.searchParams.get("includeShared") === "true",
-    limit: Math.min(Math.max(parseInt(url.searchParams.get("limit") ?? "100", 10) || 100, 1), 500),
-    offset: Math.max(parseInt(url.searchParams.get("offset") ?? "0", 10) || 0, 0),
-  });
-  return Response.json(result);
+  const q = new URL(req.url).searchParams;
+  return Response.json(
+    await adminBusLayoutList({
+      brandId: q.get("brandId") ?? undefined,
+      includeShared: q.get("includeShared") === "true",
+      ...pageOf(q, { limit: 100, max: 500 }),
+    }),
+  );
 });
 
-interface LayoutBody {
-  brandId?: string;
-  name?: string;
-  vehicleType?: string;
-  totalSeats?: number;
-  layoutData?: string;
-  plan?: SeatPlan | null;
-  seatGrid?: { rows?: number; cols?: number; floors?: number } | null;
-}
-
-/** `POST /api/admin/bus-layouts` — create a layout (plan > seatGrid). */
-export const POST = staffRoute("admin:bus_layouts:write", async (req) => {
-  const body = await readJson<LayoutBody>(req);
-  const name = (body.name ?? "").trim();
-  if (!name) return err(400, "validation", "name is required");
-  const db = await getDb();
-  const id = crypto.randomUUID();
-  const now = new Date().toISOString();
-
-  let plan: SeatPlan | null = body.plan ?? null;
-  if (!plan && body.seatGrid) plan = gridToPlan(body.seatGrid);
-  // Structural validation up front — the same rules the editor enforces.
-  if (plan) {
-    const invalid = validateSeatPlan(plan);
-    if (invalid) return err(400, "validation", invalid);
-  }
-
-  await db.insert(busLayouts).values({
-    id,
-    brandId: body.brandId?.trim() || null,
-    name,
-    vehicleType: body.vehicleType ?? null,
-    totalSeats: body.totalSeats ?? null,
-    layoutData: plan ? toStored(plan) : (body.layoutData ?? null),
-    createdAt: now,
-    updatedAt: now,
-  });
-  // Seat rows for every sellable cell (seat/bed/cabin/…), ids stable
-  // from day one; also writes layout_data + total_seats back.
-  if (plan) await replaceSeatPlan(id, plan);
-  return Response.json({ id }, { status: 201 });
-});
-
-/** Simple grid generator: floors × rows × cols of plain seats, aisle down the middle. */
-function gridToPlan(grid: { rows?: number; cols?: number; floors?: number }): SeatPlan {
-  const rows = Math.max(1, grid.rows ?? 4);
-  const cols = Math.max(2, grid.cols ?? 4);
-  const floors = Math.max(1, Math.min(2, grid.floors ?? 1));
-  const decks: SeatPlan["decks"] = [];
-  for (let f = 0; f < floors; f++) {
-    const cells: SeatPlan["decks"][number]["cells"] = [];
-    let n = f === 0 ? 0 : 100;
-    for (let r = 1; r <= rows; r++) {
-      for (let c = 1; c <= cols; c++) {
-        if (cols >= 4 && c === Math.ceil(cols / 2)) continue; // centre aisle
-        n += 1;
-        cells.push({
-          row: r,
-          col: c,
-          kind: "seat",
-          label: String(n).padStart(2, "0"),
-          seatClass: null,
-          seatId: null,
-        });
-      }
-    }
-    decks.push({
-      name: floors > 1 ? (f === 0 ? "Tầng dưới" : "Tầng trên") : null,
-      rows,
-      cols,
-      cells,
-    });
-  }
-  return { decks };
-}
+/** `POST /api/admin/bus-layouts` — create a layout from a plan (or a seat grid). */
+export const POST = staffRoute("admin:bus_layouts:write", async (req) =>
+  Response.json(await createBusLayout(await readJson(req)), { status: 201 }),
+);

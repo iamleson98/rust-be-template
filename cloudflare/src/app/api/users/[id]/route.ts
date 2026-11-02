@@ -1,11 +1,9 @@
-import { handleRouteError, requireStaff } from "@/lib/api";
+import { handleRouteError, requireStaff, type IdParams } from "@/lib/api";
 import { requirePermission } from "@/lib/auth/rbac";
 import { assertUserId, deleteUser, getUser, userOut } from "@/lib/services/users";
 
-type Ctx = { params: Promise<{ id: string }> };
-
 /** `GET /api/users/{id}` — one user (`users:read`, staff). */
-export async function GET(req: Request, ctx: Ctx) {
+export async function GET(req: Request, ctx: IdParams) {
   try {
     const staff = await requireStaff(req);
     const { id } = await ctx.params;
@@ -18,7 +16,7 @@ export async function GET(req: Request, ctx: Ctx) {
 }
 
 /** `DELETE /api/users/{id}` — remove a user (`users:delete`, admins only). */
-export async function DELETE(req: Request, ctx: Ctx) {
+export async function DELETE(req: Request, ctx: IdParams) {
   try {
     const staff = await requireStaff(req);
     const { id } = await ctx.params;

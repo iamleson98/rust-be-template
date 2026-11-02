@@ -9,7 +9,7 @@ import { brands, routes } from "@/lib/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { countOf, groupedCounts } from "@/lib/db/counts";
 import { listBrands } from "@/lib/services/lookups";
-import { adminBrandList, adminRouteList } from "@/lib/services/admin-out";
+import { adminBrandList, adminRouteList } from "@/lib/services/admin";
 
 /**
  * Regression tests for the batched grouped-count pattern (db/counts.ts).
