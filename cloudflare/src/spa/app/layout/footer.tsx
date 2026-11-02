@@ -3,6 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Headphones, Mail, MessageCircle, ShieldCheck } from "lucide-react";
 import { routesOptions } from "@spa/api";
+import { CATALOG_QUERY } from "@spa/api/catalog-cache";
+import { useInView } from "@spa/hooks/use-in-view";
 import { useT } from "@spa/lib/i18n";
 import { SUPPORT } from "@spa/lib/support";
 import { useEnabledProviders, type PaymentProvider } from "@spa/lib/payment";
@@ -38,8 +40,10 @@ export const Footer = memo(function Footer() {
   const user = useSession((s) => s.user);
   const navigate = useNavigate();
   const t = useT();
-  const providers = useEnabledProviders();
-  const { data } = useQuery(routesOptions());
+  // The footer's data is fetched when the visitor nears it, not on every page view.
+  const [footerRef, nearFooter] = useInView<HTMLElement>("400px");
+  const providers = useEnabledProviders(nearFooter);
+  const { data } = useQuery({ ...routesOptions(), ...CATALOG_QUERY, enabled: nearFooter });
 
   // The first few distinct corridors on the platform (a route per brand can repeat a pair).
   const routes = useMemo(() => {
@@ -59,7 +63,7 @@ export const Footer = memo(function Footer() {
   };
 
   return (
-    <footer className="mt-auto border-t border-slate-200 bg-white">
+    <footer ref={footerRef} className="mt-auto border-t border-slate-200 bg-white">
       <div className="page-x py-12 md:py-14">
         <div className="grid grid-cols-2 gap-x-6 gap-y-10 sm:grid-cols-3 lg:grid-cols-12">
           <div className="col-span-2 sm:col-span-3 lg:col-span-4">

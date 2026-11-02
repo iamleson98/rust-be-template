@@ -12,7 +12,12 @@ const SETTLED: string[] = ["completed", "failed", "cancelled", "refunded"];
 export const isPaymentSettled = (status: string) => SETTLED.includes(status);
 
 /** The providers the server takes payments with; `undefined` until it has said. */
-export function useEnabledProviders(): PaymentProvider[] | undefined {
-  const { data } = useQuery({ ...listProvidersOptions(), staleTime: 5 * 60_000 });
+export function useEnabledProviders(enabled = true): PaymentProvider[] | undefined {
+  const { data } = useQuery({
+    ...listProvidersOptions(),
+    staleTime: 5 * 60_000,
+    refetchOnMount: true,
+    enabled,
+  });
   return data?.providers as PaymentProvider[] | undefined;
 }
