@@ -74,6 +74,25 @@ an idle sweep writes one heartbeat per 10 minutes, and the admin job list uses i
 **Rule for anything that runs on the tick:** it may only touch rows through an index and must not
 write when it has nothing to do. `tests/integration/jobs-claim.test.ts` pins both.
 
+## Keeping page views cheap
+
+Every `/api` call is a Worker request (static assets are free), and a public read that misses the
+colo's Cache API costs D1 reads. So:
+
+- **One read per page where it can be.** A brand page (`/brands/{slug}`) loads everything above
+  its reviews from `GET /api/brands/{slug}/profile`: the brand, locations, routes with
+  timetables and the trips of the next three days, in about seven indexed queries on a miss. It
+  replaced four calls per visit, and the answer is shared per colo for a minute
+  (`edge-guard.ts`; the query string is dropped from the key so crawler parameters cannot
+  multiply the entries). The reviews load only when the reader scrolls to them.
+- **Nothing for what nobody sees.** The footer's routes and payment methods are fetched when the
+  footer nears the viewport (`useInView`), not on every page view.
+- **No polling while signed out.** `/api/auth/me` refreshes every 5 minutes only in a signed-in
+  tab; an idle anonymous tab no longer costs a request every 2 minutes.
+- **Catalog reads trust their cache.** Brands, routes and the brand page use `CATALOG_QUERY`
+  (`refetchOnMount: true` with a stale time) instead of the global `"always"`, so moving between
+  pages does not ask again; staff edits still refresh them through their resource tags.
+
 ## Checking the budget
 
 ```bash

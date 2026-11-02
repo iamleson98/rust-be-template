@@ -18,6 +18,7 @@ import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import type { RouteOut } from "@spa/api";
 import { routesOptions, searchTripsOptions } from "@spa/api";
+import { CATALOG_QUERY } from "@spa/api/catalog-cache";
 import { buildSearchInput, vnDate } from "@spa/lib/search-params";
 import { useT } from "@spa/lib/i18n";
 import { slugify } from "@spa/lib/text";
@@ -40,7 +41,7 @@ export function RouteDirectory() {
   // The full active-route catalog (schedule counts + real prices).
   const { data, isLoading, isError, refetch } = useQuery({
     ...routesOptions({ query: { limit: 200 } }),
-    staleTime: 5 * 60 * 1000,
+    ...CATALOG_QUERY,
   });
   const items: RouteOut[] = useMemo(() => {
     const all = data?.items ?? [];

@@ -8,6 +8,7 @@ import {
   enforceOrigin,
   ipKey,
   isCacheablePublicRead,
+  publicReadRequest,
   withSecurityHeaders,
 } from "@/lib/edge-guard";
 
@@ -268,10 +269,21 @@ describe("public JSON cache", () => {
       "/api/auth/me",
       "/api/bookings",
       "/api/trips/abc",
-      "/api/brands/x",
+      "/api/brands/x/y/z",
+      "/api/admin/brands/x",
     ]) {
       expect(isCacheablePublicRead(req(p))).toBe(false);
     }
+  });
+
+  it("caches one brand's reads, one entry per brand whatever the query string", () => {
+    expect(isCacheablePublicRead(req("/api/brands/phuong-trang"))).toBe(true);
+    expect(isCacheablePublicRead(req("/api/brands/phuong-trang/profile?utm=1"))).toBe(true);
+    const keyed = publicReadRequest(req("/api/brands/phuong-trang/profile?utm=1&x=2"));
+    expect(new URL(keyed.url).search).toBe("");
+    // Other reads keep the query that selects their answer.
+    const routes = req("/api/routes?limit=5");
+    expect(publicReadRequest(routes)).toBe(routes);
   });
 
   it("never serves or stores a read made with a session (their own writes must show)", () => {

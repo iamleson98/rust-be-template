@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { ChevronRight, Route, Star } from "lucide-react";
 import { brandsOptions } from "@spa/api";
+import { CATALOG_QUERY } from "@spa/api/catalog-cache";
 import { ErrorState } from "@spa/components/error-state";
 import { HomeSection, RAIL, RailSkeleton } from "@spa/features/home/section";
 import { useT } from "@spa/lib/i18n";
@@ -11,7 +12,10 @@ import { brandInitials } from "@spa/lib/text";
 
 /** The operators on the platform, each card opening its page (routes, reviews). */
 export const BrandShowcase = memo(function BrandShowcase() {
-  const { data, isLoading, isError, refetch } = useQuery(brandsOptions());
+  const { data, isLoading, isError, refetch } = useQuery({
+    ...brandsOptions(),
+    ...CATALOG_QUERY,
+  });
   const t = useT();
   const brands = data?.items ?? [];
 
