@@ -11,14 +11,10 @@ import {
 import { buttonVariants } from "@spa/components/ui/button";
 import { Stars } from "@spa/features/reviews/review-summary";
 import { useT } from "@spa/lib/i18n";
+import { brandInitials } from "@spa/lib/text";
 import type { BrandProfile, ProfileRoute } from "./api";
 import { BrandQuickBook } from "./brand-quick-book";
 import { SECTION_IDS } from "./brand-format";
-
-const initials = (name: string) => {
-  const parts = name.trim().split(/\s+/);
-  return (parts.length >= 2 ? parts[0][0] + parts[1][0] : name.slice(0, 2)).toUpperCase();
-};
 
 /** Who the brand is, how good, how to reach them, and the box to book them. */
 export function BrandHero({
@@ -60,7 +56,7 @@ export function BrandHero({
                 decoding="async"
               />
             ) : (
-              initials(brand.name)
+              brandInitials(brand.name)
             )}
           </div>
           <div className="min-w-0 flex-1">
