@@ -1,26 +1,13 @@
-import { handleRouteError, requireStaff, readJson } from "@/lib/api";
-import { requirePermission } from "@/lib/auth/rbac";
+import { readJson, staffRoute } from "@/lib/api";
 import { adminBrandList } from "@/lib/services/admin-out";
 import { createBrand } from "@/lib/services/admin-brands";
 
-export async function GET(req: Request) {
-  try {
-    const staff = await requireStaff(req);
-    await requirePermission(staff, "admin:brands:read");
-    const items = await adminBrandList();
-    return Response.json({ items });
-  } catch (e) {
-    return handleRouteError(e);
-  }
-}
+export const GET = staffRoute("admin:brands:read", async () => {
+  const items = await adminBrandList();
+  return Response.json({ items });
+});
 
 /** `POST /api/admin/brands` — create a brand (`services/admin-brands.ts` checks the body). */
-export async function POST(req: Request) {
-  try {
-    const staff = await requireStaff(req);
-    await requirePermission(staff, "admin:brands:write");
-    return Response.json(await createBrand(await readJson(req)), { status: 201 });
-  } catch (e) {
-    return handleRouteError(e);
-  }
-}
+export const POST = staffRoute("admin:brands:write", async (req) => {
+  return Response.json(await createBrand(await readJson(req)), { status: 201 });
+});

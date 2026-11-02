@@ -1,8 +1,7 @@
 import { getDb } from "@/lib/db/client";
 import { addresses } from "@/lib/db/schema";
 import { and, asc, eq, like, or, sql, type SQL } from "drizzle-orm";
-import { handleRouteError, requireStaff, readJson, err } from "@/lib/api";
-import { requirePermission } from "@/lib/auth/rbac";
+import { err, readJson, staffRoute } from "@/lib/api";
 import { objectBody, optionalCoords } from "@/lib/services/input";
 import { adminAddressOut } from "@/lib/services/admin-out";
 import { findCity } from "@/lib/city-match";
@@ -13,47 +12,41 @@ import { findCity } from "@/lib/city-match";
  * `q`/`limit`/`offset` feed the searchable, infinite-scroll schedule point
  * picker; omitting `limit` returns all.
  */
-export async function GET(req: Request) {
-  try {
-    const staff = await requireStaff(req);
-    await requirePermission(staff, "admin:addresses:read");
-    const url = new URL(req.url);
-    const brandId = url.searchParams.get("brandId") ?? undefined;
-    const q = url.searchParams.get("q")?.trim() || undefined;
-    const limitRaw = url.searchParams.get("limit");
-    const limit = limitRaw ? Math.min(Math.max(parseInt(limitRaw, 10) || 50, 1), 500) : undefined;
-    const offset = Math.max(parseInt(url.searchParams.get("offset") ?? "0", 10) || 0, 0);
-    const db = await getDb();
-    const conditions: SQL[] = [];
-    if (brandId) conditions.push(eq(addresses.brandId, brandId));
-    if (q) {
-      const m = or(like(addresses.name, `%${q}%`), like(addresses.address, `%${q}%`));
-      if (m) conditions.push(m);
-    }
-    const where = conditions.length > 0 ? and(...conditions) : undefined;
-    const rows = await db
-      .select({
-        address: addresses,
-        // Spelled out: inside the subquery drizzle would print both ids unqualified.
-        stopCount: sql<number>`(SELECT COUNT(*) FROM "schedule_point" sp WHERE sp."address_id" = "address"."id")`,
-      })
-      .from(addresses)
-      .where(where)
-      .orderBy(asc(addresses.name))
-      .limit(limit ?? 1000)
-      .offset(offset);
-    const total = await db
-      .select({ n: sql<number>`count(*)` })
-      .from(addresses)
-      .where(where);
-    return Response.json({
-      items: rows.map((r) => ({ ...adminAddressOut(r.address), stopCount: Number(r.stopCount) })),
-      total: Number(total[0]?.n ?? 0),
-    });
-  } catch (e) {
-    return handleRouteError(e);
+export const GET = staffRoute("admin:addresses:read", async (req) => {
+  const url = new URL(req.url);
+  const brandId = url.searchParams.get("brandId") ?? undefined;
+  const q = url.searchParams.get("q")?.trim() || undefined;
+  const limitRaw = url.searchParams.get("limit");
+  const limit = limitRaw ? Math.min(Math.max(parseInt(limitRaw, 10) || 50, 1), 500) : undefined;
+  const offset = Math.max(parseInt(url.searchParams.get("offset") ?? "0", 10) || 0, 0);
+  const db = await getDb();
+  const conditions: SQL[] = [];
+  if (brandId) conditions.push(eq(addresses.brandId, brandId));
+  if (q) {
+    const m = or(like(addresses.name, `%${q}%`), like(addresses.address, `%${q}%`));
+    if (m) conditions.push(m);
   }
-}
+  const where = conditions.length > 0 ? and(...conditions) : undefined;
+  const rows = await db
+    .select({
+      address: addresses,
+      // Spelled out: inside the subquery drizzle would print both ids unqualified.
+      stopCount: sql<number>`(SELECT COUNT(*) FROM "schedule_point" sp WHERE sp."address_id" = "address"."id")`,
+    })
+    .from(addresses)
+    .where(where)
+    .orderBy(asc(addresses.name))
+    .limit(limit ?? 1000)
+    .offset(offset);
+  const total = await db
+    .select({ n: sql<number>`count(*)` })
+    .from(addresses)
+    .where(where);
+  return Response.json({
+    items: rows.map((r) => ({ ...adminAddressOut(r.address), stopCount: Number(r.stopCount) })),
+    total: Number(total[0]?.n ?? 0),
+  });
+});
 
 interface AddressBody {
   brandId?: string;
@@ -68,38 +61,32 @@ interface AddressBody {
 }
 
 /** `POST /api/admin/addresses` — create an address in one of our cities. */
-export async function POST(req: Request) {
-  try {
-    const staff = await requireStaff(req);
-    await requirePermission(staff, "admin:addresses:write");
-    const body = await readJson<AddressBody>(req);
-    const { lat, lon } = optionalCoords(objectBody(body));
-    const brandId = String(body.brandId ?? "").trim();
-    const name = String(body.name ?? "").trim();
-    if (!brandId || !name) return err(400, "validation", "brandId and name are required");
-    const cityId = String(body.cityId ?? "").trim();
-    if (!cityId) return err(400, "validation", "cityId is required");
-    const city = findCity(cityId);
-    if (!city) return err(400, "validation", `cityId: unknown city ${JSON.stringify(cityId)}`);
-    const db = await getDb();
-    const id = crypto.randomUUID();
-    const now = new Date().toISOString();
-    await db.insert(addresses).values({
-      id,
-      brandId,
-      name,
-      address: body.address ?? null,
-      lat: lat ?? null,
-      lon: lon ?? null,
-      cityId: city.slug,
-      province: city.name,
-      district: body.district ?? null,
-      ward: body.ward ?? null,
-      createdAt: now,
-      updatedAt: now,
-    });
-    return Response.json({ id }, { status: 201 });
-  } catch (e) {
-    return handleRouteError(e);
-  }
-}
+export const POST = staffRoute("admin:addresses:write", async (req) => {
+  const body = await readJson<AddressBody>(req);
+  const { lat, lon } = optionalCoords(objectBody(body));
+  const brandId = String(body.brandId ?? "").trim();
+  const name = String(body.name ?? "").trim();
+  if (!brandId || !name) return err(400, "validation", "brandId and name are required");
+  const cityId = String(body.cityId ?? "").trim();
+  if (!cityId) return err(400, "validation", "cityId is required");
+  const city = findCity(cityId);
+  if (!city) return err(400, "validation", `cityId: unknown city ${JSON.stringify(cityId)}`);
+  const db = await getDb();
+  const id = crypto.randomUUID();
+  const now = new Date().toISOString();
+  await db.insert(addresses).values({
+    id,
+    brandId,
+    name,
+    address: body.address ?? null,
+    lat: lat ?? null,
+    lon: lon ?? null,
+    cityId: city.slug,
+    province: city.name,
+    district: body.district ?? null,
+    ward: body.ward ?? null,
+    createdAt: now,
+    updatedAt: now,
+  });
+  return Response.json({ id }, { status: 201 });
+});

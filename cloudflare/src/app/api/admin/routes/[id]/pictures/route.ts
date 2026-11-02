@@ -1,4 +1,4 @@
-import { handleRouteError, requireStaff } from "@/lib/api";
+import { handleRouteError, requireStaff, staffRoute } from "@/lib/api";
 import { requirePermission } from "@/lib/auth/rbac";
 import { badRequest, uuidParam } from "@/lib/services/http-errors";
 import {
@@ -15,14 +15,9 @@ const UPLOAD_BODY_LIMIT = MAX_PICTURE_BYTES + 64 * 1024;
 const MAX_ALT_BYTES = 255;
 
 /** `GET /api/admin/routes/{id}/pictures`. */
-export async function GET(req: Request, ctx: Params) {
-  try {
-    await requirePermission(await requireStaff(req), "admin:routes:read");
-    return Response.json(await listPictures(uuidParam("id", (await ctx.params).id) as string));
-  } catch (e) {
-    return handleRouteError(e);
-  }
-}
+export const GET = staffRoute<Params>("admin:routes:read", async (req, ctx) => {
+  return Response.json(await listPictures(uuidParam("id", (await ctx.params).id) as string));
+});
 
 /**
  * `POST /api/admin/routes/{id}/pictures` — multipart: `file` (exactly once)
@@ -63,12 +58,6 @@ export async function POST(req: Request, ctx: Params) {
 }
 
 /** `DELETE /api/admin/routes/{id}/pictures` — clear the gallery. */
-export async function DELETE(req: Request, ctx: Params) {
-  try {
-    const staff = await requireStaff(req);
-    await requirePermission(staff, "admin:routes:write");
-    return Response.json(await deleteAllPictures(uuidParam("id", (await ctx.params).id) as string));
-  } catch (e) {
-    return handleRouteError(e);
-  }
-}
+export const DELETE = staffRoute<Params>("admin:routes:write", async (req, ctx) => {
+  return Response.json(await deleteAllPictures(uuidParam("id", (await ctx.params).id) as string));
+});
