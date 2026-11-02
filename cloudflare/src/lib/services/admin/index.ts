@@ -11,3 +11,4 @@ export * from "./schedules";
 export * from "./vehicle-types";
 export * from "./bus-layouts";
 export * from "./campaigns";
+export * from "./coupons";

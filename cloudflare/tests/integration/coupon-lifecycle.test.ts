@@ -6,7 +6,9 @@ import migration4 from "../../migrations/0004_deep_callisto.sql?raw";
 import { setCloudflareContext } from "../helpers/context";
 import { applyMigrations } from "../helpers/migrate";
 import { getDb } from "@/lib/db/client";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
+import { rejectCoupon, settleCoupons } from "@/lib/services/admin";
+import { couponViews } from "@/lib/services/coupons";
 import { signAccessToken } from "@/lib/auth/jwt";
 import {
   cancelBooking,
@@ -20,6 +22,7 @@ import {
   bookings,
   busLayouts,
   coupons,
+  discountCampaignBrands,
   discountCampaigns,
   discountTiers,
   routes,
@@ -135,6 +138,10 @@ beforeAll(async () => {
     ["pool", "Pool 5"],
     ["pool", "Pool 6"],
     ["pool", "Pool 7"],
+    ["pool", "Pool 8"],
+    ["pool", "Pool 9"],
+    ["pool", "Pool 10"],
+    ["pool", "Pool 11"],
   ];
   for (const [slot, name] of defs) {
     const id = crypto.randomUUID();
@@ -554,6 +561,49 @@ describe("unique-index race guards (migration 0004)", () => {
         validUntil: daysFromNow(5),
         claimedAt: new Date().toISOString(),
       }),
+    );
+  });
+});
+
+describe("admin ledger writes", () => {
+  it("settles only what was asked: a malformed brandId is a 400, not every brand", async () => {
+    const id = await seedCoupon({ status: "redeemed" });
+    for (const body of [{ brandId: "" }, { brandId: 42 }, ["x"]]) {
+      await expect(settleCoupons(body)).rejects.toMatchObject({ status: 400 });
+    }
+    expect((await couponRow(id))?.status).toBe("redeemed");
+    expect((await settleCoupons({})).settled).toBeGreaterThanOrEqual(1);
+    expect((await couponRow(id))?.status).toBe("settled");
+  });
+
+  it("never turns a settled coupon into a rejection", async () => {
+    const id = await seedCoupon({ status: "settled" });
+    await expect(rejectCoupon(id, "fraud")).rejects.toMatchObject({ status: 409 });
+    expect((await couponRow(id))?.status).toBe("settled");
+    const redeemed = await seedCoupon({ status: "redeemed" });
+    await expect(rejectCoupon(redeemed, " ")).rejects.toMatchObject({ status: 400 });
+    expect((await rejectCoupon(redeemed, "fraud")).status).toBe("rejected");
+  });
+
+  it("keeps each brand's name with its id when a name has a comma", async () => {
+    const id = await seedCoupon({ status: "held", activeHolder: USER_ID });
+    const db = await getDb();
+    const campaignId = (await couponRow(id))!.campaignId;
+    const [a, b] = [crypto.randomUUID(), crypto.randomUUID()];
+    await db.insert(brands).values([
+      { id: a, slug: `a-${a.slice(0, 6)}`, name: "Phương Trang, Futa" },
+      { id: b, slug: `b-${b.slice(0, 6)}`, name: "Thành Bưởi" },
+    ]);
+    await db.insert(discountCampaignBrands).values([
+      { campaignId, brandId: a },
+      { campaignId, brandId: b },
+    ]);
+    const [view] = await couponViews(sql`c.id = ${id}`);
+    expect(new Map(view!.brands.map((x) => [x.id, x.name]))).toEqual(
+      new Map([
+        [a, "Phương Trang, Futa"],
+        [b, "Thành Bưởi"],
+      ]),
     );
   });
 });
