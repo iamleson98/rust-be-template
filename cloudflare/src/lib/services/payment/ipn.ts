@@ -3,7 +3,7 @@ import { getDb } from "@/lib/db/client";
 import { payments } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { ApiError } from "@/lib/auth/rbac";
-import { badRequest, notFound } from "../booking";
+import { badRequest, notFound } from "../http-errors";
 import { constantTimeEq, hmacHex, percentEncode } from "./codec";
 import { PaymentRow, isTerminal, paymentConfig } from "./config";
 import { completePayment, markFailed } from "./operations";

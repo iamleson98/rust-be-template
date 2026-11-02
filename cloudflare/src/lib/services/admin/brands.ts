@@ -11,9 +11,8 @@ import { getDb } from "@/lib/db/client";
 import { desc, eq } from "drizzle-orm";
 import { busLayouts, routes, brands } from "@/lib/db/schema";
 import { countOf, groupedCounts } from "@/lib/db/counts";
-import { ApiError } from "@/lib/auth/rbac";
 import { stripTones } from "@/lib/format";
-import { badRequest, notFound } from "../http-errors";
+import { badRequest, notFound, conflict } from "../http-errors";
 import {
   type Body,
   isRecord,
@@ -146,7 +145,7 @@ export async function createBrand(body: unknown): Promise<{ id: string; slug: st
     .from(brands)
     .where(eq(brands.slug, slug))
     .limit(1);
-  if (taken.length > 0) throw new ApiError(409, "conflict", "slug already exists");
+  if (taken.length > 0) throw conflict("slug already exists");
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
   await db.insert(brands).values({

@@ -1,5 +1,6 @@
 import { handleRouteError, requireUser, readJson } from "@/lib/api";
-import { badRequest, cancelBooking } from "@/lib/services/booking";
+import { cancelBooking } from "@/lib/services/booking";
+import { badRequest } from "@/lib/services/http-errors";
 
 /** `POST /api/bookings/{id}/cancel` — the seats go back on sale; paid money is refunded at the policy rate. */
 export async function POST(req: Request, ctx: { params: Promise<{ idOrCode: string }> }) {

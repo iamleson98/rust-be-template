@@ -1,7 +1,7 @@
 import { limitWrite } from "@/lib/rate-limit";
 import { handleRouteError, currentUser, readJson } from "@/lib/api";
 import { createPayment } from "@/lib/services/payment";
-import { badRequest } from "@/lib/services/booking";
+import { badRequest } from "@/lib/services/http-errors";
 
 /**
  * `POST /api/payments` — create a payment intent for a pending booking.

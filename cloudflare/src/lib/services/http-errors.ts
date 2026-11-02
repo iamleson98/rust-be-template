@@ -1,6 +1,5 @@
 /**
- * The Rust `AppError` kinds the chat/review/loyalty/media services raise,
- * as thrown `ApiError`s (status per `src/error.rs:106`).
+ * The Rust `AppError` kinds the services raise, as thrown `ApiError`s (status per `src/error.rs:106`).
  */
 import { ApiError } from "@/lib/auth/rbac";
 
@@ -8,6 +7,7 @@ export const badRequest = (message: string) => new ApiError(400, "validation", m
 export const forbidden = (message: string) => new ApiError(403, "forbidden", message);
 export const notFound = (message: string) => new ApiError(404, "not-found", message);
 export const conflict = (message: string) => new ApiError(409, "conflict", message);
+export const gone = (message: string) => new ApiError(410, "gone", message);
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

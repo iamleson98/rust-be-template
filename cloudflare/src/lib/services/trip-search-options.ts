@@ -3,9 +3,9 @@
  * `Filters` and `Options` in `trip_search.rs`, with the query-string reading
  * the two search handlers share (`routes/public.rs`).
  */
-import { ApiError } from "@/lib/auth/rbac";
 import { queryReader, type QueryReader } from "@/lib/query";
 import { minutesOf } from "./public-format";
+import { badRequest } from "./http-errors";
 
 /** "Plenty of seats" means more than this many left. */
 export const FEW_SEATS = 5;
@@ -48,8 +48,6 @@ export interface SearchOptions {
   departAfter: number | null;
   filters: Filters;
 }
-
-const badRequest = (message: string) => new ApiError(400, "validation", message);
 
 /** Comma-separated values, trimmed, blanks dropped. */
 function csv(value: string | undefined): string[] {

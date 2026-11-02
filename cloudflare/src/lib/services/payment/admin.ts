@@ -2,7 +2,7 @@
 import { getDb } from "@/lib/db/client";
 import { bookings, payments } from "@/lib/db/schema";
 import { and, desc, eq, sql } from "drizzle-orm";
-import { badRequest } from "../booking";
+import { badRequest } from "../http-errors";
 import { nowIso } from "./codec";
 import { STATUSES } from "./config";
 import { confirmPaidBooking, findPayment } from "./operations";

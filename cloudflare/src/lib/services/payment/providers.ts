@@ -1,6 +1,6 @@
 /** One function per provider that turns a payment into what the customer pays with: a gateway URL, an order, a QR or nothing (cash). */
 import { ApiError } from "@/lib/auth/rbac";
-import { badRequest } from "../booking";
+import { badRequest } from "../http-errors";
 import { buildMemo, buildVietQr, genTxnRef, hmacHex, percentEncode } from "./codec";
 import { PaymentConfig } from "./config";
 

@@ -12,7 +12,6 @@ import { and, eq, or, sql } from "drizzle-orm";
 import { getDb, inList } from "@/lib/db/client";
 import { routes, schedules, tripSessions } from "@/lib/db/schema";
 import { findCity, matchCitySlugs } from "@/lib/city-match";
-import { ApiError } from "@/lib/auth/rbac";
 import {
   buildCards,
   type Candidate,
@@ -30,6 +29,7 @@ import {
 import type { SearchOptions } from "./trip-search-options";
 import { localToday } from "./trip-time";
 import { fillInline, scheduleRunsOn } from "./trip-warmer";
+import { badRequest } from "./http-errors";
 
 /** Most trips of one day a city search considers. */
 const CITY_TRIP_CAP = 500;
@@ -182,8 +182,8 @@ export async function searchTrips(
 ): Promise<TripSearchResponse> {
   from = from.trim();
   to = to.trim();
-  if (!from) throw new ApiError(400, "validation", "missing departure location (from)");
-  if (!to) throw new ApiError(400, "validation", "missing arrival location (to)");
+  if (!from) throw badRequest("missing departure location (from)");
+  if (!to) throw badRequest("missing arrival location (to)");
   const found = await routesBetween(from, to);
   if (found.length === 0) return results([], opts);
 
