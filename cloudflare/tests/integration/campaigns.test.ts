@@ -509,7 +509,8 @@ describe("the public list", () => {
 
   it("an admin write clears it", async () => {
     const admin = await user("admin");
-    const { id } = await campaign({ name: "Trước" });
+    const startsAt = at(-3_600_000);
+    const { id } = await campaign({ name: "Trước", startsAt });
     expect((await listed(id))?.name).toBe("Trước");
 
     const { PATCH } = await import("../../src/app/api/admin/campaigns/[id]/route");
@@ -522,7 +523,7 @@ describe("the public list", () => {
         },
         body: JSON.stringify({
           name: "Sau",
-          startsAt: at(-3_600_000),
+          startsAt, // a running campaign keeps its start
           endsAt: at(7 * day),
           couponValidity: "campaign",
           allBrands: true,
@@ -572,5 +573,80 @@ describe("the public list", () => {
         "coupon_not_for_this_operator",
       ].sort(),
     );
+  });
+});
+
+describe("admin campaign edits", () => {
+  const send = async (id: string, body: Record<string, unknown>) => {
+    const admin = await user("admin");
+    const { PATCH } = await import("../../src/app/api/admin/campaigns/[id]/route");
+    const res = await PATCH(
+      new Request(`https://datxevui.com/api/admin/campaigns/${id}`, {
+        method: "PATCH",
+        headers: {
+          authorization: `Bearer ${await signAccessToken(admin)}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(body),
+      }),
+      { params: Promise.resolve({ id }) },
+    );
+    return { status: res.status, body: (await res.json()) as Record<string, unknown> };
+  };
+  const base = (startsAt: string) => ({
+    name: "Hè 2026",
+    startsAt,
+    endsAt: at(7 * day),
+    couponValidity: "campaign",
+    allBrands: true,
+  });
+
+  it("saves the description and keeps the tiers in the order sent", async () => {
+    const startsAt = at(day);
+    const { id, tierIds } = await campaign({ startsAt, tiers: [[50_000, 10]] });
+    const res = await send(id, {
+      ...base(startsAt),
+      description: "Giảm giá mùa hè",
+      tiers: [
+        { amount: 20_000, totalSlots: 5 },
+        { id: tierIds[0], amount: 50_000, totalSlots: 10 },
+      ],
+    });
+    expect(res.status).toBe(200);
+    const db = await getDb();
+    const [row] = await db.select().from(discountCampaigns).where(eq(discountCampaigns.id, id));
+    expect(row!.description).toBe("Giảm giá mùa hè");
+    expect((res.body.tiers as { amount: number }[]).map((t) => t.amount)).toEqual([20_000, 50_000]);
+  });
+
+  it("refuses amounts and slots the editor would refuse", async () => {
+    const startsAt = at(day);
+    const { id } = await campaign({ startsAt });
+    for (const tiers of [
+      [{ amount: -50_000, totalSlots: 10 }],
+      [{ amount: 50_500, totalSlots: 10 }],
+      [{ amount: "50000", totalSlots: 10 }],
+      [{ amount: 50_000, totalSlots: 0 }],
+      [
+        { amount: 50_000, totalSlots: 1 },
+        { amount: 50_000, totalSlots: 2 },
+      ],
+      [],
+    ]) {
+      expect((await send(id, { ...base(startsAt), tiers })).status).toBe(400);
+    }
+  });
+
+  it("keeps what customers hold: the start, a claimed tier's amount and the tier itself", async () => {
+    const startsAt = at(-3_600_000);
+    const { id, tierIds } = await campaign({ startsAt, tiers: [[50_000, 10]] });
+    await claimCoupon(await user(), null, id, tierIds[0]);
+    const tier = (amount: number) => [{ id: tierIds[0], amount, totalSlots: 10 }];
+    expect((await send(id, { ...base(at(0)), tiers: tier(50_000) })).status).toBe(400);
+    expect((await send(id, { ...base(startsAt), tiers: tier(60_000) })).status).toBe(400);
+    expect(
+      (await send(id, { ...base(startsAt), tiers: [{ amount: 60_000, totalSlots: 5 }] })).status,
+    ).toBe(400);
+    expect((await send(id, { ...base(startsAt), tiers: tier(50_000) })).status).toBe(200);
   });
 });

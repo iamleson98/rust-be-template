@@ -223,7 +223,7 @@ describe("enforceOrigin", () => {
 });
 
 describe("withSecurityHeaders", () => {
-  it("adds the four headers and keeps the body", async () => {
+  it("adds the security headers and keeps the body", async () => {
     const res = withSecurityHeaders(Response.json({ ok: true }));
     expect(res.headers.get("strict-transport-security")).toBe(
       "max-age=15552000; includeSubDomains",
@@ -231,6 +231,8 @@ describe("withSecurityHeaders", () => {
     expect(res.headers.get("x-content-type-options")).toBe("nosniff");
     expect(res.headers.get("x-frame-options")).toBe("DENY");
     expect(res.headers.get("referrer-policy")).toBe("strict-origin-when-cross-origin");
+    expect(res.headers.get("content-security-policy")).toContain("frame-ancestors 'none'");
+    expect(res.headers.get("permissions-policy")).toContain("microphone=(self)");
     expect(await res.json()).toEqual({ ok: true });
   });
 
@@ -257,6 +259,9 @@ describe("public JSON cache", () => {
     expect(isCacheablePublicRead(req("/api/stats"))).toBe(true);
     expect(isCacheablePublicRead(req("/api/routes?limit=5"))).toBe(true);
     expect(isCacheablePublicRead(req("/api/reviews/tags"))).toBe(true);
+    expect(isCacheablePublicRead(req("/api/reviews?brand_id=x"))).toBe(true);
+    expect(isCacheablePublicRead(req("/api/reviews/stats?brand_id=x"))).toBe(true);
+    expect(isCacheablePublicRead(req("/api/reviews", { method: "POST" }))).toBe(false);
     expect(isCacheablePublicRead(req("/api/recommendations"))).toBe(true);
     expect(isCacheablePublicRead(req("/api/brands", { method: "POST" }))).toBe(false);
     for (const p of [
@@ -370,6 +375,8 @@ describe("static files", () => {
     expect(headersFile).toContain("Strict-Transport-Security");
     expect(headersFile).toContain("X-Content-Type-Options: nosniff");
     expect(headersFile).toContain("Referrer-Policy: strict-origin-when-cross-origin");
+    expect(headersFile).toContain("Content-Security-Policy: base-uri 'self'");
+    expect(headersFile).toContain("Permissions-Policy: camera=()");
     expect(headersFile).toMatch(
       /\/fonts\/\*\n\s+Cache-Control: public,max-age=86400,stale-while-revalidate=604800/,
     );

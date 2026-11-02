@@ -176,6 +176,11 @@ const SECURITY_HEADERS: Record<string, string> = {
   "x-content-type-options": "nosniff",
   "x-frame-options": "DENY",
   "referrer-policy": "strict-origin-when-cross-origin",
+  // A floor any page meets, not a script allow-list: no plugins, no <base> hijack,
+  // never framed (the CSP form of X-Frame-Options, which modern browsers prefer).
+  "content-security-policy": "base-uri 'self'; object-src 'none'; frame-ancestors 'none'",
+  // The microphone (audio calls) and location (the map) for this site only; nothing else.
+  "permissions-policy": "camera=(), microphone=(self), geolocation=(self), payment=(), usb=()",
 };
 
 /** Adds the security headers a response does not already set itself. */
@@ -197,6 +202,8 @@ const CACHEABLE_PATHS = new Set([
   "/api/stats",
   "/api/routes",
   "/api/recommendations",
+  "/api/reviews",
+  "/api/reviews/stats",
   "/api/reviews/tags",
   // Place search: a repeated query never reaches the Worker's Next.js handler
   // or the VPS; the routes set how long (shorter for a fallback answer).

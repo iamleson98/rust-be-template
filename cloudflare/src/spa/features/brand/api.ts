@@ -1,5 +1,4 @@
 import { queryOptions, useQuery } from "@tanstack/react-query";
-import { CATALOG_QUERY } from "@spa/api/catalog-cache";
 import { client } from "@spa/api/generated/client.gen";
 
 /** One schedule of a route: a daily departure. Mirrors `services/brand-profile.ts`. */
@@ -86,7 +85,6 @@ export const brandProfileOptions = (slug: string) =>
       });
       return data as BrandProfile;
     },
-    ...CATALOG_QUERY,
     // Seats left move, so it waits only as long as the server's own cache does.
     staleTime: 60_000,
   });

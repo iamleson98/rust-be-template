@@ -19,7 +19,6 @@ import {
   tripSessions,
   vehicleTypes,
 } from "@/lib/db/schema";
-import { ApiError } from "@/lib/auth/rbac";
 import { findCity } from "@/lib/city-match";
 import {
   childPolicyOf,
@@ -42,8 +41,9 @@ import {
 import { isSellable, trustedPlan } from "./seat-plan";
 import { tripStops } from "./trip-stops";
 import { ensureSeats } from "./trip-warmer";
+import { notFound } from "./http-errors";
 
-const notFound = (what: string) => new ApiError(404, "not-found", `${what} not found`);
+const missing = (what: string) => notFound(`${what} not found`);
 
 /** The seats of one class on a trip, for the fare legend. */
 interface FareSummary {
@@ -75,11 +75,11 @@ function tripFares(classes: Map<string, FareSummary>, policy: ChildPolicy | null
 export async function tripDetail(tripId: string) {
   const db = await getDb();
   const trip = (await db.select().from(tripSessions).where(eq(tripSessions.id, tripId)))[0];
-  if (!trip) throw notFound("trip");
+  if (!trip) throw missing("trip");
   const schedule = (await db.select().from(schedules).where(eq(schedules.id, trip.scheduleId)))[0];
-  if (!schedule) throw notFound("schedule");
+  if (!schedule) throw missing("schedule");
   const route = (await db.select().from(routes).where(eq(routes.id, schedule.routeId)))[0];
-  if (!route) throw notFound("route");
+  if (!route) throw missing("route");
 
   const [brand, layout, vehicleType, pickups, timetable] = await Promise.all([
     route.brandId

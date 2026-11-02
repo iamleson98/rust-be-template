@@ -87,3 +87,21 @@ export function uuidParam(raw: string, field: string): string {
   const hex = raw.replaceAll("-", "").toLowerCase();
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
+
+/**
+ * `limit` and `offset` for a paged list, clamped: `limit` to `1..max` (the
+ * default when absent or unreadable), `offset` to `0..`. Lenient on purpose:
+ * a list should answer, not fail, for a stray `?limit=abc`.
+ */
+export function pageOf(
+  params: URLSearchParams,
+  { limit: fallback, max }: { limit: number; max: number },
+): { limit: number; offset: number } {
+  const int = (name: string) => Number.parseInt(params.get(name) ?? "", 10);
+  const limit = int("limit");
+  const offset = int("offset");
+  return {
+    limit: Number.isFinite(limit) ? Math.min(Math.max(limit, 1), max) : fallback,
+    offset: Number.isFinite(offset) ? Math.max(offset, 0) : 0,
+  };
+}

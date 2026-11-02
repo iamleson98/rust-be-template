@@ -26,6 +26,7 @@ import { useT } from "@spa/lib/i18n";
 import { cn } from "@spa/lib/utils";
 import { usePrefs } from "@spa/stores/prefs";
 import { isStaffUser, useSession } from "@spa/stores/session";
+import { personInitials } from "@spa/lib/text";
 
 export type ConsoleNavItem = {
   title: string;
@@ -45,17 +46,6 @@ function readCollapsed(): boolean {
   } catch {
     return false;
   }
-}
-
-function initialsOf(name: string | undefined): string {
-  const parts = (name ?? "").trim().split(/\s+/).filter(Boolean);
-  return (
-    parts
-      .map((p) => p[0])
-      .slice(-2)
-      .join("")
-      .toUpperCase() || "U"
-  );
 }
 
 /**
@@ -304,7 +294,7 @@ function AccountMenu({ variant }: { variant: "card" | "avatar" }) {
       >
         <Avatar className="size-8 shrink-0">
           <AvatarFallback className="bg-primary text-xs font-semibold text-primary-foreground">
-            {initialsOf(user.name)}
+            {personInitials(user.name, "U")}
           </AvatarFallback>
         </Avatar>
         {variant === "card" && (

@@ -1,8 +1,8 @@
-import { handleRouteError, currentUser, readJson } from "@/lib/api";
+import { handleRouteError, currentUser, readJson, type IdParams } from "@/lib/api";
 import { cancelPayment } from "@/lib/services/payment";
 
 /** `POST /api/payments/{id}/cancel` — cancel a pending payment (the booking stays). */
-export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
+export async function POST(req: Request, ctx: IdParams) {
   try {
     const { id } = await ctx.params;
     const user = await currentUser(req);

@@ -37,6 +37,7 @@ import type { UserOut } from "@spa/api";
 import { cn } from "@spa/lib/utils";
 import { getErrorMessage } from "@spa/lib/error-message";
 import { useT } from "@spa/lib/i18n";
+import { personInitials } from "@spa/lib/text";
 
 const PAGE_SIZE = 20;
 
@@ -53,15 +54,6 @@ const ROLE_BADGE: Record<string, string> = {
 };
 
 const columnHelper = createColumnHelper<DataTableFeatures, UserOut>();
-
-function initials(name: string): string {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0]!.toUpperCase())
-    .join("");
-}
 
 export function UsersPanel() {
   const me = useSession((s) => s.user);
@@ -109,7 +101,7 @@ export function UsersPanel() {
               <div className="flex items-center gap-2.5 min-w-0">
                 <Avatar className="h-8 w-8 shrink-0">
                   <AvatarFallback className="text-[11px] font-semibold bg-primary/10 text-primary">
-                    {u.isBot ? <Bot className="h-4 w-4" aria-hidden /> : initials(u.fullName)}
+                    {u.isBot ? <Bot className="h-4 w-4" aria-hidden /> : personInitials(u.fullName)}
                   </AvatarFallback>
                 </Avatar>
                 <div className="min-w-0">

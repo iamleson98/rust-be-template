@@ -1,9 +1,9 @@
-import { handleRouteError, requireUser } from "@/lib/api";
+import { handleRouteError, requireUser, type IdParams } from "@/lib/api";
 import { uuidParam } from "@/lib/services/http-errors";
 import { closeChannel } from "@/lib/services/chat";
 
 /** `POST /api/chat/channels/{id}/close` — staff closes the channel. */
-export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
+export async function POST(req: Request, ctx: IdParams) {
   try {
     const user = await requireUser(req);
     return Response.json(

@@ -9,7 +9,7 @@
 import { asc, eq, inArray } from "drizzle-orm";
 import { getDb } from "@/lib/db/client";
 import { addresses, pickupPoints, schedulePoints } from "@/lib/db/schema";
-import { ApiError } from "@/lib/auth/rbac";
+import { badRequest } from "./http-errors";
 
 /** One place on a trip's way. */
 export interface Stop {
@@ -94,8 +94,7 @@ export async function tripStops(routeId: string, scheduleId: string): Promise<St
   return stops;
 }
 
-const invalid = () =>
-  new ApiError(400, "validation", "choose a boarding stop and a later drop-off stop of this trip");
+const invalid = () => badRequest("choose a boarding stop and a later drop-off stop of this trip");
 
 /**
  * The boarding and alighting stops a booking asks for, checked against the

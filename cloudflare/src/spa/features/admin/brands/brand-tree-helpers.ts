@@ -11,6 +11,7 @@ import { tSync } from "@spa/lib/i18n";
  *  Called at render/compute time so VI/EN switches re-localize. */
 const L = (key: string, params?: Record<string, string | number>) => tSync(key, params);
 import type { AdminBrandOut, AdminRouteOut, AdminScheduleOut } from "@spa/api";
+import { noTones } from "@spa/lib/text";
 
 /** Sort-key labels — I18N KEYS (resolved by the consumer's `t`). */
 export type ScheduleSortKey = "departureTime" | "priceAdult" | "effectiveFrom";
@@ -28,27 +29,17 @@ export const SCHEDULE_SORT_LABELS: Record<ScheduleSortKey, string> = {
   effectiveFrom: "brands.sortEffective",
 };
 
-/** Case/diacritic-insensitive needle for Vietnamese brand searches. */
-function fold(s: string): string {
-  return s
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/đ/g, "d")
-    .trim();
-}
-
 /** True when the brand matches the free-text search box (name, slug or
  *  contact phone — same fields the legacy 3-panel page searched). */
 export function matchesBrandSearch(
   brand: Pick<AdminBrandOut, "name" | "slug" | "contactPhone">,
   q: string,
 ): boolean {
-  const needle = fold(q);
+  const needle = noTones(q);
   if (!needle) return true;
   return (
-    fold(brand.name).includes(needle) ||
-    fold(brand.slug).includes(needle) ||
+    noTones(brand.name).includes(needle) ||
+    noTones(brand.slug).includes(needle) ||
     (brand.contactPhone ?? "").replace(/\s/g, "").includes(needle.replace(/\s/g, ""))
   );
 }

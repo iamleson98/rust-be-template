@@ -5,6 +5,7 @@ import { tierView, useLoyalty } from "@spa/features/loyalty/api";
 import { formatNum } from "@spa/lib/format";
 import { useT } from "@spa/lib/i18n";
 import { useSession } from "@spa/stores/session";
+import { personInitials } from "@spa/lib/text";
 
 const GREETINGS = ["Morning", "Afternoon", "Evening"] as const;
 const greetingKey = (hour = new Date().getHours()) => GREETINGS[hour < 12 ? 0 : hour < 18 ? 1 : 2];
@@ -15,15 +16,7 @@ export function AccountHero() {
   const user = useSession((s) => s.user);
   const { data: loyalty } = useLoyalty();
   const { tier, nextTier, style, progress } = tierView(loyalty);
-  const initials =
-    (user?.name ?? "")
-      .trim()
-      .split(/\s+/)
-      .filter(Boolean)
-      .map((p) => p[0])
-      .slice(-2)
-      .join("")
-      .toUpperCase() || "U";
+  const initials = personInitials(user?.name, "U");
 
   return (
     <section className="relative overflow-hidden rounded-3xl bg-linear-to-br from-primary to-blue-500 p-5 text-white sm:p-6">

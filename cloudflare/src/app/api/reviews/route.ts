@@ -1,5 +1,6 @@
 import { limitWrite } from "@/lib/rate-limit";
 import { handleRouteError, requireUser, readJson } from "@/lib/api";
+import { publicJson } from "@/lib/public-cache";
 import { intParam, uuidParam } from "@/lib/services/http-errors";
 import {
   createReview,
@@ -12,7 +13,8 @@ import {
 export async function GET(req: Request) {
   try {
     const q = new URL(req.url).searchParams;
-    return Response.json(
+    return publicJson(
+      req,
       await listPublicReviews({
         brandId: uuidParam("brand_id", q.get("brand_id")),
         routeId: uuidParam("route_id", q.get("route_id")),

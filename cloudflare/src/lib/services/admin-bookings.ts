@@ -5,16 +5,13 @@
 import { getDb } from "@/lib/db/client";
 import { auditLog } from "@/lib/db/schema";
 import {
-  badRequest,
   cancelBookingRow,
   completeBooking,
-  conflict,
   confirmPending,
   departureOf,
   findBooking,
-  gone,
-  notFound,
 } from "./booking";
+import { badRequest, conflict, gone, notFound } from "./http-errors";
 import {
   bookingFacts,
   bookingView,

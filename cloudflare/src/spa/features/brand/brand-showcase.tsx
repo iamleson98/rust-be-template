@@ -8,11 +8,7 @@ import { ErrorState } from "@spa/components/error-state";
 import { HomeSection, RAIL, RailSkeleton } from "@spa/features/home/section";
 import { useT } from "@spa/lib/i18n";
 import { cn } from "@spa/lib/utils";
-
-const initials = (name: string) => {
-  const parts = name.trim().split(/\s+/);
-  return (parts.length >= 2 ? parts[0][0] + parts[1][0] : name.slice(0, 2)).toUpperCase();
-};
+import { brandInitials } from "@spa/lib/text";
 
 /** The operators on the platform, each card opening its page (routes, reviews). */
 export const BrandShowcase = memo(function BrandShowcase() {
@@ -55,7 +51,7 @@ export const BrandShowcase = memo(function BrandShowcase() {
                   decoding="async"
                 />
               ) : (
-                initials(brand.name)
+                brandInitials(brand.name)
               )}
             </span>
             <span className="min-w-0 flex-1">

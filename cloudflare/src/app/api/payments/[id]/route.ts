@@ -1,8 +1,8 @@
-import { handleRouteError, currentUser } from "@/lib/api";
+import { handleRouteError, currentUser, type IdParams } from "@/lib/api";
 import { getPayment } from "@/lib/services/payment";
 
 /** `GET /api/payments/{id}` — one payment; the caller must own its booking. */
-export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
+export async function GET(req: Request, ctx: IdParams) {
   try {
     const { id } = await ctx.params;
     const user = await currentUser(req);

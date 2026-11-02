@@ -11,7 +11,7 @@ import {
   discountCampaigns,
   discountTiers,
 } from "@/lib/db/schema";
-import { and, asc, eq, sql } from "drizzle-orm";
+import { asc, eq, sql } from "drizzle-orm";
 
 /** The `discount_campaign` row as drizzle selects it (snake_case source). */
 export type CampaignRow = typeof discountCampaigns.$inferSelect;
@@ -72,33 +72,27 @@ export async function campaignOut(id: string) {
   )[0];
   if (!c) return null;
 
-  const brandRows = await db
-    .select({ id: brands.id, name: brands.name, slug: brands.slug, logoUrl: brands.logoUrl })
-    .from(discountCampaignBrands)
-    .innerJoin(brands, eq(brands.id, discountCampaignBrands.brandId))
-    .where(eq(discountCampaignBrands.campaignId, id))
-    .orderBy(asc(brands.name));
-
-  const tierRows = await db
-    .select({
-      id: discountTiers.id,
-      amount: discountTiers.amount,
-      totalSlots: discountTiers.totalSlots,
-      claimedSlots: discountTiers.claimedSlots,
-    })
-    .from(discountTiers)
-    .where(eq(discountTiers.campaignId, id))
-    .orderBy(asc(discountTiers.position), asc(discountTiers.createdAt));
-
-  const budgetRows = await db
-    .select({
-      budget: sql<number>`COALESCE(SUM(${discountTiers.totalSlots} * ${discountTiers.amount}), 0)`,
-    })
-    .from(discountTiers)
-    .where(and(eq(discountTiers.campaignId, id)));
-  const budget = budgetRows[0]?.budget ?? 0;
-
-  const t = await couponTotals(id);
+  // Independent reads, in parallel; the budget follows from the tiers.
+  const [brandRows, tierRows, t] = await Promise.all([
+    db
+      .select({ id: brands.id, name: brands.name, slug: brands.slug, logoUrl: brands.logoUrl })
+      .from(discountCampaignBrands)
+      .innerJoin(brands, eq(brands.id, discountCampaignBrands.brandId))
+      .where(eq(discountCampaignBrands.campaignId, id))
+      .orderBy(asc(brands.name)),
+    db
+      .select({
+        id: discountTiers.id,
+        amount: discountTiers.amount,
+        totalSlots: discountTiers.totalSlots,
+        claimedSlots: discountTiers.claimedSlots,
+      })
+      .from(discountTiers)
+      .where(eq(discountTiers.campaignId, id))
+      .orderBy(asc(discountTiers.position), asc(discountTiers.createdAt)),
+    couponTotals(id),
+  ]);
+  const budget = tierRows.reduce((sum, r) => sum + r.totalSlots * r.amount, 0);
 
   return {
     id: c.id,

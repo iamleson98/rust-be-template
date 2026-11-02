@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import {
@@ -19,7 +19,6 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@spa/comp
 import { ScrollArea } from "@spa/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@spa/components/ui/tabs";
 import { BookingFlow } from "@spa/features/booking/flow/booking-flow";
-import { RouteScheduleMap } from "@spa/features/map/route-schedule-map";
 import { ReviewsList } from "@spa/features/reviews/reviews-list";
 import type { Slide } from "@spa/components/picture-slider";
 import { SeatMap } from "@spa/features/seat-plan";
@@ -37,6 +36,11 @@ import { TripDetailSkeleton } from "./trip-detail-skeleton";
 import { TripInfo } from "./trip-info";
 import { TripPictures } from "./trip-pictures";
 import { tripStops } from "./trip-stops";
+
+// Leaflet loads only when someone opens the route tab, not with every trip.
+const RouteScheduleMap = lazy(() =>
+  import("@spa/features/map/route-schedule-map").then((m) => ({ default: m.RouteScheduleMap })),
+);
 
 /** Seats one booking may hold. */
 const MAX_SEATS = 10;
@@ -274,23 +278,25 @@ function TripView({ detail }: { detail: TripDetail }) {
               </TabsContent>
 
               <TabsContent value="route" className="m-0 space-y-5 p-4">
-                <RouteScheduleMap
-                  // No road geometry: the map joins the stops in order, first to last.
-                  // Just the two cities only when the stops have no coordinates.
-                  geometry={
-                    located.length >= 2
-                      ? null
-                      : [
-                          [detail.from.lat, detail.from.lon],
-                          [detail.to.lat, detail.to.lon],
-                        ]
-                  }
-                  pickupPoints={mapStops}
-                  fromName={detail.from.name ?? ""}
-                  toName={detail.to.name ?? ""}
-                  fromCityId={detail.from.cityId}
-                  toCityId={detail.to.cityId}
-                />
+                <Suspense fallback={<div className="h-75 rounded-xl border bg-slate-50 md:h-95" />}>
+                  <RouteScheduleMap
+                    // No road geometry: the map joins the stops in order, first to last.
+                    // Just the two cities only when the stops have no coordinates.
+                    geometry={
+                      located.length >= 2
+                        ? null
+                        : [
+                            [detail.from.lat, detail.from.lon],
+                            [detail.to.lat, detail.to.lon],
+                          ]
+                    }
+                    pickupPoints={mapStops}
+                    fromName={detail.from.name ?? ""}
+                    toName={detail.to.name ?? ""}
+                    fromCityId={detail.from.cityId}
+                    toCityId={detail.to.cityId}
+                  />
+                </Suspense>
                 <StopTimeline
                   title={t("tripDetail.routeTimelineTitle")}
                   stops={stops}

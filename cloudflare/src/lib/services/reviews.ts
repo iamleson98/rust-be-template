@@ -7,7 +7,7 @@
  * approved reviews (an imported rating stays until the first one exists).
  */
 import { and, asc, count, desc, eq, inArray, like, or, sql, type SQL } from "drizzle-orm";
-import { getDb, type Database } from "@/lib/db/client";
+import { atomicBatch, getDb, type Database } from "@/lib/db/client";
 import { bookings, brands, reviews, routes, schedules, tripSessions } from "@/lib/db/schema";
 import { departureInstant, localToday } from "@/lib/services/trip-time";
 import { invalidateReviews } from "@/lib/services/lookups";
@@ -306,16 +306,16 @@ export async function reconcileBrandRatings(): Promise<number> {
       b.rating,
     ]),
   );
-  let corrected = 0;
-  for (const row of rows) {
-    if (!row.brandId || !stored.has(row.brandId)) continue;
+  const drifted = rows.flatMap((row) => {
+    if (!row.brandId || !stored.has(row.brandId)) return [];
     const avg = Number(row.sum) / row.n;
     const current = stored.get(row.brandId);
-    if (current !== null && current !== undefined && Math.abs(current - avg) < 1e-9) continue;
-    await db.update(brands).set({ rating: avg }).where(eq(brands.id, row.brandId));
-    corrected += 1;
-  }
-  return corrected;
+    if (current !== null && current !== undefined && Math.abs(current - avg) < 1e-9) return [];
+    return [db.update(brands).set({ rating: avg }).where(eq(brands.id, row.brandId))];
+  });
+  // One round trip per hundred brands instead of one per brand.
+  for (let i = 0; i < drifted.length; i += 100) await atomicBatch(drifted.slice(i, i + 100));
+  return drifted.length;
 }
 
 // ── Create / update / delete ────────────────────────────────────

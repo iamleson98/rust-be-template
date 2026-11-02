@@ -89,9 +89,11 @@ colo's Cache API costs D1 reads. So:
   footer nears the viewport (`useInView`), not on every page view.
 - **No polling while signed out.** `/api/auth/me` refreshes every 5 minutes only in a signed-in
   tab; an idle anonymous tab no longer costs a request every 2 minutes.
-- **Catalog reads trust their cache.** Brands, routes and the brand page use `CATALOG_QUERY`
-  (`refetchOnMount: true` with a stale time) instead of the global `"always"`, so moving between
-  pages does not ask again; staff edits still refresh them through their resource tags.
+- **Queries trust their cache.** A screen opened again within 30 s shows what it showed instead
+  of asking again (the global `refetchOnMount: "always"` used to ask on every mount); brands and
+  routes stay fresh for 5 minutes (`CATALOG_QUERY`). Staff edits still refresh them through their
+  resource tags, and a trip's seat map counts as current for 10 s, the window the search card's
+  hover prefetch uses.
 
 ## Checking the budget
 

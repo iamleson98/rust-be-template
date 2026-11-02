@@ -7,12 +7,18 @@
  *
  * Statuses: `pending` → `uploaded` | `error` (upload attempted),
  * `unconfigured` (no credentials), `skipped` (no click id behind it).
+ *
+ * The beacon is public (it fires after the session may have lapsed), so it
+ * is trusted for nothing but the click ids: a conversion must name a real
+ * booking by its code, a `purchase` needs a completed payment, and the value
+ * and currency are read from the database. A forged beacon can neither
+ * invent revenue for Google Ads nor write rows for bookings that do not exist.
  */
 import { getCloudflareContext } from "@opennextjs/cloudflare";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db/client";
-import { adConversions } from "@/lib/db/schema";
-import { badRequest } from "@/lib/services/http-errors";
+import { adConversions, bookings, payments } from "@/lib/db/schema";
+import { badRequest, notFound } from "@/lib/services/http-errors";
 
 type ConversionRow = typeof adConversions.$inferSelect;
 
@@ -24,10 +30,17 @@ type ConversionRow = typeof adConversions.$inferSelect;
 const DEFAULT_API_VERSION = "v21";
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
 
+/** The conversions the site reports: a booking held, a booking paid. */
+const EVENTS = ["booking", "purchase"] as const;
+type ConversionEvent = (typeof EVENTS)[number];
+
 export interface ReportConversionBody {
   event?: string;
+  /** The booking's code. */
   transactionId?: string | null;
+  /** Ignored: the value is read from the booking or its payment. */
   value?: string | null;
+  /** Ignored, like `value`. */
   currency?: string | null;
   clickIds?: { gclid?: string | null; wbraid?: string | null; gbraid?: string | null } | null;
 }
@@ -204,14 +217,46 @@ async function insertDeduped(
 }
 
 /** `POST /api/ads/conversions`. */
+/**
+ * What the conversion of `event` on booking `code` is worth, from the
+ * database; null when it did not happen (no such booking, a cancelled one,
+ * or a purchase with no completed payment).
+ */
+async function verifiedValue(
+  event: ConversionEvent,
+  code: string,
+): Promise<{ value: string; currency: string } | null> {
+  const db = await getDb();
+  const [booking] = await db
+    .select({
+      id: bookings.id,
+      total: bookings.total,
+      currency: bookings.currency,
+      status: bookings.status,
+    })
+    .from(bookings)
+    .where(eq(bookings.code, code))
+    .limit(1);
+  if (!booking || booking.status === "cancelled") return null;
+  if (event === "booking") return { value: String(booking.total), currency: booking.currency };
+  const [paid] = await db
+    .select({ amount: payments.amount, currency: payments.currency })
+    .from(payments)
+    .where(and(eq(payments.bookingId, booking.id), eq(payments.status, "completed")))
+    .orderBy(desc(payments.updatedAt))
+    .limit(1);
+  return paid ? { value: String(paid.amount), currency: paid.currency } : null;
+}
+
 export async function reportConversion(body: ReportConversionBody) {
-  const event = (body.event ?? "").trim().toLowerCase();
-  if (typeof body.event !== "string" || !event || new TextEncoder().encode(event).length > 32)
-    throw badRequest("event must be 1..=32 chars");
-  // No transaction id → mint one: an id-less conversion cannot be deduped.
-  const transactionId = body.transactionId?.trim() || crypto.randomUUID();
-  if (new TextEncoder().encode(transactionId).length > 128)
-    throw badRequest("transactionId must be 1..=128 chars");
+  const event = (typeof body.event === "string" ? body.event : "").trim().toLowerCase();
+  if (!EVENTS.includes(event as ConversionEvent))
+    throw badRequest(`event must be one of ${EVENTS.join(", ")}`);
+  const transactionId = typeof body.transactionId === "string" ? body.transactionId.trim() : "";
+  if (!transactionId || new TextEncoder().encode(transactionId).length > 128)
+    throw badRequest("transactionId must be a booking code");
+  const verified = await verifiedValue(event as ConversionEvent, transactionId);
+  if (!verified) throw notFound(`no ${event} for this booking`);
 
   const clickIds = body.clickIds ?? {};
   const { env, ctx } = await getCloudflareContext({ async: true });
@@ -220,8 +265,8 @@ export async function reportConversion(body: ReportConversionBody) {
   const { row, stored } = await insertDeduped({
     event,
     transactionId,
-    conversionValue: bounded(body.value, 32),
-    currency: bounded(body.currency, 8)?.toUpperCase() ?? null,
+    conversionValue: verified.value,
+    currency: verified.currency.toUpperCase(),
     gclid: bounded(clickIds.gclid, 1024),
     wbraid: bounded(clickIds.wbraid, 1024),
     gbraid: bounded(clickIds.gbraid, 1024),

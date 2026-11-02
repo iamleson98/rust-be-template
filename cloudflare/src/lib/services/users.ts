@@ -6,6 +6,7 @@ import { and, count, desc, eq, ne } from "drizzle-orm";
 import { getDb } from "@/lib/db/client";
 import { staffPresenceState, users } from "@/lib/db/schema";
 import { ApiError, replaceRole } from "@/lib/auth/rbac";
+import { conflict } from "./http-errors";
 
 export type UserRow = typeof users.$inferSelect;
 export const ROLE_NAMES = ["user", "employee", "admin"] as const;
@@ -95,7 +96,7 @@ export async function deleteUser(actorId: string, id: string): Promise<void> {
   const target = (await db.select().from(users).where(eq(users.id, id)).limit(1))[0];
   if (!target) return; // Rust: deleting an unknown id succeeds
   if (target.role === "admin" && !target.isBot && (await humanAdminCount()) <= 1) {
-    throw new ApiError(409, "conflict", "cannot delete the last admin");
+    throw conflict("cannot delete the last admin");
   }
   await db.delete(users).where(and(eq(users.id, id), ne(users.id, actorId)));
 }

@@ -21,7 +21,7 @@
  * Seat state machine: available → held → booked (→ available on release).
  * Booking statuses: pending → confirmed → completed; or cancelled.
  */
-import { getDb, rawAll, rawRun, atomicBatch, sqlIn, type Database } from "@/lib/db/client";
+import { atomicBatch, getDb, inList, rawAll, rawRun, sqlIn, type Database } from "@/lib/db/client";
 import {
   bookings,
   bookingSeats,
@@ -37,8 +37,7 @@ import {
   seats,
   tripSessions,
 } from "@/lib/db/schema";
-import { and, eq, inArray, sql } from "drizzle-orm";
-import { ApiError } from "@/lib/auth/rbac";
+import { and, eq, sql } from "drizzle-orm";
 import { brandPrefix, genBookingCode } from "@/lib/format";
 import { CAMPAIGN_CODES, couponBadRequest, couponConflict } from "./campaign-codes";
 import { findCity } from "@/lib/city-match";
@@ -53,6 +52,7 @@ import {
 import { chooseStops, snapshot, tripStops, type StopSnapshot } from "./trip-stops";
 import { departureInstant, localToday, refundPercent, rfc3339 } from "./trip-time";
 import { SELL_WINDOW_DAYS, ensureSeats } from "./trip-warmer";
+import { badRequest, conflict, forbidden, gone, notFound } from "./http-errors";
 
 // ── Constants ────────────────────────────────────────────────────
 
@@ -70,14 +70,6 @@ const SWEEP_MAX_PER_RUN = 200;
 const SWEEP_CHUNK = 20;
 
 type BookingRow = typeof bookings.$inferSelect;
-
-// ── Errors (statuses the SPA depends on; messages are Rust's) ────
-
-export const badRequest = (message: string) => new ApiError(400, "validation", message);
-export const notFound = (message: string) => new ApiError(404, "not-found", message);
-export const forbidden = (message: string) => new ApiError(403, "forbidden", message);
-export const conflict = (message: string) => new ApiError(409, "conflict", message);
-export const gone = (message: string) => new ApiError(410, "gone", message);
 
 // ── Pure helpers ─────────────────────────────────────────────────
 
@@ -297,6 +289,115 @@ async function releaseHeldSeats(db: Database, bookingId: string): Promise<void> 
     .run();
 }
 
+type TripContext = NonNullable<Awaited<ReturnType<typeof loadTripContext>>>;
+
+/** A trip that is cancelled, has left, or is past the sell window cannot be sold. */
+function assertOnSale({ trip, schedule }: TripContext): void {
+  if (trip.status === "cancelled") throw badRequest("trip is cancelled");
+  const departs = departureInstant(
+    trip.departureDate,
+    schedule.departureTime,
+    trip.actualDepartureAt,
+  );
+  if (departs && departs.getTime() <= Date.now()) throw badRequest("trip has already departed");
+  // The sell window IS the operator's booking horizon.
+  const daysOut = daysFromToday(trip.departureDate);
+  if (daysOut != null && daysOut > SELL_WINDOW_DAYS)
+    throw badRequest(`bookings open ${SELL_WINDOW_DAYS} days before departure`);
+}
+
+/** Where the passengers get on and off: the stops they chose, else the route's two cities. */
+async function bookingStops({ route, schedule }: TripContext, req: HoldRequest) {
+  const stops = await tripStops(route.id, schedule.id);
+  const chosen = chooseStops(stops, req.boardingPointId, req.droppingPointId);
+  const cityStop = (slug: string): StopSnapshot | null => {
+    const c = findCity(slug);
+    return c ? { name: c.name, address: null, lat: c.lat, lon: c.lon } : null;
+  };
+  return {
+    chosen,
+    pickup: chosen ? snapshot(chosen.on) : cityStop(route.startLocationId),
+    dropoff: chosen ? snapshot(chosen.off) : cityStop(route.endLocationId),
+  };
+}
+
+/**
+ * Each passenger with their seat's inventory row: the seat they name when
+ * every passenger names one, otherwise the seat at their position in
+ * `seatIds`. Every seat must exist on this trip and be on sale.
+ */
+async function seatPassengers(db: Database, tripId: string, req: HoldRequest) {
+  const requested = new Set(req.seatIds);
+  if (requested.size !== req.seatIds.length) throw badRequest("a seat is listed twice");
+  const invs = await db
+    .select()
+    .from(seatInventory)
+    .where(and(eq(seatInventory.tripSessionId, tripId), inList(seatInventory.seatId, req.seatIds)));
+  if (invs.length !== req.seatIds.length) throw badRequest("some seats not found or changed");
+  if (invs.some((s) => s.status !== "available"))
+    throw conflict("some seats are no longer available");
+
+  const invBySeat = new Map(invs.map((s) => [s.seatId, s]));
+  const named = req.passengers.every((p) => p.seatId != null);
+  const taken = new Set<string>();
+  return req.passengers.map((passenger, i) => {
+    const seat = named ? (passenger.seatId ?? req.seatIds[i]) : req.seatIds[i];
+    if (!requested.has(seat) || taken.has(seat))
+      throw badRequest("each passenger needs a different seat from seatIds");
+    taken.add(seat);
+    const inv = invBySeat.get(seat);
+    if (!inv) throw badRequest("some seats not found or changed");
+    return { passenger, inv };
+  });
+}
+
+/**
+ * The tickets: each passenger pays for their seat's class, at the child
+ * price when the brand sells child tickets and the age qualifies.
+ */
+async function priceTickets(
+  db: Database,
+  { schedule, brand }: TripContext,
+  seated: Awaited<ReturnType<typeof seatPassengers>>,
+): Promise<HoldSeat[]> {
+  const [seatRows, fareRows] = await Promise.all([
+    db
+      .select({ id: seats.id, label: seats.seatLabel, seatClass: seats.seatClass })
+      .from(seats)
+      .where(
+        inList(
+          seats.id,
+          seated.map((s) => s.inv.seatId),
+        ),
+      ),
+    db.select().from(scheduleFares).where(eq(scheduleFares.scheduleId, schedule.id)),
+  ]);
+  const seatById = new Map(seatRows.map((s) => [s.id, s]));
+  const table = fareTable(schedule, fareRows);
+  const policy = childPolicyOf(brand);
+  return seated.map(({ passenger, inv }) => {
+    const seat = seatById.get(inv.seatId);
+    const cls = seat ? classOf(seat) : "standard";
+    const age = passenger.age ?? null;
+    const t = age != null ? priceTicket(age, inv.finalPrice, fareOf(table, cls), policy) : null;
+    return {
+      seatId: inv.seatId,
+      seatCode: seat?.label ?? null,
+      seatClass: cls,
+      passengerName: passenger.name,
+      passengerAge: age,
+      passengerType: t?.kind ?? ("adult" as PassengerKind),
+      price: t?.price ?? inv.finalPrice,
+    };
+  });
+}
+
+/** Undo a hold that could not finish: the seats go back, the booking row goes. */
+async function undoHold(db: Database, bookingId: string): Promise<void> {
+  await releaseHeldSeats(db, bookingId);
+  await db.delete(bookings).where(eq(bookings.id, bookingId));
+}
+
 /** Lock seats + create a pending booking (10-minute hold, 20 for advance bookings). */
 export async function createBooking(userId: string, req: HoldRequest): Promise<HoldResult> {
   validateHoldRequest(req);
@@ -308,92 +409,15 @@ export async function createBooking(userId: string, req: HoldRequest): Promise<H
   const db = await getDb();
   const ctx = await loadTripContext(db, req.tripId);
   if (!ctx) throw notFound("trip not found");
+  assertOnSale(ctx);
   const { trip, schedule, route, brand } = ctx;
-  if (trip.status === "cancelled") throw badRequest("trip is cancelled");
 
-  // A trip that has left cannot be sold.
-  const departs = departureInstant(
-    trip.departureDate,
-    schedule.departureTime,
-    trip.actualDepartureAt,
-  );
-  if (departs && departs.getTime() <= Date.now()) throw badRequest("trip has already departed");
-
-  // The sell window IS the operator's booking horizon.
-  const daysOut = daysFromToday(trip.departureDate);
-  if (daysOut != null && daysOut > SELL_WINDOW_DAYS)
-    throw badRequest(`bookings open ${SELL_WINDOW_DAYS} days before departure`);
-
-  // Where the passengers get on and off, copied onto the booking.
-  const stops = await tripStops(route.id, schedule.id);
-  const chosen = chooseStops(stops, req.boardingPointId, req.droppingPointId);
-  const cityStop = (slug: string): StopSnapshot | null => {
-    const c = findCity(slug);
-    return c ? { name: c.name, address: null, lat: c.lat, lon: c.lon } : null;
-  };
-  const pickup = chosen ? snapshot(chosen.on) : cityStop(route.startLocationId);
-  const dropoff = chosen ? snapshot(chosen.off) : cityStop(route.endLocationId);
-
-  await ensureSeats(db, trip.id, schedule);
-
-  // Seat inventories: every requested seat must exist and be on sale.
-  const distinctIds = [...new Set(req.seatIds)];
-  const invs = await db
-    .select()
-    .from(seatInventory)
-    .where(
-      and(eq(seatInventory.tripSessionId, trip.id), inArray(seatInventory.seatId, distinctIds)),
-    );
-  if (invs.length !== req.seatIds.length) throw badRequest("some seats not found or changed");
-  if (invs.some((s) => s.status !== "available"))
-    throw conflict("some seats are no longer available");
-
-  // Pair each passenger with their seat: the seat they name when every
-  // passenger names one, otherwise the seat at their position in seatIds.
-  const requested = new Set(req.seatIds);
-  if (requested.size !== req.seatIds.length) throw badRequest("a seat is listed twice");
-  const invBySeat = new Map(invs.map((s) => [s.seatId, s]));
-  const named = req.passengers.every((p) => p.seatId != null);
-  const taken = new Set<string>();
-  const seated = req.passengers.map((passenger, i) => {
-    const seat = named ? (passenger.seatId ?? req.seatIds[i]) : req.seatIds[i];
-    if (!requested.has(seat) || taken.has(seat))
-      throw badRequest("each passenger needs a different seat from seatIds");
-    taken.add(seat);
-    const inv = invBySeat.get(seat);
-    if (!inv) throw badRequest("some seats not found or changed");
-    return { passenger, inv };
-  });
-
-  // Pricing: each passenger pays for their seat's class, at the child price
-  // when the brand sells child tickets and the age qualifies.
-  const seatRows = await db
-    .select({ id: seats.id, label: seats.seatLabel, seatClass: seats.seatClass })
-    .from(seats)
-    .where(inArray(seats.id, distinctIds));
-  const seatById = new Map(seatRows.map((s) => [s.id, s]));
-  const fareRows = await db
-    .select()
-    .from(scheduleFares)
-    .where(eq(scheduleFares.scheduleId, schedule.id));
-  const table = fareTable(schedule, fareRows);
-  const policy = childPolicyOf(brand);
-  const tickets = seated.map(({ passenger, inv }) => {
-    const seat = seatById.get(inv.seatId);
-    const cls = seat ? classOf(seat) : "standard";
-    const fare = fareOf(table, cls);
-    const age = passenger.age ?? null;
-    const t = age != null ? priceTicket(age, inv.finalPrice, fare, policy) : null;
-    return {
-      seatId: inv.seatId,
-      seatCode: seat?.label ?? null,
-      seatClass: cls,
-      passengerName: passenger.name,
-      passengerAge: age,
-      passengerType: t?.kind ?? ("adult" as PassengerKind),
-      price: t?.price ?? inv.finalPrice,
-    };
-  });
+  // Independent: the stop lookup, and creating the trip's seat rows on first sale.
+  const [{ chosen, pickup, dropoff }] = await Promise.all([
+    bookingStops(ctx, req),
+    ensureSeats(db, trip.id, schedule),
+  ]);
+  const tickets = await priceTickets(db, ctx, await seatPassengers(db, trip.id, req));
   const childCount = tickets.filter((t) => t.passengerType === "child").length;
   const adultCount = tickets.length - childCount;
   const subtotal = tickets.reduce((sum, t) => sum + t.price, 0);
@@ -466,9 +490,8 @@ export async function createBooking(userId: string, req: HoldRequest): Promise<H
       ),
     ]);
   } catch (e) {
-    // Line items failed — hand the seats back; the hold leaves NOTHING behind.
-    await releaseHeldSeats(db, bookingId);
-    await db.delete(bookings).where(eq(bookings.id, bookingId));
+    // Line items failed — the hold leaves NOTHING behind.
+    await undoHold(db, bookingId);
     throw e;
   }
 
@@ -482,8 +505,7 @@ export async function createBooking(userId: string, req: HoldRequest): Promise<H
          AND (valid_until IS NULL OR valid_until > ${now})
     `);
     if (reserved.meta.changes !== 1) {
-      await releaseHeldSeats(db, bookingId);
-      await db.delete(bookings).where(eq(bookings.id, bookingId));
+      await undoHold(db, bookingId);
       throw couponConflict(CAMPAIGN_CODES.UNAVAILABLE);
     }
   }
@@ -504,15 +526,7 @@ export async function createBooking(userId: string, req: HoldRequest): Promise<H
     fees,
     total,
     expiresAt,
-    seats: tickets.map((t) => ({
-      seatId: t.seatId,
-      seatCode: t.seatCode,
-      seatClass: t.seatClass,
-      passengerName: t.passengerName,
-      passengerType: t.passengerType,
-      passengerAge: t.passengerAge,
-      price: t.price,
-    })),
+    seats: tickets,
     couponId: req.couponId ?? null,
   };
 }

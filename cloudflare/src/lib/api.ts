@@ -2,9 +2,8 @@
  * API helpers — JSON envelope, error mapping, guards for route handlers.
  */
 import { INTERNAL_MESSAGE, errorResponse } from "./error-envelope";
-import { ApiError } from "./auth/rbac";
+import { ApiError, isAdmin, isStaff, requirePermission } from "./auth/rbac";
 import { accessTokenOf, currentUser, type SessionUser } from "./auth/session";
-import { isStaff } from "./auth/rbac";
 
 export { currentUser };
 export type { SessionUser };
@@ -54,6 +53,53 @@ export async function requireStaff(req: Request): Promise<SessionUser> {
   const user = await requireUser(req);
   if (!isStaff(user)) throw new ApiError(403, "forbidden", "staff access required");
   return user;
+}
+
+/** The context of a route with one `[id]` segment. */
+export type IdParams = { params: Promise<{ id: string }> };
+
+/** A route handler's arguments: the request, then the context only for a route that has one. */
+type RouteArgs<Ctx> = [Ctx] extends [undefined] ? [req: Request] : [req: Request, ctx: Ctx];
+
+/**
+ * A guarded route handler: `guard` checks the caller (and throws to refuse),
+ * then `handler` runs; whatever either throws becomes the error envelope.
+ */
+function guardedRoute<Ctx>(
+  guard: (req: Request) => Promise<SessionUser>,
+  handler: (req: Request, ctx: Ctx, user: SessionUser) => Promise<Response>,
+): (...args: RouteArgs<Ctx>) => Promise<Response> {
+  return async (...args) => {
+    const [req, ctx] = args as [Request, Ctx];
+    try {
+      return await handler(req, ctx, await guard(req));
+    } catch (e) {
+      return handleRouteError(e);
+    }
+  };
+}
+
+/** A route for staff holding `permission`. `Ctx` is the route's context (`{ params }`), if any. */
+export function staffRoute<Ctx = undefined>(
+  permission: string,
+  handler: (req: Request, ctx: Ctx, staff: SessionUser) => Promise<Response>,
+) {
+  return guardedRoute<Ctx>(async (req) => {
+    const staff = await requireStaff(req);
+    await requirePermission(staff, permission);
+    return staff;
+  }, handler);
+}
+
+/** A route for admins only (money and system operations). */
+export function adminRoute<Ctx = undefined>(
+  handler: (req: Request, ctx: Ctx, admin: SessionUser) => Promise<Response>,
+) {
+  return guardedRoute<Ctx>(async (req) => {
+    const staff = await requireStaff(req);
+    if (!isAdmin(staff)) throw new ApiError(403, "forbidden", "admin access required");
+    return staff;
+  }, handler);
 }
 
 export function clientIp(req: Request): string {

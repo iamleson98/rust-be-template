@@ -1,4 +1,4 @@
-import { handleRouteError, readJson, requireUser } from "@/lib/api";
+import { handleRouteError, readJson, requireUser, type IdParams } from "@/lib/api";
 import { ApiError, requirePermission } from "@/lib/auth/rbac";
 import { asObject, str } from "@/lib/auth/validation";
 import {
@@ -14,7 +14,7 @@ import {
  * held by admins only). Same order as Rust: the role is validated before the
  * permission is checked.
  */
-export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
+export async function PATCH(req: Request, ctx: IdParams) {
   try {
     const caller = await requireUser(req);
     const { id } = await ctx.params;

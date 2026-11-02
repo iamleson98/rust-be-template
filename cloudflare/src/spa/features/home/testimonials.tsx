@@ -6,13 +6,7 @@ import { formatDay } from "@spa/lib/format";
 import { useT } from "@spa/lib/i18n";
 import { cn } from "@spa/lib/utils";
 import { HomeSection, RAIL, RailSkeleton } from "./section";
-
-const initials = (name: string) => {
-  const parts = name.trim().split(/\s+/);
-  return (
-    parts.length >= 2 ? parts.at(-2)![0] + parts.at(-1)![0] : (parts[0]?.[0] ?? "?")
-  ).toUpperCase();
-};
+import { personInitials } from "@spa/lib/text";
 
 /**
  * The latest real reviews (`GET /api/reviews`); nothing at all while there
@@ -68,7 +62,7 @@ export const Testimonials = memo(function Testimonials() {
                   className="grid size-9 shrink-0 place-items-center rounded-full bg-primary/10 text-xs font-bold text-primary"
                   aria-hidden
                 >
-                  {initials(author)}
+                  {personInitials(author)}
                 </span>
                 <span className="min-w-0">
                   <span className="block truncate text-sm font-semibold text-slate-900">
