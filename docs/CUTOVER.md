@@ -62,13 +62,22 @@ T-7d to T-2d:
    report (below). Run the parity harness against `staging.datxevui.com`.
 4. 24 h soak on staging: `systemctl status datxevui` memory stays under
    `MemoryHigh`, no 5xx, `datxevui-places.service` completes inside its
-   800M cap, `datxevui-backup.timer` produces archives and uploads them.
+   1200M cap (see the memory gate below), `datxevui-backup.timer` produces
+   archives and uploads them.
    Restore one backup into a scratch file and compare table counts.
-5. Rehearse the rollback once.
-6. Confirm in the Cloudflare dashboard that no "Cache Everything" rule exists
+5. Memory gate: run `sudo systemctl start datxevui-places.service` on the
+   VPS with the release build and read the peak
+   (`systemctl show datxevui-places -p MemoryPeak`, or `/usr/bin/time -v`
+   around `datxevui places-build --force`). The only figure so far is 665 MB
+   from a debug build on macOS. The unit allows 1200M (high 1000M); if the
+   Linux release peak exceeds 900M, raise the caps and re-check the memory
+   table in `deploy/vps/README.md` against free RAM (~2.7 GB available).
+   Do not cut over before this number is recorded.
+6. Rehearse the rollback once.
+7. Confirm in the Cloudflare dashboard that no "Cache Everything" rule exists
    for the zone (it would cache cookie-bearing HTML) and that no page rule
    or cache rule matches `/api/*`.
-7. Publish the legacy assets once (see the header of
+8. Publish the legacy assets once (see the header of
    `.github/workflows/release-vps.yml`), then tag the release that is going
    live, so the box already runs it and serves `/_next/static`.
 

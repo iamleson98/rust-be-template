@@ -18,10 +18,13 @@ Environment=DATABASE_URL=sqlite:///var/lib/datxevui/app.db?mode=rwc
 Environment=PLACES_DIR=/var/lib/datxevui/places
 Environment=RUST_LOG=info
 EnvironmentFile=/etc/datxevui/env
-# The extractor peaks around 610 MB. Capped well below the app so that if the
-# box ever runs out, this unit is the one the kernel kills.
-MemoryHigh=700M
-MemoryMax=800M
+# Peak RSS measured so far: 665 MB, from a debug build on macOS. A Linux
+# release build has not been measured yet; that measurement is a cutover gate
+# (docs/CUTOVER.md), so the cap leaves ~80% headroom over the only number we
+# have. Still capped below the app (1300M) so that if the box ever runs out,
+# this unit is the one the kernel kills.
+MemoryHigh=1000M
+MemoryMax=1200M
 OOMScoreAdjust=500
 TasksMax=128
 TimeoutStartSec=2h

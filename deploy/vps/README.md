@@ -10,7 +10,7 @@ stack, is for other hosts; this one does not use it.)
 | File | Installed as | Job |
 |---|---|---|
 | `datxevui.service` | `/etc/systemd/system/` | The app: dedicated user, sandboxed, `MemoryHigh=900M` / `MemoryMax=1300M`, restarts on failure. |
-| `datxevui-places.service` + `.timer` | same | Weekly (Mon 03:30 ICT) `datxevui places-build`: new place-index generation. `MemoryMax=800M`, `Nice=19`, idle I/O, `CPUWeight=10`. The app picks up the new generation within a minute; no restart. |
+| `datxevui-places.service` + `.timer` | same | Weekly (Mon 03:30 ICT) `datxevui places-build`: new place-index generation. `MemoryHigh=1000M` / `MemoryMax=1200M`, `Nice=19`, idle I/O, `CPUWeight=10`. The app picks up the new generation within a minute; no restart. |
 | `datxevui-backup.service` + `.timer` | same | Every 6 h: `VACUUM INTO` a snapshot, integrity check, gzip, prune, upload to S3. |
 | `datxevui-update.service` + `.timer` | same | Every 5 min: install the newest signed release, if any. |
 | `backup.sh` | `/usr/local/sbin/datxevui-backup` | What the backup unit runs (`--local-only` skips the upload). |
@@ -31,7 +31,9 @@ journalctl -u datxevui -f
 
 `bootstrap.sh` refuses to continue if something else already listens on
 8080 (check `ss -ltnup` first), installs `sqlite3` and `rclone`, and sets the
-host timezone to Asia/Ho_Chi_Minh (the timers use host time). It never
+host timezone to Asia/Ho_Chi_Minh (the timers use host time, so
+`OnCalendar=Mon *-*-* 03:30:00` in `datxevui-places.timer` is 03:30 ICT; check
+with `timedatectl` and `systemctl list-timers 'datxevui-*'`). It never
 opens a port and leaves k3s's firewall rules alone.
 
 ## Layout on the box
@@ -74,6 +76,22 @@ step 2 (below). Install or roll back a specific tag by hand with
 `sudo datxevui-update v1.2.0`; an installed or failed tag is retried only
 when named explicitly. The three newest releases are kept.
 
+## Rolling back the place index
+
+`places/current` is a symlink to `gen-<timestamp>`; the two newest
+generations are kept. A bad generation is undone by pointing the link back,
+atomically (the app notices within a minute, no restart):
+
+```bash
+cd /var/lib/datxevui/places
+ls -d gen-*                                   # newest last; pick the old one
+sudo -u datxevui ln -sfn gen-<old> current.new && sudo -u datxevui mv -T current.new current
+```
+
+`places-build` fsyncs the generation directory and the parent directory
+after both renames, so a power cut cannot leave `current` pointing at a
+generation that was not durably written.
+
 ## Backups
 
 `datxevui-backup` writes `app-<UTC stamp>.db.gz` into
@@ -110,9 +128,11 @@ sudo systemctl start datxevui
 | quiz pod | <= 256 MB | pod limit |
 | cloudflared | ~40 MB | none |
 | datxevui | ~500 MB | high 900M, max 1300M |
-| place build (Mon 03:30, ~1 min) | ~610 MB peak | high 700M, max 800M, killed first |
+| place build (Mon 03:30, ~1 min) | 665 MB peak (debug, macOS; Linux release not yet measured) | high 1000M, max 1200M, killed first |
 
-The place build runs in its own cgroup, so it never counts against the app's
+Peak figures: the place build's is a debug build on macOS; the cutover gate
+in `docs/CUTOVER.md` replaces it with a Linux release measurement and the
+caps follow it. The place build runs in its own cgroup, so it never counts against the app's
 limit; at its peak the total can touch swap, which is why it runs at idle
 priority in the quietest hour. On a 4 GB box raise the app to 1500M / 2G.
 Hardening notes: no syscall filter or `MemoryDenyWriteExecute` is set because

@@ -27,7 +27,7 @@ free -m
 if [ "$mem_mb" -lt 1700 ]; then
   echo "WARNING: ${mem_mb} MB of RAM. The limits in datxevui.service assume 2 GB; lower MemoryHigh/MemoryMax first." >&2
 fi
-# The weekly place build peaks near 610 MB: swap absorbs it instead of the OOM killer.
+# The weekly place build peaks near 665 MB (debug build, macOS; see docs/CUTOVER.md): swap absorbs it instead of the OOM killer.
 if [ -z "$(swapon --show --noheadings)" ]; then
   echo "no swap: creating /swapfile (1 GiB)"
   fallocate -l 1G /swapfile
