@@ -61,6 +61,31 @@ impl ClientIpSource {
     }
 }
 
+/// Warns at boot about the one setting that silently weakens per-IP limits:
+/// `xff` while the listener is bound to loopback. Then every peer is a
+/// same-host proxy (`cloudflared`), whose `X-Forwarded-For` Cloudflare
+/// appends to a client-supplied list, so visitors can pick their own bucket;
+/// `cf-connecting-ip` is the mode for that deployment.
+pub fn warn_if_xff_behind_loopback(source: ClientIpSource, bind_host: &str) {
+    if xff_behind_loopback(source, bind_host) {
+        tracing::warn!(
+            bind = bind_host,
+            "CLIENT_IP_SOURCE=xff but the server listens on loopback only, so every \
+             connection comes from a local proxy; if that is cloudflared, set \
+             CLIENT_IP_SOURCE={CLIENT_IP_SOURCE_CF} (X-Forwarded-For is client-forgeable there)"
+        );
+    }
+}
+
+fn xff_behind_loopback(source: ClientIpSource, bind_host: &str) -> bool {
+    source == ClientIpSource::Xff
+        && (bind_host == "localhost"
+            || bind_host
+                .trim_matches(['[', ']'])
+                .parse::<IpAddr>()
+                .is_ok_and(|ip| ip.to_canonical().is_loopback()))
+}
+
 /// Deletes the forwarding headers this deployment cannot trust, so everything
 /// downstream may read them as given. A no-op in `xff` mode; in
 /// `cf-connecting-ip` mode `X-Forwarded-For` always goes (forgeable through
@@ -256,6 +281,18 @@ mod tests {
 
     fn ip(s: &str) -> IpAddr {
         s.parse().unwrap()
+    }
+
+    #[test]
+    fn xff_on_a_loopback_listener_is_flagged() {
+        use ClientIpSource::{CfConnectingIp, Xff};
+        for host in ["127.0.0.1", "127.0.0.2", "::1", "[::1]", "localhost"] {
+            assert!(xff_behind_loopback(Xff, host), "{host}");
+            assert!(!xff_behind_loopback(CfConnectingIp, host), "{host}");
+        }
+        for host in ["0.0.0.0", "::", "10.0.0.5", "203.0.113.7", "example.com"] {
+            assert!(!xff_behind_loopback(Xff, host), "{host}");
+        }
     }
 
     /// XFF with spoofed padding at the front: `[spoof, real, caddy]`,

@@ -29,7 +29,9 @@ use tower_http::trace::TraceLayer;
 use utoipa::OpenApi;
 
 use crate::middleware::anti_scraping;
-use crate::middleware::client_ip::{trusted_forwarding_headers, ClientIpSource};
+use crate::middleware::client_ip::{
+    trusted_forwarding_headers, warn_if_xff_behind_loopback, ClientIpSource,
+};
 use crate::middleware::public_cache::{public_read_cache, PublicReadCache};
 use crate::middleware::rate_limit::{rate_limit, RateLimits};
 use crate::middleware::request_id::request_id_layer;
@@ -144,6 +146,7 @@ pub fn build_router(state: AppState) -> Router<()> {
 
     let rate_limits = std::sync::Arc::new(RateLimits::new(&state.config.rate_limit));
     let client_ip_source = ClientIpSource::from_config(&state.config.server.client_ip_source);
+    warn_if_xff_behind_loopback(client_ip_source, &state.config.server.host);
 
     // ---- Swagger UI -----------------------------------------------------
     // SEC-2026-SW: Swagger + /api-docs/openapi.json are full API maps
