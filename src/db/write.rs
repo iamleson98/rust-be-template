@@ -39,7 +39,7 @@ use sea_orm::{
     RuntimeErr, Statement,
 };
 use sea_query_binder::SqlxValues;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, MutexGuard};
 
 use crate::store::{StoreError, StoreResult};
 
@@ -87,32 +87,52 @@ pub fn write_stats() -> WriteStats {
     }
 }
 
-/// Serializes `COMMIT`s of concurrent transactions within the process.
+/// The in-process queue for SQLite's write lock.
 ///
 /// A commit needs SQLite's write lock for a short moment. Left to
-/// SQLite's busy handler, many committers poll for it with sleeps and
-/// the unlucky ones time out; queueing them here hands the lock over in
-/// order instead. It is held only for the `COMMIT` statement, never
-/// while a body runs, and only by `BEGIN CONCURRENT` transactions: a
-/// `BEGIN IMMEDIATE` transaction already owns SQLite's write lock, so
-/// making it queue here while a queued committer waits for that very lock
-/// would deadlock until the busy timeout.
+/// SQLite's busy handler, writers poll for it with sleeps (up to 100 ms
+/// apart) and the unlucky ones time out; queueing them here hands the lock
+/// over in order instead (tokio's mutex is FIFO).
+///
+/// * A `BEGIN CONCURRENT` transaction takes it only for its `COMMIT`
+///   statement, never while the body runs.
+/// * A `BEGIN IMMEDIATE` transaction takes it BEFORE `BEGIN IMMEDIATE`
+///   and keeps it until commit or rollback. It then owns the queue as
+///   well as SQLite's lock, so it is not left polling against a stream of
+///   queued committers (starvation), and no committer can hold the queue
+///   while waiting for a lock the IMMEDIATE transaction owns (deadlock).
+///
+/// Every transaction therefore acquires queue first, SQLite lock second;
+/// that single order cannot form a cycle.
 static COMMIT_LOCK: Mutex<()> = Mutex::const_new(());
 
 /// A write transaction on one pooled connection. Implements sea-orm's
 /// [`ConnectionTrait`], so entities, `Query` builders and raw statements
 /// run on it exactly as they do on a `DatabaseTransaction`.
 pub struct ConcurrentTx {
+    // Field order matters: on a plain drop the transaction (whose rollback
+    // is queued on its connection) goes before the queue turn is released.
     tx: Mutex<Transaction<'static, Sqlite>>,
+    /// Held from before `BEGIN IMMEDIATE` until the transaction ends;
+    /// `None` for `BEGIN CONCURRENT`, which queues only at commit.
+    turn: Option<MutexGuard<'static, ()>>,
     mode: BeginMode,
 }
 
 impl ConcurrentTx {
     /// Check out a connection and start a transaction in `mode`.
+    ///
+    /// An `Immediate` transaction first waits its turn in the write queue
+    /// (see [`COMMIT_LOCK`]).
     pub async fn begin(pool: &SqlitePool, mode: BeginMode) -> Result<Self, DbErr> {
+        let turn = match mode {
+            BeginMode::Immediate => Some(COMMIT_LOCK.lock().await),
+            BeginMode::Concurrent => None,
+        };
         let tx = pool.begin_with(mode.statement()).await.map_err(exec_err)?;
         Ok(Self {
             tx: Mutex::new(tx),
+            turn,
             mode,
         })
     }
@@ -120,19 +140,27 @@ impl ConcurrentTx {
     /// Commit. On a conflict (`SQLITE_BUSY_SNAPSHOT`) the transaction is
     /// rolled back and the error returned.
     pub async fn commit(self) -> Result<(), DbErr> {
-        let tx = self.tx.into_inner();
+        let Self { tx, turn, .. } = self;
         // Dropping an uncommitted sqlx transaction rolls it back, which
         // is what the failure path needs.
-        let _commit_turn = match self.mode {
-            BeginMode::Concurrent => Some(COMMIT_LOCK.lock().await),
-            BeginMode::Immediate => None,
+        let _turn = match turn {
+            Some(turn) => turn,
+            None => COMMIT_LOCK.lock().await,
         };
-        tx.commit().await.map_err(exec_err)
+        tx.into_inner().commit().await.map_err(exec_err)
+    }
+
+    /// How this transaction was started.
+    pub fn mode(&self) -> BeginMode {
+        self.mode
     }
 
     /// Roll back, discarding every change.
     pub async fn rollback(self) -> Result<(), DbErr> {
-        self.tx.into_inner().rollback().await.map_err(exec_err)
+        let Self { tx, turn, .. } = self;
+        let outcome = tx.into_inner().rollback().await.map_err(exec_err);
+        drop(turn);
+        outcome
     }
 }
 
@@ -371,17 +399,98 @@ mod tests {
         assert_eq!((count(&db, "t1").await, count(&db, "t2").await), (1, 1));
 
         // The contrast: with BEGIN IMMEDIATE the second writer cannot
-        // even start while the first holds the write lock.
+        // even start while the first holds the write lock. (A raw pooled
+        // connection shows SQLite's own refusal; `ConcurrentTx::begin`
+        // would instead queue behind the first writer's turn.)
         let first = ConcurrentTx::begin(pool, BeginMode::Immediate)
             .await
             .expect("first immediate writer");
-        let second = ConcurrentTx::begin(pool, BeginMode::Immediate).await;
-        let err = second.err().expect("second immediate writer must fail");
+        let err = pool
+            .begin_with("BEGIN IMMEDIATE")
+            .await
+            .err()
+            .expect("second immediate writer must fail");
         assert!(
-            matches!(StoreError::from(err), StoreError::Busy(_)),
+            matches!(
+                StoreError::from(DbErr::Exec(RuntimeErr::SqlxError(err))),
+                StoreError::Busy(_)
+            ),
             "expected a lock error"
         );
         first.rollback().await.expect("rollback");
+    }
+
+    #[tokio::test]
+    async fn immediate_writers_take_turns_instead_of_polling() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let db = wal_db(&dir, Duration::from_secs(5), 4).await;
+        let pool = db.get_sqlite_connection_pool();
+
+        let first = ConcurrentTx::begin(pool, BeginMode::Immediate)
+            .await
+            .expect("first immediate writer");
+        let queued = {
+            let pool = pool.clone();
+            tokio::spawn(async move { ConcurrentTx::begin(&pool, BeginMode::Immediate).await })
+        };
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        assert!(
+            !queued.is_finished(),
+            "must wait for the first writer's turn"
+        );
+        first.rollback().await.expect("rollback");
+        let second = tokio::time::timeout(Duration::from_secs(2), queued)
+            .await
+            .expect("woken as soon as the first writer ended")
+            .expect("task")
+            .expect("second immediate writer");
+        second.rollback().await.expect("rollback");
+    }
+
+    /// The deadlock the queue order fixes, and the starvation it prevents:
+    /// an IMMEDIATE transaction holds SQLite's write lock while a
+    /// concurrent-mode committer is already waiting to commit. The
+    /// committer must queue behind it (not sit on the queue polling for a
+    /// lock the IMMEDIATE transaction owns), and both must then finish.
+    #[tokio::test]
+    async fn a_concurrent_commit_and_an_immediate_transaction_finish_in_turn() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        // The 5 s busy timeout is far above the bound below: finishing
+        // inside it proves nobody waited on SQLite's busy handler.
+        let db = wal_db(&dir, Duration::from_secs(5), 4).await;
+        let pool = db.get_sqlite_connection_pool();
+
+        let b = ConcurrentTx::begin(pool, BeginMode::Concurrent)
+            .await
+            .expect("begin B");
+        b.execute_unprepared("INSERT INTO t2 (v) VALUES (2)")
+            .await
+            .expect("B inserts");
+        let a = ConcurrentTx::begin(pool, BeginMode::Immediate)
+            .await
+            .expect("begin A");
+        a.execute_unprepared("INSERT INTO t1 (v) VALUES (1)")
+            .await
+            .expect("A inserts");
+
+        let b_commit = tokio::spawn(b.commit());
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        assert!(
+            !b_commit.is_finished(),
+            "B committed (or failed) while A held the write lock"
+        );
+
+        let bound = Duration::from_secs(2);
+        tokio::time::timeout(bound, a.commit())
+            .await
+            .expect("A starved or deadlocked")
+            .expect("A commits");
+        tokio::time::timeout(bound, b_commit)
+            .await
+            .expect("B starved or deadlocked")
+            .expect("task")
+            .expect("B commits after A");
+        assert_eq!((count(&db, "t1").await, count(&db, "t2").await), (1, 1));
     }
 
     #[tokio::test]
