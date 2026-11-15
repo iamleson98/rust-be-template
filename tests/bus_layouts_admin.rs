@@ -183,7 +183,7 @@ async fn bus_layout_create_generates_seats_and_drives_trip_capacity() -> anyhow:
         .await?;
 
     // The list must expose the layout with the COMPUTED seat count.
-    let list = st.admin.list_bus_layouts(None, Some(50), 0).await?;
+    let list = st.admin.list_bus_layouts(None, false, Some(50), 0).await?;
     let item = list
         .items
         .iter()
@@ -214,8 +214,8 @@ async fn bus_layout_create_generates_seats_and_drives_trip_capacity() -> anyhow:
             effective_from: None,
             effective_to: None,
             days_of_week: Some("1111111".into()),
-            bus_layout_id: Some(created.id),
-            vehicle_type_id: Some(vt_id),
+            bus_layout_id: Some(Some(created.id)),
+            vehicle_type_id: Some(Some(vt_id)),
             base_price_adult: Some(180_000),
             base_price_child: None,
             class_fares: None,
@@ -295,7 +295,7 @@ async fn bus_layout_update_patches_metadata_and_unreferenced_delete_works() -> a
         )
         .await?;
 
-    let list = st.admin.list_bus_layouts(None, Some(50), 0).await?;
+    let list = st.admin.list_bus_layouts(None, false, Some(50), 0).await?;
     let item = list
         .items
         .iter()
@@ -327,7 +327,7 @@ async fn bus_layout_update_patches_metadata_and_unreferenced_delete_works() -> a
     // Unreferenced layout (no schedule, no trips, no tickets) deletes
     // cleanly — its generated seats cascade away with it.
     st.admin.delete_bus_layout(created.id).await?;
-    let list = st.admin.list_bus_layouts(None, Some(50), 0).await?;
+    let list = st.admin.list_bus_layouts(None, false, Some(50), 0).await?;
     assert!(
         list.items.iter().all(|l| l.id != created.id),
         "deleted layout must not appear in the list"
@@ -465,7 +465,7 @@ async fn trip_on_layout(
             effective_from: None,
             effective_to: None,
             days_of_week: Some("1111111".into()),
-            bus_layout_id: Some(layout_id),
+            bus_layout_id: Some(Some(layout_id)),
             vehicle_type_id: None,
             base_price_adult: Some(180_000),
             base_price_child: None,
@@ -515,7 +515,7 @@ async fn bus_layout_created_from_a_plan_serves_geometry_to_the_trip_detail() -> 
         beds.iter().all(|c| c.seat_id.is_some()),
         "every bed is backed by a seat row"
     );
-    let list = st.admin.list_bus_layouts(None, Some(50), 0).await?;
+    let list = st.admin.list_bus_layouts(None, false, Some(50), 0).await?;
     assert!(list.items.iter().any(|l| l.id == created.id && l.planned));
 
     // The trip detail carries the deck frame and the seat kinds.
