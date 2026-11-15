@@ -9,7 +9,7 @@ use validator::Validate;
 use crate::entity::user;
 use crate::error::{AppError, AppResult};
 use crate::middleware::{AuthUser, MaybeAuthUser};
-use crate::service::auth_service::SessionKind;
+use crate::service::auth_service::{LoginError, LoginInput, RegisterInput, SessionContext};
 use crate::state::AppState;
 
 #[derive(Debug, Deserialize, Validate, ToSchema)]
@@ -23,16 +23,46 @@ pub struct RegisterRequest {
     pub phone: Option<String>,
     #[validate(length(min = 8, max = 128))]
     pub password: String,
+    /// The account's language, `vi` (default) or `en`.
+    pub locale: Option<String>,
 }
 
 use crate::validation::validate_phone;
 
+/// Body of `POST /api/auth/login` and `/api/auth/employee-login`: the
+/// email, or the phone number given at registration, and the password.
 #[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct LoginRequest {
     #[validate(email, length(max = 255))]
-    pub email: String,
+    pub email: Option<String>,
+    #[validate(custom(function = "validate_phone"))]
+    pub phone: Option<String>,
     #[validate(length(min = 1, max = 255))]
     pub password: String,
+}
+
+impl LoginRequest {
+    /// Trim, validate and turn the body into the service's credentials.
+    /// Blank fields count as absent; one of email and phone is required.
+    fn into_input(self) -> AppResult<LoginInput> {
+        let present = |v: Option<String>| v.map(|v| v.trim().to_string()).filter(|v| !v.is_empty());
+        let body = Self {
+            email: present(self.email),
+            phone: present(self.phone),
+            password: self.password,
+        };
+        body.validate()?;
+        if body.email.is_none() && body.phone.is_none() {
+            return Err(AppError::Validation(
+                "email must be a valid email address".into(),
+            ));
+        }
+        Ok(LoginInput {
+            email: body.email,
+            phone: body.phone,
+            password: body.password,
+        })
+    }
 }
 
 /// Body of `POST /api/auth/password`.
@@ -117,27 +147,26 @@ pub async fn register(
     headers: HeaderMap,
     Json(body): Json<RegisterRequest>,
 ) -> AppResult<(axum_extra::extract::CookieJar, Json<AuthResponse>)> {
-    body.validate()
-        .map_err(|e| AppError::Validation(e.to_string()))?;
+    body.validate()?;
 
-    // Require either email or phone
-    let email = body
-        .email
-        .filter(|e| !e.is_empty())
-        .or(body.phone.filter(|p| !p.is_empty()))
-        .ok_or_else(|| AppError::Validation("Email or phone is required".into()))?;
-
-    // Use full_name as username
+    // The display name is the full name; an email or a phone (or both)
+    // identifies the account.
     let user = state
         .auth
-        .register(email, body.full_name, body.password)
+        .register(RegisterInput {
+            full_name: body.full_name,
+            email: body.email,
+            phone: body.phone,
+            password: body.password,
+            locale: body.locale,
+        })
         .await?;
 
     // Auto-login: issue a session immediately so the user doesn't need
     // to call /login separately after registering.
     let session = state
         .auth
-        .issue_session(user, SessionKind::of(&headers))
+        .issue_session(user, SessionContext::of(&headers))
         .await?;
     let jar = session.set_cookies(jar, state.auth.cookie_config(), state.auth.jwt_config());
     Ok((
@@ -158,6 +187,8 @@ pub async fn register(
     responses(
         (status = 200, description = "Login successful", body = AuthResponse),
         (status = 401, description = "Invalid credentials"),
+        (status = 403, description = "Account is not active"),
+        (status = 429, description = "Account locked after too many wrong passwords; see Retry-After"),
     )
 )]
 pub async fn login(
@@ -165,12 +196,10 @@ pub async fn login(
     jar: axum_extra::extract::CookieJar,
     headers: HeaderMap,
     Json(body): Json<LoginRequest>,
-) -> AppResult<(axum_extra::extract::CookieJar, Json<AuthResponse>)> {
-    body.validate()
-        .map_err(|e| AppError::Validation(e.to_string()))?;
+) -> Result<(axum_extra::extract::CookieJar, Json<AuthResponse>), LoginError> {
     let session = state
         .auth
-        .login(body.email, body.password, SessionKind::of(&headers))
+        .login(body.into_input()?, SessionContext::of(&headers))
         .await?;
     let jar = session.set_cookies(jar, state.auth.cookie_config(), state.auth.jwt_config());
     Ok((
@@ -202,11 +231,15 @@ pub async fn change_password(
     headers: HeaderMap,
     Json(body): Json<ChangePasswordRequest>,
 ) -> AppResult<(axum_extra::extract::CookieJar, Json<AuthResponse>)> {
-    body.validate()
-        .map_err(|e| AppError::Validation(e.to_string()))?;
+    body.validate()?;
     let session = state
         .auth
-        .change_password(uid, body.current_password, body.new_password)
+        .change_password(
+            uid,
+            body.current_password,
+            body.new_password,
+            SessionContext::of(&headers),
+        )
         .await?;
     let jar = session.set_cookies(jar, state.auth.cookie_config(), state.auth.jwt_config());
     Ok((
@@ -227,7 +260,8 @@ pub async fn change_password(
     responses(
         (status = 200, description = "Employee login successful", body = AuthResponse),
         (status = 401, description = "Invalid credentials"),
-        (status = 403, description = "Not an employee"),
+        (status = 403, description = "Not an employee, or the account is not active"),
+        (status = 429, description = "Account locked after too many wrong passwords; see Retry-After"),
     )
 )]
 pub async fn employee_login(
@@ -235,24 +269,22 @@ pub async fn employee_login(
     jar: axum_extra::extract::CookieJar,
     headers: HeaderMap,
     Json(body): Json<LoginRequest>,
-) -> AppResult<(axum_extra::extract::CookieJar, Json<AuthResponse>)> {
-    body.validate()
-        .map_err(|e| AppError::Validation(e.to_string()))?;
-    let session = state
+) -> Result<(axum_extra::extract::CookieJar, Json<AuthResponse>), LoginError> {
+    let ctx = SessionContext::of(&headers);
+    let user = state
         .auth
-        .login(body.email, body.password, SessionKind::of(&headers))
+        .authenticate(body.into_input()?, ctx.ip.clone())
         .await?;
 
     // Only allow employees (must have at least one role that isn't "user").
     // The role check lives in AuthService — keeps the store access
-    // inside the service layer (clean architecture).
-    let is_employee = state.auth.is_employee(session.user.id).await?;
-    if !is_employee {
-        return Err(AppError::Forbidden(
-            "This endpoint is for employees only".into(),
-        ));
+    // inside the service layer (clean architecture). It runs before a
+    // session exists, so a refused customer leaves no token behind.
+    if !state.auth.is_employee(user.id).await? {
+        return Err(AppError::Forbidden("This endpoint is for employees only".into()).into());
     }
 
+    let session = state.auth.issue_session(user, ctx).await?;
     let jar = session.set_cookies(jar, state.auth.cookie_config(), state.auth.jwt_config());
     Ok((
         jar,
@@ -270,6 +302,7 @@ pub struct RefreshRequest {
     /// body is a fallback for non-browser clients (curl, mobile) that
     /// can't use cookies.
     #[validate(length(max = 4096))]
+    #[serde(alias = "refreshToken")]
     pub refresh_token: Option<String>,
 }
 
@@ -293,6 +326,7 @@ pub async fn refresh(
 ) -> AppResult<(axum_extra::extract::CookieJar, Json<AuthResponse>)> {
     // Read refresh token: cookie first (preferred — JS can't read it),
     // body as fallback for non-browser clients.
+    body.validate()?;
     use crate::auth::cookies::extract_tokens;
     let (_, cookie_refresh) = extract_tokens(&jar);
     let refresh_token = cookie_refresh
@@ -300,7 +334,7 @@ pub async fn refresh(
         .ok_or_else(|| AppError::Unauthorized("missing refresh token".into()))?;
     let session = state
         .auth
-        .refresh(refresh_token, SessionKind::of(&headers))
+        .refresh(refresh_token, SessionContext::of(&headers))
         .await?;
     let jar = session.set_cookies(jar, state.auth.cookie_config(), state.auth.jwt_config());
     Ok((

@@ -1,6 +1,7 @@
 //! Auth: password hashing, JWT access tokens, rotating refresh tokens,
 //! HttpOnly cookies.
 
+pub mod account;
 pub mod cookies;
 pub mod jwt;
 pub mod jwt_validator;

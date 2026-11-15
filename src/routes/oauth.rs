@@ -12,8 +12,9 @@
 //!     - Verifies the state cookie matches the `state` query param.
 //!     - Exchanges the code for an access token.
 //!     - Fetches the user profile.
-//!     - Calls `AuthService::upsert_oauth_user` to create/link the
-//!       local user record.
+//!     - Calls `AuthService::register_oauth_user` to create/link the
+//!       local user record (a password account whose email was never
+//!       verified loses its password and sessions when linked).
 //!     - Issues a session (access + refresh cookies).
 //!     - 302-redirects to the frontend (config `oauth.frontend_url`).
 //!
@@ -32,6 +33,7 @@
 //!   * Short-lived (10 minutes).
 
 use axum::extract::{Path, Query, State};
+use axum::http::HeaderMap;
 use axum::response::{IntoResponse, Redirect, Response};
 use axum_extra::extract::CookieJar;
 use serde::{Deserialize, Serialize};
@@ -41,7 +43,7 @@ use utoipa::{IntoParams, ToSchema};
 
 use crate::auth::oauth::{self, OAuthProvider};
 use crate::error::{AppError, AppResult};
-use crate::service::auth_service::SessionKind;
+use crate::service::auth_service::{SessionContext, SessionKind};
 use crate::state::AppState;
 
 /// Cookie TTL for the OAuth state — 10 minutes.
@@ -143,6 +145,7 @@ pub async fn oauth_callback(
     Path(provider): Path<String>,
     Query(q): Query<CallbackQuery>,
     jar: CookieJar,
+    headers: HeaderMap,
 ) -> AppResult<Response> {
     let frontend_url = st.config.oauth.frontend_url.clone();
     let error_redirect_base = if frontend_url.is_empty() {
@@ -259,18 +262,14 @@ pub async fn oauth_callback(
 
     // 6. Upsert the local user record (creates or links) + assign role.
     // All store access goes through AuthService — never direct from route.
-    let user = st
-        .auth
-        .register_oauth_user(
-            profile.email.clone(),
-            profile.name.clone(),
-            profile.provider.clone(),
-            profile.subject.clone(),
-            profile.avatar_url.clone(),
-        )
-        .await?;
+    let user = st.auth.register_oauth_user(profile).await?;
 
-    let session = st.auth.issue_session(user, SessionKind::Browser).await?;
+    // A social sign-in is always a browser session, whatever `X-Client` says.
+    let ctx = SessionContext {
+        kind: SessionKind::Browser,
+        ..SessionContext::of(&headers)
+    };
+    let session = st.auth.issue_session(user, ctx).await?;
     let jar = session.set_cookies(jar, st.auth.cookie_config(), st.auth.jwt_config());
 
     // Clear the state cookie (one-shot).
