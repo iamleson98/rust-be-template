@@ -2,9 +2,8 @@
  *
  * Three live sections (the first two poll every 5 s):
  *   • System Status — platform runtime: uptime, WebSocket hub, DB pool.
- *   • Database Engine — the rustqlite engine's own resource usage:
- *     memory used, performance capacity, throughput (+ per-file
- *     detail cards). Sourced from the engine's built-in counters.
+ *   • Database Engine — the linked SQLite build: its version and its
+ *     own heap usage (now and peak).
  *   • Server Metrics — host hardware: CPU, RAM, disks, this process
  *     (the pdf-tts admin "Server Metrics" feature, ported 1:1).
  *
@@ -63,7 +62,7 @@ export function AdminSystemPage() {
         )}
       </section>
 
-      {/* ── Database Engine (memory / capacity / throughput) ──────── */}
+      {/* ── Database Engine (SQLite version + heap) ───────────────── */}
       {data?.database?.engine && <DatabaseEngineSection engine={data.database.engine} />}
 
       {/* ── Server Metrics (host hardware, pdf-tts feature) ────────── */}
