@@ -11,8 +11,8 @@
 
 globs:
   - "**/*.md"
-  # The engine is a submodule — its docs are upstream's business.
-  - "!rust-sql/**"
+  # Vendored upstream crate — its docs are upstream's business.
+  - "!vendor/**"
   # Tooling noise + build outputs (target/doc ships rustdoc's vendored
   # upstream license .md files).
   - "!target/**"

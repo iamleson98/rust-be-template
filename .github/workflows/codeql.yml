@@ -18,9 +18,8 @@
 #     60 days with no repository activity — any push re-enables them;
 #     this repo merges PRs far more often than that.
 #
-# NOTE on `rust`: CodeQL traces a real `cargo build` — the submodule
-# must be checked out AND updated to upstream master, same as the
-# backend CI job, and libssl/pkg-config must be present.
+# NOTE on `rust`: CodeQL traces a real `cargo build` — libssl and
+# pkg-config must be present, same as the backend CI job.
 
 name: CodeQL
 
@@ -55,15 +54,6 @@ jobs:
         language: [rust, javascript-typescript]
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Pull latest rust-sql engine (master)
-        if: matrix.language == 'rust'
-        run: |
-          git submodule update --init --recursive
-          git submodule update --remote rust-sql
-          git -C rust-sql log --oneline -1
 
       - name: Install Rust toolchain
         if: matrix.language == 'rust'
