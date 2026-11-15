@@ -844,6 +844,7 @@ dependencies = [
  "qrcode",
  "rand 0.8.8",
  "redis",
+ "regex",
  "reqwest",
  "sea-orm",
  "sea-orm-migration",
