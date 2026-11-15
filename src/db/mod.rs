@@ -15,7 +15,9 @@
 //!   connection gets them.
 //! * [`write`] runs multi-statement write transactions as
 //!   `BEGIN CONCURRENT`, retrying the whole transaction on conflict.
+//! * [`checkpoint`] keeps the WAL file small (periodic checkpoints).
 
+pub mod checkpoint;
 pub mod pool;
 pub mod write;
 

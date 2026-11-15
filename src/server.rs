@@ -482,6 +482,11 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
         tracing::info!("background jobs disabled (SCHEDULER_ENABLED=false)");
     }
 
+    // WAL checkpoints (PASSIVE every minute, TRUNCATE nightly). Spawned
+    // after the worker block so `shutdown_token()` is the runner's token
+    // when jobs are enabled.
+    crate::db::checkpoint::spawn(db.as_ref().clone(), crate::worker::shutdown_token());
+
     let state = AppState::new(
         config_arc,
         rbac.clone(),
