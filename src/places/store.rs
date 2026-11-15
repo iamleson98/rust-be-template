@@ -159,8 +159,10 @@ impl Store {
             serde_json::to_writer_pretty(out, manifest)?;
             Ok(())
         })?;
+        sync_dir(&partial)?;
         fs::rename(&partial, &dir)
             .with_context(|| format!("rename {} -> {}", partial.display(), dir.display()))?;
+        sync_dir(&self.root)?;
         self.point_current_at(&manifest.generation)?;
         self.prune(&manifest.generation, keep)
     }
@@ -176,7 +178,8 @@ impl Store {
             .with_context(|| format!("create {}", staged.display()))?;
         let link = self.root.join(CURRENT_LINK);
         fs::rename(&staged, &link)
-            .with_context(|| format!("rename {} -> {}", staged.display(), link.display()))
+            .with_context(|| format!("rename {} -> {}", staged.display(), link.display()))?;
+        sync_dir(&self.root)
     }
 
     /// Published generations, newest first.
@@ -209,6 +212,15 @@ impl Store {
         }
         Ok(())
     }
+}
+
+/// Flushes a directory's entries (a rename is only durable once its parent
+/// directory is synced), so a power cut cannot lose the generation the
+/// `current` link already points at.
+fn sync_dir(dir: &Path) -> Result<()> {
+    File::open(dir)
+        .and_then(|d| d.sync_all())
+        .with_context(|| format!("sync {}", dir.display()))
 }
 
 fn write_synced(path: &Path, write: impl FnOnce(&mut BufWriter<File>) -> Result<()>) -> Result<()> {
@@ -413,6 +425,14 @@ mod tests {
             entries,
             ["current", "gen-20261008T000000Z", "gen-20261015T000000Z"]
         );
+    }
+
+    #[test]
+    fn directories_can_be_synced_after_renames() {
+        let dir = tempfile::tempdir().unwrap();
+        sync_dir(dir.path()).unwrap();
+        let err = sync_dir(&dir.path().join("missing")).unwrap_err();
+        assert!(format!("{err:#}").contains("sync "), "{err:#}");
     }
 
     #[test]
