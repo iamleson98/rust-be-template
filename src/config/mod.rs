@@ -1140,7 +1140,7 @@ impl Default for PaymentConfig {
             vnpay: VnpayConfig::default(),
             momo: MomoConfig::default(),
             zalopay: ZalopayConfig::default(),
-            vietqr: VietQrConfig::default(),
+            vietqr: VietQrConfig::from_env(),
             cod_enabled: env_parse("PAYMENT_COD_ENABLED").unwrap_or(true),
         }
     }

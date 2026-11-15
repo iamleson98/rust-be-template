@@ -14,7 +14,6 @@ use validator::Validate;
 use crate::dto::booking::BookingOut;
 use crate::dto::fares::{ChildFarePolicy, SeatClassCount, SeatClassFare};
 use crate::dto::seat_plan::SeatPlan;
-use crate::validation::validate_phone;
 
 fn empty_string_as_none<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
 where
@@ -123,7 +122,9 @@ pub struct UpsertBrandRequest {
     pub logo_url: Option<String>,
     #[validate(length(max = 5000))]
     pub description: Option<String>,
-    #[validate(length(max = 20), custom(function = "validate_phone"))]
+    /// A hotline as the brand writes it (`1900 6067`, `1800…`, `0…`, `+84…`):
+    /// any text up to 32 characters, like the reference admin API.
+    #[validate(length(max = 32))]
     #[serde(default, deserialize_with = "empty_string_as_none")]
     pub contact_phone: Option<String>,
     #[validate(email, length(max = 255))]
@@ -1021,5 +1022,26 @@ mod tests {
         assert!(request.contact_phone.is_none());
         assert!(request.contact_email.is_none());
         assert!(request.validate().is_ok());
+    }
+
+    #[test]
+    fn brand_hotlines_are_free_text_up_to_32_characters() {
+        let accepts = |phone: &str| {
+            let request: UpsertBrandRequest =
+                serde_json::from_value(json!({ "contactPhone": phone })).unwrap();
+            request.validate().is_ok()
+        };
+
+        for phone in [
+            "1900 6067",
+            "19006067",
+            "1800 1234",
+            "0912345678",
+            "+84912345678",
+        ] {
+            assert!(accepts(phone), "{phone} should be accepted");
+        }
+        assert!(accepts(&"9".repeat(32)));
+        assert!(!accepts(&"9".repeat(33)));
     }
 }
