@@ -1,8 +1,8 @@
 # docker-compose.k6.yml — distributed k6 load test.
 #
 # Runs N k6 worker containers, each with its own IP on the Docker
-# bridge network. The backend's rate limiter (tower_governor, 600
-# RPM / 100 burst per IP) sees each container as a separate client
+# bridge network. The backend's rate limiter (per-client-IP token
+# buckets, `middleware::rate_limit`) sees each container as a separate client
 # → each gets its own rate-limit bucket.
 #
 # ## Why this exists

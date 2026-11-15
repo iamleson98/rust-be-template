@@ -45,7 +45,6 @@ async fn boot() -> anyhow::Result<(Router, AppState)> {
         std::env::set_var("CACHE_BACKEND", "moka");
         std::env::set_var("WORKER_BACKEND", "db");
         std::env::set_var("SCHEDULER_ENABLED", "false");
-        std::env::set_var("SEARCH_INDEX_DIR", "");
         std::env::set_var("AUDIO_CALL_ENABLED", "false");
         std::env::set_var("NULLCLAW_ENABLED", "false");
         std::env::set_var("VNPAY_ENABLED", "false");

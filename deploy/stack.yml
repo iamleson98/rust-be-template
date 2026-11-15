@@ -123,17 +123,15 @@ services:
       #    intentionally not required.
       - CACHE_BACKEND=${CACHE_BACKEND:-moka}
 
-      # Everything else (STATIC_FILES_DIR, SEARCH_INDEX_DIR,
-      # SEARCH_OSM_PBF_PATH, STORAGE_LOCAL_ROOT, SCHEDULER)
+      # Everything else (STATIC_FILES_DIR, PLACES_DIR,
+      # STORAGE_LOCAL_ROOT, SCHEDULER)
       # comes from the image defaults baked into the Dockerfile.
 
     volumes:
       # SQLite DB file + OSM PBF downloads
       - vexevn-data:/app/data
-      # Tantivy place-search index — the live index is NESTED at
-      # /app/index/osm-index so the importer's sibling staging dir
-      # (osm-index.staging) shares the volume filesystem and its
-      # atomic rename never hits EXDEV. Do NOT flatten.
+      # Place-search generations (PLACES_DIR=/app/index/places): every
+      # generation and the `current` symlink share this volume.
       - vexevn-index:/app/index
       # Local file uploads
       - vexevn-storage:/app/storage

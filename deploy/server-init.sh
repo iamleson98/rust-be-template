@@ -106,7 +106,7 @@ SCHEDULER_TZ_OFFSET_MINUTES=420
 
 # ── Rate limiting ────────────────────────────────────────────────
 # NOTE: behind the tunnel every request reaches the backend from the
-# cloudflared container IP, so the governor bucket is SHARED by all
+# cloudflared container IP, so the rate-limit bucket is SHARED by all
 # visitors. Keep it generous as a global safety net; do per-client
 # limiting with a Cloudflare WAF rate rule (free plan supports it).
 RATE_LIMIT_RPM=6000
@@ -116,9 +116,8 @@ RATE_LIMIT_BURST=1000
 STATIC_FILES_DIR=./frontend/dist
 STATIC_FILES_CACHE_MAX_AGE=86400
 
-# ── Tantivy place search (volumes; see import-osm.sh) ─────────────
-SEARCH_INDEX_DIR=/app/index/osm-index
-SEARCH_OSM_PBF_PATH=/app/data/vietnam-latest.osm.pbf
+# ── Place search generations (volume) ─────────────────────────────
+PLACES_DIR=/app/index/places
 
 # ── CORS / OAuth base (same origin — backend serves the frontend) ─
 CORS_ORIGINS=${ORIGIN}

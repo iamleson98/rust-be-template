@@ -14,7 +14,7 @@
 #
 # Persistent data (bind or named volumes):
 #   - /app/data     — SQLite database file + OSM PBF downloads
-#   - /app/index    — Tantivy place-search index (see SEARCH_INDEX_DIR)
+#   - /app/index    — place-search generations (see PLACES_DIR)
 #   - /app/storage  — local file uploads
 #
 #   The Tantivy index lives at /app/index/osm-index — NESTED one level
@@ -174,9 +174,8 @@ ENV SERVER_PORT=8080
 ENV DATABASE_URL=sqlite:./data/app.db?mode=rwc
 ENV STATIC_FILES_DIR=./frontend/dist
 ENV STORAGE_LOCAL_ROOT=./storage
-# Tantivy place-search: index + OSM extract both live on volumes.
-ENV SEARCH_INDEX_DIR=/app/index/osm-index
-ENV SEARCH_OSM_PBF_PATH=/app/data/vietnam-latest.osm.pbf
+# Place search: the `places-build` generations live on a volume.
+ENV PLACES_DIR=/app/index/places
 
 EXPOSE 8080
 USER app

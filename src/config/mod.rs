@@ -913,8 +913,6 @@ pub fn mint_turn_credential(shared_secret: &str, username: &str) -> String {
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct SearchConfig {
-    pub index_dir: Option<PathBuf>,
-    pub osm_pbf_path: Option<PathBuf>,
     /// Override for the Vietnam OSM extract download URL (default:
     /// Geofabrik). Useful for mirrors or tests.
     pub osm_download_url: Option<String>,
@@ -923,8 +921,6 @@ pub struct SearchConfig {
 impl SearchConfig {
     pub fn from_env() -> Self {
         Self {
-            index_dir: env_var("SEARCH_INDEX_DIR").map(PathBuf::from),
-            osm_pbf_path: env_var("SEARCH_OSM_PBF_PATH").map(PathBuf::from),
             osm_download_url: env_var("SEARCH_OSM_DOWNLOAD_URL"),
         }
     }
@@ -1416,6 +1412,7 @@ impl Config {
         {
             anyhow::bail!("GOOGLE_ADS_API_VERSION must look like `v21` (got `{ads_version}`)");
         }
+        crate::service::payment_service::ensure_gateways_configured(&self.payment)?;
         let audio = &self.audio_call;
         if audio.turn_auth_mode == "cloudflare"
             && (audio.turn_key_id.is_empty() || audio.turn_key_api_token.is_empty())

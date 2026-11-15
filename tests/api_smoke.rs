@@ -17,11 +17,11 @@
 //! - Performance regressions (use criterion benchmarks).
 //! - Frontend issues (use Playwright/e2e).
 //!
-//! NOTE: Routes under `/api/*` are rate-limited via `tower_governor`,
-//! which requires a client IP from `ConnectInfo<SocketAddr>`. The
-//! `oneshot` test harness doesn't provide connect info, so we only
-//! test routes that bypass the rate limiter (health, ready, SEO, SW).
-//! For rate-limited routes, use the inline unit tests in `src/`.
+//! NOTE: Routes under `/api/*` are rate-limited per client IP
+//! (`middleware::rate_limit`). The `oneshot` test harness provides no
+//! `ConnectInfo<SocketAddr>`, and a request with no known peer is not
+//! limited, so these tests never hit a 429. The limiter itself is covered
+//! by `tests/wp8_edge.rs` and the unit tests in `src/middleware/`.
 
 /// Search options from the positional arguments the search took before
 /// the filters moved to the server.
@@ -115,7 +115,6 @@ async fn boot_test_state() -> anyhow::Result<backend::state::AppState> {
         std::env::set_var("WORKER_BACKEND", "db");
         // No background job runner / scheduler in the one-shot test harness.
         std::env::set_var("SCHEDULER_ENABLED", "false");
-        std::env::set_var("SEARCH_INDEX_DIR", "");
         std::env::set_var("AUDIO_CALL_ENABLED", "false");
         std::env::set_var("NULLCLAW_ENABLED", "false");
         // Don't hit real payment gateways during tests.
@@ -415,7 +414,6 @@ async fn boot_state() -> anyhow::Result<backend::state::AppState> {
         std::env::set_var("CACHE_BACKEND", "moka");
         std::env::set_var("WORKER_BACKEND", "db");
         std::env::set_var("SCHEDULER_ENABLED", "false");
-        std::env::set_var("SEARCH_INDEX_DIR", "");
         std::env::set_var("AUDIO_CALL_ENABLED", "false");
         std::env::set_var("NULLCLAW_ENABLED", "false");
         std::env::set_var("VNPAY_ENABLED", "false");
