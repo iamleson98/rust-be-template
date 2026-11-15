@@ -145,7 +145,7 @@ async fn schedule(st: &AppState, route_id: Uuid, at: &str, price: i64) -> anyhow
             route_id: Some(route_id),
             departure_time: Some(at.into()),
             days_of_week: Some("1111111".into()),
-            vehicle_type_id: Some(limousine(st).await?),
+            vehicle_type_id: Some(Some(limousine(st).await?)),
             base_price_adult: Some(price),
             ..Default::default()
         })
@@ -384,8 +384,8 @@ async fn recommendations_are_real_cards_in_departure_order() -> anyhow::Result<(
                 route_id: Some(open_route),
                 departure_time: Some(at.into()),
                 days_of_week: Some("1111111".into()),
-                bus_layout_id: Some(layout),
-                vehicle_type_id: Some(limousine(&st).await?),
+                bus_layout_id: Some(Some(layout)),
+                vehicle_type_id: Some(Some(limousine(&st).await?)),
                 base_price_adult: Some(400_000),
                 ..Default::default()
             })
@@ -584,7 +584,7 @@ async fn the_trip_detail_names_the_cities_and_labels_unknown_amenities_by_key() 
             route_id: Some(route_id),
             departure_time: Some("06:00".into()),
             days_of_week: Some("1111111".into()),
-            vehicle_type_id: Some(limousine(&st).await?),
+            vehicle_type_id: Some(Some(limousine(&st).await?)),
             base_price_adult: Some(150_000),
             amenities: Some("wifi,jacuzzi".into()),
             points: Some(vec![point(start), point(end)]),
@@ -690,7 +690,7 @@ async fn a_brand_page_is_answered_in_one_read_for_active_brands_only() -> anyhow
             route_id: Some(to_da_nang),
             departure_time: Some("06:00".into()),
             days_of_week: Some(pattern.clone()),
-            vehicle_type_id: Some(limo),
+            vehicle_type_id: Some(Some(limo)),
             base_price_adult: Some(300_000),
             ..Default::default()
         })
@@ -723,7 +723,7 @@ async fn a_brand_page_is_answered_in_one_read_for_active_brands_only() -> anyhow
     schedule(&st, theirs, "07:00", 100_000).await?;
 
     // Locations: by city then name in Vietnamese order; reviews: approved only.
-    for (name, province) in [("Văn phòng B", "Huế"), ("Văn phòng A", "Hà Nội")] {
+    for (name, city) in [("Văn phòng B", "hue"), ("Văn phòng A", "ha-noi")] {
         st.admin
             .create_address(&UpsertAddressRequest {
                 brand_id: Some(operator),
@@ -731,7 +731,7 @@ async fn a_brand_page_is_answered_in_one_read_for_active_brands_only() -> anyhow
                 address: Some("1 Hàng Bài".into()),
                 lat: Some(21.0),
                 lon: Some(105.8),
-                province: Some(province.into()),
+                city_id: Some(city.into()),
                 ..Default::default()
             })
             .await?;
@@ -881,7 +881,7 @@ async fn a_brand_page_lists_at_most_60_locations_40_trips_and_3_days() -> anyhow
                 name: Some(format!("Điểm {i:02}")),
                 lat: Some(21.0),
                 lon: Some(105.8),
-                province: Some("Hà Nội".into()),
+                city_id: Some("ha-noi".into()),
                 ..Default::default()
             })
             .await?;

@@ -13,7 +13,7 @@ use axum::body::Body;
 use axum::http::{header, Request, StatusCode};
 use axum::response::Response;
 use axum::Router;
-use backend::service::auth_service::SessionKind;
+use backend::service::auth_service::{RegisterInput, SessionContext, SessionKind};
 use backend::state::AppState;
 use image::{DynamicImage, ImageFormat, RgbImage};
 use tower::ServiceExt;
@@ -70,17 +70,20 @@ async fn boot() -> anyhow::Result<(Router, AppState)> {
 async fn sign_in(st: &AppState, name: &str) -> anyhow::Result<String> {
     let user = st
         .auth
-        .register(
-            format!("{name}@example.com"),
-            name.into(),
-            "password123".into(),
-        )
+        .register(RegisterInput {
+            full_name: name.into(),
+            email: Some(format!("{name}@example.com")),
+            phone: None,
+            password: "password123".into(),
+            locale: None,
+        })
         .await?;
-    Ok(st
-        .auth
-        .issue_session(user, SessionKind::Browser)
-        .await?
-        .access_token)
+    let ctx = SessionContext {
+        kind: SessionKind::Browser,
+        user_agent: None,
+        ip: None,
+    };
+    Ok(st.auth.issue_session(user, ctx).await?.access_token)
 }
 
 fn multipart(parts: &[(&str, Option<&str>, &[u8])]) -> Vec<u8> {

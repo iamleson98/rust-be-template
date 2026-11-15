@@ -31,7 +31,7 @@ use tokio_tungstenite::tungstenite::Message;
 use uuid::Uuid;
 
 use backend::entity::brand;
-use backend::service::auth_service::SessionKind;
+use backend::service::auth_service::{LoginInput, RegisterInput, SessionContext, SessionKind};
 use backend::state::AppState;
 
 /// One test at a time: presence and the call hub are process-global.
@@ -162,7 +162,13 @@ impl Server {
         let user = self
             .st
             .auth
-            .register(email.clone(), format!("{role}-{tag}"), PASSWORD.into())
+            .register(RegisterInput {
+                full_name: format!("{role}-{tag}"),
+                email: Some(email.clone()),
+                phone: None,
+                password: PASSWORD.into(),
+                locale: None,
+            })
             .await
             .expect("register");
         let user = match role {
@@ -172,7 +178,18 @@ impl Server {
         let session = self
             .st
             .auth
-            .login(email, PASSWORD.into(), SessionKind::Browser)
+            .login(
+                LoginInput {
+                    email: Some(email),
+                    phone: None,
+                    password: PASSWORD.into(),
+                },
+                SessionContext {
+                    kind: SessionKind::Browser,
+                    user_agent: None,
+                    ip: None,
+                },
+            )
             .await
             .expect("login");
         Person {
