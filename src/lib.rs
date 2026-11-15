@@ -7,6 +7,7 @@
 //! - `migration`: SeaORM migrations (moved to the `migrator` crate)
 //! - `cache`: pluggable cache (`MokaBackend` | `RedisBackend`)
 //! - `store`: per-entity DB+retry+cache stores composed into one `Store`
+//! - `media`: upload re-encoding (WebP) and SVG logo safety check
 //! - `storage`: pluggable file storage (`Local` | `S3` | `MinIO`)
 //! - `worker`: background jobs — typed `Job`s on a durable queue in the app database
 //! - `ws`: in-process WebSocket chat hub (extensible to Redis fan-out)
@@ -35,6 +36,7 @@ pub mod error;
 pub mod geo;
 pub mod guard;
 pub mod jobs;
+pub mod media;
 pub mod memory;
 pub mod middleware;
 pub mod nullclaw;

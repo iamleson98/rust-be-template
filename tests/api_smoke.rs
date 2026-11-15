@@ -676,7 +676,7 @@ async fn media_proxy_serves_upload_with_etag_and_304() -> anyhow::Result<()> {
             .headers()
             .get("content-type")
             .and_then(|v| v.to_str().ok()),
-        Some("image/png")
+        Some("image/webp")
     );
     let cache_control = response
         .headers()
