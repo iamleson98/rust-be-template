@@ -14,6 +14,7 @@ use sea_orm::{
 use store_macros::retry;
 use uuid::Uuid;
 
+use crate::dto::review::parse_tags;
 use crate::entity::review;
 
 use super::error::{StoreError, StoreResult};
@@ -72,9 +73,10 @@ pub trait ReviewStore: Send + Sync {
     /// + `split(',')` + `HashSet` pattern that loaded every review row
     /// into memory just to extract the distinct tag set.
     ///
-    /// Note: tags are stored as a comma-separated `Option<String>` column.
-    /// We fetch only the `tags` column (much smaller than full rows) and
-    /// split client-side. The result is at most a few dozen unique tag
+    /// Note: tags are stored in an `Option<String>` column, comma-separated
+    /// (or a JSON array on rows the Cloudflare port wrote). We fetch only
+    /// the `tags` column (much smaller than full rows) and split
+    /// client-side. The result is at most a few dozen unique tag
     /// strings — never the full table.
     async fn list_distinct_tags(&self, status: Option<&str>) -> StoreResult<Vec<String>>;
     async fn list_reviews_by_brand(
@@ -82,7 +84,7 @@ pub trait ReviewStore: Send + Sync {
         brand_id: &str,
         status: &str,
     ) -> StoreResult<Vec<review::Model>>;
-    /// Approved reviews of a brand and/or route as `(rating, tags JSON)`:
+    /// Approved reviews of a brand and/or route as `(rating, stored tags)`:
     /// what the public review stats are counted from, without the text.
     async fn approved_ratings_and_tags(
         &self,
@@ -265,12 +267,7 @@ impl ReviewStore for DbReviewStore {
             .await?;
         let mut tags: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
         for s in rows.into_iter().flatten() {
-            for tag in s.split(',') {
-                let t = tag.trim();
-                if !t.is_empty() {
-                    tags.insert(t.to_string());
-                }
-            }
+            tags.extend(parse_tags(&s, true));
         }
         Ok(tags.into_iter().collect())
     }
