@@ -156,7 +156,7 @@ pub struct DatabaseStats {
 pub struct EngineStatsOut {
     /// Build identity (`sqlite3_sourceid()`: check-in timestamp + hash).
     pub version: String,
-    /// `sqlite3_libversion()`, e.g. `3.55.0`.
+    /// `sqlite3_libversion()`, e.g. `3.51.3`.
     pub sqlite_version: String,
     pub memory: EngineMemoryOut,
 }

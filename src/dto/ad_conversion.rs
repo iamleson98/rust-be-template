@@ -30,15 +30,14 @@ pub struct ReportConversionRequest {
     /// Conversion event name — must match a key in the
     /// `GOOGLE_ADS_CONVERSION_ACTIONS` map (`booking` | `purchase`).
     pub event: String,
-    /// Stable dedupe id — the booking code. Repeat beacons collapse.
-    /// Optional: an id-less conversion can't be deduped (mirroring
-    /// Google's own optional `orderId`) — the server mints a uuid so
-    /// each fire is recorded distinctly.
+    /// The booking code — required: the server verifies it against a
+    /// real, uncancelled booking (a missing or unknown code is rejected)
+    /// and it is the dedupe id, so repeat beacons collapse.
     pub transaction_id: Option<String>,
-    /// Revenue (decimal string, e.g. `"250000"` or `"250000.00"`) —
-    /// kept verbatim so no float rounding reaches Google.
+    /// Ignored: the revenue is read from the booking (or its completed
+    /// payment) in the database, never from the beacon.
     pub value: Option<String>,
-    /// ISO-4217 currency code (`VND`).
+    /// Ignored: the currency is read from the database, like `value`.
     pub currency: Option<String>,
     /// The landing click ids (attribution join key).
     #[serde(default)]
