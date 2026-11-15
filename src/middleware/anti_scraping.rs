@@ -17,6 +17,9 @@
 //! ## Exemptions
 //!
 //! * `/health`, `/ready`: uptime probes use curl.
+//! * `/ws`, `/ws-call`: the socket hubs check every upgrade themselves
+//!   (`ws::handler::check_ws_origin` plus the token/cookie), as the Worker
+//!   does; a native client's WebSocket stack has its own User-Agent.
 //! * Machine callers that authenticate by signature, not by browser
 //!   headers: `/api/payments/ipn/*` (payment gateways) and
 //!   `/api/webhooks/*` (Telegram, Zalo, Messenger, Discord). They are exempt
@@ -171,12 +174,19 @@ fn is_gateway_path(path: &str) -> bool {
     path.starts_with("/api/payments/ipn/") || path.starts_with("/api/webhooks/")
 }
 
+/// The two socket hubs: they authenticate every upgrade themselves (a token,
+/// or a cookie from an allowed `Origin`), and a native client's HTTP stack
+/// sends whatever User-Agent it likes.
+fn is_socket_path(path: &str) -> bool {
+    matches!(path, "/ws" | "/ws-call")
+}
+
 /// Anti-scraping middleware.
 ///
-/// Applied to all `/api/*` routes. Does NOT apply to:
-///   - Static files (served directly, no API access)
+/// The User-Agent blocklist and the Origin/Referer rule apply to every path
+/// (the browser-UA rule to `/api/*` only), except:
 ///   - `/health` and `/ready` (uptime monitors need access)
-///   - `/sitemap.xml` and `/robots.txt` (crawlers need access)
+///   - payment-gateway callbacks and chat-platform webhooks
 ///   - WebSocket endpoints (`/ws`, `/ws-call`) — they have their own auth
 pub async fn anti_scraping(
     req: Request<axum::body::Body>,
@@ -188,7 +198,10 @@ pub async fn anti_scraping(
 
     // ── 0. Infra paths are ALWAYS exempt ────────────────────────
     // Matches the module docs ("Does NOT apply to /health and /ready").
-    if is_infra_path(path.as_str()) || is_gateway_path(path.as_str()) {
+    if is_infra_path(path.as_str())
+        || is_gateway_path(path.as_str())
+        || is_socket_path(path.as_str())
+    {
         return Ok(next.run(req).await);
     }
 
@@ -469,6 +482,26 @@ mod tests {
                         "{method} {path} as {ua:?}"
                     );
                 }
+            }
+        }
+
+        #[tokio::test]
+        async fn the_socket_hubs_check_upgrades_themselves() {
+            for path in ["/ws", "/ws-call"] {
+                for ua in ["okhttp/4.12.0", "Dart/3.4 (dart:io)", "curl/8.4.0", ""] {
+                    assert_eq!(
+                        status("GET", path, &[("user-agent", ua)]).await,
+                        StatusCode::OK,
+                        "{path} as {ua:?}"
+                    );
+                }
+            }
+            for path in ["/ws/x", "/api/ws", "/ws-calls"] {
+                assert_eq!(
+                    status("GET", path, &[("user-agent", "curl/8.4.0")]).await,
+                    StatusCode::FORBIDDEN,
+                    "{path}"
+                );
             }
         }
 

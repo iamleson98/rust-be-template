@@ -117,7 +117,9 @@ pub struct UpsertBrandRequest {
     pub name: Option<String>,
     #[validate(length(min = 1, max = 120))]
     pub slug: Option<String>,
-    #[validate(length(max = 500))]
+    /// An uploaded logo (`/api/media/brands/logos/…`) or an https URL;
+    /// blank or `null` clears it. Checked by the service.
+    #[serde(default, deserialize_with = "null_as_blank")]
     pub logo_url: Option<String>,
     #[validate(length(max = 5000))]
     pub description: Option<String>,

@@ -3,7 +3,7 @@
 use sea_orm::Set;
 use uuid::Uuid;
 
-use super::validate::{slugify, valid_slug};
+use super::validate::{slugify, valid_logo_url, valid_slug, MAX_LOGO_URL_CHARS};
 use super::{now_iso, AdminService};
 use crate::dto::admin::{
     AdminBrandListResponse, AdminBrandOut, AdminMutationResponse, UpsertBrandRequest,
@@ -95,13 +95,14 @@ impl AdminService {
             .flatten()
             .map(valid_child_fare)
             .transpose()?;
+        let logo_url = checked_logo_url(body.logo_url.as_deref().unwrap_or_default())?;
         let id = Uuid::new_v4();
         let now = now_iso();
         let model = brand::ActiveModel {
             id: Set(id),
             slug: Set(slug),
             name: Set(name),
-            logo_url: Set(body.logo_url.clone()),
+            logo_url: Set(logo_url),
             description: Set(body.description.clone()),
             contact_phone: Set(body.contact_phone.clone()),
             contact_email: Set(body.contact_email.clone()),
@@ -150,7 +151,7 @@ impl AdminService {
             active.slug = Set(v.clone());
         }
         if let Some(ref v) = body.logo_url {
-            active.logo_url = Set(Some(v.clone()));
+            active.logo_url = Set(checked_logo_url(v)?);
         }
         if let Some(ref v) = body.description {
             active.description = Set(Some(v.clone()));
@@ -190,6 +191,26 @@ impl AdminService {
             .map_err(|e| AppError::Internal(e.to_string()))?;
         Ok(AdminMutationResponse { id })
     }
+}
+
+/// The logo URL to store: blank clears it, anything else must be one of our
+/// uploads or an https URL.
+fn checked_logo_url(raw: &str) -> AppResult<Option<String>> {
+    let url = raw.trim();
+    if url.is_empty() {
+        return Ok(None);
+    }
+    if url.chars().count() > MAX_LOGO_URL_CHARS {
+        return Err(AppError::Validation(format!(
+            "logoUrl must be at most {MAX_LOGO_URL_CHARS} characters"
+        )));
+    }
+    if !valid_logo_url(url) {
+        return Err(AppError::Validation(
+            "logoUrl must be an uploaded logo or an https URL".into(),
+        ));
+    }
+    Ok(Some(url.to_string()))
 }
 
 fn valid_child_fare(policy: ChildFarePolicy) -> AppResult<ChildFarePolicy> {
