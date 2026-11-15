@@ -177,7 +177,7 @@ test('schedule form: point selects, map address creation, save with points', asy
   await expect(addrDialog.locator('.leaflet-container')).toBeVisible({ timeout: 20_000 })
   await page.screenshot({ path: `${ART}/address-map-modal.png` })
 
-  // Full-text search (Tantivy) — diacritic-insensitive.
+  // Full-text search (place index) — diacritic-insensitive.
   const searchBox = addrDialog.locator('input[placeholder*="Tìm thành phố"]')
   await searchBox.fill('nha trang')
   const hit = addrDialog.locator('div.absolute button', { hasText: 'Nha Trang' }).first()
