@@ -18,8 +18,8 @@ Production runbook for the single-image stack. **Two supported topologies:**
                      ▼
                datxevui_backend:8080  (overlay network pdf-tts_pdf-tts)
                      │  serves frontend/dist + API + WS
-                     ├ /app/data   [vol]  SQLite DB + OSM PBF
-                     ├ /app/index  [vol]  Tantivy index (nested osm-index)
+                     ├ /app/data   [vol]  SQLite DB file
+                     ├ /app/index  [vol]  place-search generations
                      └ /app/storage[vol]  local uploads
 ```
 
@@ -38,8 +38,8 @@ Production runbook for the single-image stack. **Two supported topologies:**
                                  │ http://backend:8080└──────────────────┘
                       ┌──────────▼───────────┐
                       │  backend (Rust)       │  serves frontend/dist + API + WS
-                      │  ├ /app/data  [vol]   │  SQLite DB + OSM PBF
-                      │  ├ /app/index [vol]   │  Tantivy place-search index
+                      │  ├ /app/data  [vol]   │  SQLite DB file
+                      │  ├ /app/index [vol]   │  place-search generations
                       │  └ /app/storage[vol]  │  local uploads
                       └──────────────────────┘
 ```
@@ -54,7 +54,7 @@ Production runbook for the single-image stack. **Two supported topologies:**
 - **Tag-driven CI/CD** — push a `v*` tag to GitHub and
   `.github/workflows/deploy.yml` builds the image, pushes it to GHCR, and
   SSHes into the VPS to `docker compose up -d` with the new tag. The three
-  volumes (SQLite DB file, Tantivy index, uploads) persist across every release.
+  volumes (SQLite DB file, place-search generations, uploads) persist across every release.
 
 > Prefer classic proxied mode (orange-cloud A record, Caddy on 80/443)?
 > See [§ Direct mode (Caddy)](#direct-mode-caddy---profile-direct) below.
@@ -69,7 +69,7 @@ Production runbook for the single-image stack. **Two supported topologies:**
 4. [GitHub repository settings](#github-repository-settings)
 5. [First deploy](#first-deploy)
 6. [Releasing (the daily workflow)](#releasing-the-daily-workflow)
-7. [Tantivy index management](#tantivy-index-management)
+7. [Place index management](#place-index-management)
 8. [Operations (logs, restart, rollback, backups)](#operations)
 9. [Direct mode (Caddy)](#direct-mode-caddy---profile-direct)
 10. [Troubleshooting](#troubleshooting)
@@ -307,7 +307,7 @@ Activating FCM:
 | Contabo VPS | 2 vCPU / 4 GB RAM is comfortable (Cloud 4 line). Ubuntu 22.04/24.04 recommended. |
 | Domain on Cloudflare | Free plan is fine. Nameservers pointed at Cloudflare. |
 | This GitHub repo | Default branch `master`; Actions enabled. |
-| Tantivy index volume | Created automatically by compose; populate it with [`import-osm.sh`](#tantivy-index-management). |
+| Place index volume | Created automatically by compose; populate it with [`places-build.sh`](#place-index-management). |
 
 ## One-time server setup (Contabo)
 
@@ -335,7 +335,7 @@ What ends up where:
 /opt/vexevn/
 ├── docker-compose.contabo.yml
 ├── Caddyfile.cloudflare          # only used in --profile direct
-├── import-osm.sh
+├── places-build.sh
 └── .env                          # 600, contains JWT_SECRET + TUNNEL_TOKEN
 ```
 
@@ -415,7 +415,7 @@ Then:
 
 - Visit `https://yourdomain/` — register the first account; it becomes the
   **admin** automatically.
-- Build the Tantivy place index: `bash import-osm.sh` (see below).
+- Build the place index: `bash places-build.sh` (see below).
 
 ## Releasing (the daily workflow)
 
@@ -438,39 +438,35 @@ Expect a ~5–15 s blip while the single backend container is recreated —
 fine at this scale; scale-out paths are documented in the root
 `DEPLOYMENT.md`.
 
-## Tantivy index management
+## Place index management
 
-The place-search index is a **volume**, deliberately laid out like this:
+Place search is answered in memory from a **generation** built by
+`backend places-build`. The `osm-index` volume is mounted at `/app/index`
+and `PLACES_DIR=/app/index/places` holds:
 
 ```
-osm-index volume → /app/index/
-├── osm-index/            ← live index (SEARCH_INDEX_DIR)
-├── osm-index.staging/    ← importer's build dir
-└── osm-index.old/        ← previous live index after a swap
+places/
+├── gen-<timestamp>/records.bin   ← one directory per built generation
+├── current → gen-<timestamp>     ← symlink to the live generation
+└── work/                         ← the downloaded extract while building
 ```
 
-The nesting is **required**, not cosmetic: the importer builds into
-`osm-index.staging` and atomically `rename(2)`s it over `osm-index`.
-Siblings share the volume's filesystem — a flattened layout (`/app/osm-index`
-as the mount point) would put staging on the container's overlay FS and
-every swap would fail with **EXDEV**.
-
-Two ways to populate it:
+Generations and the symlink share the volume's filesystem, so the flip is
+one atomic `rename(2)`. The server polls `current` and swaps the engine in
+memory: no restart. A failed build leaves the live generation untouched.
 
 **One-off (recommended for a new server):**
 
 ```bash
-cd /opt/vexevn && bash import-osm.sh
-# → downloads the ~500 MB Geofabrik Vietnam extract into the app-data
-#   volume (resumable), indexes into staging, swaps, restarts backend,
-#   waits for /health.
+cd /opt/vexevn && bash places-build.sh
+# → downloads the ~500 MB Geofabrik Vietnam extract (skipped when its MD5
+#   is unchanged), builds and validates records.bin, publishes it.
+#   `--force` rebuilds even when the extract is unchanged.
 ```
 
-**Hands-off (biweekly):** the backend's own scheduler already knows how to
-do this — with `SCHEDULER_ENABLED=true` the seeded `osm.import` job
-downloads, indexes, swaps, **and hot-reloads** the index without a restart
-(view/trigger it from the admin cron-jobs page). `import-osm.sh` is just the
-manual escape hatch.
+Re-run it whenever the map should be refreshed (the extract changes about
+weekly). `SEARCH_OSM_DOWNLOAD_URL` in `.env` points it at a mirror. The
+build peaks around 650 MB of memory, so run it while the box is quiet.
 
 ## Operations
 
@@ -514,7 +510,7 @@ docker run --rm -v vexevn_osm-index:/data -v $(pwd):/backup alpine \
 $COMPOSE start backend
 ```
 
-(The Tantivy index is rebuildable from the PBF — you can skip its backup if
+(The place index is rebuildable with `places-build.sh` — you can skip its backup if
 disk is tight. The SQLite DB file in `app-data` is the crown jewel.)
 
 ## Direct mode (Caddy, `--profile direct`)
@@ -542,7 +538,7 @@ is still the recommended mode (no certs, no exposed ports).
 | Symptom | Fix |
 | --- | --- |
 | `cloudflared` log: `failed to connect to origin` | Backend unhealthy: `$COMPOSE logs backend`. It waits for `service_healthy` before starting — check it started at all. |
-| Site loads but search returns nothing | Tantivy index is empty — run `bash import-osm.sh`, then confirm `SEARCH_INDEX_DIR=/app/index/osm-index` in `.env`. |
+| Site loads but search returns nothing | No place generation yet — run `bash places-build.sh`; `PLACES_DIR` must be `/app/index/places`. |
 | 502 from Cloudflare after deploy | Health gate failed in CI — check the Actions log tail of backend logs; rollback with `APP_IMAGE=<previous> $COMPOSE up -d`. |
 | `pull access denied` for image on the VPS | GHCR package is private — make it public, or set `GHCR_USER`/`GHCR_TOKEN` GitHub secrets. |
 | Can't SSH after UFW enable | Use the Contabo web console/VNC; `ufw allow OpenSSH` then `ufw reload`. |

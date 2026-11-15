@@ -6,15 +6,15 @@
 # Pipeline:
 #   1. build-and-push — multi-stage Dockerfile builds the Vite frontend
 #      (bun) AND the Rust backend, producing ONE image where the backend
-#      serves the static frontend on :8080 (plus API + WS + Tantivy
-#      search). Pushed to ghcr.io tagged with the semver + latest + sha.
+#      serves the static frontend on :8080 (plus API + WS + in-memory
+#      place search). Pushed to ghcr.io tagged with the semver + latest + sha.
 #      NO code is built on the server.
 #   2. deploy — SSHes into the production Swarm node, syncs
 #      deploy/{stack.yml,deploy.sh,Caddyfile.datxevui}, and runs
 #      deploy.sh: docker stack deploy (pulls the image from GHCR),
 #      guarantees exactly one datxevui.com site block in the shared
 #      Caddyfile (validated before swap, in-place write), hot-reloads
-#      Caddy, and waits for /health. Volumes (SQLite DB, Tantivy
+#      Caddy, and waits for /health. Volumes (SQLite DB, place
 #      index, uploads) persist across releases by design.
 #
 # Production topology (datxevui.com):

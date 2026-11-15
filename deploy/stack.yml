@@ -128,7 +128,7 @@ services:
       # comes from the image defaults baked into the Dockerfile.
 
     volumes:
-      # SQLite DB file + OSM PBF downloads
+      # SQLite DB file
       - vexevn-data:/app/data
       # Place-search generations (PLACES_DIR=/app/index/places): every
       # generation and the `current` symlink share this volume.

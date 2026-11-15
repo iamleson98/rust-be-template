@@ -13,15 +13,13 @@
 #   docker run -p 8080:8080 --env-file .env datxevui:latest
 #
 # Persistent data (bind or named volumes):
-#   - /app/data     — SQLite database file + OSM PBF downloads
+#   - /app/data     — SQLite database file
 #   - /app/index    — place-search generations (see PLACES_DIR)
 #   - /app/storage  — local file uploads
 #
-#   The Tantivy index lives at /app/index/osm-index — NESTED one level
-#   inside its volume on purpose: the biweekly osm.import job builds into
-#   a sibling staging dir (/app/index/osm-index.staging) and atomically
-#   renames it over the live index. Siblings must share a filesystem or
-#   rename(2) fails with EXDEV. Do NOT flatten this to /app/osm-index.
+#   The place generations live at /app/index/places (PLACES_DIR): every
+#   generation and the `current` symlink share this volume, so publishing
+#   one is an atomic rename.
 #
 # Why cargo-chef: caches the deps layer across code changes — saves
 # ~3-5 minutes per CI run when Cargo.toml hasn't changed.

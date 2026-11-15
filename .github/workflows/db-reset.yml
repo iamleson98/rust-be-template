@@ -20,7 +20,7 @@
 #     admin (first-user promotion, see AuthService::register)
 #   * re-run the data migration (trip-crawler scripts/migration) to
 #     repopulate brands/routes/schedules/fares/pictures
-#   * the Tantivy index + uploads volumes are untouched
+#   * the place index + uploads volumes are untouched
 
 name: DB reset
 

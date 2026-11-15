@@ -59,12 +59,12 @@ ok "compose plugin: $(docker compose version --short)"
 # ── 2. Deploy directory + stack files ──────────────────────────────────
 say "2/5 Deploy dir: $DEPLOY_DIR"
 mkdir -p "$DEPLOY_DIR"
-for f in docker-compose.contabo.yml Caddyfile.cloudflare import-osm.sh; do
+for f in docker-compose.contabo.yml Caddyfile.cloudflare places-build.sh; do
   if [ -f "$SCRIPT_DIR/$f" ]; then
     install -m 0644 "$SCRIPT_DIR/$f" "$DEPLOY_DIR/$f"
   fi
 done
-[ -x "$SCRIPT_DIR/import-osm.sh" ] && install -m 0755 "$SCRIPT_DIR/import-osm.sh" "$DEPLOY_DIR/import-osm.sh"
+[ -x "$SCRIPT_DIR/places-build.sh" ] && install -m 0755 "$SCRIPT_DIR/places-build.sh" "$DEPLOY_DIR/places-build.sh"
 ok "stack files in place"
 
 # ── 3. .env (never overwrite an existing one) ──────────────────────────
@@ -170,8 +170,8 @@ Done. Next steps:
   2. Start the stack:
        cd $DEPLOY_DIR
        docker compose -f docker-compose.contabo.yml up -d
-  3. Build the Tantivy place index (one-off, ~500 MB download):
-       bash import-osm.sh
+  3. Build the place index (one-off, ~500 MB download):
+       bash places-build.sh
   4. Create the first admin account — visit /login and register; the
      first registered user becomes admin automatically.
 

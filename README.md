@@ -285,8 +285,8 @@ the `background_job` table is created by a normal migration, and
 
 ## Architecture: scheduled (cron) background jobs
 
-Recurring jobs — e.g. the **biweekly Vietnam OSM → Tantivy place-index
-refresh** — run on the worker through a small scheduler:
+Recurring jobs — e.g. the **daily expiry of unused discount coupons**
+(`src/jobs/coupon_expiry.rs`) — run on the worker through a small scheduler:
 
 - `scheduled_job` / `job_run` tables — one row per schedule ("every N
   days at HH:MM" local wall-clock) and one row per run (queued →
@@ -298,12 +298,6 @@ refresh** — run on the worker through a small scheduler:
   queues the run with a unique key, so a job never runs twice at once.
   Missed slots are skipped, not replayed — a server down for three
   weeks fires once on boot.
-- The OSM import job (`src/jobs/osm_import.rs`) downloads the Geofabrik
-  Vietnam extract, indexes into a **staging** directory with the
-  low-resource profile (256 MB heap, 1 thread — slow but gentle on
-  RAM/CPU), atomically swaps it into the live index, hot-reloads the
-  running server's searcher (`PlaceService::activate` — no restart),
-  and cleans up the ~500 MB PBF and leftovers on every exit path.
 - Admin page `/admin/cron-jobs`: status, next run, work time, live
   progress, run history, "run now", enable/disable and cadence editing
   (`GET/PATCH /api/admin/cron-jobs`, RBAC `admin:cron-jobs:read|write`).
@@ -326,8 +320,8 @@ Config: `SCHEDULER_ENABLED` (default true; `false` = pure-API instance,
 "run now" returns 503), `SCHEDULER_TZ_OFFSET_MINUTES` (default 420 =
 UTC+7, fixed offset — no DST in Vietnam), `SCHEDULER_TICK_INTERVAL_SECS`,
 `WORKER_CONCURRENCY`, `WORKER_POLL_INTERVAL_MS`, `WORKER_IDLE_POLL_MAX_MS`,
-`JOB_RUN_RETENTION_DAYS`, `SEARCH_OSM_DOWNLOAD_URL` (mirror override for
-the import's source).
+`JOB_RUN_RETENTION_DAYS`. (`SEARCH_OSM_DOWNLOAD_URL` is the mirror
+override for `places-build`.)
 
 ## Architecture: WebSocket hub
 

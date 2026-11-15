@@ -67,7 +67,7 @@ services:
       STORAGE_S3_FORCE_PATH_STYLE: "true"
       STORAGE_PUBLIC_BASE_URL: ${STORAGE_PUBLIC_BASE_URL:-}
     volumes:
-      - app-data:/app/data      # SQLite DB file + OSM PBF downloads
+      - app-data:/app/data      # SQLite DB file
       - app-storage:/app/storage # local uploads (dev / fallback backend)
       - osm-index:/app/index     # Tantivy index (survives redeploys)
     healthcheck:

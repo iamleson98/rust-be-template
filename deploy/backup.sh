@@ -11,8 +11,8 @@
 #     copy of the data volume (~seconds on this node).
 #   * rustfs volume (route pictures / thumbnails): same pause-copy
 #     pattern against the rustfs container.
-#   * tantivy index volume: SKIPPED — rebuildable from the OSM PBF via
-#     `import-osm` (see deploy/import-osm.sh); backing it up would
+#   * place index volume: SKIPPED — rebuildable from the OSM extract via
+#     `places-build` (see deploy/places-build.sh); backing it up would
 #     double the archive size for no data value.
 #
 # Result: <output_dir>/datxevui-backup-YYYYmmdd-HHMMSS.tar.gz
