@@ -14,15 +14,22 @@
  *              page has that path (404). `canonical` is null for pages that
  *              are not indexed.
  *
+ * It also writes `../tests/fixtures/seo-strings.json`: the same `{ key:
+ * Vietnamese text }` map the build emits to `dist/seo-strings.json` (see
+ * `scripts/emit-seo-strings.mjs`), so the backend's tests render heads from
+ * the strings the SPA ships.
+ *
  * Run: `bun run seo:golden` (after changing `src/lib/seo.ts` or its strings).
  */
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { pageSeo } from '../src/lib/seo.ts'
+import { SEO_STRING_KEYS, pageSeo } from '../src/lib/seo.ts'
 import { vi } from '../src/lib/i18n/vi.ts'
 
-const out = resolve(dirname(fileURLToPath(import.meta.url)), '../../tests/fixtures/seo-golden.json')
+const fixtures = resolve(dirname(fileURLToPath(import.meta.url)), '../../tests/fixtures')
+const out = resolve(fixtures, 'seo-golden.json')
+const stringsOut = resolve(fixtures, 'seo-strings.json')
 
 /** Crawlers and link previews get Vietnamese, filled in the way the server does. */
 function t(key, params = {}) {
@@ -132,6 +139,13 @@ const golden = CASES.map(([path, pairs, facts]) => {
   return { path, search, facts, expect: seo }
 })
 
-mkdirSync(dirname(out), { recursive: true })
+const strings = Object.fromEntries(SEO_STRING_KEYS.map((key) => [key, vi[key]]))
+
+mkdirSync(fixtures, { recursive: true })
 writeFileSync(out, JSON.stringify(golden, null, 2) + '\n', 'utf-8')
+writeFileSync(stringsOut, JSON.stringify(strings, null, 2) + '\n', 'utf-8')
 console.log('[seo-golden] ✓ wrote tests/fixtures/seo-golden.json (%d entries)', golden.length)
+console.log(
+  '[seo-golden] ✓ wrote tests/fixtures/seo-strings.json (%d keys)',
+  SEO_STRING_KEYS.length,
+)
