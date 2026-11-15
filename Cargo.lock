@@ -831,6 +831,7 @@ dependencies = [
  "libmimalloc-sys",
  "libsqlite3-sys",
  "migrator",
+ "mimalloc",
  "mime_guess",
  "moka",
  "num_cpus",
@@ -2972,6 +2973,15 @@ dependencies = [
  "tokio",
  "tracing-subscriber",
  "uuid",
+]
+
+[[package]]
+name = "mimalloc"
+version = "0.1.52"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2d4139bb28d14ad1facf21d5eb8825051b326e172d216b39f6d31df53cc97862"
+dependencies = [
+ "libmimalloc-sys",
 ]
 
 [[package]]
@@ -5167,7 +5177,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "once_cell",
  "rustix 1.1.4",
  "windows-sys 0.61.2",

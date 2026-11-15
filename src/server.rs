@@ -4,7 +4,6 @@
 use std::sync::Arc;
 
 use anyhow::Context;
-use sea_orm::{ConnectOptions, Database};
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 use crate::auth::jwt::JwtManager;
@@ -50,37 +49,16 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
     config.log_active();
 
     // ---- DB pool ------------------------------------------------------
-    // The engine is ALWAYS the vendored SQLite (see `src/db/mod.rs` and
-    // the [patch.crates-io] in Cargo.toml). Any non-sqlite:// URL (e.g. a stale postgres:// one) fails fast
-    // with a clear message instead of limping into an unsupported
-    // backend at connect time.
-    if !config.database.url.starts_with("sqlite") {
-        anyhow::bail!(
-            "unsupported DATABASE_URL {:?} — this build supports only \
-             SQLite; use a sqlite://… URL",
-            &config.database.url[..config
-                .database
-                .url
-                .find(':')
-                .unwrap_or(config.database.url.len())]
-        );
-    }
-    let mut opts = ConnectOptions::new(&config.database.url);
-    opts.max_connections(config.database.max_connections)
-        .min_connections(config.database.min_connections)
-        .connect_timeout(config.database.connect_timeout())
-        .idle_timeout(config.database.idle_timeout())
-        .max_lifetime(config.database.max_lifetime())
-        .sqlx_logging(config.database.enable_sqlx_logs);
-    // Note: sqlx statement cache is configured via the connection string
-    // (e.g. `?statement-cache-capacity=100`) on sqlx 0.7+. sea-orm 1.1
-    // doesn't expose a builder method for it.
-    let db = Database::connect(opts).await.context("db connect")?;
-
-    // ── Engine-specific setup ────────────────────────────────────
-    // Apply performance pragmas (WAL mode, sync=NORMAL, busy_timeout,
-    // cache_size, foreign_keys=ON).
-    apply_sqlite_pragmas(&db, config.database.cache_kib).await?;
+    // The engine is ALWAYS the vendored SQLite (see `src/db/mod.rs`);
+    // `db::pool` rejects any non-sqlite:// URL (e.g. a stale postgres
+    // one) up front. Pragmas are per-connection in SQLite, so the pool
+    // applies them to every connection it opens.
+    let db = crate::db::pool::connect(
+        &config.database,
+        crate::db::pool::PoolShape::main(&config.database),
+    )
+    .await
+    .context("db connect")?;
     tracing::info!(
         version = crate::db::sqlite_version(),
         source_id = crate::db::sqlite_source_id(),
@@ -98,20 +76,18 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
     // update_config.monitor that is one step from a rollback loop
     // (issue #75). Two connections: one active ping, one spare for
     // overlap during health-check intervals.
-    let mut health_opts = ConnectOptions::new(&config.database.url);
-    health_opts
-        .max_connections(2)
-        .min_connections(1)
-        .connect_timeout(config.database.connect_timeout())
-        .idle_timeout(config.database.idle_timeout())
-        .max_lifetime(config.database.max_lifetime())
-        .sqlx_logging(false);
     let health_db = Arc::new(
-        Database::connect(health_opts)
-            .await
-            .context("health db connect")?,
+        crate::db::pool::connect(
+            &config.database,
+            crate::db::pool::PoolShape {
+                max_connections: 2,
+                min_connections: 1,
+                sqlx_logging: false,
+            },
+        )
+        .await
+        .context("health db connect")?,
     );
-    apply_sqlite_pragmas(&health_db, config.database.cache_kib).await?;
 
     // Bootstrap is also used directly by integration tests and embedded
     // callers, so do not rely on the CLI wrapper to migrate first.
@@ -619,25 +595,4 @@ fn init_tracing(directive: &str) {
         .with(fmt::layer().with_target(true))
         .with(filter)
         .try_init();
-}
-
-/// Apply SQLite performance pragmas to the connection pool.
-async fn apply_sqlite_pragmas(
-    db: &sea_orm::DatabaseConnection,
-    cache_kib: i64,
-) -> anyhow::Result<()> {
-    use sea_orm::ConnectionTrait;
-    let pragmas = [
-        "PRAGMA journal_mode=WAL;".to_string(),
-        "PRAGMA synchronous=NORMAL;".to_string(),
-        "PRAGMA busy_timeout=5000;".to_string(),
-        "PRAGMA temp_store=MEMORY;".to_string(),
-        "PRAGMA foreign_keys=ON;".to_string(),
-        format!("PRAGMA cache_size=-{cache_kib};"),
-    ];
-    for stmt in &pragmas {
-        db.execute_unprepared(stmt).await?;
-    }
-    tracing::info!(cache_kib, "applied SQLite pragmas");
-    Ok(())
 }

@@ -10,6 +10,11 @@
 //! * sea-orm (via sqlx-sqlite) compiles and statically links that
 //!   amalgamation into the binary — no `libsqlite3.so`, no system
 //!   SQLite, no postgres backend.
+//! * [`pool`] builds the connection pool: SQLite pragmas are
+//!   per-connection, so they are set as connect options and every pooled
+//!   connection gets them.
+
+pub mod pool;
 
 use std::ffi::CStr;
 

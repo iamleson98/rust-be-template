@@ -33,8 +33,11 @@ migrator = { path = "migrator" }
 # / `db::sqlite_source_id`). No features: sqlx-sqlite selects them, and
 # `[patch.crates-io]` above swaps in the vendored copy.
 libsqlite3-sys = { version = "0.30", default-features = false }
-# Direct FFI to mimalloc, used by `memory::collect()` (periodic
-# mi_collect, see src/memory.rs).
+# mimalloc is the process-wide #[global_allocator] (src/main.rs).
+# `libmimalloc-sys` is the same library, used directly for
+# `memory::collect()` (periodic mi_collect, see src/memory.rs); the
+# `extended` feature exposes mi_collect.
+mimalloc = "0.1"
 libmimalloc-sys = { version = "0.1", features = ["extended"] }
 
 # Async runtime — explicit features instead of "full" to keep compile + binary lean.

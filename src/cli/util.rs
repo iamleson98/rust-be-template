@@ -8,16 +8,12 @@ use anyhow::Context;
 ///
 /// The engine is always the vendored SQLite — see [`crate::db`].
 pub async fn db_connect(cfg: &Config) -> anyhow::Result<sea_orm::DatabaseConnection> {
-    let mut opts = sea_orm::ConnectOptions::new(&cfg.database.url);
-    opts.max_connections(cfg.database.max_connections)
-        .min_connections(cfg.database.min_connections)
-        .connect_timeout(cfg.database.connect_timeout())
-        .idle_timeout(cfg.database.idle_timeout())
-        .sqlx_logging(cfg.database.enable_sqlx_logs);
-    let db = sea_orm::Database::connect(opts)
-        .await
-        .context("connecting to database")?;
-    Ok(db)
+    crate::db::pool::connect(
+        &cfg.database,
+        crate::db::pool::PoolShape::main(&cfg.database),
+    )
+    .await
+    .context("connecting to database")
 }
 
 /// Returns the DB backend/engine identity for this build.

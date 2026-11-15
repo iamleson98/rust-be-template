@@ -41,14 +41,14 @@ const WORKER_THREADS: usize = 2;
 /// `login`/`register` used to run Argon2 via
 /// `tokio::task::spawn_blocking`. Tokio's blocking pool spins up a FRESH
 /// OS thread whenever its existing ones are busy, and the process
-/// allocator is **mimalloc with `purge_delay = -1`** (set once by the
-/// rust-sql engine for write-latency; see `rust-sql/src/lib.rs`).
-/// mimalloc heaps are THREAD-LOCAL: Argon2's multi-MB working set —
-/// freed at the end of every verify — stays resident in whichever
-/// blocking thread happened to run it, and with purging disabled those
-/// pages are never returned to the OS. Under a burst of concurrent
-/// logins every request landed on a different blocking thread, each
-/// stranding its own copy:
+/// allocator is **mimalloc**. When this was measured it ran with
+/// `purge_delay = -1` (set by the previous database engine; never
+/// return freed pages automatically). mimalloc heaps are THREAD-LOCAL:
+/// Argon2's multi-MB working set — freed at the end of every verify —
+/// stays resident in whichever blocking thread happened to run it, and
+/// with purging disabled those pages are never returned to the OS.
+/// Under a burst of concurrent logins every request landed on a
+/// different blocking thread, each stranding its own copy:
 ///
 /// ```text
 /// 60 concurrent logins  →  +154 MB RSS (≈2.5 MB stranded per login)
