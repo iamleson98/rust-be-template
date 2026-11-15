@@ -26,7 +26,9 @@ use crate::payment::statuses as payment_status;
 use crate::service::booking_view::{booking_view, booking_views, departure_of};
 use crate::service::fares::{self, ChildPolicy, FareTable, Passenger};
 use crate::service::{trip_stops, trip_time, trip_warmer};
-use crate::store::{BookingFilter, CompositeStore, ConfirmOutcome};
+use crate::store::{
+    BookingFilter, CompositeStore, ConfirmOutcome, HoldCoupon, HoldOutcome, NewHold,
+};
 
 /// How long seats are held while the customer fills in the checkout.
 const HOLD_SECS: i64 = 10 * 60;
@@ -429,80 +431,13 @@ impl BookingService {
             ..Default::default()
         };
 
-        // Write the booking row first — the schema demands it:
-        // `seat_inventory.held_by_booking_id` carries an FK to
-        // `booking.id`, so seats cannot be claimed before the booking
-        // exists. The row is still invisible to users (status `pending`,
-        // no line items); every failure path below DELETES it again, so
-        // a failed hold leaves no ghost rows behind.
-        self.store
-            .booking_store()
-            .insert_booking(booking_model)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-
-        // Claim ALL the seats in ONE conditional UPDATE (bulk hold).
-        //
-        // The `status = 'available'` guard closes the TOCTOU race: the
-        // engine serializes the UPDATE, so concurrent holds on
-        // overlapping seats resolve exactly one winner per seat; the
-        // loser sees `rows_affected < seat count` and rolls back. This
-        // is also the PERF-001 fix — the old per-seat loop cost one
-        // round-trip per seat; the bulk claim is one round-trip for the
-        // whole booking.
-        //
-        // The old flow's rollback released the claimed seats but never
-        // un-wrote the booking + booking_seat rows it had already
-        // inserted: every failed multi-seat hold left a `pending`
-        // booking and its line items behind forever (nothing swept
-        // `pending` rows; only a confirm/cancel attempt on that exact
-        // booking would flip it). The rollback below now removes the
-        // row entirely.
-        let booking_id_str = booking_id.to_string();
+        // Booking, seat claim, line items and coupon land in ONE
+        // transaction: of concurrent holds on a seat exactly one commits
+        // and the rest roll back whole, so a failed hold leaves no ghost
+        // rows and no blocked seats.
         let trip_id_str = req.trip_id.to_string();
         let wanted = seat_uuids.len();
-        let claimed = self
-            .store
-            .trip_store()
-            .try_hold_seats_bulk(&trip_id_str, &seat_uuids, &booking_id_str, &expires_at)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-        if claimed != wanted as u64 {
-            // Partial (or empty) claim — hand back whatever we did get,
-            // then drop the never-visible booking row. The bulk release
-            // is conditional on `held_by_booking_id`, so a concurrent
-            // booking's hold is never clobbered, and it must run BEFORE
-            // the delete (the seat_inventory claim FKs the booking row).
-            // On failure the seats self-heal at `expires_at` — already
-            // set by the claim — and the row stays for the same reason.
-            if claimed > 0 {
-                if let Err(e) = self
-                    .store
-                    .trip_store()
-                    .release_held_seats_for_booking(&booking_id_str)
-                    .await
-                {
-                    tracing::warn!(
-                        booking_id = %booking_id_str,
-                        claimed,
-                        error = %e,
-                        "conflict rollback failed — seats self-heal at expires_at"
-                    );
-                    return Err(AppError::Conflict(
-                        "some seats are no longer available".into(),
-                    ));
-                }
-            }
-            let _ = self.store.booking_store().delete_booking(booking_id).await;
-            return Err(AppError::Conflict(
-                "some seats are no longer available".into(),
-            ));
-        }
-
-        // Batch-insert all booking_seat rows in a single INSERT.
-        // Replaces the per-seat loop (N round-trips). A single
-        // multi-row INSERT is atomic — no partial line items on failure.
-        let bs_models: Vec<booking_seat::ActiveModel> = tickets
+        let lines: Vec<booking_seat::ActiveModel> = tickets
             .iter()
             .map(|t| booking_seat::ActiveModel {
                 id: Set(Uuid::new_v4()),
@@ -517,50 +452,40 @@ impl BookingService {
                 created_at: Set(now_iso()),
             })
             .collect();
-        if let Err(e) = self
+        // The coupon was checked above; the transaction puts it on the
+        // booking, and rolls the hold back if it changed since.
+        let coupon = match (req.coupon_id, caller_user_id) {
+            (Some(coupon_id), Some(user_id)) => Some(HoldCoupon {
+                coupon_id,
+                user_id,
+                brand_id: route_model.brand_id,
+            }),
+            _ => None,
+        };
+        let outcome = self
             .store
             .booking_store()
-            .insert_booking_seats_batch(bs_models)
+            .place_hold(NewHold {
+                booking: booking_model,
+                trip_session_id: req.trip_id,
+                seat_ids: req.seat_ids.clone(),
+                held_until: expires_at.clone(),
+                lines,
+                coupon,
+            })
             .await
-        {
-            // Line items failed — release the claimed seats (clears the
-            // seat_inventory FK) and drop the booking row. The failed
-            // hold must leave NOTHING behind: no ghost `pending` row, no
-            // seats blocked for ten minutes.
-            let _ = self
-                .store
-                .trip_store()
-                .release_held_seats_for_booking(&booking_id_str)
-                .await;
-            let _ = self.store.booking_store().delete_booking(booking_id).await;
-            return Err(AppError::Internal(e.to_string()));
-        }
-
-        // Put the coupon on the booking. It changed since the check (used
-        // on another booking, expired, given up): undo the whole hold.
-        if let (Some(coupon_id), Some(owner)) = (req.coupon_id, caller_user_id) {
-            let reserved = self
-                .store
-                .campaign_store()
-                .reserve_coupon(
-                    coupon_id,
-                    owner,
-                    booking_id,
-                    route_model.brand_id,
-                    &now_iso(),
-                )
-                .await
-                .map_err(|e| AppError::Internal(e.to_string()))?;
-            if !reserved {
-                let _ = self
-                    .store
-                    .trip_store()
-                    .release_held_seats_for_booking(&booking_id_str)
-                    .await;
-                let _ = self.store.booking_store().delete_booking(booking_id).await;
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        match outcome {
+            HoldOutcome::Held => {}
+            HoldOutcome::SeatsTaken => {
+                return Err(AppError::Conflict(
+                    "some seats are no longer available".into(),
+                ))
+            }
+            HoldOutcome::CouponUnavailable => {
                 return Err(AppError::Conflict(
                     crate::service::campaign_service::codes::UNAVAILABLE.into(),
-                ));
+                ))
             }
         }
 
@@ -568,8 +493,9 @@ impl BookingService {
         // (`available_seats = available_seats - n`), closing the
         // lost-update race the read-modify-write had: two concurrent
         // holds both read `10`, both wrote `10 - n`, one decrement
-        // vanished. The seat_inventory claim above is the correctness
-        // gate; this maintains the trip's display/hint counter.
+        // vanished. The seat claim above is the correctness gate; this
+        // maintains the trip's display/hint counter, outside the
+        // transaction so holds on one trip do not conflict on its row.
         self.store
             .trip_store()
             .decrement_available_seats(&trip_id_str, wanted as i64)

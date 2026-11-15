@@ -35,10 +35,11 @@
 use std::sync::Arc;
 
 use chrono::Utc;
-use sea_orm::{Set, TransactionTrait};
+use sea_orm::Set;
 use uuid::Uuid;
 
 use crate::config::PaymentConfig;
+use crate::db::write::with_write;
 use crate::dto::payment::{
     AdminPaymentListResponse, AdminPaymentOut, AdminPaymentSummary, BankTransferInstructions,
     CancelPaymentResponse, CreatePaymentReq, CreatePaymentResponse, ListPaymentsResponse,
@@ -883,12 +884,16 @@ impl PaymentService {
         let booking_id_str = p.booking_id;
         let provider = p.provider.clone();
 
-        // Transactional: payment UPDATE + booking confirm.
-        let db = self.store.db();
+        // Collecting the payment is one transaction; confirming the booking
+        // is another, so a payment that was collected stays collected even
+        // when its booking can no longer be confirmed.
         let p_id = p.id;
-        let provider_trans_id_clone = provider_trans_id.clone();
-        let provider_response_clone = provider_response.clone();
-        db.transaction::<_, (), AppError>(|txn| {
+        with_write(self.store.db(), |txn| {
+            let (now, provider_trans_id, provider_response) = (
+                now.clone(),
+                provider_trans_id.clone(),
+                provider_response.clone(),
+            );
             Box::pin(async move {
                 use crate::entity::payment as p;
                 use sea_orm::sea_query::Expr;
@@ -896,35 +901,20 @@ impl PaymentService {
 
                 p::Entity::update_many()
                     .col_expr(p::Column::Status, Expr::value(statuses::COMPLETED))
-                    .col_expr(p::Column::UpdatedAt, Expr::value(now.clone()))
-                    .col_expr(
-                        p::Column::ProviderTransId,
-                        Expr::value(provider_trans_id_clone.clone()),
-                    )
-                    .col_expr(
-                        p::Column::ProviderResponse,
-                        Expr::value(provider_response_clone),
-                    )
+                    .col_expr(p::Column::UpdatedAt, Expr::value(now))
+                    .col_expr(p::Column::ProviderTransId, Expr::value(provider_trans_id))
+                    .col_expr(p::Column::ProviderResponse, Expr::value(provider_response))
                     .filter(p::Column::Id.eq(p_id))
                     .filter(p::Column::Status.eq(statuses::PENDING))
                     .exec(txn)
-                    .await
-                    .map_err(|e| AppError::Internal(e.to_string()))?;
+                    .await?;
                 Ok(())
             })
         })
-        .await
-        .map_err(|e| match e {
-            sea_orm::TransactionError::Connection(e) => {
-                AppError::Internal(format!("transaction start failed: {e}"))
-            }
-            sea_orm::TransactionError::Transaction(app_err) => app_err,
-        })?;
+        .await?;
 
-        // Confirm the booking outside the txn — `booking.confirm()` runs its
-        // own transaction; running it nested would require passing the txn
-        // handle down, which we explicitly avoid (see CompositeStore::db() docs).
-        // A failure is logged and recorded on the payment by the helper.
+        // Confirm the booking after the commit. A failure is logged and
+        // recorded on the payment by the helper.
         let _ = self
             .confirm_paid_booking(booking_id_str, p_id, &provider)
             .await;

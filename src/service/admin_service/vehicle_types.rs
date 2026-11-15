@@ -5,6 +5,7 @@ use uuid::Uuid;
 
 use super::validate::{slugify, valid_slug};
 use super::{now_iso, optional_trimmed, AdminService};
+use crate::db::write::with_write;
 use crate::dto::admin::{
     AdminMutationResponse, AdminVehicleTypeListResponse, AdminVehicleTypeOut,
     UpsertVehicleTypeRequest,
@@ -172,31 +173,24 @@ impl AdminService {
     /// cleared explicitly in one transaction so SQLite (no FK on the
     /// added column) matches standard SQL engines.
     pub async fn delete_vehicle_type(&self, id: Uuid) -> AppResult<()> {
-        use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, TransactionTrait};
+        use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 
-        let txn = self
-            .store
-            .db()
-            .begin()
-            .await
-            .map_err(|e| AppError::Internal(format!("begin txn: {e}")))?;
-        schedule::Entity::update_many()
-            .col_expr(
-                schedule::Column::VehicleTypeId,
-                sea_orm::sea_query::Expr::value(Option::<Uuid>::None),
-            )
-            .filter(schedule::Column::VehicleTypeId.eq(id))
-            .exec(&txn)
-            .await
-            .map_err(|e| AppError::Internal(format!("clear schedule references: {e}")))?;
-        vehicle_type::Entity::delete_by_id(id)
-            .exec(&txn)
-            .await
-            .map_err(|e| AppError::Internal(format!("delete vehicle type: {e}")))?;
-        txn.commit()
-            .await
-            .map_err(|e| AppError::Internal(format!("commit txn: {e}")))?;
-        Ok(())
+        with_write(self.store.db(), |tx| {
+            Box::pin(async move {
+                schedule::Entity::update_many()
+                    .col_expr(
+                        schedule::Column::VehicleTypeId,
+                        sea_orm::sea_query::Expr::value(Option::<Uuid>::None),
+                    )
+                    .filter(schedule::Column::VehicleTypeId.eq(id))
+                    .exec(tx)
+                    .await?;
+                vehicle_type::Entity::delete_by_id(id).exec(tx).await?;
+                Ok(())
+            })
+        })
+        .await
+        .map_err(|e| AppError::Internal(format!("delete vehicle type: {e}")))
     }
 }
 

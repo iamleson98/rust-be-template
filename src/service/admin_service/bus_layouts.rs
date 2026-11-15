@@ -11,11 +11,12 @@
 //! transaction directly): the store methods would check out a SECOND
 //! pooled connection and deadlock on SQLite's table lock.
 
-use sea_orm::{EntityTrait, Set, TransactionTrait};
+use sea_orm::{EntityTrait, Set};
 use uuid::Uuid;
 
 use super::validate::valid_vehicle_type_code;
 use super::{now_iso, optional_trimmed, AdminService};
+use crate::db::write::with_write;
 use crate::dto::admin::{
     AdminBusLayoutListResponse, AdminBusLayoutOut, AdminMutationResponse, SeatGridSpec,
     UpsertBusLayoutRequest,
@@ -173,16 +174,16 @@ impl AdminService {
 
         // Layout + seats must land together — a layout whose seat rows
         // are missing would silently sell nothing.
-        let txn = self.store.db().begin().await.map_err(internal)?;
-        bus_layout::Entity::insert(layout)
-            .exec(&txn)
-            .await
-            .map_err(|e| AppError::Internal(format!("insert bus layout: {e}")))?;
-        seat::Entity::insert_many(seats)
-            .exec(&txn)
-            .await
-            .map_err(|e| AppError::Internal(format!("insert seats: {e}")))?;
-        txn.commit().await.map_err(internal)?;
+        with_write(self.store.db(), |tx| {
+            let (layout, seats) = (layout.clone(), seats.clone());
+            Box::pin(async move {
+                bus_layout::Entity::insert(layout).exec(tx).await?;
+                seat::Entity::insert_many(seats).exec(tx).await?;
+                Ok(())
+            })
+        })
+        .await
+        .map_err(|e| AppError::Internal(format!("insert bus layout with its seats: {e}")))?;
         Ok(AdminMutationResponse { id })
     }
 

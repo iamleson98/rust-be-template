@@ -9,16 +9,17 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use sea_orm::{
     ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
-    QuerySelect, TransactionTrait,
+    QuerySelect,
 };
 use store_macros::retry;
 use uuid::Uuid;
 
+use crate::db::write::with_write;
 use crate::entity::{
     booking_seat, bus_layout, schedule, schedule_fare, seat, seat_inventory, trip_session,
 };
 
-use super::error::{StoreError, StoreResult};
+use super::error::StoreResult;
 use super::retry::RetryPolicy;
 
 /// A page of bus layouts plus the total matching-row count (before
@@ -302,21 +303,20 @@ impl ScheduleStore for DbScheduleStore {
         schedule_id: Uuid,
         fares: Vec<schedule_fare::ActiveModel>,
     ) -> StoreResult<()> {
-        self.db
-            .transaction::<_, (), StoreError>(|txn| {
-                Box::pin(async move {
-                    schedule_fare::Entity::delete_many()
-                        .filter(schedule_fare::Column::ScheduleId.eq(schedule_id))
-                        .exec(txn)
-                        .await?;
-                    if !fares.is_empty() {
-                        schedule_fare::Entity::insert_many(fares).exec(txn).await?;
-                    }
-                    Ok(())
-                })
+        with_write(&self.db, |txn| {
+            let fares = fares.clone();
+            Box::pin(async move {
+                schedule_fare::Entity::delete_many()
+                    .filter(schedule_fare::Column::ScheduleId.eq(schedule_id))
+                    .exec(txn)
+                    .await?;
+                if !fares.is_empty() {
+                    schedule_fare::Entity::insert_many(fares).exec(txn).await?;
+                }
+                Ok(())
             })
-            .await
-            .map_err(StoreError::from)
+        })
+        .await
     }
 
     // ── BusLayout ───────────────────────────────────────────────
