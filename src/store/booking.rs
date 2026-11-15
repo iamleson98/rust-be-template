@@ -757,3 +757,115 @@ impl DbBookingStore {
         .await
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use sea_orm::{ActiveValue::Set, PaginatorTrait};
+
+    use super::*;
+    use crate::service::test_support::{fixture, Fixture};
+
+    /// A hold of the first `n` seats of the fixture's trip.
+    fn new_hold(f: &Fixture, n: usize, coupon: Option<HoldCoupon>) -> NewHold {
+        let now = now_iso();
+        let booking_id = Uuid::new_v4();
+        let seat_ids = f.seats[..n].to_vec();
+        NewHold {
+            booking: booking::ActiveModel {
+                id: Set(booking_id),
+                code: Set(format!("T-{}", booking_id.simple())),
+                trip_session_id: Set(f.trip),
+                adult_count: Set(n as i64),
+                child_count: Set(0),
+                subtotal: Set(0),
+                discount: Set(0),
+                fees: Set(0),
+                total: Set(0),
+                currency: Set("VND".into()),
+                status: Set("pending".into()),
+                created_at: Set(now.clone()),
+                updated_at: Set(now.clone()),
+                ..Default::default()
+            },
+            trip_session_id: f.trip,
+            lines: seat_ids
+                .iter()
+                .map(|&seat_id| booking_seat::ActiveModel {
+                    id: Set(Uuid::new_v4()),
+                    booking_id: Set(booking_id),
+                    seat_id: Set(seat_id),
+                    price: Set(0),
+                    created_at: Set(now.clone()),
+                    ..Default::default()
+                })
+                .collect(),
+            seat_ids,
+            held_until: now,
+            coupon,
+        }
+    }
+
+    async fn rows(f: &Fixture) -> (u64, u64) {
+        (
+            booking::Entity::find().count(f.store.db()).await.unwrap(),
+            booking_seat::Entity::find()
+                .count(f.store.db())
+                .await
+                .unwrap(),
+        )
+    }
+
+    #[tokio::test]
+    async fn a_hold_takes_the_booking_its_seats_and_line_items_together() {
+        let f = fixture(3).await;
+        let outcome = f
+            .store
+            .booking_store()
+            .place_hold(new_hold(&f, 2, None))
+            .await
+            .unwrap();
+        assert_eq!(outcome, HoldOutcome::Held);
+        assert_eq!(rows(&f).await, (1, 2));
+        let (available, held, booked, _) = f.seats_now().await;
+        assert_eq!((available, held, booked), (1, 2, 0));
+    }
+
+    #[tokio::test]
+    async fn a_hold_on_a_taken_seat_leaves_nothing_behind() {
+        let f = fixture(3).await;
+        let owner = f.owner().await;
+        f.hold(owner, 1).await;
+        let before = rows(&f).await;
+
+        // Seat 0 is held; seats 1 and 2 are free. The hold gets none.
+        let mut hold = new_hold(&f, 3, None);
+        hold.seat_ids = f.seats.clone();
+        let outcome = f.store.booking_store().place_hold(hold).await.unwrap();
+
+        assert_eq!(outcome, HoldOutcome::SeatsTaken);
+        assert_eq!(rows(&f).await, before, "no booking, no line items");
+        let (available, held, _, _) = f.seats_now().await;
+        assert_eq!((available, held), (2, 1), "the free seats were not claimed");
+    }
+
+    #[tokio::test]
+    async fn a_coupon_that_is_gone_rolls_the_whole_hold_back() {
+        let f = fixture(2).await;
+        let coupon = HoldCoupon {
+            coupon_id: Uuid::new_v4(),
+            user_id: f.owner().await,
+            brand_id: None,
+        };
+        let outcome = f
+            .store
+            .booking_store()
+            .place_hold(new_hold(&f, 2, Some(coupon)))
+            .await
+            .unwrap();
+
+        assert_eq!(outcome, HoldOutcome::CouponUnavailable);
+        assert_eq!(rows(&f).await, (0, 0));
+        let (available, held, _, _) = f.seats_now().await;
+        assert_eq!((available, held), (2, 0), "the seats are free again");
+    }
+}
