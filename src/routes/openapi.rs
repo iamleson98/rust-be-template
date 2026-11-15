@@ -218,6 +218,8 @@ use utoipa::OpenApi;
         crate::routes::uploads::upload_brand_logo,
     ),
     components(schemas(
+        // shared
+        crate::dto::SortOrder,
         // auth
         crate::routes::auth::RegisterRequest,
         crate::routes::auth::LoginRequest,
