@@ -79,15 +79,6 @@ fn geo_opts(
     .expect("valid search options")
 }
 
-// Link anchor: rustc only places an rlib on a TEST binary's link line
-// when the test's own code references the crate. The rustqlite engine
-// (`sqlite3` crate — the sqlite3_* C ABI) is otherwise dropped and
-// sqlx-sqlite's FFI references go unresolved. Referencing the compat crate's
-// Rust-visible `engine_version` pulls the engine + compat rlibs onto
-// THIS binary's link line.
-#[used]
-static ENGINE_LINK: fn() -> &'static str = sqlite3::engine_version;
-
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use std::sync::Arc;

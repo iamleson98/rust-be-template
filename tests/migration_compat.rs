@@ -1,33 +1,24 @@
 //! Migration compatibility tests — verifies that the full migration
-//! suite runs cleanly on the rust-sql (rustqlite) engine.
+//! suite runs cleanly on the vendored SQLite engine.
 //!
 //! ## Engine
 //!
-//! The test uses an in-memory `sqlite::memory:` URL — which lands in
-//! the pure-Rust rustqlite engine (sea-orm's sqlite dialect on the
-//! C-ABI compat layer; see the `[patch.crates-io]` block in the
-//! workspace Cargo.toml). No external deps, no cleanup needed.
+//! The test uses an in-memory `sqlite::memory:` URL — sea-orm's sqlite
+//! dialect on the SQLite built from `vendor/libsqlite3-sys` (see the
+//! `[patch.crates-io]` block in the workspace Cargo.toml). No external
+//! deps, no cleanup needed.
 //!
 //! ## What this catches
 //!
 //! - Migrations using placeholder syntax the engine's sqlite dialect
 //!   can't bind (should use the high-level `Query::select()` API which
 //!   translates placeholders).
-//! - Migrations using column types or defaults the engine doesn't
-//!   accept.
+//! - Migrations using column types, defaults or double-quoted string
+//!   literals the engine doesn't accept (it is built with `SQLITE_DQS=0`).
 //! - Seed data that doesn't insert correctly (e.g. UUID generation,
 //!   timestamp defaults).
-//! - Engine-level incompatibilities between the rustqlite C-ABI compat
-//!   layer and sea-orm-migration's statement shapes.
-
-// Link anchor: rustc only places an rlib on a TEST binary's link line
-// when the test's own code references the crate. The rustqlite engine
-// (`sqlite3` crate — the sqlite3_* C ABI) is otherwise dropped and
-// sqlx-sqlite's FFI references go unresolved. Referencing the compat crate's
-// Rust-visible `engine_version` pulls the engine + compat rlibs onto
-// THIS binary's link line.
-#[used]
-static ENGINE_LINK: fn() -> &'static str = sqlite3::engine_version;
+//! - Engine-level incompatibilities with sea-orm-migration's statement
+//!   shapes.
 
 use sea_orm::Database;
 use sea_orm_migration::MigratorTrait;
@@ -72,8 +63,8 @@ async fn run_migrations_on(db_url: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// rust-sql engine migration test — always runs (no external deps).
+/// Migration test — always runs (no external deps).
 #[tokio::test]
-async fn migrations_run_on_rustqlite_in_memory() -> anyhow::Result<()> {
+async fn migrations_run_in_memory() -> anyhow::Result<()> {
     run_migrations_on("sqlite::memory:").await
 }

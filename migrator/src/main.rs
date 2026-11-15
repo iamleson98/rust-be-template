@@ -17,9 +17,8 @@
 //! exactly that forwarding shape.
 //!
 //! Entity generation is IN-PROCESS (sea-schema discovery + sea-orm-codegen
-//! linked against the workspace-patched rust-sql engine). The standalone
-//! `sea-orm-cli generate entity` binary links REAL SQLite and cannot read
-//! the rust-sql on-disk format.
+//! sharing the workspace SQLite build), so no separately installed
+//! `sea-orm-cli` is needed.
 
 use anyhow::Context;
 use clap::{Parser, Subcommand};
@@ -81,9 +80,8 @@ enum Command {
 
     /// Generate SeaORM entities from the live database schema.
     ///
-    /// Runs sea-schema discovery + sea-orm-codegen IN-PROCESS through the
-    /// rust-sql engine (the standalone sea-orm-cli links real SQLite and
-    /// cannot read rust-sql database files).
+    /// Runs sea-schema discovery + sea-orm-codegen IN-PROCESS (no
+    /// separately installed sea-orm-cli needed).
     EntityGenerate {
         /// Output directory (default: `src/entity`).
         #[arg(short = 'o', long = "output", default_value = "src/entity")]
@@ -113,7 +111,7 @@ enum DbAction {
     /// Print the DATABASE_URL (useful for scripts).
     Url,
 
-    /// Run an ad-hoc SQL statement through the rust-sql engine and print
+    /// Run an ad-hoc SQL statement and print
     /// the rows (schema-discovery debugging: PRAGMA table_info, …).
     Probe {
         /// SQL to execute, e.g. "PRAGMA table_info('user')".
@@ -159,14 +157,14 @@ fn load_db_url() -> anyhow::Result<String> {
         Err(_) => "sqlite://./app.db?mode=rwc".to_string(),
     };
 
-    // Everything here registers as sea-orm's `sqlite://` driver (the
-    // rust-sql engine). A stale or foreign DATABASE_URL (e.g. `file:…`)
-    // would otherwise die deep inside sea-orm with "has no supporting
-    // driver" — fail early with something actionable instead.
+    // Everything here registers as sea-orm's `sqlite://` driver. A stale
+    // or foreign DATABASE_URL (e.g. `file:…`) would otherwise die deep
+    // inside sea-orm with "has no supporting driver" — fail early with
+    // something actionable instead.
     if !url.starts_with("sqlite:") {
         anyhow::bail!(
-            "unsupported DATABASE_URL '{url}': this project runs on the rust-sql \
-             engine, which registers as the sqlite:// driver. Unset DATABASE_URL \
+            "unsupported DATABASE_URL '{url}': this project runs on SQLite, \
+             which registers as the sqlite:// driver. Unset DATABASE_URL \
              (or point it at sqlite://./app.db?mode=rwc) and try again"
         );
     }
@@ -200,7 +198,7 @@ fn normalize_sqlite_url(db_url: &str) -> anyhow::Result<String> {
         .ok_or_else(|| {
             anyhow::anyhow!(
                 "unsupported DATABASE_URL '{db_url}': only sqlite://… URLs are \
-                 supported (the rust-sql engine registers as the sqlite driver)"
+                 supported"
             )
         })?;
 
@@ -292,13 +290,10 @@ async fn run_fresh(yes: bool) -> anyhow::Result<()> {
 
     let db_url = load_db_url()?;
 
-    // For SQLite (rust-sql): delete the database file and re-apply from
+    // For SQLite: delete the database file and re-apply from
     // scratch. Handles both `sqlite://./app.db` and `sqlite:app.db` forms.
     if let Some(path) = sqlite_file_path(&db_url) {
-        if std::path::Path::new(&path).exists() {
-            std::fs::remove_file(&path).context(format!("deleting database file {path}"))?;
-            println!("removed {path}");
-        }
+        remove_database_files(&path)?;
     } else {
         // For non-file backends, fall back to down() + up().
         let db = db_connect(&db_url).await?;
@@ -310,6 +305,23 @@ async fn run_fresh(yes: bool) -> anyhow::Result<()> {
     let db = db_connect(&db_url).await?;
     Migrator::up(&db, None).await?;
     println!("✓ database refreshed");
+    Ok(())
+}
+
+/// Delete a SQLite database file together with its WAL sidecars (a
+/// leftover `-wal`/`-shm` pair would otherwise be replayed into the
+/// fresh database). Missing files are fine.
+fn remove_database_files(path: &str) -> anyhow::Result<()> {
+    for file in [
+        path.to_string(),
+        format!("{path}-wal"),
+        format!("{path}-shm"),
+    ] {
+        if std::path::Path::new(&file).exists() {
+            std::fs::remove_file(&file).context(format!("deleting database file {file}"))?;
+            println!("removed {file}");
+        }
+    }
     Ok(())
 }
 
@@ -376,7 +388,7 @@ async fn run_entity_generate(
     };
     let sqlx_url = normalize_sqlite_url(&db_url)?;
 
-    println!("→ discovering schema (rust-sql engine)");
+    println!("→ discovering schema");
     println!("  database: {db_url}");
     println!("  output:   {}", output.display());
 
@@ -388,7 +400,7 @@ async fn run_entity_generate(
         .acquire_timeout(std::time::Duration::from_secs(30))
         .connect(&sqlx_url)
         .await
-        .context("connecting to database (rust-sql engine)")?;
+        .context("connecting to database")?;
     println!("  connected");
 
     let schema = SchemaDiscovery::new(pool.clone())
@@ -495,13 +507,10 @@ async fn run_db_reset(yes: bool) -> anyhow::Result<()> {
 
     let db_url = load_db_url()?;
 
-    // For SQLite (rust-sql): delete the database file and re-apply from
+    // For SQLite: delete the database file and re-apply from
     // scratch. Handles both `sqlite://./app.db` and `sqlite:app.db` forms.
     if let Some(path) = sqlite_file_path(&db_url) {
-        if std::path::Path::new(&path).exists() {
-            std::fs::remove_file(&path).context(format!("deleting database file {path}"))?;
-            println!("removed {path}");
-        }
+        remove_database_files(&path)?;
     } else {
         let db = db_connect(&db_url).await?;
         println!("reverting all migrations…");
@@ -531,7 +540,7 @@ async fn run_db_probe(sql: &str) -> anyhow::Result<()> {
         .max_connections(1)
         .connect(&sqlx_url)
         .await
-        .context("connecting to database (rust-sql engine)")?;
+        .context("connecting to database")?;
 
     let rows = sqlx::query(sql)
         .fetch_all(&mut *pool.acquire().await?)

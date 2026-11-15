@@ -50,16 +50,14 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
     config.log_active();
 
     // ---- DB pool ------------------------------------------------------
-    // The engine is ALWAYS rust-sql (rustqlite) — sea-orm's sqlite
-    // dialect on the pure-Rust engine via the C-ABI compat layer
-    // (see `src/db/mod.rs` and the [patch.crates-io] in Cargo.toml).
-    // Any non-sqlite:// URL (e.g. a stale postgres:// one) fails fast
+    // The engine is ALWAYS the vendored SQLite (see `src/db/mod.rs` and
+    // the [patch.crates-io] in Cargo.toml). Any non-sqlite:// URL (e.g. a stale postgres:// one) fails fast
     // with a clear message instead of limping into an unsupported
     // backend at connect time.
     if !config.database.url.starts_with("sqlite") {
         anyhow::bail!(
-            "unsupported DATABASE_URL {:?} — this build links only the \
-             rust-sql (rustqlite) engine; use a sqlite://… URL",
+            "unsupported DATABASE_URL {:?} — this build supports only \
+             SQLite; use a sqlite://… URL",
             &config.database.url[..config
                 .database
                 .url
@@ -81,22 +79,19 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
 
     // ── Engine-specific setup ────────────────────────────────────
     // Apply performance pragmas (WAL mode, sync=NORMAL, busy_timeout,
-    // cache_size, foreign_keys=ON). The rustqlite engine follows
-    // SQLite's default of FK enforcement OFF — sea-orm migrations assume
-    // FK enforcement, so we must turn it on.
+    // cache_size, foreign_keys=ON).
     apply_sqlite_pragmas(&db, config.database.cache_kib).await?;
     tracing::info!(
-        engine = crate::db::engine_version(),
-        "database engine: rust-sql (rustqlite) via the sqlx-sqlite C-ABI compat layer"
+        version = crate::db::sqlite_version(),
+        source_id = crate::db::sqlite_source_id(),
+        "database engine: SQLite (begin-concurrent)"
     );
 
     let db = Arc::new(db);
 
     // ── Readiness lane ───────────────────────────────────────────
     // A second, tiny pool for `/ready` so health checks never queue
-    // behind request traffic on the main pool. The rust-sql compat
-    // layer shares ONE engine per database file across all pooled
-    // connections, so these handles are cheap — but their ACQUIRE
+    // behind request traffic on the main pool. Their ACQUIRE
     // queues are separate, which is the point: an 8-connection main
     // pool fully occupied by long searches (or an admin VACUUM INTO
     // probe) used to starve `/ready` into 503s, and with swarm's
@@ -632,38 +627,6 @@ async fn apply_sqlite_pragmas(
     cache_kib: i64,
 ) -> anyhow::Result<()> {
     use sea_orm::ConnectionTrait;
-    // Where these actually land — verified against the rust-sql compat
-    // layer (rust-sql/compat/rustqlite-compat/src/lib.rs):
-    //
-    // All C-ABI connections opened on the SAME database file share ONE
-    // engine (`engines()` registry, `OpenTarget::File` keyed by canonical
-    // path, weak-upgrade-or-recreate) and therefore ONE pager. Every
-    // pragma below writes pager-level state, so running them through ONE
-    // pooled connection configures the ENGINE — the whole pool, plus any
-    // connection opened later, inherits the settings for as long as at
-    // least one pool connection keeps the engine alive (min_connections
-    // guarantees exactly that).
-    //
-    // * `foreign_keys=ON` + `busy_timeout=5000` — also applied by
-    //   sqlx-sqlite itself on every connection (SqliteConnectOptions
-    //   defaults); listed here so the intent is explicit and not
-    //   silently dependent on a sqlx default.
-    // * `journal_mode=WAL` — persisted in the database file header: the
-    //   first connection that sets it flips the file for everyone.
-    // * `synchronous=NORMAL` / `temp_store=MEMORY` — pager-level state
-    //   (see `set_synchronous` / `set_temp_store` in rust-sql api.rs):
-    //   engine-wide, reached via the shared pager.
-    // * `cache_size=-<cache_kib>` — RE-ADDED 2026-10 after the 2026-09
-    //   removal turned out to be based on a wrong model: there is no
-    //   per-connection page cache to win a lottery with. The engine
-    //   keeps ONE shared page cache per file (`Pager::cache_capacity`),
-    //   `PRAGMA cache_size` updates it live (api.rs "cache_size" arm),
-    //   and the engine default is SQLite's -2000 KiB. On the ~625 MB
-    //   production DB that left the shared cache permanently full at
-    //   2 MB (admin "database" cards: cache 100%) with a poor hit
-    //   rate. The default here is 64 MiB; tune via DATABASE_CACHE_KIB.
-    // * `mmap_size` — stays out: a silent no-op, the rustqlite engine
-    //   has no mmap support at all.
     let pragmas = [
         "PRAGMA journal_mode=WAL;".to_string(),
         "PRAGMA synchronous=NORMAL;".to_string(),
@@ -675,9 +638,6 @@ async fn apply_sqlite_pragmas(
     for stmt in &pragmas {
         db.execute_unprepared(stmt).await?;
     }
-    tracing::info!(
-        cache_kib,
-        "applied SQLite pragmas engine-wide (shared pager: WAL persisted; sync=NORMAL/temp_store/cache_size on the shared engine cache; FK + busy_timeout also come from sqlx per-connection defaults)"
-    );
+    tracing::info!(cache_kib, "applied SQLite pragmas");
     Ok(())
 }

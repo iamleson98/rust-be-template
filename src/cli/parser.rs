@@ -55,7 +55,7 @@ pub enum Command {
     },
 
     /// Print the database backend/engine this build links (always the
-    /// rust-sql engine — rustqlite via the sqlx-sqlite C-ABI compat).
+    /// vendored SQLite from the `begin-concurrent` branch).
     DbBackend,
 
     /// Backfill-upload stored ad conversions to the Google Ads API

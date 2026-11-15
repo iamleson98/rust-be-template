@@ -4,18 +4,16 @@
 # Local fix: `taplo fmt` (binary from github.com/tamasfe/taplo, or
 # `cargo install taplo-cli --locked`).
 #
-# Scope: only OUR TOML files. The rust-sql engine is a git submodule
-# pinned to upstream master — its own TOML style is not ours to
-# reformat, and reformatting it would dirty the submodule checkout in
-# CI where the docker-build job must see a clean working tree.
+# Scope: only OUR TOML files. vendor/ holds a patched copy of an
+# upstream crate (libsqlite3-sys) — its own TOML style is not ours to
+# reformat.
 include = [
   "Cargo.toml",
   "migrator/Cargo.toml",
   "store_macros/Cargo.toml",
   ".cargo/audit.toml",
-  ".cargo/config.toml",
 ]
-exclude = ["rust-sql/**", "target/**", "node_modules/**"]
+exclude = ["vendor/**", "target/**", "node_modules/**"]
 
 [formatting]
 # Keep inline feature arrays inline (`features = ["ws", "macros"]` stays

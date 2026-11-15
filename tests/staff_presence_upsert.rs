@@ -1,21 +1,15 @@
 //! staff_presence_state upsert integration — the production regression
-//! guard for the rust-sql column-level-PK autoindex bug (2026-09-10).
+//! guard (originally written for a column-level-PK autoindex bug, 2026-09-10).
 //!
-//! The engine's reopen path (`rebuild_implicit_indexes`) used to skip
-//! column-level `PRIMARY KEY` constraints, so the implicit autoindex of
-//! `staff_presence_state` (`user_id uuid_text NOT NULL PRIMARY KEY`)
-//! vanished from the catalog after every process restart. Symptoms in
-//! production: every presence-journal flush failed with "ON CONFLICT
-//! clause does not match any PRIMARY KEY or UNIQUE constraint", and —
-//! far worse — duplicate PK rows were silently ACCEPTED for the whole
-//! session (the unique check only walks loaded indexes).
+//! `staff_presence_state` has a column-level `PRIMARY KEY`
+//! (`user_id uuid_text NOT NULL PRIMARY KEY`); the presence-journal flush
+//! upserts on it with `ON CONFLICT (user_id)`, which needs that implicit
+//! unique index to exist and to reject duplicate rows — including after
+//! the database is closed and reopened.
 //!
 //! These tests run the REAL store path (sea-orm `Entity::insert()
-//! .on_conflict()`) against a fully-migrated engine, including a
+//! .on_conflict()`) against a fully-migrated database, including a
 //! close-and-reopen cycle that mirrors a deploy reboot.
-
-#[used]
-static ENGINE_LINK: fn() -> &'static str = sqlite3::engine_version;
 
 use sea_orm::Database;
 use sea_orm::{ConnectionTrait, EntityTrait};

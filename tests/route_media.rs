@@ -1,5 +1,5 @@
 //! Route-media integration tests — full pipeline on the real stack:
-//! in-memory rust-sql DB + LocalStorage (tempdir) + RouteMediaService.
+//! in-memory SQLite DB + LocalStorage (tempdir) + RouteMediaService.
 //!
 //! What this exercises (service level, no HTTP):
 //! - upload validation: non-image rejection, size/format gates
@@ -18,15 +18,6 @@
 //! hostile keys, 304 on If-None-Match) lives in tests/api_smoke.rs —
 //! that endpoint is mounted outside the rate-limited `/api` nest
 //! precisely so it is testable in the one-shot harness.
-
-// Link anchor: rustc only places an rlib on a TEST binary's link line
-// when the test's own code references the crate. The rustqlite engine
-// (`sqlite3` crate — the sqlite3_* C ABI) is otherwise dropped and
-// sqlx-sqlite's FFI references go unresolved. Referencing the compat
-// crate's Rust-visible `engine_version` pulls the engine + compat
-// rlibs onto THIS binary's link line.
-#[used]
-static ENGINE_LINK: fn() -> &'static str = sqlite3::engine_version;
 
 use std::sync::Arc;
 

@@ -15,10 +15,8 @@ path = "src/lib.rs"
 
 [features]
 # The engine is not selectable: the migrator always runs on the
-# rust-sql (rustqlite) engine — sea-orm's sqlite dialect via the
-# sqlx-sqlite C-ABI compat layer (the libsqlite3-sys patch lives in
-# the workspace root). The former sqlite/postgres backend features
-# were removed 2026-09.
+# vendored SQLite (the libsqlite3-sys patch lives in the workspace
+# root).
 default = []
 
 [dependencies]
@@ -26,23 +24,14 @@ default = []
 sea-orm = { version = "1.1", default-features = false, features = ["runtime-tokio-rustls", "macros", "with-chrono", "with-uuid", "with-json", "sqlx-sqlite"] }
 sea-orm-migration = { version = "1.1", default-features = false, features = ["runtime-tokio-rustls", "sqlx-sqlite"] }
 
-# Entity generation (in-process, via the rust-sql engine).
-# sea-orm-cli CANNOT be used here: it is a standalone binary whose own
-# sqlx-sqlite driver links REAL SQLite, so it cannot read the rust-sql
-# on-disk format ("file is not a database"). Instead we run the same
-# discovery + codegen sea-orm-cli uses (sea-schema 0.16 + sea-orm-codegen
-# 1.1) inside this crate, where the workspace [patch] routes every
-# sqlite3_* FFI call to the rustqlite engine.
+# Entity generation (in-process). We run the same discovery + codegen
+# sea-orm-cli uses (sea-schema 0.16 + sea-orm-codegen 1.1) inside this
+# crate, so it shares the workspace SQLite build instead of needing a
+# separately installed sea-orm-cli.
 sea-schema = { version = "0.16.2", default-features = false, features = ["sqlx-sqlite", "runtime-tokio-rustls", "discovery", "writer", "probe"] }
 sea-orm-codegen = { version = "=1.1.20", default-features = false }
 sea-query = "0.32"
 sqlx = { version = "0.8", default-features = false, features = ["sqlite", "runtime-tokio-rustls"] }
-# The rust-sql engine itself (rlib link mode): the migrator binary
-# links sqlx-sqlite, whose sqlite3_* FFI is satisfied by the compat
-# crate's #[no_mangle] exports. The link anchor in src/lib.rs keeps
-# this rlib on the migrator binary's link line (see the engine block
-# in the workspace root Cargo.toml).
-rustqlite-compat = { path = "../rust-sql/compat/rustqlite-compat" }
 
 # Async runtime
 tokio = { version = "1", features = ["full"] }
@@ -64,10 +53,3 @@ anyhow = "1"
 # (`url` was removed the same day — DATABASE_URL parsing uses plain
 # String + starts_with, not the url crate.)
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-
-# ── cargo-machete false positives ──
-# `rustqlite-compat` — LINK-ONLY dependency (see the comment above at
-# its declaration): no Rust source names the crate, but it must stay
-# on the link line or the migrator binary cannot resolve sqlite3_* FFI.
-[package.metadata.cargo-machete]
-ignored = ["rustqlite-compat"]
