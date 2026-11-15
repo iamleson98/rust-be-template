@@ -73,6 +73,11 @@ if (!Element.prototype.getAnimations) {
   Element.prototype.getAnimations = () => []
 }
 
+// ── Mock Element.scrollIntoView (jsdom doesn't implement it) ──
+if (!Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = vi.fn()
+}
+
 // ── Mock scrollTo (jsdom doesn't implement it) ────────────────
 window.scrollTo = vi.fn()
 
