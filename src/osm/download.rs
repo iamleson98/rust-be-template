@@ -1,7 +1,6 @@
 //! OSM extract downloader — streams the Vietnam `.osm.pbf` to disk.
 //!
-//! Rust port of `scripts/download-vietnam-osm.sh` so the worker can
-//! fetch the extract itself (the script stays for manual/CLI use).
+//! Lets `places-build` fetch the extract itself.
 //!
 //! Properties:
 //! - **Streams to a `.part` sibling** then renames — a crash never

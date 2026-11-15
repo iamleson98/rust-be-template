@@ -134,7 +134,7 @@ impl AdsHub {
                 EVENTS.join(", ")
             )));
         }
-        let code = req.transaction_id.as_deref().map(str::trim).unwrap_or("");
+        let code = req.transaction_id.trim();
         if code.is_empty() || code.len() > MAX_TRANSACTION_ID_LEN {
             return Err(AppError::BadRequest(
                 "transactionId must be a booking code".into(),

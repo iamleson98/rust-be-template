@@ -1697,7 +1697,7 @@
           {
             "name": "jobType",
             "in": "path",
-            "description": "Job type (e.g. `osm.import`)",
+            "description": "Job type (e.g. `coupons.expire`)",
             "required": true,
             "schema": {
               "type": "string"
@@ -1751,7 +1751,7 @@
           {
             "name": "jobType",
             "in": "path",
-            "description": "Job type (e.g. `osm.import`)",
+            "description": "Job type (e.g. `coupons.expire`)",
             "required": true,
             "schema": {
               "type": "string"
@@ -1795,7 +1795,7 @@
           {
             "name": "jobType",
             "in": "path",
-            "description": "Job type (e.g. `osm.import`)",
+            "description": "Job type (e.g. `coupons.expire`)",
             "required": true,
             "schema": {
               "type": "string"
@@ -2605,16 +2605,10 @@
           }
         ],
         "requestBody": {
-          "description": "multipart/form-data: `file` (image), optional `alt_text`",
           "content": {
             "multipart/form-data": {
               "schema": {
-                "type": "array",
-                "items": {
-                  "type": "integer",
-                  "format": "int32",
-                  "minimum": 0
-                }
+                "$ref": "#/components/schemas/RoutePictureUploadForm"
               }
             }
           },
@@ -6932,16 +6926,10 @@
         "description": "Multipart field `file` (required): JPEG / PNG / WebP (stored as WebP\nscaled to 512 px, metadata dropped) or SVG (stored as uploaded after\na safety check), ≤ 5 MiB. The format is read from the content, never\nfrom the declared Content-Type. Content-addressed: the same logo\nuploaded twice yields the same key.",
         "operationId": "upload_brand_logo",
         "requestBody": {
-          "description": "multipart/form-data: `file` (jpg, png, webp or svg)",
           "content": {
             "multipart/form-data": {
               "schema": {
-                "type": "array",
-                "items": {
-                  "type": "integer",
-                  "format": "int32",
-                  "minimum": 0
-                }
+                "$ref": "#/components/schemas/BrandLogoUploadForm"
               }
             }
           },
@@ -9447,6 +9435,20 @@
             "items": {
               "$ref": "#/components/schemas/BrandOut"
             }
+          }
+        }
+      },
+      "BrandLogoUploadForm": {
+        "type": "object",
+        "description": "Multipart body of `POST /api/uploads/brand-logo` (documentation only:\nthe handler reads the parts itself).",
+        "required": [
+          "file"
+        ],
+        "properties": {
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "description": "The logo: JPEG, PNG, WebP or SVG, ≤ 5 MiB."
           }
         }
       },
@@ -13005,39 +13007,23 @@
       },
       "ReportConversionRequest": {
         "type": "object",
-        "description": "Request body for `POST /api/ads/conversions`.\n\nThe browser beacons this at the money moment (booking confirmed /\npayment completed) alongside the click ids it captured on landing.\nFire-and-forget: the response only acknowledges storage — the\nGoogle Ads API upload happens asynchronously and never blocks the\nuser's flow.",
+        "description": "Request body for `POST /api/ads/conversions`.\n\nThe browser beacons this at the money moment (booking confirmed /\npayment completed) alongside the click ids it captured on landing.\nFire-and-forget: the response only acknowledges storage — the\nGoogle Ads API upload happens asynchronously and never blocks the\nuser's flow.\n\nThe beacon carries no revenue or currency: both are read from the booking\n(or its completed payment) in the database.",
         "required": [
-          "event"
+          "event",
+          "transactionId"
         ],
         "properties": {
           "clickIds": {
             "$ref": "#/components/schemas/ClickIds",
             "description": "The landing click ids (attribution join key)."
           },
-          "currency": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Ignored: the currency is read from the database, like `value`."
-          },
           "event": {
             "type": "string",
             "description": "Conversion event name — must match a key in the\n`GOOGLE_ADS_CONVERSION_ACTIONS` map (`booking` | `purchase`)."
           },
           "transactionId": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": "string",
             "description": "The booking code — required: the server verifies it against a\nreal, uncancelled booking (a missing or unknown code is rejected)\nand it is the dedupe id, so repeat beacons collapse."
-          },
-          "value": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Ignored: the revenue is read from the booking (or its completed\npayment) in the database, never from the beacon."
           }
         }
       },
@@ -13573,16 +13559,37 @@
           },
           "thumbUrl": {
             "type": "string",
-            "description": "Public URL of the JPEG thumbnail (long edge ≤ 640px) — use this\nin lists/grids, `url` in the detail gallery."
+            "description": "Public URL of the WebP thumbnail (long edge ≤ 640px) — use this\nin lists/grids, `url` in the detail gallery."
           },
           "url": {
             "type": "string",
-            "description": "Public URL of the ORIGINAL image (content-addressed, immutable)."
+            "description": "Public URL of the full-size WebP (long edge ≤ 1920px;\ncontent-addressed, immutable)."
           },
           "width": {
             "type": "integer",
             "format": "int64",
             "description": "Original dimensions in pixels (for layout before load)."
+          }
+        }
+      },
+      "RoutePictureUploadForm": {
+        "type": "object",
+        "description": "Multipart body of `POST /api/admin/routes/{id}/pictures` (documentation\nonly: the handler reads the parts itself).",
+        "required": [
+          "file"
+        ],
+        "properties": {
+          "alt_text": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Accessible description, at most 255 characters."
+          },
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "description": "The picture: JPEG, PNG or WebP."
           }
         }
       },
@@ -15460,7 +15467,8 @@
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "An uploaded logo (`/api/media/brands/logos/…`) or an https URL;\nblank or `null` clears it. Checked by the service."
           },
           "name": {
             "type": [

@@ -329,6 +329,7 @@ use utoipa::OpenApi;
         crate::dto::route_media::RoutePictureOut,
         crate::dto::route_media::RoutePictureListResponse,
         crate::dto::route_media::RoutePictureUploadResponse,
+        crate::dto::route_media::RoutePictureUploadForm,
         crate::dto::route_media::RoutePictureDeleteResponse,
         crate::dto::route_media::RoutePicturesBulkDeleteResponse,
         crate::dto::route_media::UpdateRoutePictureInput,
@@ -457,6 +458,7 @@ use utoipa::OpenApi;
         crate::dto::public::ProfileSchedule,
         crate::dto::public::ProfileTrip,
         crate::routes::uploads::BrandLogoUploadResponse,
+        crate::routes::uploads::BrandLogoUploadForm,
     )),
     tags(
         (name = "auth", description = "Authentication endpoints"),

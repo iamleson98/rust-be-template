@@ -70,7 +70,7 @@ pub async fn list_runs(
     patch,
     path = "/api/admin/cron-jobs/{jobType}",
     tag = "admin",
-    params(("jobType" = String, Path, description = "Job type (e.g. `osm.import`)")),
+    params(("jobType" = String, Path, description = "Job type (e.g. `coupons.expire`)")),
     request_body = UpdateCronJobRequest,
     responses(
         (status = 200, description = "Updated schedule", body = CronJobOut),
@@ -98,7 +98,7 @@ pub async fn update(
     post,
     path = "/api/admin/cron-jobs/{jobType}/trigger",
     tag = "admin",
-    params(("jobType" = String, Path, description = "Job type (e.g. `osm.import`)")),
+    params(("jobType" = String, Path, description = "Job type (e.g. `coupons.expire`)")),
     responses(
         (status = 200, description = "Run enqueued", body = CronJobRunOut),
         (status = 401, description = "Unauthorized"),
@@ -128,7 +128,7 @@ pub async fn trigger(
     post,
     path = "/api/admin/cron-jobs/{jobType}/cancel",
     tag = "admin",
-    params(("jobType" = String, Path, description = "Job type (e.g. `osm.import`)")),
+    params(("jobType" = String, Path, description = "Job type (e.g. `coupons.expire`)")),
     responses(
         (status = 200, description = "Run cancelled (or already cancelled)", body = CronJobRunOut),
         (status = 401, description = "Unauthorized"),

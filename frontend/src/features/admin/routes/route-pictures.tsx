@@ -169,7 +169,7 @@ export function useRoutePictures(routeId: string | undefined, open: boolean): Ro
         const res = await uploadMutation.mutateAsync({
           path: { id },
           body: { file: item.file },
-        } as unknown as Parameters<typeof uploadMutation.mutateAsync>[0])
+        })
         uploaded.set(item.key, res.picture.id)
       } catch {
         failed++

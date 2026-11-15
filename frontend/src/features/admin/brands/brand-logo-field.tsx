@@ -7,7 +7,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { ImagePlus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { uploadBrandLogo } from '@/api/uploads'
+import { uploadBrandLogo } from '@/api'
 import { Button } from '@/components/ui/button'
 import { useT } from '@/lib/i18n'
 
@@ -64,7 +64,10 @@ export function useBrandLogo(savedUrl: string | null | undefined, open: boolean)
       setRemoved(true)
     },
     commit: async () => {
-      if (picked) return uploadBrandLogo(picked.file)
+      if (picked) {
+        const { data } = await uploadBrandLogo({ body: { file: picked.file }, throwOnError: true })
+        return data.url
+      }
       return removed ? null : undefined
     },
   }

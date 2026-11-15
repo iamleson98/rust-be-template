@@ -782,6 +782,17 @@ export type BrandListResponse = {
 };
 
 /**
+ * Multipart body of `POST /api/uploads/brand-logo` (documentation only:
+ * the handler reads the parts itself).
+ */
+export type BrandLogoUploadForm = {
+    /**
+     * The logo: JPEG, PNG, WebP or SVG, ≤ 5 MiB.
+     */
+    file: Blob | File;
+};
+
+/**
  * Response of `POST /api/uploads/brand-logo`.
  */
 export type BrandLogoUploadResponse = {
@@ -2593,16 +2604,15 @@ export type RejectCouponRequest = {
  * Fire-and-forget: the response only acknowledges storage — the
  * Google Ads API upload happens asynchronously and never blocks the
  * user's flow.
+ *
+ * The beacon carries no revenue or currency: both are read from the booking
+ * (or its completed payment) in the database.
  */
 export type ReportConversionRequest = {
     /**
      * The landing click ids (attribution join key).
      */
     clickIds?: ClickIds;
-    /**
-     * Ignored: the currency is read from the database, like `value`.
-     */
-    currency?: string | null;
     /**
      * Conversion event name — must match a key in the
      * `GOOGLE_ADS_CONVERSION_ACTIONS` map (`booking` | `purchase`).
@@ -2613,12 +2623,7 @@ export type ReportConversionRequest = {
      * real, uncancelled booking (a missing or unknown code is rejected)
      * and it is the dedupe id, so repeat beacons collapse.
      */
-    transactionId?: string | null;
-    /**
-     * Ignored: the revenue is read from the booking (or its completed
-     * payment) in the database, never from the beacon.
-     */
-    value?: string | null;
+    transactionId: string;
 };
 
 /**
@@ -2862,18 +2867,34 @@ export type RoutePictureOut = {
      */
     sortOrder: number;
     /**
-     * Public URL of the JPEG thumbnail (long edge ≤ 640px) — use this
+     * Public URL of the WebP thumbnail (long edge ≤ 640px) — use this
      * in lists/grids, `url` in the detail gallery.
      */
     thumbUrl: string;
     /**
-     * Public URL of the ORIGINAL image (content-addressed, immutable).
+     * Public URL of the full-size WebP (long edge ≤ 1920px;
+     * content-addressed, immutable).
      */
     url: string;
     /**
      * Original dimensions in pixels (for layout before load).
      */
     width: number;
+};
+
+/**
+ * Multipart body of `POST /api/admin/routes/{id}/pictures` (documentation
+ * only: the handler reads the parts itself).
+ */
+export type RoutePictureUploadForm = {
+    /**
+     * Accessible description, at most 255 characters.
+     */
+    alt_text?: string | null;
+    /**
+     * The picture: JPEG, PNG or WebP.
+     */
+    file: Blob | File;
 };
 
 /**
@@ -3693,6 +3714,10 @@ export type UpsertBrandRequest = {
     contactEmail?: string | null;
     contactPhone?: string | null;
     description?: string | null;
+    /**
+     * An uploaded logo (`/api/media/brands/logos/…`) or an https URL;
+     * blank or `null` clears it. Checked by the service.
+     */
     logoUrl?: string | null;
     name?: string | null;
     slug?: string | null;
@@ -5195,7 +5220,7 @@ export type AdminCronJobsUpdateData = {
     body: UpdateCronJobRequest;
     path: {
         /**
-         * Job type (e.g. `osm.import`)
+         * Job type (e.g. `coupons.expire`)
          */
         jobType: string;
     };
@@ -5235,7 +5260,7 @@ export type AdminCronJobsCancelData = {
     body?: never;
     path: {
         /**
-         * Job type (e.g. `osm.import`)
+         * Job type (e.g. `coupons.expire`)
          */
         jobType: string;
     };
@@ -5275,7 +5300,7 @@ export type AdminCronJobsTriggerData = {
     body?: never;
     path: {
         /**
-         * Job type (e.g. `osm.import`)
+         * Job type (e.g. `coupons.expire`)
          */
         jobType: string;
     };
@@ -5893,10 +5918,7 @@ export type ListPicturesResponses = {
 export type ListPicturesResponse = ListPicturesResponses[keyof ListPicturesResponses];
 
 export type UploadPictureData = {
-    /**
-     * multipart/form-data: `file` (image), optional `alt_text`
-     */
-    body: Array<number>;
+    body: RoutePictureUploadForm;
     path: {
         /**
          * Route ID
@@ -8721,10 +8743,7 @@ export type TripDetailResponses = {
 export type TripDetailResponse = TripDetailResponses[keyof TripDetailResponses];
 
 export type UploadBrandLogoData = {
-    /**
-     * multipart/form-data: `file` (jpg, png, webp or svg)
-     */
-    body: Array<number>;
+    body: BrandLogoUploadForm;
     path?: never;
     query?: never;
     url: '/api/uploads/brand-logo';

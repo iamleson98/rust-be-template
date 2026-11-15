@@ -47,6 +47,17 @@ pub struct RoutePictureListResponse {
     pub items: Vec<RoutePictureOut>,
 }
 
+/// Multipart body of `POST /api/admin/routes/{id}/pictures` (documentation
+/// only: the handler reads the parts itself).
+#[derive(ToSchema)]
+pub struct RoutePictureUploadForm {
+    /// The picture: JPEG, PNG or WebP.
+    #[schema(value_type = String, format = Binary)]
+    pub file: Vec<u8>,
+    /// Accessible description, at most 255 characters.
+    pub alt_text: Option<String>,
+}
+
 /// `POST /api/admin/routes/{id}/pictures` — upload result.
 ///
 /// `deduped=true` means the exact same bytes were already attached to

@@ -22,7 +22,7 @@ use uuid::Uuid;
 use validator::Validate;
 
 use crate::dto::route_media::{
-    RoutePictureDeleteResponse, RoutePictureListResponse, RoutePictureOut,
+    RoutePictureDeleteResponse, RoutePictureListResponse, RoutePictureOut, RoutePictureUploadForm,
     RoutePictureUploadResponse, RoutePicturesBulkDeleteResponse, UpdateRoutePictureInput,
 };
 use crate::error::AppError;
@@ -77,7 +77,7 @@ pub async fn list_pictures(
     path = "/api/admin/routes/{id}/pictures",
     tag = "admin",
     params(("id" = Uuid, Path, description = "Route ID")),
-    request_body(content = Vec<u8>, description = "multipart/form-data: `file` (image), optional `alt_text`", content_type = "multipart/form-data"),
+    request_body(content = RoutePictureUploadForm, content_type = "multipart/form-data"),
     responses(
         (status = 201, description = "Stored picture (or existing row when deduped)", body = RoutePictureUploadResponse),
         (status = 400, description = "Validation failed (format / size / count cap)"),

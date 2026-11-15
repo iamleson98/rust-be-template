@@ -30,6 +30,15 @@ pub struct BrandLogoUploadResponse {
     pub url: String,
 }
 
+/// Multipart body of `POST /api/uploads/brand-logo` (documentation only:
+/// the handler reads the parts itself).
+#[derive(ToSchema)]
+pub struct BrandLogoUploadForm {
+    /// The logo: JPEG, PNG, WebP or SVG, ≤ 5 MiB.
+    #[schema(value_type = String, format = Binary)]
+    pub file: Vec<u8>,
+}
+
 /// `POST /api/uploads/brand-logo` — upload one brand logo.
 ///
 /// Multipart field `file` (required): JPEG / PNG / WebP (stored as WebP
@@ -41,7 +50,7 @@ pub struct BrandLogoUploadResponse {
     post,
     path = "/api/uploads/brand-logo",
     tag = "uploads",
-    request_body(content = Vec<u8>, description = "multipart/form-data: `file` (jpg, png, webp or svg)", content_type = "multipart/form-data"),
+    request_body(content = BrandLogoUploadForm, content_type = "multipart/form-data"),
     responses(
         (status = 201, description = "Stored logo", body = BrandLogoUploadResponse),
         (status = 400, description = "Missing file, unsupported format, corrupt image, unsafe SVG or over 5 MiB"),

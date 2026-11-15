@@ -18,6 +18,8 @@
  * The call is made from `RouteMeta` in `router/route-meta.tsx`.
  */
 
+import type { ReportConversionRequest } from '@/api'
+
 // Augment the Window type so TypeScript knows about `gtag`.
 declare global {
   interface Window {
@@ -112,14 +114,16 @@ export function trackConversion(event: ConversionEvent, payload: ConversionPaylo
  */
 function beaconConversionServerSide(event: ConversionEvent, payload: ConversionPayload): void {
   if (typeof navigator === 'undefined' || typeof navigator.sendBeacon !== 'function') return
+  // The server verifies the booking code and takes the revenue from its own
+  // records, so a beacon without a code is refused and none is sent.
+  if (!payload.transactionId) return
   try {
-    const body = JSON.stringify({
+    const request: ReportConversionRequest = {
       event,
-      ...(payload.transactionId && { transactionId: payload.transactionId }),
-      ...(payload.value !== undefined && { value: String(payload.value) }),
-      ...(payload.currency && { currency: payload.currency }),
+      transactionId: payload.transactionId,
       clickIds: getClickIds(),
-    })
+    }
+    const body = JSON.stringify(request)
     navigator.sendBeacon('/api/ads/conversions', new Blob([body], { type: 'application/json' }))
   } catch {
     // Beacon is best-effort on top of the gtag path — never let it

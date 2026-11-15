@@ -14,13 +14,10 @@ use sea_orm::{EntityTrait, PaginatorTrait};
 use std::sync::Arc;
 use wp7a_common::{env, vn_date, Env};
 
-fn beacon(event: &str, code: Option<&str>) -> ReportConversionRequest {
+fn beacon(event: &str, code: &str) -> ReportConversionRequest {
     ReportConversionRequest {
         event: event.into(),
-        transaction_id: code.map(str::to_string),
-        // What a forged beacon would claim.
-        value: Some("1".into()),
-        currency: Some("usd".into()),
+        transaction_id: code.to_string(),
         click_ids: ClickIds {
             gclid: Some("  Cj0KCQ-test  ".into()),
             wbraid: None,
@@ -48,14 +45,11 @@ async fn only_booking_and_purchase_events_are_accepted() {
     let hub = hub(&e);
 
     for event in ["signup", "", "page_view", "Booking2"] {
-        let err = hub
-            .report(beacon(event, Some(&b.code)))
-            .await
-            .expect_err(event);
+        let err = hub.report(beacon(event, &b.code)).await.expect_err(event);
         assert!(matches!(err, AppError::BadRequest(_)), "{event}: {err:?}");
     }
     // Case and blanks around a valid event are forgiven.
-    assert!(hub.report(beacon(" Booking ", Some(&b.code))).await.is_ok());
+    assert!(hub.report(beacon(" Booking ", &b.code)).await.is_ok());
     assert_eq!(rows(&e).await.len(), 1);
 }
 
@@ -64,17 +58,17 @@ async fn the_transaction_id_must_be_a_real_booking_code() {
     let e = env("08:00").await;
     let hub = hub(&e);
 
-    let err = hub.report(beacon("booking", None)).await.unwrap_err();
+    let err = hub.report(beacon("booking", "")).await.unwrap_err();
     assert!(matches!(err, AppError::BadRequest(_)), "{err:?}");
-    let err = hub.report(beacon("booking", Some("  "))).await.unwrap_err();
+    let err = hub.report(beacon("booking", "  ")).await.unwrap_err();
     assert!(matches!(err, AppError::BadRequest(_)), "{err:?}");
     let err = hub
-        .report(beacon("booking", Some(&"x".repeat(129))))
+        .report(beacon("booking", &"x".repeat(129)))
         .await
         .unwrap_err();
     assert!(matches!(err, AppError::BadRequest(_)), "{err:?}");
     let err = hub
-        .report(beacon("booking", Some("VEX-NOSUCH00")))
+        .report(beacon("booking", "VEX-NOSUCH00"))
         .await
         .unwrap_err();
     assert!(matches!(err, AppError::NotFound(_)), "{err:?}");
@@ -89,7 +83,7 @@ async fn value_and_currency_come_from_the_booking_not_the_client() {
     let b = e.booking(None, trip, "pending", 350_000).await;
 
     let out = hub(&e)
-        .report(beacon("booking", Some(&b.code)))
+        .report(beacon("booking", &b.code))
         .await
         .expect("report");
     assert!(out.ok && out.stored && !out.server_upload_enabled);
@@ -114,19 +108,16 @@ async fn a_purchase_needs_a_completed_payment_and_is_worth_its_amount() {
     let hub = hub(&e);
 
     // Nothing paid yet, and a payment that is still pending is not paid.
-    let err = hub
-        .report(beacon("purchase", Some(&b.code)))
-        .await
-        .unwrap_err();
+    let err = hub.report(beacon("purchase", &b.code)).await.unwrap_err();
     assert!(matches!(err, AppError::NotFound(_)), "{err:?}");
     e.payment(&b, "vietqr", "pending", 350_000).await;
-    assert!(hub.report(beacon("purchase", Some(&b.code))).await.is_err());
+    assert!(hub.report(beacon("purchase", &b.code)).await.is_err());
 
     // The completed payment's amount is what the purchase is worth (here a
     // part payment, to show it is not just the booking total).
     e.payment(&b, "cod", "completed", 300_000).await;
     let out = hub
-        .report(beacon("purchase", Some(&b.code)))
+        .report(beacon("purchase", &b.code))
         .await
         .expect("purchase");
     assert!(out.stored);
@@ -146,7 +137,7 @@ async fn a_cancelled_booking_converts_nothing() {
     let hub = hub(&e);
 
     for event in ["booking", "purchase"] {
-        let err = hub.report(beacon(event, Some(&b.code))).await.unwrap_err();
+        let err = hub.report(beacon(event, &b.code)).await.unwrap_err();
         assert!(matches!(err, AppError::NotFound(_)), "{event}: {err:?}");
     }
     assert_eq!(rows(&e).await.len(), 0);
@@ -159,8 +150,8 @@ async fn a_repeated_beacon_collapses_into_one_row() {
     let b = e.booking(None, trip, "confirmed", 350_000).await;
     let hub = hub(&e);
 
-    let first = hub.report(beacon("booking", Some(&b.code))).await.unwrap();
-    let again = hub.report(beacon("booking", Some(&b.code))).await.unwrap();
+    let first = hub.report(beacon("booking", &b.code)).await.unwrap();
+    let again = hub.report(beacon("booking", &b.code)).await.unwrap();
     assert!(first.stored);
     assert!(!again.stored, "the repeat is deduped, not an error");
     assert_eq!(
