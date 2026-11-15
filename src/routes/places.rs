@@ -135,24 +135,24 @@ pub struct ReverseQuery {
 }
 
 /// `GET /api/places/reverse` — the places nearest to a point, nearest first.
+///
+/// A point off the globe has no places near it: an empty list, like the Worker.
 #[utoipa::path(
     get,
     path = "/api/places/reverse",
     tag = "places",
     params(ReverseQuery),
     responses(
-        (status = 200, description = "Nearest places first (empty until the first place index is built)", body = [crate::dto::place::PlaceSearchHit]),
-        (status = 400, description = "A point outside the globe"),
+        (status = 200, description = "Nearest places first (empty until the first place index is built, and for a point off the globe)", body = [crate::dto::place::PlaceSearchHit]),
     )
 )]
 pub async fn reverse(
     State(st): State<AppState>,
     Query(q): Query<ReverseQuery>,
 ) -> Result<Response, AppError> {
-    let (lat, lon) = point(q.lat, q.lon)?;
     let answer = st
         .places
-        .reverse(lat, lon, clamp(q.limit, DEFAULT_LIMIT, MAX_LIMIT))
+        .reverse(q.lat, q.lon, clamp(q.limit, DEFAULT_LIMIT, MAX_LIMIT))
         .await?;
     Ok((
         cache_control(answer.engine, STATIC_MAX_AGE_SECS),

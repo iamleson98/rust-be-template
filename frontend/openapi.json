@@ -5188,6 +5188,7 @@
           "places"
         ],
         "summary": "`GET /api/places/reverse` — the places nearest to a point, nearest first.",
+        "description": "A point off the globe has no places near it: an empty list, like the Worker.",
         "operationId": "reverse",
         "parameters": [
           {
@@ -5225,7 +5226,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Nearest places first (empty until the first place index is built)",
+            "description": "Nearest places first (empty until the first place index is built, and for a point off the globe)",
             "content": {
               "application/json": {
                 "schema": {
@@ -5236,9 +5237,6 @@
                 }
               }
             }
-          },
-          "400": {
-            "description": "A point outside the globe"
           }
         }
       }
@@ -15455,7 +15453,8 @@
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "A hotline as the brand writes it (`1900 6067`, `1800…`, `0…`, `+84…`):\nany text up to 32 characters, like the reference admin API."
           },
           "description": {
             "type": [

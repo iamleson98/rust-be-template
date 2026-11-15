@@ -34,7 +34,7 @@ pub enum AppError {
     BadRequest(String),
 
     #[error("store error: {0}")]
-    Store(#[from] crate::store::StoreError),
+    Store(crate::store::StoreError),
 
     #[error("cache error: {0}")]
     Cache(String),
@@ -212,6 +212,17 @@ impl IntoResponse for AppError {
     }
 }
 
+impl From<crate::store::StoreError> for AppError {
+    /// A missing permission (`RbacChecker::require`) is a `forbidden`, not a
+    /// `store_error`; every other store failure keeps its own variant.
+    fn from(error: crate::store::StoreError) -> Self {
+        match error {
+            crate::store::StoreError::Forbidden(permission) => Self::Forbidden(permission),
+            other => Self::Store(other),
+        }
+    }
+}
+
 impl From<ValidationErrors> for AppError {
     fn from(errors: ValidationErrors) -> Self {
         Self::from_validation_errors(errors)
@@ -248,6 +259,17 @@ mod tests {
         ] {
             assert_eq!(err.public_message(), "internal server error", "{err:?}");
         }
+    }
+
+    #[test]
+    fn a_missing_permission_is_a_forbidden_with_the_reference_message() {
+        let err = AppError::from(StoreError::Forbidden("users.read".into()));
+        assert_eq!(err.status(), axum::http::StatusCode::FORBIDDEN);
+        assert_eq!(err.kind(), "forbidden");
+        assert_eq!(
+            err.public_message(),
+            "forbidden: missing permission: users.read"
+        );
     }
 
     #[test]

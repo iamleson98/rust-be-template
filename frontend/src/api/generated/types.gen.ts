@@ -3712,6 +3712,10 @@ export type UpsertAddressRequest = {
 export type UpsertBrandRequest = {
     childFare?: null | ChildFarePolicy;
     contactEmail?: string | null;
+    /**
+     * A hotline as the brand writes it (`1900 6067`, `1800…`, `0…`, `+84…`):
+     * any text up to 32 characters, like the reference admin API.
+     */
     contactPhone?: string | null;
     description?: string | null;
     /**
@@ -7836,16 +7840,9 @@ export type PlacesReverseData = {
     url: '/api/places/reverse';
 };
 
-export type PlacesReverseErrors = {
-    /**
-     * A point outside the globe
-     */
-    400: unknown;
-};
-
 export type PlacesReverseResponses = {
     /**
-     * Nearest places first (empty until the first place index is built)
+     * Nearest places first (empty until the first place index is built, and for a point off the globe)
      */
     200: Array<PlaceSearchHit>;
 };

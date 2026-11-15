@@ -125,6 +125,10 @@ pub fn build_router(state: AppState) -> Router<()> {
         .nest("/vitals", crate::routes::vitals::router())
         .nest("/nullclaw", crate::routes::nullclaw::router())
         .nest("/webhooks", crate::routes::webhooks::router())
+        // Query, path and JSON rejections answer inside the error envelope.
+        .layer(axum::middleware::from_fn(
+            crate::middleware::rejection_envelope::rejection_envelope,
+        ))
         // The reviews list and stats and a brand's page data are read by
         // every visitor and cost several queries: kept in memory for 30 s
         // (anonymous callers only, see `public_read_cache`).

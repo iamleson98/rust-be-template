@@ -237,8 +237,6 @@ async fn parameters_are_validated_and_limits_clamped() {
         "/api/places/search?q=ha&limit=-1",
         "/api/places/reverse",
         "/api/places/reverse?lat=21",
-        "/api/places/reverse?lat=21&lon=999",
-        "/api/places/reverse?lat=-90.5&lon=105",
         "/api/places?limit=lots",
         "/api/places?offset=-3",
     ] {
@@ -249,6 +247,16 @@ async fn parameters_are_validated_and_limits_clamped() {
     let (status, _, body) = call(&app, "/api/places/search?q=ha&lat=21&lon=105").await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["items"][0]["name"], "Hà Nội");
+
+    // Reverse geocoding a point off the globe is an empty list, as on the Worker.
+    for uri in [
+        "/api/places/reverse?lat=21&lon=999",
+        "/api/places/reverse?lat=-90.5&lon=105",
+    ] {
+        let (status, _, body) = call(&app, uri).await;
+        assert_eq!(status, StatusCode::OK, "{uri}");
+        assert_eq!(body, serde_json::json!([]), "{uri}");
+    }
 
     // `limit=0` still returns one item; a huge limit is capped (here by the data).
     let (_, _, body) = call(&app, "/api/places/search?q=&limit=0").await;

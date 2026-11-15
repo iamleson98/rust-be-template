@@ -2907,6 +2907,8 @@ export const placesReverseQueryKey = (options: Options<PlacesReverseData>) => cr
 
 /**
  * `GET /api/places/reverse` — the places nearest to a point, nearest first.
+ *
+ * A point off the globe has no places near it: an empty list, like the Worker.
  */
 export const placesReverseOptions = (options: Options<PlacesReverseData>) => queryOptions<PlacesReverseResponse, DefaultError, PlacesReverseResponse, ReturnType<typeof placesReverseQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {

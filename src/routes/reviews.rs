@@ -272,11 +272,20 @@ pub fn router() -> axum::Router<crate::state::AppState> {
     // in this module (the `pub async fn get` above). Import the routing
     // function under a different name to avoid the `get(get)` collision.
     use axum::routing::get as rget;
-    axum::Router::new()
+    // The approved-only reads are the same bytes for every caller: a minute
+    // of public cache (`no-store` once a session cookie rides along). `/mine`
+    // and `/{id}` stay out of it, and so do the writes.
+    let public_reads = axum::Router::new()
         .route("/tags", rget(tags))
         .route("/stats", rget(stats))
+        .route("/", rget(list))
+        .layer(axum::middleware::from_fn(
+            crate::middleware::public_cache::public_cache_control,
+        ));
+    axum::Router::new()
+        .merge(public_reads)
         .route("/mine", rget(mine))
-        .route("/", rget(list).post(create))
+        .route("/", axum::routing::post(create))
         .route("/{id}", rget(get).patch(update).delete(remove))
 }
 

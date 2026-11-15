@@ -37,6 +37,7 @@ pub mod auth_extractor;
 pub mod client_ip;
 pub mod public_cache;
 pub mod rate_limit;
+pub mod rejection_envelope;
 pub mod request_id;
 pub mod resource_guard;
 pub mod timeout;

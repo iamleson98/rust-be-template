@@ -25,15 +25,15 @@
 6. client_ip.rs:65-83: log boot warning when CLIENT_IP_SOURCE=xff with loopback peer.
 7. google.rs:153 require email_verified Some(true) (stricter than REF, safe).
 8. Confirm timers' tz: bootstrap.sh sets Asia/Ho_Chi_Minh (OnCalendar=Mon 03:30).
-9. reverse geocode out-of-range coords -> 400: check REF behaviour and match.
+9. [done in FIX2, item 5] reverse geocode out-of-range coords: 200 and an empty list, as the Worker.
 Nits left as-is: PBKDF2 timing gap shrinks with rehash; duplicate review no unique index (same as REF); ads first-writer-wins.
 # WP13 parity results (merged into feat/rust-on-vps): 272 GETs: 120 identical / 110 explained / 42 BUG (6 defects) + 1 from smoke. Smoke 8/10. Worker contract-sweep 55/59.
-FIX2 list (Rust, not yet fixed):
-1. [BLOCKS CUTOVER] src/config/mod.rs:1143 VietQrConfig::default() used instead of from_env() -> VIETQR_* ignored, payment methods ["cod"] only (REF ["cod","vietqr"]).
-2. [BLOCKS CUTOVER] src/dto/admin.rs:126 validate_phone rejects 1900 hotlines -> admin PUT brand 400; accept 1900/1800 service numbers like REF.
-3. src/store/price_alert.rs:118,155,191 TEXT user_id compared with Uuid (binds BLOB) -> alerts always empty.
-4. Query/path/JSON rejections answer 400/422 text/plain, outside {error,message} envelope (fails 4/59 contract-sweep).
-5. src/routes/places.rs:46 reverse out-of-range: Rust 400, REF 200 empty list. (FIX1 said REF vps returns 400 — parity harness says REF Worker returns 200 empty: match the Worker/REF production behaviour.)
-6. src/rbac/checker.rs:70 missing permission -> 403 {"error":"store_error"}; REF "forbidden".
-7. /api/reviews, /stats, /tags missing Cache-Control public,max-age=60 (src/routes/router.rs).
+FIX2 list (all done in WP-FIX2, each with a regression test):
+1. [done] `PaymentConfig::default()` reads `VietQrConfig::from_env()`, so `VIETQR_*` is honoured and the providers list is `["cod","vietqr"]` (tests/wpfix2_vietqr.rs).
+2. [done] the admin brand `contactPhone` is free text up to 32 characters, as REF; 1900/1800 hotlines save (unit test in src/dto/admin.rs).
+3. [done] `price_alert.user_id` filters bind the hyphenated string, not a `Uuid` BLOB (tests/wpfix2_price_alert.rs).
+4. [done] `middleware::rejection_envelope` rewrites axum's plain-text Query/Path/Json rejections into `{error, message}`: 400 `validation_error` for a query/path/JSON shape that does not fit (was 422), 400 `bad_request` for a body that is not JSON or lacks the JSON content type (was 415) (tests/wpfix2_envelope.rs).
+5. [done] `/api/places/reverse` out of range answers 200 and an empty list, like the Worker (tests/wp2_places.rs).
+6. [done] a missing permission is `AppError::Forbidden`: 403 `{"error":"forbidden","message":"forbidden: missing permission: <perm>"}` (unit test in src/error.rs).
+7. [done] `GET /api/reviews`, `/stats`, `/tags` send `public, max-age=60`, `no-store` with a session cookie (tests/wpfix2_envelope.rs).
 Also: fixture brands child_max_age 40 vs admin form max 17: check real data.
