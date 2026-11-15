@@ -96,7 +96,8 @@ fn store_err(e: StoreError) -> AppError {
 
 /// The discount `coupon_id` gives on a booking of `subtotal` with
 /// operator `brand_id`, after checking `user_id` may use it there.
-/// Reserving it is the booking's last step (`CampaignStore::reserve_coupon`).
+/// Reserving it is part of the hold's transaction
+/// (`BookingStore::place_hold`).
 pub(crate) async fn coupon_discount(
     store: &CompositeStore,
     user_id: Option<Uuid>,

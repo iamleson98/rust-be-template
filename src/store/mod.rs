@@ -17,7 +17,8 @@ pub use self::address::{AddressStore, DbAddressStore, GeoBox};
 pub use self::ads_conversion::{AdConversionStore, DbAdConversionStore, NewAdConversion};
 pub use self::audit::{AuditStore, DbAuditStore};
 pub use self::booking::{
-    BookingFilter, BookingOrder, BookingStore, ConfirmOutcome, DbBookingStore, Released,
+    BookingFilter, BookingOrder, BookingStore, ConfirmOutcome, DbBookingStore, HoldCoupon,
+    HoldOutcome, NewHold, Released,
 };
 pub use self::brands::{BrandStore, CacheBrandStore, DbBrandStore};
 pub use self::campaigns::{CampaignStore, DbCampaignStore};
