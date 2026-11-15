@@ -36,7 +36,9 @@ impl RoutingService {
 
     fn require_valhalla(&self) -> AppResult<&str> {
         self.valhalla_url.as_deref().ok_or_else(|| {
-            AppError::Internal("Valhalla routing service not configured. Set VALHALLA_URL.".into())
+            AppError::ServiceUnavailable(
+                "Valhalla routing service not configured. Set VALHALLA_URL.".into(),
+            )
         })
     }
 

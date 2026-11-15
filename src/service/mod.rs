@@ -36,6 +36,7 @@ pub mod admin_service;
 pub mod auth_service;
 pub mod booking_service;
 pub mod booking_view;
+pub mod brand_profile;
 pub mod campaign_service;
 #[cfg(test)]
 mod campaign_tests;

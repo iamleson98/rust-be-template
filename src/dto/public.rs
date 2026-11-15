@@ -61,6 +61,102 @@ pub struct BrandListResponse {
 }
 
 // ────────────────────────────────────────────────────────────────
+//  Brand profile
+// ────────────────────────────────────────────────────────────────
+
+/// A brand's public page in one read — `GET /api/brands/{slug}/profile`.
+/// Every figure is read, never estimated: a route with no schedule has no
+/// price, a brand with no review has no rating. Absent values are `null`
+/// (not omitted), as the brand page's client expects.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct BrandProfile {
+    pub brand: ProfileBrand,
+    /// At most 60, by city then name.
+    pub locations: Vec<ProfileLocation>,
+    /// Active routes by name.
+    pub routes: Vec<ProfileRoute>,
+    /// Trips leaving in the next 3 days (today included), soonest first,
+    /// at most 40.
+    pub trips: Vec<ProfileTrip>,
+}
+
+/// The brand of a [`BrandProfile`].
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ProfileBrand {
+    pub id: Uuid,
+    pub slug: String,
+    pub name: String,
+    pub logo_url: Option<String>,
+    pub description: Option<String>,
+    pub contact_phone: Option<String>,
+    pub contact_email: Option<String>,
+    /// Mean of the approved reviews; `null` while there are none.
+    pub rating: Option<f64>,
+    /// Approved reviews.
+    pub review_count: u64,
+}
+
+/// An office or stop of the brand.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ProfileLocation {
+    pub id: Uuid,
+    pub name: String,
+    pub address: Option<String>,
+    /// The city's display name.
+    pub city: Option<String>,
+    pub lat: Option<f64>,
+    pub lon: Option<f64>,
+}
+
+/// An active route of the brand with its timetable.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ProfileRoute {
+    pub id: Uuid,
+    pub name: String,
+    pub from: RouteEndpoint,
+    pub to: RouteEndpoint,
+    /// Lowest adult base price across its schedules; `null` while it has none.
+    pub price_from: Option<i64>,
+    pub schedules: Vec<ProfileSchedule>,
+}
+
+/// One daily departure of a route.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ProfileSchedule {
+    pub id: Uuid,
+    /// `HH:MM`.
+    pub departure_time: String,
+    /// The weekdays it runs, Monday first, as seven `1`/`0`; `null` when the
+    /// schedule sets none (it runs every day).
+    pub days_of_week: Option<String>,
+    /// The vehicle type's label.
+    pub vehicle_type: Option<String>,
+    pub price_adult: i64,
+}
+
+/// A trip about to leave.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ProfileTrip {
+    pub trip_id: Uuid,
+    pub route_id: Uuid,
+    /// `YYYY-MM-DD`, Vietnam.
+    pub date: String,
+    /// `HH:MM`.
+    pub departure_time: String,
+    pub available_seats: i64,
+    pub total_seats: i64,
+    /// The vehicle type's label.
+    pub vehicle_type: Option<String>,
+    pub price_adult: i64,
+}
+
+// ────────────────────────────────────────────────────────────────
 //  Routes
 // ────────────────────────────────────────────────────────────────
 
@@ -357,6 +453,9 @@ pub struct TripBrandDetail {
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct TripEndpoint {
+    /// The city's slug (`ha-noi`); absent for a city the app does not know.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub city_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
     pub lat: f64,
@@ -448,6 +547,9 @@ pub struct TripSchedulePoint {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub address: Option<String>,
+    /// The city (slug) the stop is in, when its address names one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub city_id: Option<String>,
     pub lat: f64,
     pub lon: f64,
 }

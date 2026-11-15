@@ -4,8 +4,8 @@ use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::dto::public::{
-    BrandDetailOut, BrandListResponse, RouteListResponse, SearchTripsQuery, StatsResponse,
-    TripDetail, TripSearchResponse,
+    BrandDetailOut, BrandListResponse, BrandProfile, RouteListResponse, SearchTripsQuery,
+    StatsResponse, TripDetail, TripSearchResponse,
 };
 use crate::dto::route_media::RoutePictureListResponse;
 use crate::error::AppError;
@@ -56,8 +56,29 @@ pub async fn brand_detail(
     Ok(Json(st.public.brand_detail(&slug).await?))
 }
 
+/// `GET /api/brands/{slug}/profile` — everything a brand's page shows in
+/// one read: the brand, its locations (at most 60), its active routes
+/// with timetables and the trips leaving in the next 3 days (at most 40).
+#[utoipa::path(
+    get,
+    path = "/api/brands/{slug}/profile",
+    tag = "public",
+    params(("slug" = String, Path, description = "Brand slug")),
+    responses(
+        (status = 200, description = "Brand page", body = BrandProfile),
+        (status = 404, description = "Unknown or inactive brand"),
+    )
+)]
+pub async fn brand_profile(
+    State(st): State<AppState>,
+    Path(slug): Path<String>,
+) -> Result<Json<BrandProfile>, AppError> {
+    Ok(Json(st.public.brand_profile(&slug).await?))
+}
+
 #[derive(Deserialize, utoipa::IntoParams)]
 pub struct RoutesQuery {
+    /// Only this brand's routes (a UUID).
     pub brand_id: Option<String>,
     pub limit: Option<u64>,
 }
@@ -76,9 +97,16 @@ pub async fn routes(
     State(st): State<AppState>,
     Query(q): Query<RoutesQuery>,
 ) -> Result<Json<RouteListResponse>, AppError> {
+    let brand_id = q
+        .brand_id
+        .as_deref()
+        .map(|id| {
+            Uuid::parse_str(id).map_err(|_| AppError::BadRequest("brand_id: invalid UUID".into()))
+        })
+        .transpose()?;
     Ok(Json(
         st.public
-            .list_routes(q.brand_id.as_deref(), q.limit.unwrap_or(50))
+            .list_routes(brand_id, q.limit.unwrap_or(50))
             .await?,
     ))
 }
@@ -192,12 +220,13 @@ pub async fn stats(State(st): State<AppState>) -> Result<Json<StatsResponse>, Ap
 //  small router function. Keeps `build_router` flat + readable.
 // ────────────────────────────────────────────────────────────────
 
-/// `/api/brands` + `/api/brands/{slug}`.
+/// `/api/brands` + `/api/brands/{slug}` + `/api/brands/{slug}/profile`.
 pub fn brands_router() -> axum::Router<crate::state::AppState> {
     use axum::routing::get;
     axum::Router::new()
         .route("/", get(brands))
         .route("/{slug}", get(brand_detail))
+        .route("/{slug}/profile", get(brand_profile))
 }
 
 /// `/api/routes` (public list of bus routes — distinct from the admin
@@ -244,6 +273,13 @@ pub struct GeoSearchQuery {
     pub min_seats: Option<i64>,
     pub vehicle_types: Option<String>,
     pub max_distance_km: Option<f64>,
+    /// The city the pickup place is in, as the place search names it
+    /// (e.g. `Hà Nội`). With `toCity`, every trip between the two cities
+    /// is found too, however far its stops are; trips whose stops have no
+    /// coordinates to measure come last, without a pickup or drop-off.
+    pub from_city: Option<String>,
+    /// The city the drop-off place is in; see `fromCity`.
+    pub to_city: Option<String>,
     /// Only trips boarding at or after this time of day (`HH:MM`).
     pub depart_after: Option<String>,
     /// `distance` (default: nearest stops first), `departure`, `price`
@@ -264,6 +300,11 @@ pub struct GeoSearchQuery {
     pub plenty_of_seats: Option<bool>,
     /// Amenity keys the trip must all have, comma-separated.
     pub amenities: Option<String>,
+}
+
+/// A query value without surrounding blanks; none when blank.
+fn trimmed(value: &Option<String>) -> Option<&str> {
+    value.as_deref().map(str::trim).filter(|v| !v.is_empty())
 }
 
 #[utoipa::path(
@@ -297,6 +338,8 @@ pub async fn search_trips_geo(
             q.amenities.as_deref(),
         )?,
     )?;
+    // Both cities or neither.
+    let cities = trimmed(&q.from_city).zip(trimmed(&q.to_city));
     Ok(Json(
         st.public
             .search_trips_geo(
@@ -304,6 +347,7 @@ pub async fn search_trips_geo(
                 (q.to_lat, q.to_lon),
                 q.max_distance_km.unwrap_or(50.0),
                 &opts,
+                cities,
             )
             .await?,
     ))

@@ -15,7 +15,7 @@ use store_macros::retry;
 use uuid::Uuid;
 
 use crate::cache::{get_serializable, set_serializable, CacheBackend};
-use crate::entity::brand;
+use crate::entity::{address, brand};
 
 use super::error::{StoreError, StoreResult};
 use super::retry::RetryPolicy;
@@ -24,7 +24,12 @@ use super::retry::RetryPolicy;
 pub trait BrandStore: Send + Sync {
     async fn get_by_id(&self, id: Uuid) -> StoreResult<Option<brand::Model>>;
     async fn get_by_slug(&self, slug: &str) -> StoreResult<Option<brand::Model>>;
+    /// Active brands, best rated first, then busiest, then by name
+    /// (a stable order for brands with equal or no rating).
     async fn list_active(&self, limit: u64) -> StoreResult<Vec<brand::Model>>;
+    /// A brand's addresses (offices, stops) by province then name, at most
+    /// `limit` — the brand page's locations.
+    async fn list_locations(&self, brand_id: Uuid, limit: u64) -> StoreResult<Vec<address::Model>>;
     async fn list_all(&self, limit: u64, offset: u64) -> StoreResult<Vec<brand::Model>>;
     async fn create(&self, slug: String, name: String) -> StoreResult<brand::Model>;
     async fn update(
@@ -74,6 +79,18 @@ impl BrandStore for DbBrandStore {
         Ok(brand::Entity::find()
             .filter(brand::Column::Status.eq("active"))
             .order_by_desc(brand::Column::Rating)
+            .order_by_desc(brand::Column::TotalTrips)
+            .order_by_asc(brand::Column::Name)
+            .limit(limit)
+            .all(self.db.as_ref())
+            .await?)
+    }
+
+    async fn list_locations(&self, brand_id: Uuid, limit: u64) -> StoreResult<Vec<address::Model>> {
+        Ok(address::Entity::find()
+            .filter(address::Column::BrandId.eq(brand_id))
+            .order_by_asc(address::Column::Province)
+            .order_by_asc(address::Column::Name)
             .limit(limit)
             .all(self.db.as_ref())
             .await?)
@@ -323,6 +340,10 @@ impl<S: BrandStore> BrandStore for CacheBrandStore<S> {
             .await
             .map_err(StoreError::from)?;
         Ok(result)
+    }
+
+    async fn list_locations(&self, brand_id: Uuid, limit: u64) -> StoreResult<Vec<address::Model>> {
+        self.inner.list_locations(brand_id, limit).await
     }
 
     async fn list_all(&self, limit: u64, offset: u64) -> StoreResult<Vec<brand::Model>> {
