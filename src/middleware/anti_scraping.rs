@@ -99,19 +99,21 @@ const BLOCKED_UA_SUBSTRINGS: &[&str] = &[
     "",
 ];
 
-/// Allowed Referer/Origin prefixes for mutation requests (POST/PATCH/PUT/DELETE).
-/// The Referer/Origin must start with one of these to be accepted.
-/// In dev, localhost origins are allowed; in production, the configured
-/// CORS origins are used.
+/// Whether a mutation request's Referer/Origin belongs to one of the allowed
+/// origins. Both sides are parsed and compared as scheme + host + port, so a
+/// look-alike (`https://site.com.evil.com`) or another port never passes; a
+/// Referer may carry a path, an Origin never does. In dev, localhost origins
+/// are allowed; in production, the configured CORS origins are used.
 fn is_allowed_referer(referer: Option<&str>, allowed_origins: &[String]) -> bool {
-    let referer = match referer {
-        Some(r) => r,
-        None => return false,
+    let Some(source) = referer.and_then(|r| url::Url::parse(r).ok()) else {
+        return false;
     };
-    // Allow requests with no path (just origin) or with path.
-    allowed_origins
-        .iter()
-        .any(|origin| referer.starts_with(origin.as_str()))
+    let source = source.origin();
+    source.is_tuple()
+        && allowed_origins
+            .iter()
+            .filter_map(|allowed| url::Url::parse(allowed).ok())
+            .any(|allowed| allowed.origin() == source)
 }
 
 /// Check if a User-Agent looks like a real browser.
@@ -429,6 +431,36 @@ mod tests {
             Some("https://evil.com/api/steal"),
             &["http://localhost:5173".to_string()],
         ));
+    }
+
+    #[test]
+    fn allowed_referer_compares_the_exact_origin() {
+        let site = vec![
+            "https://datxevui.com".to_string(),
+            "http://localhost:5173".to_string(),
+        ];
+        for ok in [
+            "https://datxevui.com",
+            "https://datxevui.com/",
+            "https://datxevui.com/search?from=a",
+            "https://datxevui.com:443/x",
+            "http://localhost:5173/search",
+        ] {
+            assert!(is_allowed_referer(Some(ok), &site), "{ok} must pass");
+        }
+        for bad in [
+            "https://datxevui.com.evil.com",
+            "https://datxevui.com.evil.com/path",
+            "https://datxevui.com:8443",
+            "http://datxevui.com",
+            "https://evil.com/https://datxevui.com",
+            "https://datxevui.com@evil.com",
+            "http://localhost:51730",
+            "null",
+            "",
+        ] {
+            assert!(!is_allowed_referer(Some(bad), &site), "{bad} must fail");
+        }
     }
 
     #[test]
