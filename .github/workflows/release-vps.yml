@@ -1,0 +1,166 @@
+# ─── Production release of the single-binary build: push a tag vX.Y.Z ───
+#
+#   git tag v1.0.0 && git push origin v1.0.0
+#
+# Builds the x86_64 glibc release binary and the frontend, packs them with
+# the systemd units and scripts of deploy/vps/ into one tarball, signs it
+# with RELEASE_SIGNING_KEY and publishes a GitHub release. The VPS installs
+# it by itself within 5 minutes: datxevui-update.timer finds the new tag,
+# checks the SHA-256 and the signature against the key pinned in
+# deploy/vps/update.sh, swaps the release, and rolls back if /ready does not
+# answer. Nothing can reach into the VPS to deploy.
+#
+# Cut tags from a commit whose CI run (ci.yml) is green: this workflow builds
+# and packages, it does not repeat the test suites.
+#
+# The previous (Worker) frontend's /_next/static is served from the binary's
+# LEGACY_NEXT_DIR for a month after cutover, so cached shells keep booting.
+# Upload it once, as the contents of the final Worker build's `_next/static`
+# directory at the archive root, to a prerelease named `legacy-next`:
+#
+#   tar -czf legacy-next-static.tar.gz -C <worker build>/_next/static .
+#   gh release create legacy-next legacy-next-static.tar.gz --prerelease \
+#     --title "Legacy _next/static" --notes "Final Worker build, served for 30 days after cutover."
+#
+# When that release exists every tag build ships it; the prerelease flag keeps
+# it out of the VPS's `releases/latest` lookup. Delete the release (and the
+# directory on the VPS) once the 30 days are over.
+#
+# Secret: RELEASE_SIGNING_KEY (the private half of the key pinned in update.sh).
+
+name: Release VPS
+
+on:
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+*']
+
+concurrency:
+  group: release-vps
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  ASSET: datxevui-x86_64-linux.tar.gz
+
+jobs:
+  build:
+    name: Build and sign
+    # Ubuntu 22.04 (glibc 2.35): the binary also runs on every newer Ubuntu.
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Rust toolchain
+        run: rustup toolchain install stable --profile minimal && rustup default stable
+
+      - name: Native build dependencies
+        # cmake: aws-lc-sys, the rustls crypto provider.
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends pkg-config libssl-dev cmake
+
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: release-vps-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: release-vps-${{ runner.os }}-
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: latest
+
+      - name: Build the frontend
+        working-directory: frontend
+        run: |
+          bun install --frozen-lockfile
+          bun run build
+          test -f dist/index.html
+
+      - name: Build the release binary
+        run: |
+          cargo build --release --locked
+          target/release/backend --version
+          # The VPS runs Ubuntu 22.04 or newer; refuse a binary that needs a newer glibc.
+          newest=$(objdump -T target/release/backend | grep -o 'GLIBC_[0-9.]*' | sed 's/GLIBC_//' | sort -V | tail -n1)
+          echo "newest glibc symbol: $newest"
+          [ "$(printf '%s\n2.35\n' "$newest" | sort -V | tail -n1)" = 2.35 ]
+
+      - name: Fetch the legacy _next/static, if it was uploaded
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          mkdir legacy-next
+          if gh release view legacy-next >/dev/null 2>&1; then
+            gh release download legacy-next --pattern legacy-next-static.tar.gz --dir "$RUNNER_TEMP"
+            tar -xzf "$RUNNER_TEMP/legacy-next-static.tar.gz" -C legacy-next
+            echo "legacy _next/static: $(find legacy-next -type f | wc -l) files"
+          else
+            echo "no legacy-next release: shipping without it"
+          fi
+
+      - name: Package and sign
+        env:
+          # The VPS refuses anything this key did not sign.
+          RELEASE_SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
+        run: |
+          if [ -z "$RELEASE_SIGNING_KEY" ]; then
+            echo "::error::RELEASE_SIGNING_KEY is not set: an unsigned build would never be installed."
+            exit 1
+          fi
+          stage=pack/datxevui
+          mkdir -p "$stage/deploy"
+          cp target/release/backend "$stage/datxevui"
+          cp -r frontend/dist "$stage/dist"
+          cp -r legacy-next "$stage/legacy-next"
+          cp deploy/vps/*.service deploy/vps/*.timer deploy/vps/backup.sh deploy/vps/update.sh "$stage/deploy/"
+          tar --owner=0 --group=0 --numeric-owner -czf "$ASSET" -C pack datxevui
+          sha256sum "$ASSET" > "$ASSET.sha256"
+          key="$RUNNER_TEMP/release-key"
+          (umask 077 && printf '%s\n' "$RELEASE_SIGNING_KEY" > "$key")
+          ssh-keygen -Y sign -f "$key" -n datxevui-release "$ASSET"
+          rm -f "$key"
+          # The signature must verify against the key update.sh pins, or the
+          # VPS would refuse this release: find out here, not at 3 a.m.
+          grep -m1 "^signer=" deploy/vps/update.sh | sed "s/^signer='//; s/'\$//" > "$RUNNER_TEMP/allowed_signers"
+          ssh-keygen -Y verify -f "$RUNNER_TEMP/allowed_signers" -I datxevui-release -n datxevui-release \
+            -s "$ASSET.sig" < "$ASSET"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: datxevui-release
+          path: ${{ env.ASSET }}*
+          retention-days: 14
+
+  publish:
+    name: Publish the release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: datxevui-release
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE: ${{ github.ref_name }}
+        run: |
+          files=("$ASSET" "$ASSET.sha256" "$ASSET.sig")
+          if gh release view "$RELEASE" >/dev/null 2>&1; then
+            gh release upload "$RELEASE" "${files[@]}" --clobber
+          else
+            # A suffixed tag (v1.2.0-rc1) is a prerelease: the VPS only follows
+            # `releases/latest`, so it never installs one by itself.
+            flags=()
+            case "$RELEASE" in *-*) flags+=(--prerelease) ;; esac
+            # Created with its files in one step: the VPS never sees a release without them.
+            gh release create "$RELEASE" "${files[@]}" "${flags[@]}" --verify-tag --title "$RELEASE" --generate-notes
+          fi

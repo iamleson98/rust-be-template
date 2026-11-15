@@ -1,0 +1,11 @@
+[Unit]
+Description=Install the newest signed datxevui release, if any
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/datxevui-update auto
+# Never compete with the site for CPU or disk.
+Nice=10
+IOSchedulingClass=idle

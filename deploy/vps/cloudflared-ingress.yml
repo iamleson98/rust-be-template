@@ -1,0 +1,32 @@
+# Example /etc/cloudflared/config.yml for the existing `datxevui-vps` tunnel.
+#
+# cloudflared connects OUT to Cloudflare, so the VPS opens no inbound port.
+# TLS ends at Cloudflare; datxevui listens on 127.0.0.1:8080 only. WebSockets
+# (/ws, /ws-call) pass through with no extra setting. Cloudflare closes an
+# idle proxied WebSocket after 100 s, so the app pings clients well inside
+# that.
+#
+# The tunnel already carries other hostnames (the quiz app, SSH). Keep those
+# rules and put these ABOVE the final catch-all. If the tunnel is managed
+# from the Zero Trust dashboard instead of this file, add the same hostnames
+# under Networks > Tunnels > Public hostnames with service
+# http://127.0.0.1:8080.
+#
+# The app takes the visitor's address from CF-Connecting-IP, and only when
+# the TCP peer is loopback (that is cloudflared); keep it on this box.
+#
+# Cutover moves datxevui.com and www from the Worker's custom domains to
+# these routes (docs/CUTOVER.md). Before that, staging.datxevui.com reaches
+# the same service for rehearsal; protect it with a Cloudflare Access policy.
+tunnel: 00000000-0000-0000-0000-000000000000          # the datxevui-vps tunnel id
+credentials-file: /etc/cloudflared/00000000-0000-0000-0000-000000000000.json
+
+ingress:
+  - hostname: staging.datxevui.com
+    service: http://127.0.0.1:8080
+  - hostname: datxevui.com
+    service: http://127.0.0.1:8080
+  - hostname: www.datxevui.com
+    service: http://127.0.0.1:8080
+  # ...existing rules for the other hostnames stay here...
+  - service: http_status:404

@@ -1,0 +1,12 @@
+[Unit]
+Description=Back up the datxevui database every 6 hours
+
+[Timer]
+# 00:20, 06:20, 12:20, 18:20 host time (ICT): off the minute the weekly
+# place build and the nightly 04:00 WAL checkpoint use.
+OnCalendar=*-*-* 00/6:20:00
+RandomizedDelaySec=2min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
