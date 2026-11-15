@@ -1,5 +1,3 @@
-'use client'
-
 import type { Control } from 'react-hook-form'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'

@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import * as z from 'zod'
 import { emailSchema, fullNameSchema } from '@/lib/forms'
 import { useT, tSync } from '@/lib/i18n'
 

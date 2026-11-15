@@ -1,5 +1,3 @@
-'use client'
-
 import type { TripPricing } from '@/api'
 import { SEAT_CLASS_COLORS, SEAT_CLASS_LABELS } from '@/lib/labels'
 import { useMoney } from '@/lib/format'

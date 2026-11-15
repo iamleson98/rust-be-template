@@ -1,5 +1,3 @@
-'use client'
-
 /**
  * Booking-status donut card — "Phân bổ trạng thái vé" (Row 1 of the
  * stats overview): inline SVG donut + legend, driven by real totals.

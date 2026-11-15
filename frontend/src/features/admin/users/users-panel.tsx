@@ -1,5 +1,3 @@
-'use client'
-
 /**
  * Admin — users panel (`/admin/users`).
  *
@@ -33,6 +31,7 @@ import type { UserOut } from '@/api'
 import { cn } from '@/lib/utils'
 import { getErrorMessage } from '@/lib/error-message'
 import { useT } from '@/lib/i18n'
+import { personInitials } from '@/lib/text'
 
 const PAGE_SIZE = 20
 
@@ -49,15 +48,6 @@ const ROLE_BADGE: Record<string, string> = {
 }
 
 const columnHelper = createColumnHelper<DataTableFeatures, UserOut>()
-
-function initials(name: string): string {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0]!.toUpperCase())
-    .join('')
-}
 
 export function UsersPanel() {
   const me = useSession((s) => s.user)
@@ -105,7 +95,7 @@ export function UsersPanel() {
               <div className="flex items-center gap-2.5 min-w-0">
                 <Avatar className="h-8 w-8 shrink-0">
                   <AvatarFallback className="text-[11px] font-semibold bg-primary/10 text-primary">
-                    {u.isBot ? <Bot className="h-4 w-4" aria-hidden /> : initials(u.fullName)}
+                    {u.isBot ? <Bot className="h-4 w-4" aria-hidden /> : personInitials(u.fullName)}
                   </AvatarFallback>
                 </Avatar>
                 <div className="min-w-0">

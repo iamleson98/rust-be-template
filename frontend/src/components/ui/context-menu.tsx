@@ -1,5 +1,3 @@
-'use client'
-
 /**
  * ContextMenu — Base UI implementation preserving the Radix/shadcn public API.
  *
@@ -25,7 +23,7 @@
  * | `<ContextMenu.SubContent>`       | `<ContextMenu.Portal>` + `<ContextMenu.Positioner>` + `<ContextMenu.Popup>` |
  * | `data-state="open|closed"`       | `data-open`/`data-closed` + (shimmed) `data-state` via `render` |
  */
-import { type ComponentProps, type ReactElement } from 'react'
+import type { ComponentProps, ReactElement } from 'react'
 import { ContextMenu as ContextMenuPrimitive } from '@base-ui/react/context-menu'
 import { CheckIcon, ChevronRightIcon, CircleIcon } from 'lucide-react'
 

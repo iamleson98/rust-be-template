@@ -1,5 +1,3 @@
-'use client'
-
 /**
  * AdminDashboard — the `/admin` overview: a real-data summary report.
  *

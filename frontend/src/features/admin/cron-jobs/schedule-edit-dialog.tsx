@@ -1,5 +1,3 @@
-'use client'
-
 /**
  * Dialog for editing a cron schedule: interval (days) + fire time
  * (hour:minute) + a "re-arm next run" option. Validation mirrors the

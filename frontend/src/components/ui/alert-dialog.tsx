@@ -1,5 +1,3 @@
-'use client'
-
 import { type ComponentProps, type ReactElement, type ReactNode, isValidElement } from 'react'
 import { AlertDialog as AlertDialogPrimitive } from '@base-ui/react/alert-dialog'
 

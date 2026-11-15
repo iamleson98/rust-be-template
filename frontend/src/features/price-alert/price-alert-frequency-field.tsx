@@ -1,5 +1,3 @@
-'use client'
-
 /**
  * PriceAlertFrequencyField — the "Tần suất thông báo" radio cards of
  * the price-alert dialog (immediate / daily / weekly).

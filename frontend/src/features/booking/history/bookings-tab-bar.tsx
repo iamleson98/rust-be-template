@@ -1,5 +1,3 @@
-'use client'
-
 import { CalendarCheck, History, X } from 'lucide-react'
 import { PillTab, PillTabs } from '@/components/console/pill-tabs'
 import { useT } from '@/lib/i18n'

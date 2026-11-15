@@ -1,5 +1,3 @@
-'use client'
-
 /**
  * RoutePickupPointsDialog — manages one route's pickup/drop points
  * inside a single modal (opened from the brands tree's route-row

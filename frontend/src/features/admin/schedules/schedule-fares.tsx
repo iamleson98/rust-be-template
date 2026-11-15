@@ -1,5 +1,3 @@
-'use client'
-
 import { useWatch } from 'react-hook-form'
 import { Baby, Info } from 'lucide-react'
 import type { AdminBusLayoutOut, ChildFarePolicy } from '@/api'

@@ -1,5 +1,3 @@
-'use client'
-
 /**
  * InfiniteSelect / InfiniteMultiSelect — searchable selects that page
  * data from the server as the user scrolls.

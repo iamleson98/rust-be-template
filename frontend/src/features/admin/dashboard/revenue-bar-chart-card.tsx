@@ -1,5 +1,3 @@
-'use client'
-
 /**
  * Revenue bar chart card — "Doanh thu ... gần nhất" (Row 1 of the
  * stats overview): bucketed byDay revenue bars with hover tooltips.

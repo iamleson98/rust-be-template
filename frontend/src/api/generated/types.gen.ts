@@ -18,6 +18,10 @@ export type AdminAddressListResponse = {
 export type AdminAddressOut = {
     address?: string | null;
     brandId: string;
+    /**
+     * Slug of the city the point is in; null only on points older than the field.
+     */
+    cityId?: string | null;
     createdAt: string;
     district?: string | null;
     id: string;
@@ -25,6 +29,10 @@ export type AdminAddressOut = {
     lon: number;
     name: string;
     province?: string | null;
+    /**
+     * Schedule stops at this address (the list endpoint only).
+     */
+    stopCount?: number;
     updatedAt: string;
     ward?: string | null;
 };
@@ -497,6 +505,10 @@ export type AdminSchedulePointOut = {
      * Optional `HH:MM` — when the vehicle reaches this stop.
      */
     arrivalTime?: string | null;
+    /**
+     * Slug of the city the stop is in; absent on stops older than the field.
+     */
+    cityId?: string | null;
     id: string;
     /**
      * `pickup` (first) / `middle` / `drop` (last).
@@ -2944,12 +2956,12 @@ export type RoutePictureOut = {
      */
     sortOrder: number;
     /**
-     * Public URL of the JPEG thumbnail (long edge ≤ 640px) — use this
+     * Public URL of the WebP thumbnail (long edge ≤ 640px) — use this
      * in lists/grids, `url` in the detail gallery.
      */
     thumbUrl: string;
     /**
-     * Public URL of the ORIGINAL image (content-addressed, immutable).
+     * Public URL of the stored WebP picture (long edge ≤ 1920px, content-addressed, immutable).
      */
     url: string;
     /**
@@ -3415,6 +3427,10 @@ export type TripDetail = {
 };
 
 export type TripEndpoint = {
+    /**
+     * City slug (e.g. `"ha-noi"`) — what a stop's `cityId` is compared with.
+     */
+    cityId?: string | null;
     lat: number;
     lon: number;
     name?: string | null;
@@ -3541,6 +3557,10 @@ export type TripSchedulePoint = {
      * Optional `HH:MM` — when the vehicle reaches this stop.
      */
     arrivalTime?: string | null;
+    /**
+     * Slug of the city the stop is in; absent on stops older than the field.
+     */
+    cityId?: string | null;
     id: string;
     /**
      * `pickup` (first) / `middle` / `drop` (last) — derived from the
@@ -3738,11 +3758,14 @@ export type UpdateRoutePictureInput = {
 export type UpsertAddressRequest = {
     address?: string | null;
     brandId?: string | null;
+    /**
+     * Slug of one of our cities; required to create. The point's `province` follows from it.
+     */
+    cityId?: string | null;
     district?: string | null;
     lat?: number | null;
     lon?: number | null;
     name?: string | null;
-    province?: string | null;
     ward?: string | null;
 };
 
@@ -4537,6 +4560,10 @@ export type AdminBusLayoutsListData = {
     path?: never;
     query?: {
         brandId?: string;
+        /**
+         * With `brandId`: the shared catalog (no brand) too.
+         */
+        includeShared?: boolean;
         /**
          * Page size (clamped to `[1, 200]` by the service). `None` = all
          * rows (legacy consumers).
@@ -8575,6 +8602,12 @@ export type SearchTripsGeoData = {
         fromLon: number;
         toLat: number;
         toLon: number;
+        /**
+         * The cities the places are in (with `toCity`): every trip between
+         * them is found, not only those stopping within `maxDistanceKm`.
+         */
+        fromCity?: string | null;
+        toCity?: string | null;
         date: string;
         limit?: number | null;
         offset?: number | null;

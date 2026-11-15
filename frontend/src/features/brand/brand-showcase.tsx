@@ -3,19 +3,19 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { ChevronRight, Route, Star } from 'lucide-react'
 import { brandsOptions } from '@/api'
+import { CATALOG_QUERY } from '@/api/catalog-cache'
 import { ErrorState } from '@/components/error-state'
 import { HomeSection, RAIL, RailSkeleton } from '@/features/home/section'
 import { useT } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
-
-const initials = (name: string) => {
-  const parts = name.trim().split(/\s+/)
-  return (parts.length >= 2 ? parts[0][0] + parts[1][0] : name.slice(0, 2)).toUpperCase()
-}
+import { brandInitials } from '@/lib/text'
 
 /** The operators on the platform, each card opening its page (routes, reviews). */
 export const BrandShowcase = memo(function BrandShowcase() {
-  const { data, isLoading, isError, refetch } = useQuery(brandsOptions())
+  const { data, isLoading, isError, refetch } = useQuery({
+    ...brandsOptions(),
+    ...CATALOG_QUERY,
+  })
   const t = useT()
   const brands = data?.items ?? []
 
@@ -51,7 +51,7 @@ export const BrandShowcase = memo(function BrandShowcase() {
                   decoding="async"
                 />
               ) : (
-                initials(brand.name)
+                brandInitials(brand.name)
               )}
             </span>
             <span className="min-w-0 flex-1">

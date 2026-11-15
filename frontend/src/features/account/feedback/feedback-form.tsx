@@ -1,9 +1,7 @@
-'use client'
-
 import { reviewsCreateMutation, reviewsUpdateMutation } from '@/api'
 import { useMutation } from '@tanstack/react-query'
 import { memo, useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -95,8 +93,8 @@ export const FeedbackForm = memo(function FeedbackForm({
   })
 
   // Live-watched values (for inline disabled-state + counter UX)
-  const rating = form.watch('rating')
-  const comment = form.watch('content')
+  const rating = useWatch({ control: form.control, name: 'rating' })
+  const comment = useWatch({ control: form.control, name: 'content' })
 
   const onSubmit = (values: FeedbackValues) => {
     // The bookings list carries no routeId/brandId; the backend derives both from the booking.

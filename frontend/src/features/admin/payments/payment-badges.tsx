@@ -1,5 +1,3 @@
-'use client'
-
 /**
  * Provider + status badges with semantic colors for the admin payments
  * panel, plus the provider option list shared by the badges and the

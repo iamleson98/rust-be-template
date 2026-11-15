@@ -1,5 +1,3 @@
-'use client'
-
 /**
  * ScheduleFormDialog — create/edit a Schedule under a given Route.
  *
@@ -35,9 +33,9 @@
 import { adminSchedulesCreateMutation, adminSchedulesUpdateMutation } from '@/api'
 import { useMutation } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
+import * as z from 'zod'
 import {
   Dialog,
   DialogContent,
@@ -64,8 +62,16 @@ import { ScheduleRouteSection } from './schedule-route-section'
 import { ScheduleBasicsFields } from './schedule-basics-fields'
 import { ScheduleDaysField } from './schedule-days-field'
 import { ScheduleAmenitiesField } from './schedule-amenities-field'
+import { formatAmenities, parseAmenities } from '@/lib/amenities'
 import { ScheduleFares } from './schedule-fares'
 import { getErrorMessage } from '@/lib/error-message'
+
+const DAY_MS = 86_400_000
+
+/** `YYYY-MM-DD` of today plus `days` (UTC), the default validity window of a new schedule. */
+function isoDayFromNow(days: number): string {
+  return new Date(Date.now() + days * DAY_MS).toISOString().slice(0, 10)
+}
 
 export function ScheduleFormDialog({
   open,
@@ -103,6 +109,16 @@ export function ScheduleFormDialog({
   const [createFor, setCreateFor] = useState<'start' | 'end' | number | null>(null)
   const [addressDialogOpen, setAddressDialogOpen] = useState(false)
 
+  // Each opening of the dialog starts clean. Adjusting state while rendering (instead of in
+  // an effect) avoids a second render pass with the stale values.
+  const openKey = open ? (schedule?.id ?? 'new') : null
+  const [seenOpenKey, setSeenOpenKey] = useState(openKey)
+  if (openKey !== seenOpenKey) {
+    setSeenOpenKey(openKey)
+    setExtraAddresses([])
+    setCreateFor(null)
+  }
+
   // Addresses the picker must always be able to resolve: the schedule's
   // existing points (edit mode — they embed the full address) plus ones
   // created during this dialog session.
@@ -120,8 +136,8 @@ export function ScheduleFormDialog({
     reValidateMode: 'onChange',
     defaultValues: {
       departureTime: '08:00',
-      effectiveFrom: new Date().toISOString().slice(0, 10),
-      effectiveTo: new Date(Date.now() + 365 * 86400000).toISOString().slice(0, 10),
+      effectiveFrom: isoDayFromNow(0),
+      effectiveTo: isoDayFromNow(365),
       days: [true, true, true, true, true, true, true],
       vehicleTypeId: '',
       busLayoutId: '',
@@ -147,9 +163,8 @@ export function ScheduleFormDialog({
       const middles = points.filter((p) => p.kind === 'middle')
       form.reset({
         departureTime: schedule?.departureTime ?? '08:00',
-        effectiveFrom: schedule?.effectiveFrom ?? new Date().toISOString().slice(0, 10),
-        effectiveTo:
-          schedule?.effectiveTo ?? new Date(Date.now() + 365 * 86400000).toISOString().slice(0, 10),
+        effectiveFrom: schedule?.effectiveFrom ?? isoDayFromNow(0),
+        effectiveTo: schedule?.effectiveTo ?? isoDayFromNow(365),
         days: [0, 1, 2, 3, 4, 5, 6].map((i) => ds[i] === '1'),
         vehicleTypeId: schedule?.vehicleTypeId ?? '',
         busLayoutId: schedule?.busLayoutId ?? '',
@@ -161,25 +176,23 @@ export function ScheduleFormDialog({
             { priceAdult: f.priceAdult, priceChild: f.priceChild ?? 0 },
           ]),
         ),
-        amenities: schedule?.amenities ? schedule.amenities.split(',').filter(Boolean) : [],
+        amenities: parseAmenities(schedule?.amenities),
         startPointId: startPoint?.addressId ?? '',
         startPointTime: startPoint?.arrivalTime ?? null,
         endPointId: endPoint?.addressId ?? '',
         endPointTime: endPoint?.arrivalTime ?? null,
         middlePoints: middles.map((p) => ({ id: p.addressId, time: p.arrivalTime ?? null })),
       })
-      setExtraAddresses([])
-      setCreateFor(null)
     }
   }, [open, schedule, form])
 
-  const days = form.watch('days')
-  const busLayoutId = form.watch('busLayoutId')
-  const effectiveFrom = form.watch('effectiveFrom')
-  const amenitiesValue = form.watch('amenities')
-  const startPointId = form.watch('startPointId')
-  const endPointId = form.watch('endPointId')
-  const middlePoints = form.watch('middlePoints')
+  const days = useWatch({ control: form.control, name: 'days' })
+  const busLayoutId = useWatch({ control: form.control, name: 'busLayoutId' })
+  const effectiveFrom = useWatch({ control: form.control, name: 'effectiveFrom' })
+  const amenitiesValue = useWatch({ control: form.control, name: 'amenities' })
+  const startPointId = useWatch({ control: form.control, name: 'startPointId' })
+  const endPointId = useWatch({ control: form.control, name: 'endPointId' })
+  const middlePoints = useWatch({ control: form.control, name: 'middlePoints' })
 
   const toggleDay = (i: number) => {
     form.setValue(
@@ -264,9 +277,7 @@ export function ScheduleFormDialog({
       // point carries its optional arrivalTime.
       const points = [
         { addressId: values.startPointId, arrivalTime: values.startPointTime ?? null },
-        ...values.middlePoints
-          .filter((m) => !!m.id)
-          .map((m) => ({ addressId: m.id, arrivalTime: m.time ?? null })),
+        ...values.middlePoints.map((m) => ({ addressId: m.id, arrivalTime: m.time ?? null })),
         { addressId: values.endPointId, arrivalTime: values.endPointTime ?? null },
       ]
       const payload: Record<string, unknown> = {
@@ -288,10 +299,8 @@ export function ScheduleFormDialog({
             priceAdult: fare.priceAdult,
             priceChild: fare.priceChild || null,
           })),
-        // Backend stores `amenities` as `Option<String>` (comma-separated).
-        // The form edits them as an array — join before sending. The
-        // previous version sent the array directly → serde 422.
-        amenities: values.amenities.join(','),
+        // Stored as text holding a JSON array (see `@/lib/amenities`).
+        amenities: formatAmenities(values.amenities),
         points,
       }
       // SDK mutation hooks require { body: <payload> } — passing the raw
@@ -418,7 +427,7 @@ export function ScheduleFormDialog({
         onOpenChange={setAddressDialogOpen}
         brandId={brandId}
         brandName={brandName}
-        onCreated={handleAddressCreated}
+        onSaved={handleAddressCreated}
       />
     </>
   )

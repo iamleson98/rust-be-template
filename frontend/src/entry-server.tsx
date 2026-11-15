@@ -9,7 +9,7 @@
  *
  * ── Why two-pass rendering (not `renderToString` alone) ───────────
  * The app uses `React.lazy()` + `<Suspense>` for code-splitting both
- * route components (HomePage, SearchPage, …) and persistent shell
+ * route components (SearchPage, PrivacyPage, …) and persistent shell
  * pieces (Header's NotificationBell / LoyaltyWidget,
  * Footer, MobileNav, SupportFab). The legacy `renderToString` API is
  * synchronous and predates Suspense — it throws
@@ -35,9 +35,8 @@
  *     Renders the same tree again. Now every `React.lazy()` component
  *     finds its resolved component in the cache and renders inline —
  *     NO Suspense boundary is hit, so `renderToString` works fine. The
- *     output is fully inlined HTML: the home page's marketing copy
- *     (hero, popular routes, brands, recommendations, …) is plain,
- *     crawler-visible HTML inside `<main>`. Maximum SEO.
+ *     output is fully inlined HTML: the page's text (the privacy policy,
+ *     the terms of use) is plain, crawler-visible HTML inside `<main>`.
  *
  * Client hydration + code-splitting behaviour is unchanged — the lazy
  * chunks still load on demand on the client.
@@ -126,7 +125,7 @@ export async function render(url: string = '/'): Promise<string> {
   // load, but adding it is belt-and-suspenders and costs nothing at
   // runtime — the modules are needed anyway.)
   await Promise.all([
-    import('./features/home/home-page'),
+    import('./features/legal/pages'),
     import('./app/layout/footer'),
     import('./app/layout/mobile-nav'),
     import('./app/layout/support-fab'),
@@ -165,7 +164,7 @@ export async function render(url: string = '/'): Promise<string> {
     return stripInlineScripts(inlinedHtml)
   } catch (err) {
     // A Suspense boundary was still hit in pass 2 (shouldn't happen
-    // for the home route, but could for other routes with lazy
+    // for the legal pages, but could for routes with lazy
     // components we didn't preload). Fall back to the streaming HTML
     // — content is in hidden divs, still visible to Googlebot.
     console.warn(

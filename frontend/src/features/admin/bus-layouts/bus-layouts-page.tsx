@@ -1,5 +1,3 @@
-'use client'
-
 /**
  * Admin route — `/admin/bus-layouts` — seat-layout catalog page.
  *

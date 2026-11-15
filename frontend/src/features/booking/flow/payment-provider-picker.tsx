@@ -1,5 +1,3 @@
-'use client'
-
 import { Loader2, ShieldCheck } from 'lucide-react'
 import { formatVND } from '@/lib/format'
 import { useT } from '@/lib/i18n'

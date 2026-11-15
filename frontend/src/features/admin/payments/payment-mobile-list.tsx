@@ -1,5 +1,3 @@
-'use client'
-
 /**
  * Mobile card list for the admin payments panel (rendered below md,
  * replacing the DataTable).

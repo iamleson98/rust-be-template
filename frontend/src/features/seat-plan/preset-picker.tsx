@@ -1,5 +1,3 @@
-'use client'
-
 import { LayoutTemplate } from 'lucide-react'
 import type { BusLayoutPreset } from '@/api'
 import { Skeleton } from '@/components/ui/skeleton'

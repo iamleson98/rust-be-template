@@ -153,13 +153,15 @@ describe('buildSearchInput', () => {
     expect(out).toEqual({ from: 'Hà Nội', to: 'Đà Nẵng', date: '2026-10-10' })
   })
 
-  it('keeps coordinates when both ends are precise, dropping the city fallbacks', () => {
+  it('keeps coordinates and their cities when both ends are precise (the cities scope the search)', () => {
     expect(
       buildSearchInput({ from: 'Bến xe A', to: 'Bến xe B', ...geo, fromCity: 'X', toCity: 'Y' }),
     ).toEqual({
       from: 'Bến xe A',
       to: 'Bến xe B',
       ...geo,
+      fromCity: 'X',
+      toCity: 'Y',
     })
   })
 

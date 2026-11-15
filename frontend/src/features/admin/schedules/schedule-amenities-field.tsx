@@ -1,5 +1,3 @@
-'use client'
-
 import { FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { AMENITY_OPTIONS } from '@/features/admin/types'
 import { useT } from '@/lib/i18n'

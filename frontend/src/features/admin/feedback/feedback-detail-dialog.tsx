@@ -1,5 +1,3 @@
-'use client'
-
 /**
  * Moderation detail dialog of the admin feedback panel — full review
  * content, status actions (approve / reject / hide) and the brand reply

@@ -1,0 +1,455 @@
+[
+  {
+    "path": "/",
+    "search": "",
+    "facts": {},
+    "expect": {
+      "title": "DatXeVui — Đặt vé xe khách online | Xe giường nằm, limousine giá rẻ",
+      "description": "Đặt vé xe khách online nhanh chóng, giá tốt nhất. Xe giường nằm, limousine, ghế nằm các tuyến khắp Việt Nam.",
+      "canonical": "https://datxevui.com/",
+      "robots": "index, follow"
+    }
+  },
+  {
+    "path": "/",
+    "search": "utm_source=zalo",
+    "facts": {},
+    "expect": {
+      "title": "DatXeVui — Đặt vé xe khách online | Xe giường nằm, limousine giá rẻ",
+      "description": "Đặt vé xe khách online nhanh chóng, giá tốt nhất. Xe giường nằm, limousine, ghế nằm các tuyến khắp Việt Nam.",
+      "canonical": "https://datxevui.com/",
+      "robots": "index, follow"
+    }
+  },
+  {
+    "path": "/search",
+    "search": "",
+    "facts": {},
+    "expect": {
+      "title": "Tìm chuyến xe — DatXeVui",
+      "description": "So sánh giá vé xe khách các hãng. Lọc theo giờ đi, giá, loại xe, đánh giá.",
+      "canonical": "https://datxevui.com/search",
+      "robots": "index, follow"
+    }
+  },
+  {
+    "path": "/search",
+    "search": "date=2026-12-01",
+    "facts": {},
+    "expect": {
+      "title": "Tìm chuyến xe — DatXeVui",
+      "description": "So sánh giá vé xe khách các hãng. Lọc theo giờ đi, giá, loại xe, đánh giá.",
+      "canonical": "https://datxevui.com/search",
+      "robots": "index, follow"
+    }
+  },
+  {
+    "path": "/search",
+    "search": "from=H%C3%A0+N%E1%BB%99i",
+    "facts": {},
+    "expect": {
+      "title": "Tìm chuyến xe — DatXeVui",
+      "description": "So sánh giá vé xe khách các hãng. Lọc theo giờ đi, giá, loại xe, đánh giá.",
+      "canonical": "https://datxevui.com/search",
+      "robots": "index, follow"
+    }
+  },
+  {
+    "path": "/search",
+    "search": "to=%C4%90%C3%A0+N%E1%BA%B5ng",
+    "facts": {},
+    "expect": {
+      "title": "Tìm chuyến xe — DatXeVui",
+      "description": "So sánh giá vé xe khách các hãng. Lọc theo giờ đi, giá, loại xe, đánh giá.",
+      "canonical": "https://datxevui.com/search",
+      "robots": "index, follow"
+    }
+  },
+  {
+    "path": "/search",
+    "search": "from=H%C3%A0+N%E1%BB%99i&to=%C4%90%C3%A0+N%E1%BA%B5ng",
+    "facts": {},
+    "expect": {
+      "title": "Vé xe Hà Nội đi Đà Nẵng — Đặt vé online | DatXeVui",
+      "description": "Đặt vé xe khách Hà Nội đi Đà Nẵng: so sánh giờ chạy, giá vé và đánh giá các nhà xe, chọn ghế trên sơ đồ và thanh toán trực tuyến.",
+      "canonical": "https://datxevui.com/search?from=H%C3%A0+N%E1%BB%99i&to=%C4%90%C3%A0+N%E1%BA%B5ng",
+      "robots": "index, follow"
+    }
+  },
+  {
+    "path": "/search",
+    "search": "from=H%C3%A0+N%E1%BB%99i&to=%C4%90%C3%A0+N%E1%BA%B5ng&date=2026-12-01&passengers=2",
+    "facts": {},
+    "expect": {
+      "title": "Vé xe Hà Nội đi Đà Nẵng — Đặt vé online | DatXeVui",
+      "description": "Đặt vé xe khách Hà Nội đi Đà Nẵng: so sánh giờ chạy, giá vé và đánh giá các nhà xe, chọn ghế trên sơ đồ và thanh toán trực tuyến.",
+      "canonical": "https://datxevui.com/search?from=H%C3%A0+N%E1%BB%99i&to=%C4%90%C3%A0+N%E1%BA%B5ng",
+      "robots": "index, follow"
+    }
+  },
+  {
+    "path": "/search",
+    "search": "from=++S%C3%A0i+G%C3%B2n+&to=+%C4%90%C3%A0+L%E1%BA%A1t",
+    "facts": {},
+    "expect": {
+      "title": "Vé xe Sài Gòn đi Đà Lạt — Đặt vé online | DatXeVui",
+      "description": "Đặt vé xe khách Sài Gòn đi Đà Lạt: so sánh giờ chạy, giá vé và đánh giá các nhà xe, chọn ghế trên sơ đồ và thanh toán trực tuyến.",
+      "canonical": "https://datxevui.com/search?from=S%C3%A0i+G%C3%B2n&to=%C4%90%C3%A0+L%E1%BA%A1t",
+      "robots": "index, follow"
+    }
+  },
+  {
+    "path": "/search",
+    "search": "from=H%C3%A0+N%E1%BB%99i&to=+++",
+    "facts": {},
+    "expect": {
+      "title": "Tìm chuyến xe — DatXeVui",
+      "description": "So sánh giá vé xe khách các hãng. Lọc theo giờ đi, giá, loại xe, đánh giá.",
+      "canonical": "https://datxevui.com/search",
+      "robots": "index, follow"
+    }
+  },
+  {
+    "path": "/search",
+    "search": "from=&to=Hu%E1%BA%BF",
+    "facts": {},
+    "expect": {
+      "title": "Tìm chuyến xe — DatXeVui",
+      "description": "So sánh giá vé xe khách các hãng. Lọc theo giờ đi, giá, loại xe, đánh giá.",
+      "canonical": "https://datxevui.com/search",
+      "robots": "index, follow"
+    }
+  },
+  {
+    "path": "/search",
+    "search": "from=Phan+Rang+-+Th%C3%A1p+Ch%C3%A0m&to=Nha+Trang+%26+Cam+Ranh",
+    "facts": {},
+    "expect": {
+      "title": "Vé xe Phan Rang - Tháp Chàm đi Nha Trang & Cam Ranh — Đặt vé online | DatXeVui",
+      "description": "Đặt vé xe khách Phan Rang - Tháp Chàm đi Nha Trang & Cam Ranh: so sánh giờ chạy, giá vé và đánh giá các nhà xe, chọn ghế trên sơ đồ và thanh toán trực tuyến.",
+      "canonical": "https://datxevui.com/search?from=Phan+Rang+-+Th%C3%A1p+Ch%C3%A0m&to=Nha+Trang+%26+Cam+Ranh",
+      "robots": "index, follow"
+    }
+  },
+  {
+    "path": "/compare",
+    "search": "",
+    "facts": {},
+    "expect": {
+      "title": "So sánh chuyến xe — DatXeVui",
+      "description": "So sánh giá, giờ đi, tiện nghi của các chuyến xe.",
+      "canonical": "https://datxevui.com/compare",
+      "robots": "index, follow"
+    }
+  },
+  {
+    "path": "/privacy",
+    "search": "",
+    "facts": {},
+    "expect": {
+      "title": "Chính sách bảo mật — DatXeVui",
+      "description": "DatXeVui thu thập, sử dụng, chia sẻ và bảo vệ dữ liệu cá nhân của bạn như thế nào, và cách yêu cầu xoá dữ liệu.",
+      "canonical": "https://datxevui.com/privacy",
+      "robots": "index, follow"
+    }
+  },
+  {
+    "path": "/terms",
+    "search": "",
+    "facts": {},
+    "expect": {
+      "title": "Điều khoản sử dụng — DatXeVui",
+      "description": "Điều khoản khi dùng DatXeVui để tìm chuyến và đặt vé xe khách.",
+      "canonical": "https://datxevui.com/terms",
+      "robots": "index, follow"
+    }
+  },
+  {
+    "path": "/brands/phuong-trang",
+    "search": "",
+    "facts": {
+      "brand": {
+        "name": "Phương Trang",
+        "description": "Hãng xe khách lớn nhất miền Nam."
+      }
+    },
+    "expect": {
+      "title": "Phương Trang — Đặt vé xe Phương Trang online | DatXeVui",
+      "description": "Hãng xe khách lớn nhất miền Nam.",
+      "canonical": "https://datxevui.com/brands/phuong-trang",
+      "robots": "index, follow"
+    }
+  },
+  {
+    "path": "/brands/phuong-trang",
+    "search": "",
+    "facts": {
+      "brand": {
+        "name": "Phương Trang",
+        "description": null
+      }
+    },
+    "expect": {
+      "title": "Phương Trang — Đặt vé xe Phương Trang online | DatXeVui",
+      "description": "Đặt vé xe Phương Trang trực tuyến: các tuyến đang chạy, giờ đi, giá vé và đánh giá của hành khách.",
+      "canonical": "https://datxevui.com/brands/phuong-trang",
+      "robots": "index, follow"
+    }
+  },
+  {
+    "path": "/brands/phuong-trang",
+    "search": "",
+    "facts": {
+      "brand": {
+        "name": "Phương Trang",
+        "description": ""
+      }
+    },
+    "expect": {
+      "title": "Phương Trang — Đặt vé xe Phương Trang online | DatXeVui",
+      "description": "Đặt vé xe Phương Trang trực tuyến: các tuyến đang chạy, giờ đi, giá vé và đánh giá của hành khách.",
+      "canonical": "https://datxevui.com/brands/phuong-trang",
+      "robots": "index, follow"
+    }
+  },
+  {
+    "path": "/brands/phuong-trang",
+    "search": "",
+    "facts": {
+      "brand": {
+        "name": "Phương Trang",
+        "description": "   "
+      }
+    },
+    "expect": {
+      "title": "Phương Trang — Đặt vé xe Phương Trang online | DatXeVui",
+      "description": "Đặt vé xe Phương Trang trực tuyến: các tuyến đang chạy, giờ đi, giá vé và đánh giá của hành khách.",
+      "canonical": "https://datxevui.com/brands/phuong-trang",
+      "robots": "index, follow"
+    }
+  },
+  {
+    "path": "/brands/phuong-trang",
+    "search": "",
+    "facts": {
+      "brand": {
+        "name": "Phương Trang",
+        "description": "  Xe giường nằm, limousine.  "
+      }
+    },
+    "expect": {
+      "title": "Phương Trang — Đặt vé xe Phương Trang online | DatXeVui",
+      "description": "Xe giường nằm, limousine.",
+      "canonical": "https://datxevui.com/brands/phuong-trang",
+      "robots": "index, follow"
+    }
+  },
+  {
+    "path": "/brands/phuong-trang",
+    "search": "",
+    "facts": {},
+    "expect": {
+      "title": "Hãng xe — DatXeVui",
+      "description": "Thông tin hãng xe, tuyến đường, đánh giá khách hàng.",
+      "canonical": "https://datxevui.com/brands/phuong-trang",
+      "robots": "index, follow"
+    }
+  },
+  {
+    "path": "/brands/thanh-buoi",
+    "search": "",
+    "facts": {
+      "brand": {
+        "name": "Thành Bưởi & Co \"Express\"",
+        "description": null
+      }
+    },
+    "expect": {
+      "title": "Thành Bưởi & Co \"Express\" — Đặt vé xe Thành Bưởi & Co \"Express\" online | DatXeVui",
+      "description": "Đặt vé xe Thành Bưởi & Co \"Express\" trực tuyến: các tuyến đang chạy, giờ đi, giá vé và đánh giá của hành khách.",
+      "canonical": "https://datxevui.com/brands/thanh-buoi",
+      "robots": "index, follow"
+    }
+  },
+  {
+    "path": "/brands/limousine-vi%E1%BB%87t",
+    "search": "",
+    "facts": {
+      "brand": {
+        "name": "Limousine Việt",
+        "description": "Đi Hà Nội — Hải Phòng."
+      }
+    },
+    "expect": {
+      "title": "Limousine Việt — Đặt vé xe Limousine Việt online | DatXeVui",
+      "description": "Đi Hà Nội — Hải Phòng.",
+      "canonical": "https://datxevui.com/brands/limousine-vi%E1%BB%87t",
+      "robots": "index, follow"
+    }
+  },
+  {
+    "path": "/brands/khong-co",
+    "search": "",
+    "facts": null,
+    "expect": null
+  },
+  {
+    "path": "/brands",
+    "search": "",
+    "facts": {},
+    "expect": null
+  },
+  {
+    "path": "/brands/",
+    "search": "",
+    "facts": {},
+    "expect": null
+  },
+  {
+    "path": "/brands/a/b",
+    "search": "",
+    "facts": {},
+    "expect": null
+  },
+  {
+    "path": "/trips/3f2c8c1e-0a52-4a9b-9e3a-1f5c2d7a9b10",
+    "search": "",
+    "facts": {},
+    "expect": {
+      "title": "Chi tiết chuyến xe — DatXeVui",
+      "description": "Xem sơ đồ ghế, lịch trình, đánh giá và đặt vé trực tuyến.",
+      "canonical": null,
+      "robots": "noindex, follow"
+    }
+  },
+  {
+    "path": "/trips",
+    "search": "",
+    "facts": {},
+    "expect": null
+  },
+  {
+    "path": "/bookings/DXV-ABC123",
+    "search": "",
+    "facts": {},
+    "expect": {
+      "title": "Chi tiết vé — DatXeVui",
+      "description": "Thông tin vé đã đặt.",
+      "canonical": null,
+      "robots": "noindex, nofollow"
+    }
+  },
+  {
+    "path": "/payments/3f2c8c1e-0a52-4a9b-9e3a-1f5c2d7a9b10/return",
+    "search": "",
+    "facts": {},
+    "expect": {
+      "title": "Kết quả thanh toán — DatXeVui",
+      "description": "Đang mở vé vừa thanh toán.",
+      "canonical": null,
+      "robots": "noindex, nofollow"
+    }
+  },
+  {
+    "path": "/payments/3f2c8c1e-0a52-4a9b-9e3a-1f5c2d7a9b10",
+    "search": "",
+    "facts": {},
+    "expect": null
+  },
+  {
+    "path": "/login",
+    "search": "",
+    "facts": {},
+    "expect": {
+      "title": "Đăng nhập — DatXeVui",
+      "description": "Đăng nhập để đặt vé, xem vé của bạn và tích điểm thưởng.",
+      "canonical": null,
+      "robots": "noindex, nofollow"
+    }
+  },
+  {
+    "path": "/login",
+    "search": "redirect=%2Faccount",
+    "facts": {},
+    "expect": {
+      "title": "Đăng nhập — DatXeVui",
+      "description": "Đăng nhập để đặt vé, xem vé của bạn và tích điểm thưởng.",
+      "canonical": null,
+      "robots": "noindex, nofollow"
+    }
+  },
+  {
+    "path": "/admin",
+    "search": "",
+    "facts": {},
+    "expect": {
+      "title": "Quản trị — DatXeVui",
+      "description": "Bảng điều khiển quản trị hệ thống DatXeVui.",
+      "canonical": null,
+      "robots": "noindex, nofollow"
+    }
+  },
+  {
+    "path": "/admin/brands",
+    "search": "",
+    "facts": {},
+    "expect": {
+      "title": "Quản trị — DatXeVui",
+      "description": "Bảng điều khiển quản trị hệ thống DatXeVui.",
+      "canonical": null,
+      "robots": "noindex, nofollow"
+    }
+  },
+  {
+    "path": "/account",
+    "search": "",
+    "facts": {},
+    "expect": {
+      "title": "Tài khoản — DatXeVui",
+      "description": "Quản lý tài khoản và cài đặt.",
+      "canonical": null,
+      "robots": "noindex, nofollow"
+    }
+  },
+  {
+    "path": "/account/trips/DXV-ABC123",
+    "search": "",
+    "facts": {},
+    "expect": {
+      "title": "Tài khoản — DatXeVui",
+      "description": "Quản lý tài khoản và cài đặt.",
+      "canonical": null,
+      "robots": "noindex, nofollow"
+    }
+  },
+  {
+    "path": "/search/",
+    "search": "",
+    "facts": {},
+    "expect": null
+  },
+  {
+    "path": "/privacy/",
+    "search": "",
+    "facts": {},
+    "expect": null
+  },
+  {
+    "path": "/does-not-exist",
+    "search": "",
+    "facts": {},
+    "expect": null
+  },
+  {
+    "path": "/SEARCH",
+    "search": "",
+    "facts": {},
+    "expect": null
+  },
+  {
+    "path": "/index.html",
+    "search": "",
+    "facts": {},
+    "expect": null
+  }
+]

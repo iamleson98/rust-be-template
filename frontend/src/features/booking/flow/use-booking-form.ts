@@ -15,7 +15,12 @@ import {
   type SelectedSeat,
 } from './booking-form'
 
-const EMPTY: BookingValues = { passengers: [], contactName: '', contactPhone: '', contactEmail: '' }
+const EMPTY: BookingValues = {
+  passengers: [],
+  contactName: '',
+  contactPhone: '',
+  contactEmail: '',
+}
 
 /**
  * Who to put as the contact before anything is typed: the signed-in

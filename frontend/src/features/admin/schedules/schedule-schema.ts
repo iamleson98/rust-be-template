@@ -1,5 +1,5 @@
 import type { UseFormReturn } from 'react-hook-form'
-import { z } from 'zod'
+import * as z from 'zod'
 import { requiredText } from '@/lib/forms'
 import { tSync } from '@/lib/i18n'
 
@@ -37,7 +37,10 @@ const classFare = z.object({ priceAdult: price, priceChild: price })
 
 /** One midway stop: the address plus its optional arrival time. */
 const middlePoint = z.object({
-  id: z.string(),
+  id: z
+    .string()
+    .trim()
+    .min(1, { error: () => tSync('scheduleSchema.middlePointRequired') }),
   time: optionalTime,
 })
 

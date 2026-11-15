@@ -1,5 +1,3 @@
-'use client'
-
 /**
  * PolicyBlock — small two-column policy list used inside the
  * "Chính sách" tab of the TripDetailDialog.

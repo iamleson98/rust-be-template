@@ -1,5 +1,3 @@
-'use client'
-
 import type { Dispatch, SetStateAction } from 'react'
 import type { CellData, ColumnDef, SortingState } from '@tanstack/react-table'
 import { DataTable, DataTableViewOptions, type DataTableFeatures } from '@/components/data-table'

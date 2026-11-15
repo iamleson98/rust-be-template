@@ -1,5 +1,3 @@
-'use client'
-
 import type { SearchParams } from '@/lib/search-params'
 import type { UseFormReturn } from 'react-hook-form'
 import { useT } from '@/lib/i18n'

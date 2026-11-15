@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { ChevronRight } from 'lucide-react'
 import { routesOptions, searchTripsOptions } from '@/api'
+import { CATALOG_QUERY } from '@/api/catalog-cache'
 import { ErrorState } from '@/components/error-state'
 import { PopularRoutesSkeleton } from '@/features/home/components/popular-routes-skeleton'
 import { useT } from '@/lib/i18n'
@@ -18,7 +19,10 @@ export const PopularRoutes = memo(function PopularRoutes() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const t = useT()
-  const { data, isLoading, isError, refetch } = useQuery(routesOptions())
+  const { data, isLoading, isError, refetch } = useQuery({
+    ...routesOptions(),
+    ...CATALOG_QUERY,
+  })
 
   const routes = useMemo(() => {
     const seen = new Set<string>()

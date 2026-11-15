@@ -1,5 +1,3 @@
-'use client'
-
 import { useState } from 'react'
 import { Building2, CheckCircle2, Copy } from 'lucide-react'
 import { toast } from 'sonner'

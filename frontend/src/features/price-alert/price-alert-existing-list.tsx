@@ -1,5 +1,3 @@
-'use client'
-
 /**
  * PriceAlertExistingList — the "Cảnh báo đã tạo" list inside the
  * price-alert dialog: one row per alert (status badge, route, target

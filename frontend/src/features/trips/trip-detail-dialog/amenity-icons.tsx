@@ -1,5 +1,3 @@
-'use client'
-
 /**
  * Amenity icon map + helpers shared across the TripDetailDialog tabs.
  *

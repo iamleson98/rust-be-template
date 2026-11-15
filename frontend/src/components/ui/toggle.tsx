@@ -1,6 +1,4 @@
-'use client'
-
-import { type ComponentProps } from 'react'
+import type { ComponentProps } from 'react'
 import { Toggle as TogglePrimitive } from '@base-ui/react/toggle'
 import { cva, type VariantProps } from 'class-variance-authority'
 

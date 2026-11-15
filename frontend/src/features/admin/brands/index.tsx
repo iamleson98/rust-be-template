@@ -1,5 +1,3 @@
-'use client'
-
 /**
  * AdminBrandManagement — the /admin/brands page: one subtree table
  * (brands → routes → schedules) with a smart filter bar.
@@ -195,11 +193,14 @@ export function AdminBrandManagement() {
   }>({ open: false, schedule: null, route: null, brand: null })
   const [pickupRoute, setPickupRoute] = useState<AdminRouteOut | null>(null)
 
-  // Bus layouts for the schedule form — the brand of the route being
-  // edited scopes the picker.
+  // Bus layouts for the schedule form: the shared catalog plus the brand
+  // of the route being edited.
   const busLayoutsQuery = useQuery({
     ...adminBusLayoutsListOptions({
-      query: { brandId: scheduleDialog.route?.brandId ?? routeDialog.brand?.id ?? undefined },
+      query: {
+        brandId: scheduleDialog.route?.brandId ?? routeDialog.brand?.id ?? undefined,
+        includeShared: true,
+      },
     }),
     placeholderData: keepPreviousData,
   })

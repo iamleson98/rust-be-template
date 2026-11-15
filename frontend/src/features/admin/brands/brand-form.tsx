@@ -1,11 +1,9 @@
-'use client'
-
 import { useMutation } from '@tanstack/react-query'
 import { adminBrandsCreateMutation, adminBrandsUpdateMutation } from '@/api'
 import { useEffect, useMemo, useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, useFormState, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
+import * as z from 'zod'
 import {
   Dialog,
   DialogContent,
@@ -35,6 +33,8 @@ import { formatNum, formatVND } from '@/lib/format'
 import type { AdminBrandOut, UpsertBrandRequest } from '@/api'
 import { slugify } from '@/lib/text'
 import { getErrorMessage } from '@/lib/error-message'
+import { BrandAddressList } from '@/features/admin/addresses/brand-address-list'
+import { BrandLogoField, useBrandLogo } from './brand-logo-field'
 
 const makeBrandSchema = (t: ReturnType<typeof useT>) =>
   z.object({
@@ -51,12 +51,8 @@ const makeBrandSchema = (t: ReturnType<typeof useT>) =>
       .max(80, t('adminBrands.slugMax'))
       .regex(/^[a-z0-9-]+$/, t('adminBrands.slugRegex')),
     description: optionalText(5000),
-    contactPhone: z
-      .string()
-      .trim()
-      .optional()
-      .or(z.literal(''))
-      .refine((v) => !v || /^0\d{8,10}$/.test(v), t('validation.phone')),
+    // Any hotline as the brand writes it: short numbers (1900 6067) are common.
+    contactPhone: z.string().trim().optional(),
     contactEmail: z
       .string()
       .trim()
@@ -99,11 +95,15 @@ export function BrandFormDialog({
   onSaved: () => void
 }) {
   const t = useT()
-  const isEdit = !!brand
-  const [slugTouched, setSlugTouched] = useState(false)
+  // A brand created here stays open for its locations, then edits as usual.
+  const [createdId, setCreatedId] = useState<string | null>(null)
+  const brandId = brand?.id ?? createdId
+  const isEdit = !!brandId
   const createMutation = useMutation(adminBrandsCreateMutation())
   const updateMutation = useMutation(adminBrandsUpdateMutation())
-  const saving = createMutation.isPending || updateMutation.isPending
+  const logo = useBrandLogo(brand?.logoUrl, open)
+  const [uploadingLogo, setUploadingLogo] = useState(false)
+  const saving = createMutation.isPending || updateMutation.isPending || uploadingLogo
   const brandSchema = useMemo(() => makeBrandSchema(t), [t])
 
   const form = useForm<BrandFormValues>({
@@ -123,13 +123,16 @@ export function BrandFormDialog({
     },
   })
 
-  const nameValue = form.watch('name')
-  const childFare = form.watch('childFare')
+  const nameValue = useWatch({ control: form.control, name: 'name' })
+  const childFare = useWatch({ control: form.control, name: 'childFare' })
+  // The slug follows the name until the user edits it; `reset` below clears the flag.
+  const slugTouched = useFormState({ control: form.control, name: 'slug' }).dirtyFields.slug
 
   // Populate form when dialog opens / record changes
   useEffect(() => {
     if (open) {
-      setSlugTouched(false)
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setCreatedId(null)
       form.reset({
         name: brand?.name ?? '',
         slug: brand?.slug ?? '',
@@ -151,6 +154,14 @@ export function BrandFormDialog({
 
   const onSubmit = async (values: BrandFormValues) => {
     try {
+      // The logo goes up first: a failed upload leaves the brand as it was.
+      setUploadingLogo(true)
+      let logoUrl: string | null | undefined
+      try {
+        logoUrl = await logo.commit()
+      } finally {
+        setUploadingLogo(false)
+      }
       const body: UpsertBrandRequest = {
         name: values.name.trim(),
         slug: values.slug.trim(),
@@ -164,11 +175,21 @@ export function BrandFormDialog({
               discountAmount: values.childFare.discountAmount,
             }
           : null,
+        // Absent keeps the saved logo; `null` removes it.
+        ...(logoUrl !== undefined && { logoUrl }),
       }
-      if (isEdit) await updateMutation.mutateAsync({ path: { id: brand!.id }, body })
-      else await createMutation.mutateAsync({ body })
-      toast.success(isEdit ? t('brandForm.updated') : t('brandForm.created'))
-      onSaved()
+      if (brandId) {
+        await updateMutation.mutateAsync({ path: { id: brandId }, body })
+        toast.success(t('brandForm.updated'))
+        onSaved()
+      } else {
+        const created = (await createMutation.mutateAsync({ body })) as { id?: string }
+        if (!created?.id) throw new Error('missing id in response')
+        // Keep the dialog open: the new brand's locations come next.
+        setCreatedId(created.id)
+        form.reset(values)
+        toast.success(t('brandForm.createdAddLocations'))
+      }
     } catch (e) {
       toast.error(getErrorMessage(e, t('brandForm.saveFailed')))
     }
@@ -176,7 +197,7 @@ export function BrandFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !saving && onOpenChange(o)}>
-      <DialogContent className="max-w-xl">
+      <DialogContent className="max-w-5xl">
         <DialogHeader icon={<Building2 />}>
           <DialogTitle>
             {isEdit ? t('brandForm.editTitle') : t('brandForm.createTitle')}
@@ -185,210 +206,227 @@ export function BrandFormDialog({
         </DialogHeader>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-3">
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem className="grid gap-1.5">
-                  <FormLabel>
-                    {t('brandForm.name')} <span className="text-destructive">*</span>
-                  </FormLabel>
-                  <FormControl>
-                    <Input {...field} placeholder={t('brandForm.namePh')} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+          {/* Two columns from md up: the brand on the left, its locations on the right. */}
+          <form
+            onSubmit={form.handleSubmit(onSubmit)}
+            className="grid gap-x-6 gap-y-4 md:grid-cols-2"
+          >
+            <div className="grid content-start gap-3">
+              <BrandLogoField logo={logo} name={nameValue} disabled={saving} />
 
-            <FormField
-              control={form.control}
-              name="slug"
-              render={({ field }) => (
-                <FormItem className="grid gap-1.5">
-                  <FormLabel>
-                    {t('brandForm.slug')} <span className="text-destructive">*</span>
-                  </FormLabel>
-                  <FormControl>
-                    <Input
-                      {...field}
-                      placeholder={t('brandForm.slugPh')}
-                      className="font-mono text-base md:text-xs"
-                      onChange={(e) => {
-                        field.onChange(e)
-                        setSlugTouched(true)
-                      }}
-                    />
-                  </FormControl>
-                  <p className="text-[11px] text-muted-foreground">{t('brandForm.slugHint')}</p>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="description"
-              render={({ field }) => (
-                <FormItem className="grid gap-1.5">
-                  <FormLabel>{t('brandForm.descriptionField')}</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      {...field}
-                      value={field.value ?? ''}
-                      placeholder={t('adminBrands.descriptionPh')}
-                      rows={3}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <div className="grid grid-cols-2 gap-3 items-start">
               <FormField
                 control={form.control}
-                name="contactPhone"
+                name="name"
                 render={({ field }) => (
                   <FormItem className="grid gap-1.5">
-                    <FormLabel className="flex items-center gap-1">
-                      <Phone className="h-3.5 w-3.5" /> {t('brandForm.hotline')}
+                    <FormLabel>
+                      {t('brandForm.name')} <span className="text-destructive">*</span>
                     </FormLabel>
                     <FormControl>
-                      <Input {...field} value={field.value ?? ''} placeholder="1900 6067" />
+                      <Input {...field} placeholder={t('brandForm.namePh')} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+
               <FormField
                 control={form.control}
-                name="contactEmail"
+                name="slug"
                 render={({ field }) => (
                   <FormItem className="grid gap-1.5">
-                    <FormLabel className="flex items-center gap-1">
-                      <Mail className="h-3.5 w-3.5" /> {t('brandForm.email')}
+                    <FormLabel>
+                      {t('brandForm.slug')} <span className="text-destructive">*</span>
                     </FormLabel>
                     <FormControl>
-                      <Input {...field} value={field.value ?? ''} placeholder="info@brand.vn" />
+                      <Input
+                        {...field}
+                        placeholder={t('brandForm.slugPh')}
+                        className="font-mono text-base md:text-xs"
+                        onChange={(e) => {
+                          field.onChange(e)
+                        }}
+                      />
                     </FormControl>
+                    <p className="text-[11px] text-muted-foreground">{t('brandForm.slugHint')}</p>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-            </div>
 
-            <div className="grid gap-3 sm:w-1/2">
               <FormField
                 control={form.control}
-                name="status"
+                name="description"
                 render={({ field }) => (
                   <FormItem className="grid gap-1.5">
-                    <FormLabel>{t('common.status')}</FormLabel>
+                    <FormLabel>{t('brandForm.descriptionField')}</FormLabel>
                     <FormControl>
-                      <ComboboxField
-                        value={field.value}
-                        onValueChange={field.onChange}
-                        items={[
-                          { value: 'active', label: t('common.active') },
-                          { value: 'inactive', label: t('common.inactive') },
-                        ]}
-                        placeholder={t('adminBrands.chooseStatus')}
-                        searchPlaceholder={t('combobox.search')}
-                        aria-label={t('common.status')}
+                      <Textarea
+                        {...field}
+                        value={field.value ?? ''}
+                        placeholder={t('adminBrands.descriptionPh')}
+                        rows={3}
                       />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+
+              <div className="grid grid-cols-2 gap-3 items-start">
+                <FormField
+                  control={form.control}
+                  name="contactPhone"
+                  render={({ field }) => (
+                    <FormItem className="grid gap-1.5">
+                      <FormLabel className="flex items-center gap-1">
+                        <Phone className="h-3.5 w-3.5" /> {t('brandForm.hotline')}
+                      </FormLabel>
+                      <FormControl>
+                        <Input {...field} value={field.value ?? ''} placeholder="1900 6067" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="contactEmail"
+                  render={({ field }) => (
+                    <FormItem className="grid gap-1.5">
+                      <FormLabel className="flex items-center gap-1">
+                        <Mail className="h-3.5 w-3.5" /> {t('brandForm.email')}
+                      </FormLabel>
+                      <FormControl>
+                        <Input {...field} value={field.value ?? ''} placeholder="info@brand.vn" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="grid gap-3 sm:w-1/2">
+                <FormField
+                  control={form.control}
+                  name="status"
+                  render={({ field }) => (
+                    <FormItem className="grid gap-1.5">
+                      <FormLabel>{t('common.status')}</FormLabel>
+                      <FormControl>
+                        <ComboboxField
+                          value={field.value}
+                          onValueChange={field.onChange}
+                          items={[
+                            { value: 'active', label: t('common.active') },
+                            { value: 'inactive', label: t('common.inactive') },
+                          ]}
+                          placeholder={t('adminBrands.chooseStatus')}
+                          searchPlaceholder={t('combobox.search')}
+                          aria-label={t('common.status')}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <fieldset className="rounded-lg border p-3 space-y-3">
+                <FormField
+                  control={form.control}
+                  name="childFare.enabled"
+                  render={({ field }) => (
+                    <FormItem className="flex items-center justify-between gap-3 space-y-0">
+                      <div>
+                        <FormLabel className="flex items-center gap-1.5">
+                          <Baby className="h-4 w-4 text-amber-600" /> {t('brandForm.childFare')}
+                        </FormLabel>
+                        <p className="mt-0.5 text-[11px] text-muted-foreground">
+                          {t('brandForm.childFareHint')}
+                        </p>
+                      </div>
+                      <FormControl>
+                        <Switch checked={field.value} onCheckedChange={field.onChange} />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+                {childFare.enabled && (
+                  <>
+                    <div className="grid grid-cols-2 gap-3 items-start">
+                      <FormField
+                        control={form.control}
+                        name="childFare.maxAge"
+                        render={({ field }) => (
+                          <FormItem className="grid gap-1.5">
+                            <FormLabel>{t('brandForm.childMaxAge')}</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                min={1}
+                                max={17}
+                                value={field.value}
+                                onChange={(e) => field.onChange(Number(e.target.value))}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="childFare.discountAmount"
+                        render={({ field }) => (
+                          <FormItem className="grid gap-1.5">
+                            <FormLabel>{t('brandForm.childDiscount')}</FormLabel>
+                            <FormControl>
+                              <div className="relative">
+                                <Input
+                                  inputMode="numeric"
+                                  value={field.value ? formatNum(field.value) : ''}
+                                  onChange={(e) =>
+                                    field.onChange(
+                                      Number(e.target.value.replace(/\D/g, '').slice(0, 9)) || 0,
+                                    )
+                                  }
+                                  onBlur={field.onBlur}
+                                  placeholder="50.000"
+                                  className="pr-7 tabular-nums"
+                                />
+                                <span className="pointer-events-none absolute top-1/2 right-2.5 -translate-y-1/2 text-sm text-muted-foreground">
+                                  ₫
+                                </span>
+                              </div>
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {t('brandForm.childFareExample', {
+                        age: childFare.maxAge,
+                        adult: formatVND(EXAMPLE_FARE),
+                        child: formatVND(Math.max(0, EXAMPLE_FARE - childFare.discountAmount)),
+                      })}
+                    </p>
+                  </>
+                )}
+              </fieldset>
             </div>
 
-            <fieldset className="rounded-lg border p-3 space-y-3">
-              <FormField
-                control={form.control}
-                name="childFare.enabled"
-                render={({ field }) => (
-                  <FormItem className="flex items-center justify-between gap-3 space-y-0">
-                    <div>
-                      <FormLabel className="flex items-center gap-1.5">
-                        <Baby className="h-4 w-4 text-amber-600" /> {t('brandForm.childFare')}
-                      </FormLabel>
-                      <p className="mt-0.5 text-[11px] text-muted-foreground">
-                        {t('brandForm.childFareHint')}
-                      </p>
-                    </div>
-                    <FormControl>
-                      <Switch checked={field.value} onCheckedChange={field.onChange} />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-              {childFare.enabled && (
-                <>
-                  <div className="grid grid-cols-2 gap-3 items-start">
-                    <FormField
-                      control={form.control}
-                      name="childFare.maxAge"
-                      render={({ field }) => (
-                        <FormItem className="grid gap-1.5">
-                          <FormLabel>{t('brandForm.childMaxAge')}</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              min={1}
-                              max={17}
-                              value={field.value}
-                              onChange={(e) => field.onChange(Number(e.target.value))}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="childFare.discountAmount"
-                      render={({ field }) => (
-                        <FormItem className="grid gap-1.5">
-                          <FormLabel>{t('brandForm.childDiscount')}</FormLabel>
-                          <FormControl>
-                            <div className="relative">
-                              <Input
-                                inputMode="numeric"
-                                value={field.value ? formatNum(field.value) : ''}
-                                onChange={(e) =>
-                                  field.onChange(
-                                    Number(e.target.value.replace(/\D/g, '').slice(0, 9)) || 0,
-                                  )
-                                }
-                                onBlur={field.onBlur}
-                                placeholder="50.000"
-                                className="pr-7 tabular-nums"
-                              />
-                              <span className="pointer-events-none absolute top-1/2 right-2.5 -translate-y-1/2 text-sm text-muted-foreground">
-                                ₫
-                              </span>
-                            </div>
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    {t('brandForm.childFareExample', {
-                      age: childFare.maxAge,
-                      adult: formatVND(EXAMPLE_FARE),
-                      child: formatVND(Math.max(0, EXAMPLE_FARE - childFare.discountAmount)),
-                    })}
-                  </p>
-                </>
+            <aside className="content-start border-t pt-4 md:border-t-0 md:border-l md:pt-0 md:pl-6">
+              {brandId ? (
+                <BrandAddressList brandId={brandId} brandName={nameValue} />
+              ) : (
+                <p className="rounded-lg border border-dashed px-3 py-3 text-xs text-muted-foreground">
+                  {t('brandForm.locationsAfterCreate')}
+                </p>
               )}
-            </fieldset>
+            </aside>
 
-            <DialogFooter>
+            <DialogFooter className="md:col-span-2">
               <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
                 {t('common.cancel')}
               </Button>

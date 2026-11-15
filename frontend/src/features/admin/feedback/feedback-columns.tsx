@@ -1,5 +1,3 @@
-'use client'
-
 /**
  * Column model for the admin feedback panel's DataTable — customer,
  * rating, content preview, status, date.

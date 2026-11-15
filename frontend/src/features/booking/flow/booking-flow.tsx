@@ -1,5 +1,3 @@
-'use client'
-
 import { useState } from 'react'
 import { Form } from '@/components/ui/form'
 import { useTripDetail } from '@/features/trips/api'

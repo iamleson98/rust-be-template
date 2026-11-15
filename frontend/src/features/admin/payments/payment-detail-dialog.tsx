@@ -1,5 +1,3 @@
-'use client'
-
 /**
  * Detail dialog of the admin payments panel — full payment info plus
  * the admin action buttons.

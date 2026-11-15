@@ -1,6 +1,4 @@
-'use client'
-
-import { type ComponentProps } from 'react'
+import type { ComponentProps } from 'react'
 import { Checkbox as CheckboxPrimitive } from '@base-ui/react/checkbox'
 import { CheckIcon } from 'lucide-react'
 

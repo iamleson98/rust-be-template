@@ -1,5 +1,3 @@
-'use client'
-
 import type { BookingCancelResponse } from '@/api'
 import { useT } from '@/lib/i18n'
 import { useMoney } from '@/lib/format'
