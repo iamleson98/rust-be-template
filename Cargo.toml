@@ -10,7 +10,7 @@ name = "backend"
 path = "src/main.rs"
 
 [workspace]
-members = ["store_macros", "migrator"]
+members = ["store_macros", "migrator", "tools/place-extract"]
 
 # ── Database engine: real C SQLite (begin-concurrent branch) ──
 #
@@ -83,6 +83,9 @@ uuid = { version = "1", features = ["v4", "serde"] }
 # against future feature unification flipping auto-detection.
 jsonwebtoken = { version = "10", features = ["rust_crypto"] }
 argon2 = "0.5"
+# Verifies the `pbkdf2$<iter>$<salt>$<hash>` hashes imported from the
+# Worker's D1 (they are rehashed to Argon2 on the next login).
+pbkdf2 = { version = "0.12", default-features = false, features = ["hmac"] }
 hmac = "0.12"
 sha2 = "0.10"
 # TURN REST auth (draft-uberti-behave-turn-rest): per-user time-limited
@@ -122,6 +125,12 @@ reqwest = { version = "0.12", features = ["json", "rustls-tls", "stream", "http2
 
 # Search / OSM place index (Tantivy fulltext + geo + OSM PBF ingestion)
 tantivy = "0.22"
+# In-process place engine (fst term index, atomically swapped generations).
+fst = { version = "0.4", features = ["levenshtein"] }
+unicode-normalization = "0.1"
+md-5 = "0.10"
+indexmap = "2"
+arc-swap = "1"
 osmpbf = "0.3"
 geo = "0.29"
 rstar = "0.12"
@@ -146,6 +155,10 @@ sysinfo = "0.32"
 #   in src/payment/vietqr.rs — no `crc` crate needed.)
 qrcode = { version = "0.14", default-features = false, features = ["image", "svg"] }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }
+# Lossy WebP encoder (bundled libwebp, built with `cc` like the vendored
+# SQLite). `image`'s own WebP encoder is lossless-only and produces huge
+# files; no `img` feature: callers hand it raw RGB/RGBA buffers.
+webp = { version = "0.3", default-features = false }
 
 # Vietnamese text helpers — none anymore: `unidecode` was removed
 # 2026-10 (zero usages; the OSM normalizer uses `deunicode` above).
@@ -186,8 +199,23 @@ default = []
 # `sea-query` — accessed exclusively through sea-orm's re-export
 # (`sea_orm::sea_query::…`); the direct pin documents the expected
 # major and keeps it aligned with sea-orm's own requirement.
+#
+# Dependencies added ahead of the work package that uses them (remove
+# each name from this list when its package lands):
+# `pbkdf2` — WP6 (auth), `webp` — WP5 (media), `fst`,
+# `unicode-normalization`, `md-5`, `indexmap`, `arc-swap` — WP2 (places).
+# Until then cargo's own `unused_dependencies` lint warns about them too.
 [package.metadata.cargo-machete]
-ignored = ["sea-query"]
+ignored = [
+  "sea-query",
+  "pbkdf2",
+  "webp",
+  "fst",
+  "unicode-normalization",
+  "md-5",
+  "indexmap",
+  "arc-swap",
+]
 
 [dev-dependencies]
 tokio-test = "0.4"

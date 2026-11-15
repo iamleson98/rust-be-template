@@ -806,6 +806,7 @@ name = "backend"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "arc-swap",
  "argon2",
  "async-trait",
  "aws-config",
@@ -821,15 +822,18 @@ dependencies = [
  "deunicode",
  "dotenvy",
  "ed25519-dalek",
+ "fst",
  "futures",
  "geo",
  "hex",
  "hmac 0.12.1",
  "http-body-util",
  "image",
+ "indexmap",
  "jsonwebtoken",
  "libmimalloc-sys",
  "libsqlite3-sys",
+ "md-5 0.10.6",
  "migrator",
  "mimalloc",
  "mime_guess",
@@ -838,6 +842,7 @@ dependencies = [
  "once_cell",
  "osmpbf",
  "parking_lot",
+ "pbkdf2",
  "qrcode",
  "rand 0.8.8",
  "redis",
@@ -867,12 +872,14 @@ dependencies = [
  "tower_governor",
  "tracing",
  "tracing-subscriber",
+ "unicode-normalization",
  "url",
  "urlencoding",
  "utoipa",
  "utoipa-swagger-ui",
  "uuid",
  "validator",
+ "webp",
 ]
 
 [[package]]
@@ -1870,6 +1877,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "42703706b716c37f96a77aea830392ad231f44c9e9a67872fa5548707e11b11c"
 
 [[package]]
+name = "fst"
+version = "0.4.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7ab85b9b05e3978cc9a9cf8fea7f01b494e1a09ed3037e16ba39edc7a29eb61a"
+dependencies = [
+ "utf8-ranges",
+]
+
+[[package]]
 name = "futures"
 version = "0.3.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2805,6 +2821,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "libwebp-sys"
+version = "0.9.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "54cd30df7c7165ce74a456e4ca9732c603e8dc5e60784558c1c6dc047f876733"
+dependencies = [
+ "cc",
+ "glob",
+]
+
+[[package]]
 name = "linux-raw-sys"
 version = "0.4.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3399,6 +3425,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "pbkdf2"
+version = "0.12.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f8ed6a7761f76e3b9f92dfb0a60a6a6477c61024b775147ff0973a02653abaf2"
+dependencies = [
+ "digest 0.10.7",
+ "hmac 0.12.1",
+]
+
+[[package]]
 name = "pem"
 version = "3.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3490,6 +3526,24 @@ name = "pkg-config"
 version = "0.3.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f6b464fbc74e149a392436b17d523f769e057cb6877f6a5c4618bc6f11800548"
+
+[[package]]
+name = "place-extract"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "deunicode",
+ "geo",
+ "once_cell",
+ "osmpbf",
+ "regex",
+ "rstar",
+ "serde",
+ "serde_json",
+ "tracing",
+ "tracing-subscriber",
+]
 
 [[package]]
 name = "plain"
@@ -5867,6 +5921,15 @@ checksum = "5a6580f308b1fad9207618087a65c04e7a10bc77e02c8e84e9b00dd4b12fa0bb"
 dependencies = [
  "js-sys",
  "wasm-bindgen",
+]
+
+[[package]]
+name = "webp"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c071456adef4aca59bf6a583c46b90ff5eb0b4f758fc347cea81290288f37ce1"
+dependencies = [
+ "libwebp-sys",
 ]
 
 [[package]]

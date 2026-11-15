@@ -36,6 +36,8 @@ pub async fn run() -> anyhow::Result<()> {
             heap_bytes,
             threads,
         } => commands::import_osm::run(pbf_path, index_dir, heap_bytes, threads).await,
+        Command::PlacesBuild { force } => crate::places::build::run(force).await,
+        Command::ImportD1 { stage, out, report } => super::import_d1::run(stage, out, report).await,
         Command::AdsSweep { limit } => commands::ads_sweep::run(limit).await,
         Command::LayoutsNormalize { apply } => commands::layouts_normalize::run(apply).await,
         Command::LayoutsCanonicalize { apply, reset_trips } => {
