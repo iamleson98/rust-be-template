@@ -12,13 +12,13 @@ path = "src/main.rs"
 [workspace]
 members = ["store_macros", "migrator", "tools/place-extract"]
 
-# ── Database engine: real C SQLite (begin-concurrent branch) ──
+# ── Database engine: real C SQLite (begin-concurrent-3.51 branch) ──
 #
 # sea-orm speaks its sqlite dialect through sqlx-sqlite, and sqlx's
 # `sqlite` feature compiles the bundled SQLite amalgamation from
 # `libsqlite3-sys`. That crate is patched to the in-repo copy under
 # vendor/libsqlite3-sys, whose amalgamation is built from SQLite's
-# `begin-concurrent` branch (it adds `BEGIN CONCURRENT`, the page-level
+# `begin-concurrent-3.51` branch (it adds `BEGIN CONCURRENT`, the page-level
 # optimistic write concurrency the write path relies on; plain WAL
 # mode, no wal2). `vendor/libsqlite3-sys/PINNED` records the exact
 # commit; regenerate it with `scripts/sqlite-amalgamate.sh <sha>`.
@@ -52,7 +52,6 @@ axum = { version = "0.8", features = ["ws", "macros", "tokio", "multipart"] }
 axum-extra = { version = "0.10", features = ["typed-header", "cookie"] }
 tower = { version = "0.5", features = ["util", "limit", "timeout"] }
 tower-http = { version = "0.6", features = ["compression-gzip", "compression-br", "cors", "fs", "trace", "set-header", "limit"] }
-tower_governor = "0.7"
 
 # Database — sea-orm on real C SQLite, always. sqlx-sqlite is the
 # dialect driver; its FFI is satisfied by the patched libsqlite3-sys
@@ -190,22 +189,12 @@ default = []
 # The database engine is NOT a feature flag — every build links the
 # vendored SQLite (see the engine block at the top of this file).
 
-# ── cargo-machete (unused-dependency detector) false positives ──
+# ── cargo-machete (unused-dependency detector) false positive ──
 #
-# `sea-query` — accessed exclusively through sea-orm's re-export
-# (`sea_orm::sea_query::…`); the direct pin documents the expected
-# major and keeps it aligned with sea-orm's own requirement.
-#
-# Dependencies added ahead of the work package that uses them (remove
-# each name from this list when its package lands):
-# `pbkdf2` — WP6 (auth), `webp` — WP5 (media).
-# Until then cargo's own `unused_dependencies` lint warns about them too.
+# `md-5` — the package is named `md-5` but its library is `md5`
+# (`use md5::…` in src/places/build.rs), which machete cannot map back.
 [package.metadata.cargo-machete]
-ignored = [
-  "sea-query",
-  "pbkdf2",
-  "webp",
-]
+ignored = ["md-5"]
 
 [dev-dependencies]
 tokio-test = "0.4"
