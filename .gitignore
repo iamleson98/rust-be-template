@@ -55,7 +55,9 @@ dev.log
 *.db-shm
 *.db-wal
 /osm-index/
-/data/
+/data/*
+# The city list the place extractor and the app share.
+!/data/cities.json
 /storage/
 
 /frontend/dist
