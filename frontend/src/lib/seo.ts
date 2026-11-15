@@ -36,6 +36,20 @@ const PAGES: Array<[RegExp, string, PageKind]> = [
   [/^\/account(\/.*)?$/, 'account', 'private'],
 ]
 
+/**
+ * Every translation key a head is built from. The build writes these
+ * strings (Vietnamese) to `dist/seo-strings.json`, so the server renders the
+ * same head without running the SPA; `seo.notFound.title` is the 404 page's.
+ */
+export const SEO_STRING_KEYS: readonly string[] = [
+  ...PAGES.flatMap(([, key]) => [`seo.${key}.title`, `seo.${key}.description`]),
+  'seo.searchRoute.title',
+  'seo.searchRoute.description',
+  'seo.brand.title',
+  'seo.brand.description',
+  'seo.notFound.title',
+]
+
 /** The page `pathname` shows, or null when no page has that path. */
 export function matchPage(pathname: string): { key: string; kind: PageKind } | null {
   for (const [pattern, key, kind] of PAGES) {

@@ -13,8 +13,9 @@
  *   - fetch: route requests to the right strategy.
  */
 
-// v2 — new brand logo/icon assets (old precached logo.svg must go).
-const VERSION = 'v2'
+// v3 — the app shell moved from Next.js to the Vite build: caches holding the
+// old shell (it loads /_next/static chunks) must go.
+const VERSION = 'v3'
 const PRECACHE = `datxevui-precache-${VERSION}`
 const RUNTIME = `datxevui-runtime-${VERSION}`
 

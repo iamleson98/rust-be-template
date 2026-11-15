@@ -1,0 +1,10 @@
+# ads.txt — authorized digital sellers (IAB Tech Lab spec).
+#
+# Google AdSense / Ad Manager requires this file at the site root before
+# monetization can be enabled. DatXeVui does not serve ads yet; when the
+# account is approved, replace the placeholder below with the publisher id
+# from the AdSense "Ads.txt" page, e.g.:
+#
+#   google.com, pub-0000000000000000, DIRECT, f08c47fec0942fa0
+#
+# Until then the file documents intent and returns a valid (empty) listing.
