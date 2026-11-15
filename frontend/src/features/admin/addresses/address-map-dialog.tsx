@@ -510,8 +510,8 @@ export function AddressMapDialog({
                     </div>
                   ) : (
                     <ul>
-                      {hits.map((h, i) => (
-                        <li key={h.id ?? h.osmId ?? i}>
+                      {hits.map((h) => (
+                        <li key={h.id}>
                           <button
                             type="button"
                             onClick={() => handleSearchSelect(h)}

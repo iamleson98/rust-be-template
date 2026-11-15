@@ -36,7 +36,12 @@ import { MapPin, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { requiredText, positiveInt, optionalText } from '@/lib/forms'
 import { useT } from '@/lib/i18n'
-import type { AdminPickupPointOut, PlaceOut, AdminRouteOut, UpsertPickupPointRequest } from '@/api'
+import type {
+  AdminPickupPointOut,
+  PlaceSearchHit,
+  AdminRouteOut,
+  UpsertPickupPointRequest,
+} from '@/api'
 import { getErrorMessage } from '@/lib/error-message'
 
 // Schema factory — takes `t` so validation messages follow the UI language.
@@ -69,7 +74,7 @@ export function PickupPointFormDialog({
   open: boolean
   pickup: AdminPickupPointOut | null
   route: AdminRouteOut | null
-  places: PlaceOut[]
+  places: PlaceSearchHit[]
   existingCount: number
   onOpenChange: (open: boolean) => void
   onSaved: () => void
