@@ -747,7 +747,7 @@ export const vi: TranslationMap = {
   'adminCronJobs.noRunsDesc': 'Lịch sử sẽ xuất hiện sau lần chạy đầu tiên.',
   'adminCronJobs.noSchedule': 'Chưa đặt lịch',
   'adminCronJobs.on': 'Bật',
-  'adminCronJobs.osmImportLabel': 'Làm mới chỉ mục địa điểm OSM',
+  'adminCronJobs.couponsExpireLabel': 'Hết hạn mã giảm giá chưa dùng',
   'adminCronJobs.queuedToast': 'Đã đưa «{job}» vào hàng chờ',
   'adminCronJobs.resetNextRun': 'Đặt lại lần chạy kế tiếp',
   'adminCronJobs.resetNextRunHint':
@@ -770,8 +770,7 @@ export const vi: TranslationMap = {
   'adminCronJobs.stopFailed': 'Không thể dừng tác vụ',
   'adminCronJobs.stopRunTitle': 'Dừng lượt chạy đang chờ / đang chạy',
   'adminCronJobs.stopToast': 'Đã gửi yêu cầu dừng «{job}»',
-  'adminCronJobs.subtitle':
-    'Tác vụ nền định kỳ — tự động tải và đánh chỉ mục dữ liệu OSM hai tuần một lần vào ban đêm.',
+  'adminCronJobs.subtitle': 'Các tác vụ nền chạy định kỳ theo lịch.',
   'adminCronJobs.toggleSchedule': 'Bật/tắt lịch chạy',
   'adminCronJobs.triggerFailed': 'Không thể chạy tác vụ',
   'adminCronJobs.updateFailed': 'Không thể cập nhật lịch',

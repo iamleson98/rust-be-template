@@ -128,15 +128,15 @@ describe('cron-jobs helpers', () => {
       expect(isActiveRun('cancelled')).toBe(false)
     })
 
-    it('labels the OSM import job in Vietnamese', () => {
-      expect(jobTypeLabel('osm.import')).toBe('Làm mới chỉ mục địa điểm OSM')
+    it('labels the coupon-expiry job in Vietnamese', () => {
+      expect(jobTypeLabel('coupons.expire')).toBe('Hết hạn mã giảm giá chưa dùng')
       expect(jobTypeLabel('other.job')).toBe('other.job')
     })
 
     it('prefers the localised label, falls back to the catalog description', () => {
       // Known job → Vietnamese label wins over the API description.
-      expect(jobHeading({ jobType: 'osm.import', description: 'catalog text' })).toBe(
-        'Làm mới chỉ mục địa điểm OSM',
+      expect(jobHeading({ jobType: 'coupons.expire', description: 'catalog text' })).toBe(
+        'Hết hạn mã giảm giá chưa dùng',
       )
       // Unknown job → the catalog description from the API.
       expect(jobHeading({ jobType: 'x.y', description: 'catalog text' })).toBe('catalog text')

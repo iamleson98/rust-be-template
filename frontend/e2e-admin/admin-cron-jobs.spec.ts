@@ -4,7 +4,7 @@
  * ever fires during the run).
  *
  * Verifies:
- *   1. the seeded `osm.import` schedule renders with its cadence,
+ *   1. the seeded `coupons.expire` schedule renders with its cadence,
  *      next-run, last-run status + work time,
  *   2. the "scheduler offline" banner shows (worker disabled in the
  *      e2e backend),
@@ -15,8 +15,8 @@
  *   6. triggering is refused (503) because no worker runs — surfaced as
  *      an error toast, and the API shape matches the docs.
  *
- * NO actual import is ever triggered (that would download a ~500 MB
- * OSM extract).
+ * No job is ever actually run: the scheduler is off and triggering is
+ * refused.
  */
 
 import { test, expect, type Page } from '@playwright/test'
@@ -41,13 +41,13 @@ test.beforeEach(async ({ page }) => {
   })
 })
 
-test('osm.import schedule renders with cadence, next run and work time', async ({ page }) => {
-  const card = page.locator('[data-testid="cron-job-card"][data-job-type="osm.import"]')
+test('coupons.expire schedule renders with cadence, next run and work time', async ({ page }) => {
+  const card = page.locator('[data-testid="cron-job-card"][data-job-type="coupons.expire"]')
   await expect(card).toBeVisible({ timeout: 10_000 })
 
   // Biweekly at 02:00, Vietnamese label + job type code.
   await expect(card.getByText('Hai tuần một lần')).toBeVisible()
-  await expect(card.getByText('osm.import', { exact: true })).toBeVisible()
+  await expect(card.getByText('coupons.expire', { exact: true })).toBeVisible()
 
   // Last run: the seeded succeeded row with its work time (41 minutes).
   await expect(card.locator('[data-testid="cron-run-status"]')).toHaveText(/Thành công/)
@@ -72,12 +72,12 @@ test('run history table lists the seeded run', async ({ page }) => {
   await expect(history).toBeVisible({ timeout: 10_000 })
   // `.first()` — the card above also renders the job type; the table
   // itself has one seeded row per job.
-  await expect(history.getByText('osm.import').first()).toBeVisible()
+  await expect(history.getByText('coupons.expire').first()).toBeVisible()
   await expect(history.getByText('Thành công').first()).toBeVisible()
 })
 
 test('schedule edit dialog validates and saves the cadence', async ({ page }) => {
-  const card = page.locator('[data-testid="cron-job-card"][data-job-type="osm.import"]')
+  const card = page.locator('[data-testid="cron-job-card"][data-job-type="coupons.expire"]')
 
   // Out-of-range value → inline validation error, no request.
   await card.getByRole('button', { name: /Sửa lịch/ }).click()
@@ -111,7 +111,7 @@ test('schedule edit dialog validates and saves the cadence', async ({ page }) =>
 })
 
 test('enable/disable round-trips through the switch', async ({ page }) => {
-  const card = page.locator('[data-testid="cron-job-card"][data-job-type="osm.import"]')
+  const card = page.locator('[data-testid="cron-job-card"][data-job-type="coupons.expire"]')
   // Exact match: plain getByText('Đã tắt') also hits the next-run
   // cell's "— (đã tắt)" (case-insensitive substring) → strict-mode
   // violation with 2 matches.
@@ -145,7 +145,7 @@ test('trigger is refused without a running worker (API contract)', async ({ requ
   })
   expect(loginRes.ok()).toBeTruthy()
 
-  const res = await request.post('/api/admin/cron-jobs/osm.import/trigger', {
+  const res = await request.post('/api/admin/cron-jobs/coupons.expire/trigger', {
     headers: {
       'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/128.0 Safari/537.36',
       Origin: 'http://localhost:5184',
@@ -156,5 +156,5 @@ test('trigger is refused without a running worker (API contract)', async ({ requ
   const body = await res.json()
   // The API error body is { error: <kind>, message: <human text> } —
   // prefer `message` (the kind is just "service_unavailable").
-  expect(body.message ?? body.error).toContain('background worker')
+  expect(body.message ?? body.error).toContain('background jobs are not running')
 })

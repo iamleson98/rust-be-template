@@ -746,7 +746,7 @@ export const en: TranslationMap = {
   'adminCronJobs.noRunsDesc': 'History will appear after the first run.',
   'adminCronJobs.noSchedule': 'Not scheduled',
   'adminCronJobs.on': 'On',
-  'adminCronJobs.osmImportLabel': 'OSM place-index refresh',
+  'adminCronJobs.couponsExpireLabel': 'Expire unused coupons',
   'adminCronJobs.queuedToast': 'Queued «{job}»',
   'adminCronJobs.resetNextRun': 'Reset next run',
   'adminCronJobs.resetNextRunHint':
@@ -770,8 +770,7 @@ export const en: TranslationMap = {
   'adminCronJobs.stopFailed': 'Could not stop the job',
   'adminCronJobs.stopRunTitle': 'Stop the queued / running job',
   'adminCronJobs.stopToast': 'Stop request sent for «{job}»',
-  'adminCronJobs.subtitle':
-    'Recurring background jobs — periodically downloads and indexes OSM data overnight.',
+  'adminCronJobs.subtitle': 'Recurring background jobs that run on a schedule.',
   'adminCronJobs.toggleSchedule': 'Toggle schedule',
   'adminCronJobs.triggerFailed': 'Could not trigger the job',
   'adminCronJobs.updateFailed': 'Could not update the schedule',
