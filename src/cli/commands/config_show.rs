@@ -79,10 +79,26 @@ pub fn run() -> anyhow::Result<()> {
     println!("Rate limit:");
     println!("  rpm:                {}", cfg.rate_limit.rpm);
     println!("  burst:              {}", cfg.rate_limit.burst);
+    println!("  strict_rpm:         {}", cfg.rate_limit.strict_rpm);
+    println!("  auth_per_min:       {}", cfg.rate_limit.auth_per_min);
+    println!("  write_per_min:      {}", cfg.rate_limit.write_per_min);
+    println!("  client_ip_source:   {}", cfg.server.client_ip_source);
+    println!();
+    println!("Auth:");
+    println!("  lockout_failures:   {}", cfg.auth.lockout_max_failures);
+    println!("  lockout_secs:       {}", cfg.auth.lockout_secs);
+    println!();
+    println!("Places:");
+    println!("  dir:                {:?}", cfg.places.dir);
+    println!("  profile:            {}", cfg.places.profile);
     println!();
     println!("Static files:");
     println!("  dir:                {:?}", cfg.static_files.dir);
     println!("  cache_max_age:      {}s", cfg.static_files.cache_max_age);
+    println!(
+        "  legacy_next_dir:    {:?}",
+        cfg.static_files.legacy_next_dir
+    );
     println!();
     println!("CORS origins: {:?}", cfg.cors.origin_list());
 
