@@ -3,20 +3,14 @@
 # (miniflare D1/KV/R2 in .wrangler/state). Nothing here talks to Cloudflare:
 # remoteBindings is off in next.config.ts and no account is logged in.
 #
-# The reference is copied (never edited in place) to $PARITY_WORK/ref, its
-# dependencies installed there with bun, and its local D1 file replaced by the
-# stage database. A place index built by build-places.sh is served from
-# public/places when present.
+# The reference is copied to $PARITY_WORK/ref (prepare-ref.sh) and its local D1 file is
+# replaced by the stage database. A place index built by build-places.sh is served when present.
 set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 ref="$PARITY_WORK/ref/cloudflare"
 [ -f "$PARITY_WORK/stage.db" ] || "$(dirname "${BASH_SOURCE[0]}")/stage.sh"
-if [ ! -d "$ref" ]; then
-  mkdir -p "$PARITY_WORK/ref"
-  cp -R "$REF_SRC/cloudflare" "$PARITY_WORK/ref/"
-fi
+"$(dirname "${BASH_SOURCE[0]}")/prepare-ref.sh"
 cd "$ref"
-[ -d node_modules ] || bun install --frozen-lockfile
 cat > .dev.vars <<VARS
 JWT_SECRET=$JWT_SECRET
 APP_ENV=development

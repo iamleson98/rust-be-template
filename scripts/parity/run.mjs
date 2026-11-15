@@ -199,6 +199,9 @@ for (const [id, cases] of bugRules) lines.push(`- ${id}: ${cases.size} request(s
 lines.push('');
 lines.push('| # | case | REF | Rust | result |', '|---|---|---|---|---|');
 results.forEach((r, i) => lines.push(`| ${i + 1} | ${r.name.replaceAll('|', '/')} | ${r.refStatus} | ${r.rustStatus} | ${r.status} |`));
+// The summary (counts, defects, one line per request) is what goes into the doc; the differences
+// themselves, request by request, stay in report.md.
+const summary = lines.length;
 const details = results.filter((r) => r.status !== 'identical');
 lines.push('', '### Differences', '');
 for (const r of details) {
@@ -220,5 +223,5 @@ if (args.doc) {
   const i = doc.indexOf(begin);
   const j = doc.indexOf(end);
   if (i < 0 || j < 0) throw new Error(`${args.doc} has no PARITY-RESULTS markers`);
-  writeFileSync(args.doc, `${doc.slice(0, i + begin.length)}\n${lines.join('\n')}\n${doc.slice(j)}`);
+  writeFileSync(args.doc, `${doc.slice(0, i + begin.length)}\n${lines.slice(0, summary).join('\n')}\n${doc.slice(j)}`);
 }

@@ -7,12 +7,13 @@
 #   REF:  with PLACE_EXTRACT_BIN (the tools/place-extract binary) the same extract becomes
 #         NDJSON and then the Worker's static shards in the REF copy's public/places, which
 #         `next dev` serves through its ASSETS binding (the Worker's fallback engine,
-#         "static-shards"). Run it after serve-ref.sh has copied the reference once.
+#         "static-shards"). Restart the servers (up.sh) afterwards.
 set -euo pipefail
 here="$(dirname "${BASH_SOURCE[0]}")"
 . "$here/env.sh"
 src="$PARITY_WORK/osm"
 mkdir -p "$src" "$PARITY_WORK/rust/places"
+[ -z "${PLACE_EXTRACT_BIN:-}" ] || "$here/prepare-ref.sh"
 node "$here/make-osm-pbf.mjs" "$src/extract.osm.pbf" --pad
 
 port=${OSM_HTTP_PORT:-3199}
