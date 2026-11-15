@@ -5,7 +5,7 @@
  * Save writes the route first and then calls `commit` with the route's id, so
  * a new route can have pictures too and Cancel throws every change away. The
  * server re-encodes each upload to WebP (scaled down, EXIF dropped) before it
- * reaches R2, so the admin can pick straight from a phone.
+ * is stored, so the admin can pick straight from a phone.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'

@@ -10,7 +10,7 @@ const PLACE_DEBOUNCE_MS = 180
 /**
  * The form a query is sent in. The engine ignores case and repeated spaces,
  * so "Hà Nội", "hà  nội " and "HÀ NỘI" become one request: one browser cache
- * entry, one edge cache entry (the Worker keys place reads the same way).
+ * entry, one server cache entry (the server keys place reads the same way).
  */
 export const normalizePlaceQuery = (q: string) =>
   q.normalize('NFC').trim().replace(/\s+/g, ' ').toLowerCase()

@@ -69,8 +69,7 @@ export const createAuthFetch = (fetchImpl: typeof fetch = globalThis.fetch): typ
     const response = await fetchImpl(request)
 
     if (response.status !== 401 || isAuthEndpoint(request) || !(await refresh())) return response
-    // DOM `Request` vs the workers-augmented `fetch` signature (both exist in
-    // this project's type space) — runtime is the browser's native fetch.
+    // DOM `Request` vs `fetchImpl`'s parameter type — runtime is the browser's native fetch.
     return fetchImpl(retry as unknown as Parameters<typeof fetchImpl>[0])
   }) as typeof fetch
 }

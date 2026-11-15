@@ -3,10 +3,9 @@
  * conversions & click-id capture.
  *
  * - The `gtag.js` script and the Google Ads conversion labels are
- *   injected into the document by `src/app/google-measurement.tsx`
- *   (Next.js root layout) from env vars (`NEXT_PUBLIC_GA4_ID`,
- *   `NEXT_PUBLIC_GOOGLE_ADS_ID`, `NEXT_PUBLIC_GOOGLE_ADS_CONVERSIONS`)
- *   — see `docs/GOOGLE_ADS.md`.
+ *   injected into the document by `prerender.mjs` at build time from env
+ *   vars (`VITE_GA4_ID`, `VITE_GOOGLE_ADS_ID`,
+ *   `VITE_GOOGLE_ADS_CONVERSIONS`) — see `docs/GOOGLE_ADS.md`.
  * - This module provides the typed runtime helpers: page-view on SPA
  *   navigation, conversion dispatch at the money moments, and Google
  *   Ads click-id (`gclid`/`wbraid`/`gbraid`) capture for attribution.

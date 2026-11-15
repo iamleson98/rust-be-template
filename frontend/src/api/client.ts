@@ -8,7 +8,7 @@ import { createAuthFetch } from './auth-fetch'
  */
 export function configureApiClient() {
   client.setConfig({
-    // Same-origin relative URLs: Next.js serves the API routes (/api/*)
+    // Same-origin relative URLs: the backend serves the API routes (/api/*)
     // from the same host, so SameSite cookies flow naturally.
     baseUrl: '',
     credentials: 'include',

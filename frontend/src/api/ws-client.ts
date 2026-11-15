@@ -74,9 +74,7 @@ export class WsClient {
         this.reconnectAttempts = 0
         this.connect()
       } else if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-        // Socket looks open — send a liveness ping. The fixed payload
-        // (no timestamp) matches the server's platform-level auto-response,
-        // so the probe never wakes the hibernated Durable Object.
+        // Socket looks open — send a liveness ping so a dead one surfaces.
         this.send('ping')
       }
     } else {

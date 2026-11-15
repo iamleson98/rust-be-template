@@ -11,9 +11,8 @@ import { useSession } from '@/stores/session'
  * while the tab is open — `refetchOnWindowFocus` is off globally, and
  * without a heartbeat a long-lived tab would keep rendering a private
  * console whose every widget 401s (SessionSync then moves it to the login
- * page). A signed-out tab has nothing to detect, so it does not poll: on the
- * Free plan every idle anonymous tab would otherwise cost a Worker request
- * every interval. */
+ * page). A signed-out tab has nothing to detect, so it does not poll: every
+ * idle anonymous tab would otherwise hit the server every interval. */
 export function useAuthMe() {
   return useQuery({
     ...authMeOptions(),

@@ -61,8 +61,7 @@ export function createQueryClient() {
       queries: {
         // A screen opened again within 30 s shows what it showed; after that it
         // asks again. Asking on every mount bought nothing for the public reads
-        // (the edge answers them from a 60 s cache) and cost a Worker request
-        // each, against the Free plan's 100,000 a day. Mutations still refresh
+        // (the server answers them from a 60 s cache). Mutations still refresh
         // their resources at once, and live data sets its own policy
         // (seat maps refetch on every open, payments poll).
         staleTime: 30 * 1000,

@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 /**
  * `true` once the element behind the returned ref has come within `margin` of
  * the viewport, and for good after. Content nobody scrolls to never asks the
- * server for its data: on the Free plan every `/api` call is a Worker request.
+ * server for its data.
  * Without an IntersectionObserver (very old browsers) it is `true` at once.
  */
 export function useInView<T extends Element = HTMLDivElement>(margin = '300px') {
