@@ -4,6 +4,7 @@
 //! Follows the template's store pattern: `TripStore` trait +
 //! `DbTripStore` (`#[retry]`).
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -15,7 +16,7 @@ use sea_orm::{
 use store_macros::retry;
 use uuid::Uuid;
 
-use crate::entity::{seat, seat_inventory, trip_session};
+use crate::entity::{schedule, seat, seat_inventory, trip_session};
 
 use super::error::{StoreError, StoreResult};
 use super::retry::RetryPolicy;
@@ -201,11 +202,27 @@ pub trait TripStore: Send + Sync {
     async fn delete_unsold_seats_of_trips(&self, trip_ids: Vec<Uuid>) -> StoreResult<u64>;
     /// Scheduled trips departing on `date_gte` (`YYYY-MM-DD`) or later.
     async fn count_upcoming_trips(&self, date_gte: &str) -> StoreResult<u64>;
+    /// Scheduled trips from `date_gte` with seats left, each with its
+    /// schedule, soonest first: by date, then the schedule's departure
+    /// time, then id.
     async fn list_upcoming_trips(
         &self,
         date_gte: &str,
         limit: u64,
+    ) -> StoreResult<Vec<(trip_session::Model, schedule::Model)>>;
+
+    /// Scheduled trips of these schedules departing from `date_from` to
+    /// `date_to` (`YYYY-MM-DD`, both inclusive), by date.
+    async fn list_scheduled_trips_between(
+        &self,
+        schedule_ids: Vec<Uuid>,
+        date_from: &str,
+        date_to: &str,
     ) -> StoreResult<Vec<trip_session::Model>>;
+
+    /// The city (slug) each of these addresses is in; addresses without
+    /// one are left out.
+    async fn list_address_city_ids(&self, ids: Vec<Uuid>) -> StoreResult<HashMap<Uuid, String>>;
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -761,14 +778,73 @@ impl TripStore for DbTripStore {
         &self,
         date_gte: &str,
         limit: u64,
-    ) -> StoreResult<Vec<trip_session::Model>> {
+    ) -> StoreResult<Vec<(trip_session::Model, schedule::Model)>> {
         Ok(trip_session::Entity::find()
+            .find_also_related(schedule::Entity)
             .filter(trip_session::Column::DepartureDate.gte(date_gte.to_string()))
             .filter(trip_session::Column::AvailableSeats.gt(0))
             .filter(trip_session::Column::Status.eq("scheduled"))
             .order_by_asc(trip_session::Column::DepartureDate)
+            .order_by_asc(schedule::Column::DepartureTime)
+            .order_by_asc(trip_session::Column::Id)
             .limit(limit)
             .all(self.db.as_ref())
-            .await?)
+            .await?
+            .into_iter()
+            .filter_map(|(trip, schedule)| Some((trip, schedule?)))
+            .collect())
+    }
+
+    async fn list_scheduled_trips_between(
+        &self,
+        schedule_ids: Vec<Uuid>,
+        date_from: &str,
+        date_to: &str,
+    ) -> StoreResult<Vec<trip_session::Model>> {
+        let mut out = Vec::new();
+        for chunk in schedule_ids.chunks(super::FANOUT_CHUNK) {
+            out.extend(
+                trip_session::Entity::find()
+                    .filter(trip_session::Column::ScheduleId.is_in(chunk.to_vec()))
+                    .filter(trip_session::Column::DepartureDate.gte(date_from.to_string()))
+                    .filter(trip_session::Column::DepartureDate.lte(date_to.to_string()))
+                    .filter(trip_session::Column::Status.eq("scheduled"))
+                    .order_by_asc(trip_session::Column::DepartureDate)
+                    .all(self.db.as_ref())
+                    .await?,
+            );
+        }
+        Ok(out)
+    }
+
+    async fn list_address_city_ids(&self, ids: Vec<Uuid>) -> StoreResult<HashMap<Uuid, String>> {
+        use sea_orm::{ConnectionTrait, FromQueryResult, Statement};
+
+        #[derive(FromQueryResult)]
+        struct Row {
+            id: Uuid,
+            city_id: String,
+        }
+
+        let mut out = HashMap::new();
+        for chunk in ids.chunks(super::FANOUT_CHUNK) {
+            let sql = format!(
+                "SELECT id, city_id FROM address WHERE city_id IS NOT NULL AND id IN ({})",
+                vec!["?"; chunk.len()].join(", ")
+            );
+            let stmt = Statement::from_sql_and_values(
+                self.db.get_database_backend(),
+                sql,
+                chunk.iter().map(|id| (*id).into()),
+            );
+            out.extend(
+                Row::find_by_statement(stmt)
+                    .all(self.db.as_ref())
+                    .await?
+                    .into_iter()
+                    .map(|r| (r.id, r.city_id)),
+            );
+        }
+        Ok(out)
     }
 }

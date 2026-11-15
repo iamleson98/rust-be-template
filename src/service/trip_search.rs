@@ -158,7 +158,11 @@ impl Options {
         filters: Filters,
     ) -> AppResult<Self> {
         let date = date.trim();
-        if chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d").is_err() {
+        // Zero-padded: `2026-1-5` parses as a date but never matches the
+        // stored `2026-01-05`.
+        let is_date = chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d")
+            .is_ok_and(|d| d.format("%Y-%m-%d").to_string() == date);
+        if !is_date {
             return Err(AppError::BadRequest("date must be YYYY-MM-DD".into()));
         }
         Ok(Self {
@@ -293,22 +297,45 @@ fn internal(e: impl std::fmt::Display) -> AppError {
     AppError::Internal(e.to_string())
 }
 
-/// The cards, from a fixed number of batched queries.
-async fn build(store: &CompositeStore, candidates: Vec<Candidate>) -> AppResult<Vec<Built>> {
-    let schedule_ids: Vec<Uuid> = unique(candidates.iter().map(|c| c.schedule.id));
-    let layout_ids: Vec<Uuid> = unique(candidates.iter().filter_map(|c| c.schedule.bus_layout_id));
-    let vt_ids: Vec<Uuid> = unique(candidates.iter().filter_map(|c| c.schedule.vehicle_type_id));
-    let brand_ids: Vec<Uuid> = unique(candidates.iter().filter_map(|c| c.route.brand_id));
-    let trip_ids: Vec<Uuid> = candidates.iter().map(|c| c.trip.id).collect();
+/// The result cards of `candidates`, in order — trips of a brand that is
+/// not active are left out.
+pub async fn cards(
+    store: &CompositeStore,
+    candidates: Vec<Candidate>,
+) -> AppResult<Vec<TripResult>> {
+    Ok(build(store, candidates)
+        .await?
+        .into_iter()
+        .map(|b| b.item)
+        .collect())
+}
 
+/// The cards, from a fixed number of batched queries. Trips of a brand
+/// that is not active are dropped here, before anything is counted.
+async fn build(store: &CompositeStore, candidates: Vec<Candidate>) -> AppResult<Vec<Built>> {
     let brands: HashMap<Uuid, brand::Model> = store
         .brand_store()
-        .list_brands_by_ids(brand_ids)
+        .list_brands_by_ids(unique(candidates.iter().filter_map(|c| c.route.brand_id)))
         .await
         .map_err(internal)?
         .into_iter()
         .map(|b| (b.id, b))
         .collect();
+    let candidates: Vec<Candidate> = candidates
+        .into_iter()
+        .filter(|c| {
+            c.route
+                .brand_id
+                .is_none_or(|id| brands.get(&id).is_some_and(|b| b.status == "active"))
+        })
+        .collect();
+    if candidates.is_empty() {
+        return Ok(Vec::new());
+    }
+    let schedule_ids: Vec<Uuid> = unique(candidates.iter().map(|c| c.schedule.id));
+    let layout_ids: Vec<Uuid> = unique(candidates.iter().filter_map(|c| c.schedule.bus_layout_id));
+    let vt_ids: Vec<Uuid> = unique(candidates.iter().filter_map(|c| c.schedule.vehicle_type_id));
+    let trip_ids: Vec<Uuid> = candidates.iter().map(|c| c.trip.id).collect();
     let layouts: HashMap<Uuid, _> = store
         .schedule_store()
         .list_bus_layouts_by_ids(layout_ids.clone())
@@ -459,7 +486,8 @@ async fn build(store: &CompositeStore, candidates: Vec<Candidate>) -> AppResult<
         .collect())
 }
 
-fn unique(ids: impl Iterator<Item = Uuid>) -> Vec<Uuid> {
+/// The distinct ids, in no particular order.
+pub(crate) fn unique(ids: impl Iterator<Item = Uuid>) -> Vec<Uuid> {
     ids.collect::<HashSet<_>>().into_iter().collect()
 }
 

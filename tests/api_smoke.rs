@@ -1326,6 +1326,7 @@ async fn geo_search_ranks_by_proximity_and_paginates() -> anyhow::Result<()> {
             (to_lat, to_lon),
             50.0,
             &geo_opts(&date, 10, 0, 1, vec![], None),
+            None,
         )
         .await?;
     assert_eq!(ranked.items.len(), 3, "both routes' trips must match");
@@ -1346,6 +1347,7 @@ async fn geo_search_ranks_by_proximity_and_paginates() -> anyhow::Result<()> {
             (to_lat, to_lon),
             50.0,
             &geo_opts(&date, 2, 0, 1, vec![], None),
+            None,
         )
         .await?;
     assert_eq!(page1.items.len(), 2);
@@ -1360,6 +1362,7 @@ async fn geo_search_ranks_by_proximity_and_paginates() -> anyhow::Result<()> {
             (to_lat, to_lon),
             50.0,
             &geo_opts(&date, 2, 2, 1, vec![], None),
+            None,
         )
         .await?;
     assert_eq!(page2.items.len(), 1);

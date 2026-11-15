@@ -288,6 +288,7 @@ async fn a_coordinate_search_boards_at_the_schedules_own_stop_and_time() -> anyh
                     to,
                     5.0,
                     &opts(Sort::Distance, after, Filters::default()),
+                    None,
                 )
                 .await
         }
