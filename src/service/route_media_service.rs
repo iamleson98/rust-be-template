@@ -1,44 +1,55 @@
-//! Route media service — picture gallery per bus route, backed by the
-//! pluggable [`FileStorage`] backends (local dev / RustFS / S3).
+//! Route media service — picture gallery per bus route and brand logos,
+//! backed by the pluggable [`FileStorage`] backends (local dev / RustFS /
+//! S3).
 //!
 //! ## Pipeline (admin upload)
 //!
 //! ```text
-//! multipart file ─→ size cap ─→ magic-byte sniff ─→ full decode*
-//!   (spawn_blocking: rejects polyglot/corrupt files, yields dims,
-//!    re-encodes a 640px JPEG thumbnail)
-//! ─→ sha-256 content hash ─→ dedupe probe ─→ picture-count cap
-//! ─→ PUT original + PUT thumb (immutable cache headers)
+//! multipart file ─→ size cap ─→ magic-byte sniff ─→ full decode
+//!   (spawn_blocking: rejects polyglot/corrupt files, applies the EXIF
+//!    orientation, then drops all metadata)
+//! ─→ lossy WebP: 1920 px original + 640 px thumbnail
+//! ─→ sha-256 content hash of the stored bytes ─→ dedupe probe
+//! ─→ picture-count cap ─→ PUT original + PUT thumb (immutable cache headers)
 //! ─→ INSERT route_picture row
 //! ```
 //!
+//! The uploaded original is never stored: only the re-encoded WebP is.
+//!
 //! ## Content-addressed immutability
 //!
-//! Keys embed a 16-hex prefix of the sha-256 of the bytes:
-//! `routes/{route_id}/{hash16}.{ext}` (+ `routes/{route_id}/t{hash16}.jpg`
-//! for the thumbnail). The bytes behind a key can therefore NEVER
-//! change, which is what justifies the aggressive
+//! Keys embed a 16-hex prefix of the sha-256 of the stored bytes:
+//! `routes/{route_id}/{hash16}.webp` (+ `routes/{route_id}/t{hash16}.webp`
+//! for the thumbnail), and `brands/logos/{hash16}.{webp|svg}` for brand
+//! logos. The bytes behind a key can therefore NEVER change, which is
+//! what justifies the aggressive
 //! `Cache-Control: public, max-age=31536000, immutable` on every read
-//! path: browsers and the CDN (Cloudflare → Caddy → RustFS) hold the
-//! object forever and a "new picture" is simply a new key. No cache
-//! purge machinery anywhere.
+//! path: browsers and the CDN hold the object forever and a "new
+//! picture" is simply a new key. No cache purge machinery anywhere.
+//!
+//! Objects written before WebP (jpg/png originals, jpg thumbnails)
+//! still parse and are served.
 //!
 //! ## URL resolution (CDN vs proxy)
 //!
 //! * `STORAGE_PUBLIC_BASE_URL` set (production) → the API emits
-//!   absolute URLs against that origin (`https://media.datxevui.com/
+//!   absolute picture URLs against that origin (`https://media.datxevui.com/
 //!   {bucket}/routes/…`) and image bytes NEVER flow through the
 //!   backend.
 //! * unset (dev / local storage) → URLs point at the backend's own
 //!   `GET /api/media/{key}` proxy, which re-serializes the same
 //!   immutable cache headers and answers `If-None-Match` with 304.
 //!
+//! Brand logo URLs are always the proxy path `/api/media/{key}`: the
+//! brand row stores the URL, so it must not depend on the deployment.
+//!
 //! ## Garbage collection
 //!
 //! DB rows are the only index of which objects exist. Every delete
 //! path removes the row AND the two backing objects (best-effort on
 //! the object side — an orphaned object is inert storage, an orphaned
-//! row is a broken image).
+//! row is a broken image). Brand logos are not indexed and not
+//! collected.
 
 use std::sync::Arc;
 
@@ -53,104 +64,101 @@ use crate::dto::route_media::{
 };
 use crate::entity::route_picture;
 use crate::error::{AppError, AppResult};
+use crate::media::encode::{self, EncodeError, Encoded, Format};
+use crate::media::svg;
 use crate::storage::{FileStorage, PutOptions};
 use crate::store::{RoutePictureStore, RouteStore};
 
 /// Hard cap on pictures per route ("a few pictures" — gallery, not a
 /// photo dump). Enforced before any storage write.
-pub const MAX_PICTURES_PER_ROUTE: usize = 12;
+pub const MAX_PICTURES_PER_ROUTE: usize = 10;
 
 /// Per-file byte cap. Generous for phone photos (typical 3-8 MB),
 /// small enough to keep multipart bodies bounded.
 pub const MAX_PICTURE_BYTES: usize = 10 * 1024 * 1024;
 
-/// Long-edge pixel cap for the generated thumbnail.
-const THUMB_LONG_EDGE: u32 = 640;
+/// Per-file byte cap for a brand logo upload (a stored logo is a few
+/// KiB).
+pub const MAX_LOGO_BYTES: usize = 5 * 1024 * 1024;
 
-/// JPEG quality for thumbnails — 82 is the sweet spot on the
-/// size/quality curve for 640px covers.
-const THUMB_JPEG_QUALITY: u8 = 82;
+/// Long edge of the stored picture: sharp on a full-HD gallery, a
+/// fraction of a phone photo's bytes.
+const FULL_LONG_EDGE: u32 = 1920;
+const FULL_QUALITY: f32 = 80.0;
+
+/// Long edge of the thumbnail used in lists and grids.
+const THUMB_LONG_EDGE: u32 = 640;
+const THUMB_QUALITY: f32 = 75.0;
+
+/// Long edge of a stored logo: sharp at 2x on the largest place a logo
+/// is shown.
+const LOGO_LONG_EDGE: u32 = 512;
+const LOGO_QUALITY: f32 = 85.0;
 
 /// `Cache-Control` for every media read. Valid because keys are
 /// content-addressed: the object behind a key never changes.
 pub const IMMUTABLE_CACHE_CONTROL: &str = "public, max-age=31536000, immutable";
 
-// ────────────────────────────────────────────────────────────────
-//  Format sniffing (magic bytes — never trust the client MIME)
-// ────────────────────────────────────────────────────────────────
-
-/// Sniff the real container format from the leading magic bytes.
-/// Returns `(canonical_extension, mime_type)`.
-///
-/// GIF / BMP / TIFF / HEIC are deliberately NOT accepted: no animation
-/// support, and thumbnails are re-encoded as JPEG anyway.
-fn sniff_format(bytes: &[u8]) -> Option<(&'static str, &'static str)> {
-    if bytes.starts_with(&[0xFF, 0xD8, 0xFF]) {
-        Some(("jpg", "image/jpeg"))
-    } else if bytes.starts_with(&[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A]) {
-        Some(("png", "image/png"))
-    } else if bytes.len() >= 12 && &bytes[0..4] == b"RIFF" && &bytes[8..12] == b"WEBP" {
-        Some(("webp", "image/webp"))
-    } else {
-        None
-    }
+/// The original and the thumbnail of one uploaded picture.
+struct EncodedPicture {
+    full: Encoded,
+    thumb: Encoded,
 }
 
-/// CPU-bound image work: full decode (validity + dimensions) and
-/// JPEG thumbnail re-encode. Runs inside `spawn_blocking`.
-struct DecodedImage {
-    /// JPEG thumbnail bytes (long edge ≤ 640px, quality 82).
-    thumb_jpeg: Vec<u8>,
-    /// Original pixel dimensions.
-    width: u32,
-    height: u32,
-}
-
-fn decode_and_thumbnail(data: &[u8]) -> anyhow::Result<DecodedImage> {
-    // Full decode — this is the security gate: a crafted polyglot or
-    // truncated file fails HERE, before any storage write.
-    let img = image::load_from_memory(data)?;
-    let (width, height) = (img.width(), img.height());
-
-    let thumb = if width.max(height) > THUMB_LONG_EDGE {
-        // Triangle filter: fast, and at 640px downscale the quality
-        // difference vs Lanczos3 is invisible under JPEG q82.
-        img.resize(
-            THUMB_LONG_EDGE,
-            THUMB_LONG_EDGE,
-            image::imageops::FilterType::Triangle,
-        )
-    } else {
-        img
-    };
-
-    // JPEG has no alpha channel — flatten to RGB8 first. Re-encoding
-    // also strips EXIF (GPS coordinates!) by construction.
-    let rgb = thumb.to_rgb8();
-    let mut thumb_jpeg = Vec::with_capacity(64 * 1024);
-    let encoder =
-        image::codecs::jpeg::JpegEncoder::new_with_quality(&mut thumb_jpeg, THUMB_JPEG_QUALITY);
-    rgb.write_with_encoder(encoder)?;
-    Ok(DecodedImage {
-        thumb_jpeg,
-        width,
-        height,
+/// CPU-bound image work: full decode (validity) and both WebP
+/// encodings. Runs inside `spawn_blocking`.
+fn encode_picture(data: &[u8]) -> Result<EncodedPicture, EncodeError> {
+    let img = encode::decode(data)?;
+    Ok(EncodedPicture {
+        full: encode::to_webp(&img, FULL_LONG_EDGE, FULL_QUALITY)?,
+        thumb: encode::to_webp(&img, THUMB_LONG_EDGE, THUMB_QUALITY)?,
     })
+}
+
+/// CPU-bound: decode + WebP encode of a brand logo.
+fn encode_logo(data: &[u8]) -> Result<Encoded, EncodeError> {
+    encode::to_webp(&encode::decode(data)?, LOGO_LONG_EDGE, LOGO_QUALITY)
+}
+
+/// Run an image job on the blocking pool; a decode failure is the
+/// client's (400), an encoder failure ours (500).
+async fn run_blocking<T, F>(job: F) -> AppResult<T>
+where
+    T: Send + 'static,
+    F: FnOnce() -> Result<T, EncodeError> + Send + 'static,
+{
+    tokio::task::spawn_blocking(job)
+        .await
+        .map_err(|e| AppError::Internal(format!("image worker join error: {e}")))?
+        .map_err(|e| match e {
+            EncodeError::Undecodable(msg) => AppError::Validation(msg),
+            EncodeError::Encoding(_) => AppError::Internal(e.to_string()),
+        })
 }
 
 // ────────────────────────────────────────────────────────────────
 //  Key handling — the ONLY shapes the serve endpoint will proxy
 // ────────────────────────────────────────────────────────────────
 
+/// What a media key belongs to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MediaScope {
+    /// A picture (or its thumbnail) of this route.
+    Route(Uuid),
+    /// A brand logo.
+    BrandLogo,
+}
+
 /// A validated media key, split into its parts.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedMediaKey {
-    pub route_id: String,
+    pub scope: MediaScope,
     /// 16 lowercase hex chars — sha-256 prefix of the content.
     pub hash16: String,
-    /// `true` for the thumbnail variant.
+    /// `true` for the thumbnail variant (route pictures only).
     pub thumb: bool,
-    /// Canonical extension (mirrors the sniffed format at upload).
+    /// Extension: `webp` for everything uploaded now, plus the `jpg` /
+    /// `png` of objects written before WebP and `svg` for logos.
     pub ext: String,
 }
 
@@ -163,15 +171,11 @@ impl ParsedMediaKey {
     }
 
     pub fn content_type(&self) -> &'static str {
-        if self.thumb {
-            // Thumbnails are always re-encoded JPEG.
-            "image/jpeg"
-        } else {
-            match self.ext.as_str() {
-                "png" => "image/png",
-                "webp" => "image/webp",
-                _ => "image/jpeg",
-            }
+        match self.ext.as_str() {
+            "webp" => "image/webp",
+            "png" => "image/png",
+            "svg" => "image/svg+xml",
+            _ => "image/jpeg",
         }
     }
 }
@@ -183,41 +187,50 @@ impl ParsedMediaKey {
 /// additionally rejects `..` components itself; defense in depth).
 ///
 /// Accepted shapes:
-///   * `routes/{uuid}/{16hex}.{jpg|png|webp}`
-///   * `routes/{uuid}/t{16hex}.jpg`   (thumbnail — always jpg)
+///   * `routes/{uuid}/{16hex}.{webp|jpg|png}`
+///   * `routes/{uuid}/t{16hex}.{webp|jpg}`   (thumbnail)
+///   * `brands/logos/{16hex}.{webp|svg|jpg|png}`
 pub fn parse_media_key(key: &str) -> Option<ParsedMediaKey> {
     let mut parts = key.split('/');
-    if parts.next()? != "routes" {
-        return None;
-    }
-    let route_id = parts.next()?;
-    let filename = parts.next()?;
+    let first = parts.next()?;
+    let (scope, filename) = match first {
+        "routes" => {
+            let route_id = parts.next()?;
+            let filename = parts.next()?;
+            if !route_id.chars().all(|c| c.is_ascii_hexdigit() || c == '-') {
+                return None;
+            }
+            (MediaScope::Route(Uuid::parse_str(route_id).ok()?), filename)
+        }
+        "brands" => {
+            if parts.next()? != "logos" {
+                return None;
+            }
+            (MediaScope::BrandLogo, parts.next()?)
+        }
+        _ => return None,
+    };
     if parts.next().is_some() {
-        return None; // exactly three components
-    }
-    if Uuid::parse_str(route_id).is_err() {
-        return None;
-    }
-    if !route_id.chars().all(|c| c.is_ascii_hexdigit() || c == '-') {
-        return None;
+        return None; // no further components
     }
 
     let (name, ext) = filename.rsplit_once('.')?;
     let ext = ext.to_ascii_lowercase();
-    let (thumb, hash) = match name.as_bytes().first() {
-        Some(b't') => (true, &name[1..]),
-        _ => (false, name),
-    };
+    let thumb = matches!(scope, MediaScope::Route(_)) && name.starts_with('t');
+    let hash = if thumb { &name[1..] } else { name };
     if hash.len() != 16 || !hash.chars().all(|c| c.is_ascii_hexdigit()) {
         return None;
     }
-    match (thumb, ext.as_str()) {
-        (true, "jpg") => {}
-        (false, "jpg" | "png" | "webp") => {}
-        _ => return None,
+    let allowed: &[&str] = match (scope, thumb) {
+        (MediaScope::Route(_), true) => &["webp", "jpg"],
+        (MediaScope::Route(_), false) => &["webp", "jpg", "png"],
+        (MediaScope::BrandLogo, _) => &["webp", "svg", "jpg", "png"],
+    };
+    if !allowed.contains(&ext.as_str()) {
+        return None;
     }
     Some(ParsedMediaKey {
-        route_id: route_id.to_string(),
+        scope,
         hash16: hash.to_ascii_lowercase(),
         thumb,
         ext,
@@ -225,12 +238,17 @@ pub fn parse_media_key(key: &str) -> Option<ParsedMediaKey> {
 }
 
 /// Build the canonical key pair for a picture.
-fn keys_for(route_id: Uuid, hash: &str, ext: &str) -> (String, String) {
+fn keys_for(route_id: Uuid, hash16: &str) -> (String, String) {
     let base = format!("routes/{route_id}");
     (
-        format!("{base}/{hash}.{ext}"),
-        format!("{base}/t{hash}.jpg"),
+        format!("{base}/{hash16}.webp"),
+        format!("{base}/t{hash16}.webp"),
     )
+}
+
+/// First 16 hex chars of the sha-256 of `bytes` (the key's hash part).
+fn sha16(bytes: &[u8]) -> String {
+    hex::encode(Sha256::digest(bytes))[..16].to_string()
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -356,10 +374,9 @@ impl RouteMediaService {
 
     // ── Upload ───────────────────────────────────────────────────
 
-    /// Validate + store + index one picture. Idempotent on content:
-    /// re-uploading identical bytes for the same route returns the
-    /// existing row with `deduped = true`.
-    #[allow(clippy::too_many_arguments)]
+    /// Validate + re-encode + store + index one picture. Idempotent on
+    /// content: re-uploading an image that encodes to the same WebP for
+    /// the same route returns the existing row with `deduped = true`.
     pub async fn upload(
         &self,
         route_id: Uuid,
@@ -384,29 +401,19 @@ impl RouteMediaService {
         }
 
         // 3. Magic bytes — the client-sent Content-Type is advisory.
-        let (ext, mime) = sniff_format(&data).ok_or_else(|| {
-            AppError::Validation(
+        if Format::sniff(&data).is_none() {
+            return Err(AppError::Validation(
                 "unsupported image format (magic bytes); accepted: JPEG, PNG, WebP".into(),
-            )
-        })?;
+            ));
+        }
 
-        // 4. Full decode + thumbnail (CPU-bound → blocking pool).
-        //    `Bytes::clone` is a refcount bump — the original stays
-        //    around for hashing + storage below.
-        let decode_input = data.clone();
-        let decoded = tokio::task::spawn_blocking(move || decode_and_thumbnail(&decode_input))
-            .await
-            .map_err(|e| AppError::Internal(format!("image worker join error: {e}")))?
-            .map_err(|e| {
-                AppError::Validation(format!(
-                    "image failed to decode (corrupt or unsupported): {e}"
-                ))
-            })?;
+        // 4. Full decode + WebP re-encode (CPU-bound → blocking pool).
+        //    This is the security gate: a crafted polyglot or truncated
+        //    file fails HERE, before any storage write.
+        let EncodedPicture { full, thumb } = run_blocking(move || encode_picture(&data)).await?;
 
-        // 5. Content hash → dedupe.
-        let mut hasher = Sha256::new();
-        hasher.update(&data);
-        let hash = hex::encode(hasher.finalize());
+        // 5. Content hash of the STORED bytes → dedupe.
+        let hash = hex::encode(Sha256::digest(&full.bytes));
         let hash16 = &hash[..16];
 
         if let Some(existing) = self
@@ -432,9 +439,11 @@ impl RouteMediaService {
 
         // 7. Persist objects (immutable cache headers travel with the
         //    object metadata — the CDN reads them at the origin).
-        let (key, thumb_key) = keys_for(route_id, hash16, ext);
-        self.put_media(&key, data.clone(), mime).await?;
-        self.put_media(&thumb_key, decoded.thumb_jpeg.clone().into(), "image/jpeg")
+        let (key, thumb_key) = keys_for(route_id, hash16);
+        let (full_len, thumb_len) = (full.bytes.len() as i64, thumb.bytes.len() as i64);
+        self.put_media(&key, full.bytes.into(), "image/webp")
+            .await?;
+        self.put_media(&thumb_key, thumb.bytes.into(), "image/webp")
             .await?;
 
         // 8. Index row.
@@ -447,11 +456,11 @@ impl RouteMediaService {
             storage_key: Set(key),
             thumb_key: Set(thumb_key),
             content_hash: Set(hash),
-            mime_type: Set(mime.to_string()),
-            size_bytes: Set(data.len() as i64),
-            thumb_bytes: Set(decoded.thumb_jpeg.len() as i64),
-            width: Set(decoded.width as i64),
-            height: Set(decoded.height as i64),
+            mime_type: Set("image/webp".to_string()),
+            size_bytes: Set(full_len),
+            thumb_bytes: Set(thumb_len),
+            width: Set(full.width as i64),
+            height: Set(full.height as i64),
             alt_text: Set(alt_text
                 .map(|s| s.trim().to_string())
                 .filter(|s| !s.is_empty())),
@@ -465,6 +474,38 @@ impl RouteMediaService {
             deduped: false,
             picture,
         })
+    }
+
+    /// Validate and store one brand logo; returns its storage key
+    /// (`brands/logos/{hash16}.{webp|svg}`).
+    ///
+    /// A raster logo (JPEG / PNG / WebP) is decoded, scaled to 512 px
+    /// and stored as WebP — never as uploaded, so no EXIF. An SVG is
+    /// stored as it is once it passes the safety check. Anything else
+    /// (including a corrupt raster) is a validation error. Storing the
+    /// key on the brand row is the admin brand update's job.
+    pub async fn upload_brand_logo(&self, data: bytes::Bytes) -> AppResult<String> {
+        if data.len() > MAX_LOGO_BYTES {
+            return Err(AppError::Validation(format!(
+                "logo is {} bytes; limit is {} bytes",
+                data.len(),
+                MAX_LOGO_BYTES
+            )));
+        }
+        let (bytes, ext, content_type) = if Format::sniff(&data).is_some() {
+            let webp = run_blocking(move || encode_logo(&data)).await?;
+            (bytes::Bytes::from(webp.bytes), "webp", "image/webp")
+        } else {
+            svg::check(&data).map_err(|why| {
+                AppError::Validation(format!(
+                    "unsupported logo ({why}); accepted: JPEG, PNG, WebP, SVG"
+                ))
+            })?;
+            (data, "svg", "image/svg+xml")
+        };
+        let key = format!("brands/logos/{}.{ext}", sha16(&bytes));
+        self.put_media(&key, bytes, content_type).await?;
+        Ok(key)
     }
 
     // ── Patch / reorder ──────────────────────────────────────────
@@ -611,26 +652,10 @@ impl RouteMediaService {
 mod tests {
     use super::*;
 
-    fn key(hash16: &str, ext: &str) -> String {
-        format!("routes/00000000-0000-0000-0000-000000000000/{hash16}.{ext}")
-    }
+    const ROUTE: &str = "00000000-0000-0000-0000-000000000000";
 
-    #[test]
-    fn sniffing_rejects_non_images() {
-        assert!(sniff_format(b"<html><body>").is_none());
-        assert!(sniff_format(b"").is_none());
-        assert_eq!(
-            sniff_format(b"\xFF\xD8\xFF\xE0"),
-            Some(("jpg", "image/jpeg"))
-        );
-        assert_eq!(
-            sniff_format(b"\x89PNG\r\n\x1A\n-rest"),
-            Some(("png", "image/png"))
-        );
-        let mut webp = vec![0; 12];
-        webp[0..4].copy_from_slice(b"RIFF");
-        webp[8..12].copy_from_slice(b"WEBP");
-        assert_eq!(sniff_format(&webp), Some(("webp", "image/webp")));
+    fn key(hash16: &str, ext: &str) -> String {
+        format!("routes/{ROUTE}/{hash16}.{ext}")
     }
 
     #[test]
@@ -638,60 +663,77 @@ mod tests {
         let p = parse_media_key(&key("0123456789abcdef", "webp")).unwrap();
         assert_eq!(p.hash16, "0123456789abcdef");
         assert!(!p.thumb);
+        assert_eq!(p.scope, MediaScope::Route(Uuid::nil()));
         assert_eq!(p.content_type(), "image/webp");
         assert_eq!(p.etag(), "\"0123456789abcdef\"");
 
-        let t =
-            parse_media_key("routes/00000000-0000-0000-0000-000000000000/t0123456789abcdef.jpg")
-                .unwrap();
+        let t = parse_media_key(&format!("routes/{ROUTE}/t0123456789abcdef.webp")).unwrap();
         assert!(t.thumb);
-        assert_eq!(t.content_type(), "image/jpeg");
+        assert_eq!(t.content_type(), "image/webp");
+
+        let logo = parse_media_key("brands/logos/0123456789abcdef.svg").unwrap();
+        assert_eq!(logo.scope, MediaScope::BrandLogo);
+        assert!(!logo.thumb);
+        assert_eq!(logo.content_type(), "image/svg+xml");
+        assert_eq!(
+            parse_media_key("brands/logos/0123456789abcdef.webp")
+                .unwrap()
+                .content_type(),
+            "image/webp"
+        );
+    }
+
+    #[test]
+    fn media_key_parse_keeps_serving_pre_webp_objects() {
+        for (name, content_type) in [
+            (key("0123456789abcdef", "jpg"), "image/jpeg"),
+            (key("0123456789abcdef", "png"), "image/png"),
+            (
+                format!("routes/{ROUTE}/t0123456789abcdef.jpg"),
+                "image/jpeg",
+            ),
+            ("brands/logos/0123456789abcdef.png".to_string(), "image/png"),
+        ] {
+            let parsed = parse_media_key(&name).unwrap_or_else(|| panic!("rejected {name}"));
+            assert_eq!(parsed.content_type(), content_type, "{name}");
+        }
     }
 
     #[test]
     fn media_key_parse_rejects_hostile_shapes() {
         // Path traversal — multiple shapes.
         assert!(parse_media_key("routes/../../etc/passwd").is_none());
-        assert!(
-            parse_media_key("routes/00000000-0000-0000-0000-000000000000/../../../etc/passwd")
-                .is_none()
-        );
+        assert!(parse_media_key(&format!("routes/{ROUTE}/../../../etc/passwd")).is_none());
+        assert!(parse_media_key("brands/logos/../../../etc/passwd").is_none());
+        assert!(parse_media_key("brands/../0123456789abcdef.webp").is_none());
         // Non-hex hash, wrong length, unknown prefix dir.
-        assert!(parse_media_key(&key("zzzzzzzzzzzzzzzz", "jpg")).is_none());
-        assert!(parse_media_key(&key("0123456789abc", "jpg")).is_none());
-        assert!(
-            parse_media_key("other/00000000-0000-0000-0000-000000000000/0123456789abcdef.jpg")
-                .is_none()
-        );
-        // Thumb must be jpg; full can't be t-prefixed free-form.
-        assert!(parse_media_key(
-            "routes/00000000-0000-0000-0000-000000000000/t0123456789abcdef.png"
-        )
-        .is_none());
-        // Four components.
-        assert!(parse_media_key(
-            "routes/00000000-0000-0000-0000-000000000000/0123456789abcdef.jpg/extra"
-        )
-        .is_none());
+        assert!(parse_media_key(&key("zzzzzzzzzzzzzzzz", "webp")).is_none());
+        assert!(parse_media_key(&key("0123456789abc", "webp")).is_none());
+        assert!(parse_media_key(&format!("other/{ROUTE}/0123456789abcdef.webp")).is_none());
+        assert!(parse_media_key("brands/other/0123456789abcdef.webp").is_none());
+        assert!(parse_media_key("brands/logos/t0123456789abcdef.webp").is_none());
+        // Extensions: a thumbnail is never png, a picture never svg.
+        assert!(parse_media_key(&format!("routes/{ROUTE}/t0123456789abcdef.png")).is_none());
+        assert!(parse_media_key(&key("0123456789abcdef", "svg")).is_none());
+        assert!(parse_media_key("brands/logos/0123456789abcdef.gif").is_none());
+        // Extra components.
+        assert!(parse_media_key(&format!("routes/{ROUTE}/0123456789abcdef.webp/extra")).is_none());
+        assert!(parse_media_key("brands/logos/0123456789abcdef.webp/extra").is_none());
     }
 
     #[test]
     fn keys_for_builds_content_addressed_pair() {
-        let (full, thumb) = keys_for(
-            Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap(),
-            "0123456789abcdef",
-            "jpg",
-        );
-        assert_eq!(
-            full,
-            "routes/00000000-0000-0000-0000-000000000000/0123456789abcdef.jpg"
-        );
-        assert_eq!(
-            thumb,
-            "routes/00000000-0000-0000-0000-000000000000/t0123456789abcdef.jpg"
-        );
+        let (full, thumb) = keys_for(Uuid::nil(), "0123456789abcdef");
+        assert_eq!(full, format!("routes/{ROUTE}/0123456789abcdef.webp"));
+        assert_eq!(thumb, format!("routes/{ROUTE}/t0123456789abcdef.webp"));
         // Both must survive the strict parser.
         assert!(parse_media_key(&full).is_some());
         assert!(parse_media_key(&thumb).is_some());
+    }
+
+    #[test]
+    fn sha16_is_the_sha256_prefix() {
+        // sha-256("abc") = ba7816bf8f01cfea…
+        assert_eq!(sha16(b"abc"), "ba7816bf8f01cfea");
     }
 }
