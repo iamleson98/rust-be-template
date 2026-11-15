@@ -29,6 +29,14 @@ pub const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
 /// file-backed and reclaimable).
 pub const MMAP_SIZE_BYTES: i64 = 268_435_456;
 
+/// `PRAGMA mmap_size` for the small readiness-lane pool (see
+/// [`PoolShape::mmap_size_bytes`]): its connections only ping, so each
+/// maps a token amount instead of a second copy of the hot database.
+pub const READINESS_MMAP_SIZE_BYTES: i64 = 8_388_608;
+
+/// Pools of at most this many connections are readiness lanes.
+const READINESS_POOL_MAX_CONNECTIONS: u32 = 2;
+
 /// `PRAGMA wal_autocheckpoint`: WAL pages after which a committing
 /// connection runs a passive checkpoint.
 pub const WAL_AUTOCHECKPOINT_PAGES: i64 = 1000;
@@ -52,6 +60,19 @@ pub struct PoolShape {
 }
 
 impl PoolShape {
+    /// `PRAGMA mmap_size` for this pool's connections. Every connection
+    /// maps the same file separately, so the mapped pages are counted once
+    /// per connection in the process's RSS figure; a pool of at most two
+    /// connections is the readiness lane, which only runs health checks
+    /// and gets a small mapping.
+    pub fn mmap_size_bytes(&self) -> i64 {
+        if self.max_connections <= READINESS_POOL_MAX_CONNECTIONS {
+            READINESS_MMAP_SIZE_BYTES
+        } else {
+            MMAP_SIZE_BYTES
+        }
+    }
+
     /// The main application pool, as configured.
     pub fn main(cfg: &DatabaseConfig) -> Self {
         Self {
@@ -67,6 +88,14 @@ impl PoolShape {
 /// Fails fast on a non-`sqlite:` URL (e.g. a stale postgres one): sqlx
 /// would otherwise treat it as a file name.
 pub fn connect_options(cfg: &DatabaseConfig) -> anyhow::Result<SqliteConnectOptions> {
+    connect_options_for(cfg, PoolShape::main(cfg))
+}
+
+/// [`connect_options`] for a pool of the given shape.
+pub fn connect_options_for(
+    cfg: &DatabaseConfig,
+    shape: PoolShape,
+) -> anyhow::Result<SqliteConnectOptions> {
     if !cfg.url.starts_with("sqlite:") {
         let scheme = &cfg.url[..cfg.url.find(':').unwrap_or(cfg.url.len())];
         anyhow::bail!(
@@ -83,7 +112,7 @@ pub fn connect_options(cfg: &DatabaseConfig) -> anyhow::Result<SqliteConnectOpti
         .statement_cache_capacity(cfg.statement_cache_capacity)
         .pragma("temp_store", "MEMORY")
         .pragma("cache_size", format!("-{}", cfg.cache_kib))
-        .pragma("mmap_size", MMAP_SIZE_BYTES.to_string())
+        .pragma("mmap_size", shape.mmap_size_bytes().to_string())
         .pragma("wal_autocheckpoint", WAL_AUTOCHECKPOINT_PAGES.to_string())
         .pragma("journal_size_limit", JOURNAL_SIZE_LIMIT_BYTES.to_string())
         .pragma("soft_heap_limit", SOFT_HEAP_LIMIT_BYTES.to_string());
@@ -166,7 +195,7 @@ fn discard_if_in_transaction(
 /// Build a pool whose every connection runs the pragmas of
 /// [`connect_options`], and wrap it as a sea-orm connection.
 pub async fn connect(cfg: &DatabaseConfig, shape: PoolShape) -> anyhow::Result<DatabaseConnection> {
-    let mut options = connect_options(cfg)?;
+    let mut options = connect_options_for(cfg, shape)?;
     options = if shape.sqlx_logging {
         options
     } else {
@@ -341,6 +370,29 @@ mod tests {
             1,
             "an ordinary rollback must not cost the connection"
         );
+    }
+
+    #[tokio::test]
+    async fn the_readiness_pool_maps_far_less_than_the_main_pool() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let cfg = file_config(&dir);
+        let readiness = connect(
+            &cfg,
+            PoolShape {
+                max_connections: 2,
+                min_connections: 1,
+                sqlx_logging: false,
+            },
+        )
+        .await
+        .expect("connect");
+        let mut conn = readiness
+            .get_sqlite_connection_pool()
+            .acquire()
+            .await
+            .expect("acquire");
+        assert_eq!(pragma(&mut conn, "mmap_size").await, "8388608");
+        assert!(READINESS_MMAP_SIZE_BYTES < MMAP_SIZE_BYTES);
     }
 
     #[test]
