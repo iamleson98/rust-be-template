@@ -147,13 +147,31 @@ pub struct TagCount {
     pub count: u64,
 }
 
+/// The tags of a stored `tags` column. Reviews are written comma-joined
+/// (`"clean,on_time"`); rows the Cloudflare port wrote hold a JSON array
+/// (`["clean","on_time"]`). Both read the same; empty entries are dropped
+/// and `trim` strips the blanks around each comma-separated tag.
+pub fn parse_tags(raw: &str, trim: bool) -> Vec<String> {
+    if raw.starts_with('[') {
+        if let Ok(tags) = serde_json::from_str::<Vec<String>>(raw) {
+            return tags.into_iter().filter(|t| !t.is_empty()).collect();
+        }
+    }
+    raw.split(',')
+        .map(|t| if trim { t.trim() } else { t })
+        .filter(|t| !t.is_empty())
+        .map(str::to_owned)
+        .collect()
+}
+
 impl ReviewStats {
-    /// Counts `(rating, tags JSON)` rows; ratings outside 1–5 are ignored.
+    /// Counts `(rating, tags)` rows (comma-separated or JSON, see
+    /// [`parse_tags`]); ratings outside 1–5 are ignored.
     pub fn tally(rows: &[(i64, Option<String>)]) -> Self {
         let mut by_rating = vec![0u64; 5];
         let mut tags: std::collections::HashMap<String, u64> = std::collections::HashMap::new();
         let (mut count, mut sum) = (0u64, 0i64);
-        for (rating, tag_json) in rows {
+        for (rating, raw_tags) in rows {
             let Some(bucket) = usize::try_from(*rating)
                 .ok()
                 .and_then(|r| r.checked_sub(1))
@@ -164,11 +182,7 @@ impl ReviewStats {
             *bucket += 1;
             count += 1;
             sum += rating;
-            let parsed: Vec<String> = tag_json
-                .as_deref()
-                .and_then(|j| serde_json::from_str(j).ok())
-                .unwrap_or_default();
-            for tag in parsed {
+            for tag in parse_tags(raw_tags.as_deref().unwrap_or(""), true) {
                 *tags.entry(tag).or_default() += 1;
             }
         }
@@ -246,7 +260,7 @@ mod stats_tests {
             (5, tags(r#"["clean","on_time"]"#)),
             (5, tags(r#"["clean"]"#)),
             (4, None),
-            (1, tags("not json")),
+            (1, tags("clean, late")),
             (9, tags(r#"["ignored"]"#)),
         ]);
         assert_eq!(stats.count, 4);
@@ -257,7 +271,11 @@ mod stats_tests {
             [
                 TagCount {
                     tag: "clean".into(),
-                    count: 2
+                    count: 3
+                },
+                TagCount {
+                    tag: "late".into(),
+                    count: 1
                 },
                 TagCount {
                     tag: "on_time".into(),
@@ -266,5 +284,18 @@ mod stats_tests {
             ]
         );
         assert_eq!(ReviewStats::tally(&[]).average, None);
+    }
+
+    #[test]
+    fn tags_read_the_comma_separated_and_the_json_format() {
+        assert_eq!(parse_tags("clean,on_time", false), ["clean", "on_time"]);
+        assert_eq!(
+            parse_tags(r#"["clean","on_time"]"#, false),
+            ["clean", "on_time"]
+        );
+        assert_eq!(parse_tags("clean, ,on_time,", true), ["clean", "on_time"]);
+        // Not JSON after all: a tag list that happens to start with "[".
+        assert_eq!(parse_tags("[vip,clean", false), ["[vip", "clean"]);
+        assert!(parse_tags("", true).is_empty());
     }
 }
