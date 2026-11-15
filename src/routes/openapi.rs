@@ -458,7 +458,7 @@ use utoipa::OpenApi;
         crate::dto::public::ProfileSchedule,
         crate::dto::public::ProfileTrip,
         crate::routes::uploads::BrandLogoUploadResponse,
-        crate::routes::uploads::BrandLogoUploadForm,
+        crate::dto::route_media::BrandLogoUploadForm,
     )),
     tags(
         (name = "auth", description = "Authentication endpoints"),

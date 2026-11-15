@@ -12,6 +12,7 @@ use axum::{Json, Router};
 use serde::Serialize;
 use utoipa::ToSchema;
 
+use crate::dto::route_media::BrandLogoUploadForm;
 use crate::error::AppError;
 use crate::middleware::AdminUser;
 use crate::rbac::model::consts as rbac;
@@ -28,15 +29,6 @@ pub struct BrandLogoUploadResponse {
     pub key: String,
     /// `/api/media/{key}` — the value to store as the brand's `logoUrl`.
     pub url: String,
-}
-
-/// Multipart body of `POST /api/uploads/brand-logo` (documentation only:
-/// the handler reads the parts itself).
-#[derive(ToSchema)]
-pub struct BrandLogoUploadForm {
-    /// The logo: JPEG, PNG, WebP or SVG, ≤ 5 MiB.
-    #[schema(value_type = String, format = Binary)]
-    pub file: Vec<u8>,
 }
 
 /// `POST /api/uploads/brand-logo` — upload one brand logo.

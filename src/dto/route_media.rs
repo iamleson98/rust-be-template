@@ -47,6 +47,15 @@ pub struct RoutePictureListResponse {
     pub items: Vec<RoutePictureOut>,
 }
 
+/// Multipart body of `POST /api/uploads/brand-logo` (documentation only:
+/// the handler reads the parts itself).
+#[derive(ToSchema)]
+pub struct BrandLogoUploadForm {
+    /// The logo: JPEG, PNG, WebP or SVG, ≤ 5 MiB.
+    #[schema(value_type = String, format = Binary)]
+    pub file: Vec<u8>,
+}
+
 /// Multipart body of `POST /api/admin/routes/{id}/pictures` (documentation
 /// only: the handler reads the parts itself).
 #[derive(ToSchema)]
