@@ -9,6 +9,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
+use sea_orm::sea_query::{Expr, Order};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter,
     QueryOrder, QuerySelect, Set,
@@ -58,6 +59,33 @@ pub struct NewChannelMember {
     pub role: String,
 }
 
+/// Channel lists run newest activity first, then newest channel first.
+/// Activity is the last message, or the creation time for a channel
+/// nobody has written in yet — a fresh channel is one staff must see, so
+/// it sorts by when it appeared, not behind every channel with a message.
+fn newest_activity_first<Q: QueryOrder>(query: Q) -> Q {
+    query
+        .order_by(
+            Expr::cust("COALESCE(last_message_at, created_at)"),
+            Order::Desc,
+        )
+        .order_by_desc(chat_channel::Column::CreatedAt)
+}
+
+/// [`newest_activity_first`] for rows already in memory.
+fn sort_newest_activity_first(channels: &mut [chat_channel::Model]) {
+    channels.sort_by(|a, b| {
+        let activity = |c: &chat_channel::Model| {
+            c.last_message_at
+                .clone()
+                .unwrap_or_else(|| c.created_at.clone())
+        };
+        activity(b)
+            .cmp(&activity(a))
+            .then_with(|| b.created_at.cmp(&a.created_at))
+    });
+}
+
 // ────────────────────────────────────────────────────────────────
 //  Trait
 // ────────────────────────────────────────────────────────────────
@@ -70,7 +98,7 @@ pub trait ChatStore: Send + Sync {
     /// Used by the customer-facing chat widget.
     ///
     /// `offset` is 0-based page pagination on the same ordering
-    /// (`last_message_at DESC`) — supports the admin workspace's
+    /// (newest activity first, then newest channel) — supports the admin workspace's
     /// infinite channel list (scroll down → fetch the next page of
     /// older-activity channels).
     async fn list_channels(
@@ -83,8 +111,9 @@ pub trait ChatStore: Send + Sync {
     /// Optionally filtered by brand. Used by the admin chat dashboard
     /// so all support staff see the same queue.
     ///
-    /// `offset` is 0-based page pagination on `last_message_at DESC`
-    /// (most recent activity first) — the queue's initial page shows
+    /// `offset` is 0-based page pagination, newest activity first and
+    /// then newest channel (a channel nobody has written in yet counts
+    /// from its creation) — the queue's initial page shows
     /// the most recent channels, scrolling down appends older ones.
     async fn list_open_channels(
         &self,
@@ -261,13 +290,13 @@ impl ChatStore for DbChatStore {
         limit: u64,
         offset: u64,
     ) -> StoreResult<Vec<chat_channel::Model>> {
-        Ok(chat_channel::Entity::find()
-            .filter(chat_channel::Column::UserId.eq(user_id))
-            .order_by_desc(chat_channel::Column::LastMessageAt)
-            .offset(offset)
-            .limit(limit)
-            .all(self.db.as_ref())
-            .await?)
+        Ok(newest_activity_first(
+            chat_channel::Entity::find().filter(chat_channel::Column::UserId.eq(user_id)),
+        )
+        .offset(offset)
+        .limit(limit)
+        .all(self.db.as_ref())
+        .await?)
     }
 
     async fn list_open_channels(
@@ -287,11 +316,12 @@ impl ChatStore for DbChatStore {
         // `offset` pages through the queue on the same ordering —
         // the admin workspace's channel list loads the most recent
         // `limit` channels first + fetches more as the staff scrolls.
-        let mut q = chat_channel::Entity::find()
-            .filter(chat_channel::Column::Status.is_in(["open", "assigned"]))
-            .order_by_desc(chat_channel::Column::LastMessageAt)
-            .offset(offset)
-            .limit(limit);
+        let mut q = newest_activity_first(
+            chat_channel::Entity::find()
+                .filter(chat_channel::Column::Status.is_in(["open", "assigned"])),
+        )
+        .offset(offset)
+        .limit(limit);
         if let Some(brand_id) = brand_id {
             q = q.filter(chat_channel::Column::BrandId.eq(brand_id));
         }
@@ -314,7 +344,7 @@ impl ChatStore for DbChatStore {
             }
             out.extend(q.all(self.db.as_ref()).await?);
         }
-        out.sort_by(|a, b| b.last_message_at.cmp(&a.last_message_at));
+        sort_newest_activity_first(&mut out);
         Ok(out)
     }
 
@@ -1262,6 +1292,68 @@ mod tests {
             .unwrap();
         assert_eq!(branded.len(), 1);
         assert_eq!(branded[0].user_id, online_b);
+    }
+
+    /// Newest activity first, where a channel nobody has written in counts
+    /// from its creation, and a tie goes to the newer channel — on every
+    /// list the staff and customers see.
+    #[tokio::test]
+    async fn lists_order_by_last_activity_then_creation() {
+        let store = mem_store().await;
+        let user = Uuid::new_v4();
+        let at = |last: Option<&str>, created: &str| {
+            let mut am = channel(user, "open", "");
+            am.last_message_at = Set(last.map(str::to_string));
+            am.created_at = Set(created.into());
+            am
+        };
+        let older_tie = at(Some("2026-09-02T09:00:00Z"), "2026-09-01T09:00:00Z");
+        let newer_tie = at(Some("2026-09-02T09:00:00Z"), "2026-09-02T08:00:00Z");
+        // No message yet: its activity is when it was created.
+        let silent_but_new = at(None, "2026-09-03T09:00:00Z");
+        let silent_and_old = at(None, "2026-08-30T09:00:00Z");
+        let ids: Vec<Uuid> = [&older_tie, &newer_tie, &silent_but_new, &silent_and_old]
+            .iter()
+            .map(|am| am.id.clone().unwrap())
+            .collect();
+        for am in [older_tie, newer_tie, silent_but_new, silent_and_old] {
+            chat_channel::Entity::insert(am)
+                .exec(store.db.as_ref())
+                .await
+                .unwrap();
+        }
+        let (older_tie, newer_tie, silent_but_new, silent_and_old) =
+            (ids[0], ids[1], ids[2], ids[3]);
+        let expected = vec![silent_but_new, newer_tie, older_tie, silent_and_old];
+
+        let ids_of = |channels: Vec<chat_channel::Model>| -> Vec<Uuid> {
+            channels.into_iter().map(|c| c.id).collect()
+        };
+        assert_eq!(
+            ids_of(store.list_open_channels(None, 50, 0).await.unwrap()),
+            expected,
+            "the staff queue"
+        );
+        assert_eq!(
+            ids_of(store.list_channels(user, 50, 0).await.unwrap()),
+            expected,
+            "the customer's own channels"
+        );
+        assert_eq!(
+            ids_of(
+                store
+                    .list_open_channels_of_users(None, &[user])
+                    .await
+                    .unwrap()
+            ),
+            expected,
+            "the online-now section"
+        );
+        // Paging walks the same order.
+        assert_eq!(
+            ids_of(store.list_open_channels(None, 2, 2).await.unwrap()),
+            vec![older_tie, silent_and_old]
+        );
     }
 
     #[tokio::test]
