@@ -28,11 +28,13 @@
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex as StdMutex, Weak};
 use std::time::Duration;
 
 use async_trait::async_trait;
 use rand::Rng;
 use sea_orm::sea_query::Values;
+use sea_orm::sqlx::sqlite::SqliteConnectOptions;
 use sea_orm::sqlx::{self, Sqlite, SqlitePool, Transaction};
 use sea_orm::{
     ConnectionTrait, DatabaseBackend, DatabaseConnection, DbErr, ExecResult, QueryResult,
@@ -270,14 +272,42 @@ where
     }
 }
 
-/// `BEGIN CONCURRENT` only works in WAL mode; anything else (in-memory
-/// databases in tests) falls back to `BEGIN IMMEDIATE` throughout.
+/// Whether a pool's database runs in WAL mode, which `BEGIN CONCURRENT`
+/// needs; anything else (in-memory test databases) uses `BEGIN IMMEDIATE`
+/// throughout. The journal mode is fixed per pool (the pool's connect
+/// options set it), so it is probed once, on one pooled connection, and
+/// remembered instead of costing every write an extra checkout and PRAGMA.
+///
+/// The pool is identified by its connect options: those live exactly as
+/// long as the pool does, and holding a `Weak` to them keeps their address
+/// from being reused by a newer pool while the entry exists.
 async fn supports_concurrent(pool: &SqlitePool) -> StoreResult<bool> {
+    static KNOWN: StdMutex<Vec<(Weak<SqliteConnectOptions>, bool)>> = StdMutex::new(Vec::new());
+
+    let key = pool.connect_options();
+    let lookup = |known: &[(Weak<SqliteConnectOptions>, bool)]| {
+        known
+            .iter()
+            .find(|(pool_key, _)| std::ptr::eq(pool_key.as_ptr(), Arc::as_ptr(&key)))
+            .map(|(_, wal)| *wal)
+    };
+    if let Some(wal) = lookup(&KNOWN.lock().unwrap_or_else(|e| e.into_inner())) {
+        return Ok(wal);
+    }
+
     let mode: String = sqlx::query_scalar("PRAGMA journal_mode")
         .fetch_one(pool)
         .await
         .map_err(|e| StoreError::from(query_err(e)))?;
-    Ok(mode.eq_ignore_ascii_case("wal"))
+    let wal = mode.eq_ignore_ascii_case("wal");
+
+    let mut known = KNOWN.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some(wal) = lookup(&known) {
+        return Ok(wal); // another task probed meanwhile
+    }
+    known.retain(|(pool_key, _)| pool_key.strong_count() > 0);
+    known.push((Arc::downgrade(&key), wal));
+    Ok(wal)
 }
 
 /// One begin / body / commit round.
@@ -631,6 +661,29 @@ mod tests {
             other => panic!("expected Exhausted, got {other:?}"),
         }
         assert!(!err.is_retryable());
+    }
+
+    #[tokio::test]
+    async fn the_journal_mode_is_probed_once_per_pool() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let wal = wal_db(&dir, Duration::from_secs(5), 1).await;
+        let memory = Database::connect("sqlite::memory:").await.expect("connect");
+        let (wal_pool, memory_pool) = (
+            wal.get_sqlite_connection_pool(),
+            memory.get_sqlite_connection_pool(),
+        );
+
+        assert!(supports_concurrent(wal_pool).await.expect("probe"));
+        assert!(!supports_concurrent(memory_pool).await.expect("probe"));
+
+        // The only connection of the WAL pool is checked out: a probe
+        // that still ran PRAGMA journal_mode would wait for it forever.
+        let _held = wal_pool.acquire().await.expect("acquire");
+        let answer =
+            tokio::time::timeout(Duration::from_millis(500), supports_concurrent(wal_pool))
+                .await
+                .expect("the answer must come from memory, not from a connection");
+        assert!(answer.expect("known"));
     }
 
     #[tokio::test]
