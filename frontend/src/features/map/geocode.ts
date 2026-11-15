@@ -23,7 +23,7 @@ export type PlaceHit = {
   lon: number
 }
 
-// ── Reverse geocode helper (Tantivy) ────────────────────────
+// ── Reverse geocode helper (place index) ────────────────────────
 // Returns a PickedPlace with the NAME of the nearest known place
 // (for display) but keeps the EXACT lat/lon the user clicked (so
 // the marker doesn't jump to a nearby indexed place).

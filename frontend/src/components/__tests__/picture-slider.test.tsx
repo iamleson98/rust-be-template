@@ -81,6 +81,20 @@ describe('PictureSlider', () => {
     expect(stage()).toHaveAttribute('src', '/b.webp')
   })
 
+  it('still hears the arrow keys when a dialog around it swallows key events', () => {
+    const swallow = (e: Event) => e.stopPropagation()
+    const dialog = document.createElement('div')
+    dialog.addEventListener('keydown', swallow)
+    document.body.append(dialog)
+    try {
+      render(<Harness globalKeys />, { container: dialog })
+      fireEvent.keyDown(screen.getByRole('group'), { key: 'ArrowRight' })
+      expect(stage()).toHaveAttribute('src', '/b.webp')
+    } finally {
+      dialog.remove()
+    }
+  })
+
   it('leaves the arrow keys to a text field when listening everywhere', () => {
     render(
       <>

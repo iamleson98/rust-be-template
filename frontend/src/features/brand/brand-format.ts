@@ -21,7 +21,7 @@ export function useDayLabel() {
 export function useDaysLabel() {
   const locale = useLocale()
   const t = useT()
-  return (mask: string | null) => {
+  return (mask?: string | null) => {
     if (!mask || !mask.includes('0')) return t('brandPage.daily')
     const weekday = new Intl.DateTimeFormat(locale, { weekday: 'short', timeZone: 'UTC' })
     // 2024-01-01 was a Monday.

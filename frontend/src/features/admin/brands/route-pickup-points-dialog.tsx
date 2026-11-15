@@ -64,7 +64,7 @@ export function RoutePickupPointsDialog({
     () => [...(pickupQuery.data?.items ?? [])].sort((a, b) => a.stopOrder - b.stopOrder),
     [pickupQuery.data],
   )
-  const places = (((placesQuery.data ?? {}) as { items?: unknown[] }).items ?? []) as never[]
+  const places = useMemo(() => placesQuery.data?.items ?? [], [placesQuery.data])
 
   const [formOpen, setFormOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<AdminPickupPointOut | null>(null)

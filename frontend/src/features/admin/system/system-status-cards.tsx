@@ -3,7 +3,7 @@
 /**
  * System Status cards (platform runtime): uptime, the WebSocket hub,
  * the audio-call subsystem (live sessions + janitor releases) and the
- * database (pool or embedded engine).
+ * database (pool occupancy and file size).
  *
  * From the previous page, minus the CPU & Memory and Host info cards —
  * superseded by the Server Metrics section's CpuCard / ProcessCard /
@@ -141,7 +141,6 @@ export function CallCard({ data }: { data: NonNullable<StatusData> }) {
 export function DatabaseCard({ data }: { data: NonNullable<StatusData> }) {
   const t = useT()
   const db = data.database
-  const engine = db.engine
 
   return (
     <Card data-testid="status-database-card">
@@ -156,47 +155,18 @@ export function DatabaseCard({ data }: { data: NonNullable<StatusData> }) {
           {db.urlMasked}
         </div>
         <div className="text-xs text-muted-foreground mt-2 space-y-0.5">
-          {db.activeConnections >= 0 ? (
-            <>
-              <div>
-                {t('adminSystem.connActive')}:{' '}
-                <span className="font-medium text-blue-600">{db.activeConnections}</span> ·{' '}
-                {t('adminSystem.connIdle')}: {db.idleConnections}
-              </div>
-              <div>{t('adminSystem.pool', { min: db.minConnections, max: db.maxConnections })}</div>
-            </>
-          ) : engine ? (
-            <>
-              <div>
-                {t('adminSystem.size')}:{' '}
-                <span className="font-medium">{db.sizeMb.toFixed(2)} MB</span>
-                {engine.memory.dbSizeMb > 0 && (
-                  <span className="text-muted-foreground">
-                    {' '}
-                    (
-                    {t('adminSystem.dataPart', { size: `${engine.memory.dbSizeMb.toFixed(2)} MB` })}
-                    )
-                  </span>
-                )}
-              </div>
-              <div>
-                {t('adminSystem.engineConnections')}:{' '}
-                <span className="font-medium text-blue-600 tabular-nums">
-                  {engine.connections.live}
-                </span>{' '}
-                · {t('adminSystem.cache')} {engine.memory.cacheMb.toFixed(1)}/
-                {engine.memory.cacheCapacityMb.toFixed(1)} MB
-              </div>
-            </>
-          ) : (
-            <>
-              <div>
-                {t('adminSystem.size')}:{' '}
-                <span className="font-medium">{db.sizeMb.toFixed(2)} MB</span>
-              </div>
-              <div>{t('adminSystem.singleConnection')}</div>
-            </>
-          )}
+          {db.sizeMb > 0 ? (
+            <div>
+              {t('adminSystem.size')}:{' '}
+              <span className="font-medium">{db.sizeMb.toFixed(2)} MB</span>
+            </div>
+          ) : null}
+          <div>
+            {t('adminSystem.connActive')}:{' '}
+            <span className="font-medium text-blue-600">{db.activeConnections}</span> ·{' '}
+            {t('adminSystem.connIdle')}: {db.idleConnections}
+          </div>
+          <div>{t('adminSystem.pool', { min: db.minConnections, max: db.maxConnections })}</div>
         </div>
       </CardContent>
     </Card>

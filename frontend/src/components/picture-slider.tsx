@@ -55,8 +55,10 @@ export function PictureSlider({
       else return
       e.preventDefault()
     }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
+    // Capture phase: a dialog that handles keys itself (Base UI's) would
+    // otherwise stop the event before it bubbles up to `document`.
+    document.addEventListener('keydown', onKey, true)
+    return () => document.removeEventListener('keydown', onKey, true)
   }, [globalKeys, count, current, onIndexChange])
 
   // The neighbours load while this one is looked at, so a step shows no blank.

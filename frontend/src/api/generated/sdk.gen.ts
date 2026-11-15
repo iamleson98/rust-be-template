@@ -2,7 +2,7 @@
 
 import { type Client, type ClientMeta, formDataBodySerializer, type Options as Options2, type RequestResult, type TDataShape } from './client';
 import { client } from './client.gen';
-import type { AdminAddressesCreateData, AdminAddressesCreateErrors, AdminAddressesCreateResponses, AdminAddressesDeleteData, AdminAddressesDeleteErrors, AdminAddressesDeleteResponses, AdminAddressesListData, AdminAddressesListErrors, AdminAddressesListResponses, AdminAddressesUpdateData, AdminAddressesUpdateErrors, AdminAddressesUpdateResponses, AdminBookingsExportData, AdminBookingsExportErrors, AdminBookingsExportResponses, AdminBookingsGetData, AdminBookingsGetErrors, AdminBookingsGetResponses, AdminBookingsListData, AdminBookingsListErrors, AdminBookingsListResponses, AdminBookingsStatsData, AdminBookingsStatsErrors, AdminBookingsStatsResponses, AdminBookingsUpdateStatusData, AdminBookingsUpdateStatusErrors, AdminBookingsUpdateStatusResponses, AdminBrandsCreateData, AdminBrandsCreateErrors, AdminBrandsCreateResponses, AdminBrandsDeleteData, AdminBrandsDeleteErrors, AdminBrandsDeleteResponses, AdminBrandsListData, AdminBrandsListErrors, AdminBrandsListResponses, AdminBrandsUpdateData, AdminBrandsUpdateErrors, AdminBrandsUpdateResponses, AdminBusLayoutsCreateData, AdminBusLayoutsCreateErrors, AdminBusLayoutsCreateResponses, AdminBusLayoutsDeleteData, AdminBusLayoutsDeleteErrors, AdminBusLayoutsDeleteResponses, AdminBusLayoutsDetailData, AdminBusLayoutsDetailErrors, AdminBusLayoutsDetailResponses, AdminBusLayoutsFitPlanData, AdminBusLayoutsFitPlanErrors, AdminBusLayoutsFitPlanResponses, AdminBusLayoutsListData, AdminBusLayoutsListErrors, AdminBusLayoutsListResponses, AdminBusLayoutsPresetsData, AdminBusLayoutsPresetsErrors, AdminBusLayoutsPresetsResponses, AdminBusLayoutsReplacePlanData, AdminBusLayoutsReplacePlanErrors, AdminBusLayoutsReplacePlanResponses, AdminBusLayoutsUpdateData, AdminBusLayoutsUpdateErrors, AdminBusLayoutsUpdateResponses, AdminCampaignsCreateData, AdminCampaignsCreateErrors, AdminCampaignsCreateResponses, AdminCampaignsDeleteData, AdminCampaignsDeleteErrors, AdminCampaignsDeleteResponses, AdminCampaignsGetData, AdminCampaignsGetErrors, AdminCampaignsGetResponses, AdminCampaignsListData, AdminCampaignsListErrors, AdminCampaignsListResponses, AdminCampaignsUpdateData, AdminCampaignsUpdateErrors, AdminCampaignsUpdateResponses, AdminCouponsListData, AdminCouponsListErrors, AdminCouponsListResponses, AdminCouponsPayoutsData, AdminCouponsPayoutsErrors, AdminCouponsPayoutsResponses, AdminCouponsRejectData, AdminCouponsRejectErrors, AdminCouponsRejectResponses, AdminCouponsSettleData, AdminCouponsSettleErrors, AdminCouponsSettleResponses, AdminCronJobsCancelData, AdminCronJobsCancelErrors, AdminCronJobsCancelResponses, AdminCronJobsListData, AdminCronJobsListErrors, AdminCronJobsListResponses, AdminCronJobsTriggerData, AdminCronJobsTriggerErrors, AdminCronJobsTriggerResponses, AdminCronJobsUpdateData, AdminCronJobsUpdateErrors, AdminCronJobsUpdateResponses, AdminPaymentSummaryData, AdminPaymentSummaryErrors, AdminPaymentSummaryResponses, AdminPickupPointsCreateData, AdminPickupPointsCreateErrors, AdminPickupPointsCreateResponses, AdminPickupPointsDeleteData, AdminPickupPointsDeleteErrors, AdminPickupPointsDeleteResponses, AdminPickupPointsListData, AdminPickupPointsListErrors, AdminPickupPointsListResponses, AdminPickupPointsUpdateData, AdminPickupPointsUpdateErrors, AdminPickupPointsUpdateResponses, AdminReviewsDeleteData, AdminReviewsDeleteErrors, AdminReviewsDeleteResponses, AdminReviewsListData, AdminReviewsListErrors, AdminReviewsListResponses, AdminReviewsModerateData, AdminReviewsModerateErrors, AdminReviewsModerateResponses, AdminReviewsSummaryData, AdminReviewsSummaryErrors, AdminReviewsSummaryResponses, AdminRoutesCreateData, AdminRoutesCreateErrors, AdminRoutesCreateResponses, AdminRoutesDeleteData, AdminRoutesDeleteErrors, AdminRoutesDeleteResponses, AdminRoutesListData, AdminRoutesListErrors, AdminRoutesListResponses, AdminRoutesUpdateData, AdminRoutesUpdateErrors, AdminRoutesUpdateResponses, AdminSchedulesCreateData, AdminSchedulesCreateErrors, AdminSchedulesCreateResponses, AdminSchedulesDeleteData, AdminSchedulesDeleteErrors, AdminSchedulesDeleteResponses, AdminSchedulesListData, AdminSchedulesListErrors, AdminSchedulesListResponses, AdminSchedulesUpdateData, AdminSchedulesUpdateErrors, AdminSchedulesUpdateResponses, AdminVehicleTypesCreateData, AdminVehicleTypesCreateErrors, AdminVehicleTypesCreateResponses, AdminVehicleTypesDeleteData, AdminVehicleTypesDeleteErrors, AdminVehicleTypesDeleteResponses, AdminVehicleTypesListData, AdminVehicleTypesListErrors, AdminVehicleTypesListResponses, AdminVehicleTypesUpdateData, AdminVehicleTypesUpdateErrors, AdminVehicleTypesUpdateResponses, AuthLoginData, AuthLoginErrors, AuthLoginResponses, AuthLogoutData, AuthLogoutResponses, AuthMeData, AuthMeResponses, AuthRefreshData, AuthRefreshResponses, AuthRegisterData, AuthRegisterErrors, AuthRegisterResponses, BookingsCancelData, BookingsCancelErrors, BookingsCancelResponses, BookingsDetailData, BookingsDetailErrors, BookingsDetailResponses, BookingsHoldData, BookingsHoldErrors, BookingsHoldResponses, BookingsListData, BookingsListErrors, BookingsListResponses, BookingsPlaceData, BookingsPlaceErrors, BookingsPlaceResponses, BrandDetailData, BrandDetailErrors, BrandDetailResponses, BrandsData, BrandsResponses, CampaignsClaimData, CampaignsClaimErrors, CampaignsClaimResponses, CampaignsListData, CampaignsListResponses, CancelPaymentData, CancelPaymentErrors, CancelPaymentResponses, ChangePasswordData, ChangePasswordErrors, ChangePasswordResponses, ChatMarkReadData, ChatMarkReadErrors, ChatMarkReadResponses, ChatStatsData, ChatStatsErrors, ChatStatsResponses, ClaimChannelData, ClaimChannelErrors, ClaimChannelResponses, CloseChannelData, CloseChannelErrors, CloseChannelResponses, CouponsGiveUpData, CouponsGiveUpErrors, CouponsGiveUpResponses, CouponsMineData, CouponsMineErrors, CouponsMineResponses, CreateChannelData, CreateChannelErrors, CreateChannelResponses, CreatePaymentData, CreatePaymentErrors, CreatePaymentResponses, CreatePostData, CreatePostErrors, CreatePostResponses, DatabaseSizeData, DatabaseSizeErrors, DatabaseSizeResponses, DatabaseVacuumData, DatabaseVacuumErrors, DatabaseVacuumResponses, DeleteAllPicturesData, DeleteAllPicturesErrors, DeleteAllPicturesResponses, DeletePictureData, DeletePictureErrors, DeletePictureResponses, DeletePostData, DeletePostErrors, DeletePostResponses, DeleteUserData, DeleteUserErrors, DeleteUserResponses, EmployeeLoginData, EmployeeLoginErrors, EmployeeLoginResponses, GetPaymentData, GetPaymentErrors, GetPaymentResponses, GetPostData, GetPostResponses, GetStaffPresenceData, GetStaffPresenceErrors, GetStaffPresenceResponses, GetUserData, GetUserErrors, GetUserResponses, HealthData, HealthResponses, ListAdminPaymentsData, ListAdminPaymentsErrors, ListAdminPaymentsResponses, ListBookingPaymentsData, ListBookingPaymentsErrors, ListBookingPaymentsResponses, ListChannelsData, ListChannelsErrors, ListChannelsResponses, ListExchangesData, ListExchangesErrors, ListExchangesResponses, ListMessagesData, ListMessagesErrors, ListMessagesResponses, ListPicturesData, ListPicturesErrors, ListPicturesResponses, ListPostsData, ListPostsResponses, ListProvidersData, ListProvidersResponses, ListRunsData, ListRunsErrors, ListRunsResponses, ListUsersData, ListUsersErrors, ListUsersResponses, LoyaltySummaryData, LoyaltySummaryErrors, LoyaltySummaryResponses, MarkCodCollectedData, MarkCodCollectedErrors, MarkCodCollectedResponses, MediaServeData, MediaServeErrors, MediaServeResponses, MomoIpnData, MomoIpnErrors, MomoIpnResponses, NotificationsListData, NotificationsListErrors, NotificationsListResponses, NotificationsMarkReadData, NotificationsMarkReadErrors, NotificationsMarkReadResponses, NullclawStatusData, NullclawStatusResponses, OauthCallbackData, OauthProvidersData, OauthProvidersResponses, OauthStartData, OauthStartErrors, OnlineChannelsData, OnlineChannelsErrors, OnlineChannelsResponses, PatchPictureData, PatchPictureErrors, PatchPictureResponses, PlacesListData, PlacesListResponses, PlacesReverseData, PlacesReverseResponses, PlacesSearchData, PlacesSearchResponses, PostMessageData, PostMessageErrors, PostMessageResponses, PriceAlertsCreateData, PriceAlertsCreateErrors, PriceAlertsCreateResponses, PriceAlertsListData, PriceAlertsListErrors, PriceAlertsListResponses, PriceAlertsRemoveData, PriceAlertsRemoveErrors, PriceAlertsRemoveResponses, ProcessMemoryData, ProcessMemoryErrors, ProcessMemoryResponses, ReadyData, ReadyErrors, ReadyResponses, RecommendationsData, RecommendationsResponses, RegisterDeviceData, RegisterDeviceErrors, RegisterDeviceResponses, ReleaseChannelData, ReleaseChannelErrors, ReleaseChannelResponses, ReportConversionData, ReportConversionErrors, ReportConversionResponses, ReportVitalsData, ReportVitalsErrors, ReportVitalsResponses, ReviewsCreateData, ReviewsCreateErrors, ReviewsCreateResponses, ReviewsGetData, ReviewsGetErrors, ReviewsGetResponses, ReviewsListData, ReviewsListResponses, ReviewsMineData, ReviewsMineErrors, ReviewsMineResponses, ReviewsRemoveData, ReviewsRemoveErrors, ReviewsRemoveResponses, ReviewsStatsData, ReviewsStatsErrors, ReviewsStatsResponses, ReviewsTagsData, ReviewsTagsResponses, ReviewsUpdateData, ReviewsUpdateErrors, ReviewsUpdateResponses, RobotsData, RobotsResponses, RoutePicturesData, RoutePicturesResponses, RoutesData, RoutesResponses, RoutingDirectionsData, RoutingDirectionsErrors, RoutingDirectionsResponses, RoutingIsochroneData, RoutingIsochroneErrors, RoutingIsochroneResponses, RoutingMatrixData, RoutingMatrixErrors, RoutingMatrixResponses, SearchTripsData, SearchTripsGeoData, SearchTripsGeoResponses, SearchTripsResponses, SetUserRoleData, SetUserRoleErrors, SetUserRoleResponses, SitemapData, SitemapResponses, StatsData, StatsResponses, SystemMetricsData, SystemMetricsErrors, SystemMetricsResponses, SystemStatusData, SystemStatusErrors, SystemStatusResponses, TripDetailData, TripDetailErrors, TripDetailResponses, UnregisterDeviceData, UnregisterDeviceErrors, UnregisterDeviceResponses, UpdatePaymentStatusData, UpdatePaymentStatusErrors, UpdatePaymentStatusResponses, UpdatePostData, UpdatePostErrors, UpdatePostResponses, UploadPictureData, UploadPictureErrors, UploadPictureResponses, VnpayIpnData, VnpayIpnErrors, VnpayIpnResponses, ZalopayCallbackData, ZalopayCallbackErrors, ZalopayCallbackResponses } from './types.gen';
+import type { AdminAddressesCreateData, AdminAddressesCreateErrors, AdminAddressesCreateResponses, AdminAddressesDeleteData, AdminAddressesDeleteErrors, AdminAddressesDeleteResponses, AdminAddressesListData, AdminAddressesListErrors, AdminAddressesListResponses, AdminAddressesUpdateData, AdminAddressesUpdateErrors, AdminAddressesUpdateResponses, AdminBookingsExportData, AdminBookingsExportErrors, AdminBookingsExportResponses, AdminBookingsGetData, AdminBookingsGetErrors, AdminBookingsGetResponses, AdminBookingsListData, AdminBookingsListErrors, AdminBookingsListResponses, AdminBookingsStatsData, AdminBookingsStatsErrors, AdminBookingsStatsResponses, AdminBookingsUpdateStatusData, AdminBookingsUpdateStatusErrors, AdminBookingsUpdateStatusResponses, AdminBrandsCreateData, AdminBrandsCreateErrors, AdminBrandsCreateResponses, AdminBrandsDeleteData, AdminBrandsDeleteErrors, AdminBrandsDeleteResponses, AdminBrandsListData, AdminBrandsListErrors, AdminBrandsListResponses, AdminBrandsUpdateData, AdminBrandsUpdateErrors, AdminBrandsUpdateResponses, AdminBusLayoutsCreateData, AdminBusLayoutsCreateErrors, AdminBusLayoutsCreateResponses, AdminBusLayoutsDeleteData, AdminBusLayoutsDeleteErrors, AdminBusLayoutsDeleteResponses, AdminBusLayoutsDetailData, AdminBusLayoutsDetailErrors, AdminBusLayoutsDetailResponses, AdminBusLayoutsFitPlanData, AdminBusLayoutsFitPlanErrors, AdminBusLayoutsFitPlanResponses, AdminBusLayoutsListData, AdminBusLayoutsListErrors, AdminBusLayoutsListResponses, AdminBusLayoutsPresetsData, AdminBusLayoutsPresetsErrors, AdminBusLayoutsPresetsResponses, AdminBusLayoutsReplacePlanData, AdminBusLayoutsReplacePlanErrors, AdminBusLayoutsReplacePlanResponses, AdminBusLayoutsUpdateData, AdminBusLayoutsUpdateErrors, AdminBusLayoutsUpdateResponses, AdminCampaignsCreateData, AdminCampaignsCreateErrors, AdminCampaignsCreateResponses, AdminCampaignsDeleteData, AdminCampaignsDeleteErrors, AdminCampaignsDeleteResponses, AdminCampaignsGetData, AdminCampaignsGetErrors, AdminCampaignsGetResponses, AdminCampaignsListData, AdminCampaignsListErrors, AdminCampaignsListResponses, AdminCampaignsUpdateData, AdminCampaignsUpdateErrors, AdminCampaignsUpdateResponses, AdminCouponsListData, AdminCouponsListErrors, AdminCouponsListResponses, AdminCouponsPayoutsData, AdminCouponsPayoutsErrors, AdminCouponsPayoutsResponses, AdminCouponsRejectData, AdminCouponsRejectErrors, AdminCouponsRejectResponses, AdminCouponsSettleData, AdminCouponsSettleErrors, AdminCouponsSettleResponses, AdminCronJobsCancelData, AdminCronJobsCancelErrors, AdminCronJobsCancelResponses, AdminCronJobsListData, AdminCronJobsListErrors, AdminCronJobsListResponses, AdminCronJobsTriggerData, AdminCronJobsTriggerErrors, AdminCronJobsTriggerResponses, AdminCronJobsUpdateData, AdminCronJobsUpdateErrors, AdminCronJobsUpdateResponses, AdminPaymentSummaryData, AdminPaymentSummaryErrors, AdminPaymentSummaryResponses, AdminPickupPointsCreateData, AdminPickupPointsCreateErrors, AdminPickupPointsCreateResponses, AdminPickupPointsDeleteData, AdminPickupPointsDeleteErrors, AdminPickupPointsDeleteResponses, AdminPickupPointsListData, AdminPickupPointsListErrors, AdminPickupPointsListResponses, AdminPickupPointsUpdateData, AdminPickupPointsUpdateErrors, AdminPickupPointsUpdateResponses, AdminReviewsDeleteData, AdminReviewsDeleteErrors, AdminReviewsDeleteResponses, AdminReviewsListData, AdminReviewsListErrors, AdminReviewsListResponses, AdminReviewsModerateData, AdminReviewsModerateErrors, AdminReviewsModerateResponses, AdminReviewsSummaryData, AdminReviewsSummaryErrors, AdminReviewsSummaryResponses, AdminRoutesCreateData, AdminRoutesCreateErrors, AdminRoutesCreateResponses, AdminRoutesDeleteData, AdminRoutesDeleteErrors, AdminRoutesDeleteResponses, AdminRoutesListData, AdminRoutesListErrors, AdminRoutesListResponses, AdminRoutesUpdateData, AdminRoutesUpdateErrors, AdminRoutesUpdateResponses, AdminSchedulesCreateData, AdminSchedulesCreateErrors, AdminSchedulesCreateResponses, AdminSchedulesDeleteData, AdminSchedulesDeleteErrors, AdminSchedulesDeleteResponses, AdminSchedulesListData, AdminSchedulesListErrors, AdminSchedulesListResponses, AdminSchedulesUpdateData, AdminSchedulesUpdateErrors, AdminSchedulesUpdateResponses, AdminVehicleTypesCreateData, AdminVehicleTypesCreateErrors, AdminVehicleTypesCreateResponses, AdminVehicleTypesDeleteData, AdminVehicleTypesDeleteErrors, AdminVehicleTypesDeleteResponses, AdminVehicleTypesListData, AdminVehicleTypesListErrors, AdminVehicleTypesListResponses, AdminVehicleTypesUpdateData, AdminVehicleTypesUpdateErrors, AdminVehicleTypesUpdateResponses, AuthLoginData, AuthLoginErrors, AuthLoginResponses, AuthLogoutData, AuthLogoutResponses, AuthMeData, AuthMeResponses, AuthRefreshData, AuthRefreshResponses, AuthRegisterData, AuthRegisterErrors, AuthRegisterResponses, BookingsCancelData, BookingsCancelErrors, BookingsCancelResponses, BookingsDetailData, BookingsDetailErrors, BookingsDetailResponses, BookingsHoldData, BookingsHoldErrors, BookingsHoldResponses, BookingsListData, BookingsListErrors, BookingsListResponses, BookingsPlaceData, BookingsPlaceErrors, BookingsPlaceResponses, BrandDetailData, BrandDetailErrors, BrandDetailResponses, BrandProfileData, BrandProfileErrors, BrandProfileResponses, BrandsData, BrandsResponses, CampaignsClaimData, CampaignsClaimErrors, CampaignsClaimResponses, CampaignsListData, CampaignsListResponses, CancelPaymentData, CancelPaymentErrors, CancelPaymentResponses, ChangePasswordData, ChangePasswordErrors, ChangePasswordResponses, ChatMarkReadData, ChatMarkReadErrors, ChatMarkReadResponses, ChatStatsData, ChatStatsErrors, ChatStatsResponses, ClaimChannelData, ClaimChannelErrors, ClaimChannelResponses, CloseChannelData, CloseChannelErrors, CloseChannelResponses, CouponsGiveUpData, CouponsGiveUpErrors, CouponsGiveUpResponses, CouponsMineData, CouponsMineErrors, CouponsMineResponses, CreateChannelData, CreateChannelErrors, CreateChannelResponses, CreatePaymentData, CreatePaymentErrors, CreatePaymentResponses, CreatePostData, CreatePostErrors, CreatePostResponses, DatabaseSizeData, DatabaseSizeErrors, DatabaseSizeResponses, DatabaseVacuumData, DatabaseVacuumErrors, DatabaseVacuumResponses, DeleteAllPicturesData, DeleteAllPicturesErrors, DeleteAllPicturesResponses, DeletePictureData, DeletePictureErrors, DeletePictureResponses, DeletePostData, DeletePostErrors, DeletePostResponses, DeleteUserData, DeleteUserErrors, DeleteUserResponses, EmployeeLoginData, EmployeeLoginErrors, EmployeeLoginResponses, GetPaymentData, GetPaymentErrors, GetPaymentResponses, GetPostData, GetPostResponses, GetStaffPresenceData, GetStaffPresenceErrors, GetStaffPresenceResponses, GetUserData, GetUserErrors, GetUserResponses, HealthData, HealthResponses, ListAdminPaymentsData, ListAdminPaymentsErrors, ListAdminPaymentsResponses, ListBookingPaymentsData, ListBookingPaymentsErrors, ListBookingPaymentsResponses, ListChannelsData, ListChannelsErrors, ListChannelsResponses, ListExchangesData, ListExchangesErrors, ListExchangesResponses, ListMessagesData, ListMessagesErrors, ListMessagesResponses, ListPicturesData, ListPicturesErrors, ListPicturesResponses, ListPostsData, ListPostsResponses, ListProvidersData, ListProvidersResponses, ListRunsData, ListRunsErrors, ListRunsResponses, ListUsersData, ListUsersErrors, ListUsersResponses, LoyaltySummaryData, LoyaltySummaryErrors, LoyaltySummaryResponses, MarkCodCollectedData, MarkCodCollectedErrors, MarkCodCollectedResponses, MediaServeData, MediaServeErrors, MediaServeResponses, MomoIpnData, MomoIpnErrors, MomoIpnResponses, NotificationsListData, NotificationsListErrors, NotificationsListResponses, NotificationsMarkReadData, NotificationsMarkReadErrors, NotificationsMarkReadResponses, NullclawStatusData, NullclawStatusResponses, OauthCallbackData, OauthProvidersData, OauthProvidersResponses, OauthStartData, OauthStartErrors, OnlineChannelsData, OnlineChannelsErrors, OnlineChannelsResponses, PatchPictureData, PatchPictureErrors, PatchPictureResponses, PlacesListData, PlacesListResponses, PlacesReverseData, PlacesReverseErrors, PlacesReverseResponses, PlacesSearchData, PlacesSearchErrors, PlacesSearchResponses, PostMessageData, PostMessageErrors, PostMessageResponses, PriceAlertsCreateData, PriceAlertsCreateErrors, PriceAlertsCreateResponses, PriceAlertsListData, PriceAlertsListErrors, PriceAlertsListResponses, PriceAlertsRemoveData, PriceAlertsRemoveErrors, PriceAlertsRemoveResponses, ProcessMemoryData, ProcessMemoryErrors, ProcessMemoryResponses, ReadyData, ReadyErrors, ReadyResponses, RecommendationsData, RecommendationsResponses, RegisterDeviceData, RegisterDeviceErrors, RegisterDeviceResponses, ReleaseChannelData, ReleaseChannelErrors, ReleaseChannelResponses, ReportConversionData, ReportConversionErrors, ReportConversionResponses, ReportVitalsData, ReportVitalsErrors, ReportVitalsResponses, ReviewsCreateData, ReviewsCreateErrors, ReviewsCreateResponses, ReviewsGetData, ReviewsGetErrors, ReviewsGetResponses, ReviewsListData, ReviewsListResponses, ReviewsMineData, ReviewsMineErrors, ReviewsMineResponses, ReviewsRemoveData, ReviewsRemoveErrors, ReviewsRemoveResponses, ReviewsStatsData, ReviewsStatsErrors, ReviewsStatsResponses, ReviewsTagsData, ReviewsTagsResponses, ReviewsUpdateData, ReviewsUpdateErrors, ReviewsUpdateResponses, RobotsData, RobotsResponses, RoutePicturesData, RoutePicturesResponses, RoutesData, RoutesResponses, RoutingDirectionsData, RoutingDirectionsErrors, RoutingDirectionsResponses, RoutingIsochroneData, RoutingIsochroneErrors, RoutingIsochroneResponses, RoutingMatrixData, RoutingMatrixErrors, RoutingMatrixResponses, SearchTripsData, SearchTripsGeoData, SearchTripsGeoResponses, SearchTripsResponses, SetUserRoleData, SetUserRoleErrors, SetUserRoleResponses, SitemapData, SitemapErrors, SitemapResponses, StatsData, StatsResponses, SystemMetricsData, SystemMetricsErrors, SystemMetricsResponses, SystemStatusData, SystemStatusErrors, SystemStatusResponses, TripDetailData, TripDetailErrors, TripDetailResponses, UnregisterDeviceData, UnregisterDeviceErrors, UnregisterDeviceResponses, UpdatePaymentStatusData, UpdatePaymentStatusErrors, UpdatePaymentStatusResponses, UpdatePostData, UpdatePostErrors, UpdatePostResponses, UploadBrandLogoData, UploadBrandLogoErrors, UploadBrandLogoResponses, UploadPictureData, UploadPictureErrors, UploadPictureResponses, VnpayIpnData, VnpayIpnErrors, VnpayIpnResponses, ZalopayCallbackData, ZalopayCallbackErrors, ZalopayCallbackResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -20,13 +20,15 @@ export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends 
 
 /**
  * `GET /api/admin/addresses?brandId=&q=&limit=&offset=` — list a
- * brand's addresses. `q`/`limit`/`offset` feed the searchable,
- * infinite-scroll schedule point picker; omitting `limit` returns all.
+ * brand's addresses, each with how many schedule stops use it
+ * (`stopCount`). `q` matches the name or the street; `q`/`limit`/`offset`
+ * feed the searchable, infinite-scroll schedule point picker; omitting
+ * `limit` returns all.
  */
 export const adminAddressesList = <ThrowOnError extends boolean = false>(options?: Options<AdminAddressesListData, ThrowOnError>): RequestResult<AdminAddressesListResponses, AdminAddressesListErrors, ThrowOnError> => (options?.client ?? client).get<AdminAddressesListResponses, AdminAddressesListErrors, ThrowOnError>({ url: '/api/admin/addresses', ...options });
 
 /**
- * `POST /api/admin/addresses` — create an address.
+ * `POST /api/admin/addresses` — create an address in one of our cities.
  */
 export const adminAddressesCreate = <ThrowOnError extends boolean = false>(options: Options<AdminAddressesCreateData, ThrowOnError>): RequestResult<AdminAddressesCreateResponses, AdminAddressesCreateErrors, ThrowOnError> => (options.client ?? client).post<AdminAddressesCreateResponses, AdminAddressesCreateErrors, ThrowOnError>({
     url: '/api/admin/addresses',
@@ -38,12 +40,14 @@ export const adminAddressesCreate = <ThrowOnError extends boolean = false>(optio
 });
 
 /**
- * `DELETE /api/admin/addresses/{id}` — delete an address.
+ * `DELETE /api/admin/addresses/{id}` — delete an address no schedule
+ * stops at (deleting it would silently drop those stops).
  */
 export const adminAddressesDelete = <ThrowOnError extends boolean = false>(options: Options<AdminAddressesDeleteData, ThrowOnError>): RequestResult<AdminAddressesDeleteResponses, AdminAddressesDeleteErrors, ThrowOnError> => (options.client ?? client).delete<AdminAddressesDeleteResponses, AdminAddressesDeleteErrors, ThrowOnError>({ url: '/api/admin/addresses/{id}', ...options });
 
 /**
- * `PUT /api/admin/addresses/{id}` — update an address.
+ * `PUT /api/admin/addresses/{id}` — update an address; fields left out
+ * keep their values and a blank (or `null`) detail is cleared.
  */
 export const adminAddressesUpdate = <ThrowOnError extends boolean = false>(options: Options<AdminAddressesUpdateData, ThrowOnError>): RequestResult<AdminAddressesUpdateResponses, AdminAddressesUpdateErrors, ThrowOnError> => (options.client ?? client).put<AdminAddressesUpdateResponses, AdminAddressesUpdateErrors, ThrowOnError>({
     url: '/api/admin/addresses/{id}',
@@ -123,7 +127,8 @@ export const adminBrandsUpdate = <ThrowOnError extends boolean = false>(options:
 
 /**
  * `GET /api/admin/bus-layouts` — list bus layouts, with optional brand
- * filter and offset pagination.
+ * filter and offset pagination. `includeShared=true` adds the shared
+ * catalog (layouts without a brand) to a brand's own layouts.
  */
 export const adminBusLayoutsList = <ThrowOnError extends boolean = false>(options?: Options<AdminBusLayoutsListData, ThrowOnError>): RequestResult<AdminBusLayoutsListResponses, AdminBusLayoutsListErrors, ThrowOnError> => (options?.client ?? client).get<AdminBusLayoutsListResponses, AdminBusLayoutsListErrors, ThrowOnError>({ url: '/api/admin/bus-layouts', ...options });
 
@@ -478,10 +483,13 @@ export const listPictures = <ThrowOnError extends boolean = false>(options: Opti
  * * `file` (required) — JPEG / PNG / WebP, ≤ 10 MiB. Validated by
  * magic bytes AND fully decoded server-side (rejects polyglot /
  * corrupt files); the client-declared Content-Type is ignored.
+ * Stored as WebP (long edge ≤ 1920 px) plus a 640 px WebP
+ * thumbnail; the original and its EXIF are never kept.
  * * `alt_text` (optional) — accessible description, ≤ 255 chars.
  *
- * Idempotent on content: re-uploading the exact same bytes for the
- * same route returns the existing row with `deduped: true`.
+ * At most 10 pictures per route. Idempotent on content: re-uploading
+ * an image that encodes to the same WebP for the same route returns
+ * the existing row with `deduped: true`.
  */
 export const uploadPicture = <ThrowOnError extends boolean = false>(options: Options<UploadPictureData, ThrowOnError>): RequestResult<UploadPictureResponses, UploadPictureErrors, ThrowOnError> => (options.client ?? client).post<UploadPictureResponses, UploadPictureErrors, ThrowOnError>({
     ...formDataBodySerializer,
@@ -561,8 +569,9 @@ export const databaseSize = <ThrowOnError extends boolean = false>(options?: Opt
  * `POST /api/admin/system/database/vacuum` — guarded in-place
  * compaction. Rebuilds the file (drops freelist + fragmentation
  * slack); expect IO ≈ one full-DB read + write for the duration.
- * Runs on the shared single-writer engine: concurrent writers queue on
- * the engine's own write lock — run it in a quiet window.
+ * VACUUM holds SQLite's write lock for its duration: concurrent writers
+ * wait up to `busy_timeout` and then fail with SQLITE_BUSY — run it in
+ * a quiet window.
  */
 export const databaseVacuum = <ThrowOnError extends boolean = false>(options?: Options<DatabaseVacuumData, ThrowOnError>): RequestResult<DatabaseVacuumResponses, DatabaseVacuumErrors, ThrowOnError> => (options?.client ?? client).post<DatabaseVacuumResponses, DatabaseVacuumErrors, ThrowOnError>({ url: '/api/admin/system/database/vacuum', ...options });
 
@@ -625,6 +634,10 @@ export const adminVehicleTypesUpdate = <ThrowOnError extends boolean = false>(op
  * the background and is retried by a later sweep; its outcome is
  * observable in the `ad_conversion` table's `status` column, never in
  * this response.
+ *
+ * The beacon is trusted for nothing but the click ids: the event must
+ * be `booking` or `purchase`, `transactionId` a real booking's code, and
+ * value and currency come from the database.
  */
 export const reportConversion = <ThrowOnError extends boolean = false>(options: Options<ReportConversionData, ThrowOnError>): RequestResult<ReportConversionResponses, ReportConversionErrors, ThrowOnError> => (options.client ?? client).post<ReportConversionResponses, ReportConversionErrors, ThrowOnError>({
     url: '/api/ads/conversions',
@@ -802,6 +815,13 @@ export const brands = <ThrowOnError extends boolean = false>(options?: Options<B
 export const brandDetail = <ThrowOnError extends boolean = false>(options: Options<BrandDetailData, ThrowOnError>): RequestResult<BrandDetailResponses, BrandDetailErrors, ThrowOnError> => (options.client ?? client).get<BrandDetailResponses, BrandDetailErrors, ThrowOnError>({ url: '/api/brands/{slug}', ...options });
 
 /**
+ * `GET /api/brands/{slug}/profile` — everything a brand's page shows in
+ * one read: the brand, its locations (at most 60), its active routes
+ * with timetables and the trips leaving in the next 3 days (at most 40).
+ */
+export const brandProfile = <ThrowOnError extends boolean = false>(options: Options<BrandProfileData, ThrowOnError>): RequestResult<BrandProfileResponses, BrandProfileErrors, ThrowOnError> => (options.client ?? client).get<BrandProfileResponses, BrandProfileErrors, ThrowOnError>({ url: '/api/brands/{slug}/profile', ...options });
+
+/**
  * `GET /api/campaigns` — running and upcoming campaigns with their tiers
  * and slots left (served from the cache, which claims keep current;
  * claiming itself is exact).
@@ -826,7 +846,7 @@ export const campaignsClaim = <ThrowOnError extends boolean = false>(options: Op
  * display "who" without a second round-trip per channel.
  *
  * **Pagination**: `limit` (default 50, max 200) + `offset` (default
- * 0) page through the `last_message_at DESC` ordering — the initial
+ * 0) page through the newest-activity-first ordering — the initial
  * page returns the most recently active channels; scrolling the
  * admin channel list down fetches subsequent pages. The list is
  * ordered most-recent-first, so a full page means "there may be more".
@@ -1089,19 +1109,19 @@ export const markCodCollected = <ThrowOnError extends boolean = false>(options: 
 });
 
 /**
- * `GET /api/places` — list places.
+ * `GET /api/places` — the most populous cities and towns.
  */
 export const placesList = <ThrowOnError extends boolean = false>(options?: Options<PlacesListData, ThrowOnError>): RequestResult<PlacesListResponses, unknown, ThrowOnError> => (options?.client ?? client).get<PlacesListResponses, unknown, ThrowOnError>({ url: '/api/places', ...options });
 
 /**
- * `GET /api/places/reverse` — reverse geocode coordinates.
+ * `GET /api/places/reverse` — the places nearest to a point, nearest first.
  */
-export const placesReverse = <ThrowOnError extends boolean = false>(options: Options<PlacesReverseData, ThrowOnError>): RequestResult<PlacesReverseResponses, unknown, ThrowOnError> => (options.client ?? client).get<PlacesReverseResponses, unknown, ThrowOnError>({ url: '/api/places/reverse', ...options });
+export const placesReverse = <ThrowOnError extends boolean = false>(options: Options<PlacesReverseData, ThrowOnError>): RequestResult<PlacesReverseResponses, PlacesReverseErrors, ThrowOnError> => (options.client ?? client).get<PlacesReverseResponses, PlacesReverseErrors, ThrowOnError>({ url: '/api/places/reverse', ...options });
 
 /**
- * `GET /api/places/search` — search places by query.
+ * `GET /api/places/search` — place autocomplete.
  */
-export const placesSearch = <ThrowOnError extends boolean = false>(options: Options<PlacesSearchData, ThrowOnError>): RequestResult<PlacesSearchResponses, unknown, ThrowOnError> => (options.client ?? client).get<PlacesSearchResponses, unknown, ThrowOnError>({ url: '/api/places/search', ...options });
+export const placesSearch = <ThrowOnError extends boolean = false>(options: Options<PlacesSearchData, ThrowOnError>): RequestResult<PlacesSearchResponses, PlacesSearchErrors, ThrowOnError> => (options.client ?? client).get<PlacesSearchResponses, PlacesSearchErrors, ThrowOnError>({ url: '/api/places/search', ...options });
 
 /**
  * `GET /api/posts` — list posts (public read).
@@ -1326,6 +1346,25 @@ export const stats = <ThrowOnError extends boolean = false>(options?: Options<St
 export const tripDetail = <ThrowOnError extends boolean = false>(options: Options<TripDetailData, ThrowOnError>): RequestResult<TripDetailResponses, TripDetailErrors, ThrowOnError> => (options.client ?? client).get<TripDetailResponses, TripDetailErrors, ThrowOnError>({ url: '/api/trips/{id}', ...options });
 
 /**
+ * `POST /api/uploads/brand-logo` — upload one brand logo.
+ *
+ * Multipart field `file` (required): JPEG / PNG / WebP (stored as WebP
+ * scaled to 512 px, metadata dropped) or SVG (stored as uploaded after
+ * a safety check), ≤ 5 MiB. The format is read from the content, never
+ * from the declared Content-Type. Content-addressed: the same logo
+ * uploaded twice yields the same key.
+ */
+export const uploadBrandLogo = <ThrowOnError extends boolean = false>(options: Options<UploadBrandLogoData, ThrowOnError>): RequestResult<UploadBrandLogoResponses, UploadBrandLogoErrors, ThrowOnError> => (options.client ?? client).post<UploadBrandLogoResponses, UploadBrandLogoErrors, ThrowOnError>({
+    ...formDataBodySerializer,
+    url: '/api/uploads/brand-logo',
+    ...options,
+    headers: {
+        'Content-Type': null,
+        ...options.headers
+    }
+});
+
+/**
  * `GET /api/users` — list users (paginated). Requires `users:read`.
  */
 export const listUsers = <ThrowOnError extends boolean = false>(options?: Options<ListUsersData, ThrowOnError>): RequestResult<ListUsersResponses, ListUsersErrors, ThrowOnError> => (options?.client ?? client).get<ListUsersResponses, ListUsersErrors, ThrowOnError>({ url: '/api/users', ...options });
@@ -1382,11 +1421,14 @@ export const health = <ThrowOnError extends boolean = false>(options?: Options<H
 export const ready = <ThrowOnError extends boolean = false>(options?: Options<ReadyData, ThrowOnError>): RequestResult<ReadyResponses, ReadyErrors, ThrowOnError> => (options?.client ?? client).get<ReadyResponses, ReadyErrors, ThrowOnError>({ url: '/ready', ...options });
 
 /**
- * `GET /robots.txt` — dynamic robots.txt that points to the sitemap.
+ * `GET /robots.txt` — one rule group for every crawler; the sitemap pointer
+ * follows the configured public origin.
  */
 export const robots = <ThrowOnError extends boolean = false>(options?: Options<RobotsData, ThrowOnError>): RequestResult<RobotsResponses, unknown, ThrowOnError> => (options?.client ?? client).get<RobotsResponses, unknown, ThrowOnError>({ url: '/robots.txt', ...options });
 
 /**
- * `GET /sitemap.xml` — list the public routes for SEO crawlers.
+ * `GET /sitemap.xml` — the indexable pages: the static ones, one per active
+ * brand, and one search page per city pair some active route serves ("vé xe
+ * Hà Nội đi Đà Nẵng"). Never lists `/login` or a page that is not indexed.
  */
-export const sitemap = <ThrowOnError extends boolean = false>(options?: Options<SitemapData, ThrowOnError>): RequestResult<SitemapResponses, unknown, ThrowOnError> => (options?.client ?? client).get<SitemapResponses, unknown, ThrowOnError>({ url: '/sitemap.xml', ...options });
+export const sitemap = <ThrowOnError extends boolean = false>(options?: Options<SitemapData, ThrowOnError>): RequestResult<SitemapResponses, SitemapErrors, ThrowOnError> => (options?.client ?? client).get<SitemapResponses, SitemapErrors, ThrowOnError>({ url: '/sitemap.xml', ...options });
