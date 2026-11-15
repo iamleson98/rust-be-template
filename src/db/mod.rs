@@ -13,8 +13,11 @@
 //! * [`pool`] builds the connection pool: SQLite pragmas are
 //!   per-connection, so they are set as connect options and every pooled
 //!   connection gets them.
+//! * [`write`] runs multi-statement write transactions as
+//!   `BEGIN CONCURRENT`, retrying the whole transaction on conflict.
 
 pub mod pool;
+pub mod write;
 
 use std::ffi::CStr;
 

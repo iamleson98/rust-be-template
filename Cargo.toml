@@ -61,6 +61,9 @@ tower_governor = "0.7"
 sea-orm = { version = "1.1", default-features = false, features = ["runtime-tokio-rustls", "macros", "with-chrono", "with-uuid", "with-json", "sqlx-sqlite"] }
 sea-orm-migration = { version = "1.1", default-features = false, features = ["runtime-tokio-rustls", "sqlx-sqlite"] }
 sea-query = "0.32"
+# Binds sea-query values to sqlx statements for `db::write::ConcurrentTx`
+# (the same binder sea-orm uses internally; features match sea-orm's).
+sea-query-binder = { version = "0.7", default-features = false, features = ["sqlx-sqlite", "with-chrono", "with-uuid", "with-json"] }
 
 # Serialization
 serde = { version = "1", features = ["derive"] }

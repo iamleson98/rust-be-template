@@ -23,7 +23,7 @@ pub use self::brands::{BrandStore, CacheBrandStore, DbBrandStore};
 pub use self::campaigns::{CampaignStore, DbCampaignStore};
 pub use self::chat::{CacheChatStore, ChatStore, DbChatStore, NewChatMessage, NewNullClawExchange};
 pub use self::composite::CompositeStore;
-pub use self::error::{StoreError, StoreResult};
+pub use self::error::{sqlite_error_code, StoreError, StoreResult};
 pub use self::job_queue::{DbJobQueueStore, JobQueueStore};
 pub use self::jobs::{DbJobStore, JobStore};
 

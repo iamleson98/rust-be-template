@@ -847,6 +847,7 @@ dependencies = [
  "sea-orm",
  "sea-orm-migration",
  "sea-query",
+ "sea-query-binder",
  "serde",
  "serde_json",
  "sha1 0.10.7",
