@@ -6,7 +6,9 @@
     "scripts/gen-icons.mjs",
     "e2e/**/*.spec.ts",
     "e2e/fixtures.ts",
-    "e2e-admin/**/*.spec.ts"
+    "e2e-admin/**/*.spec.ts",
+    "playwright.smoke.config.ts",
+    "e2e-smoke/**/*.spec.ts"
   ],
   "ignoreDependencies": ["postcss", "markdownlint-cli2"],
   "ignore": ["public/**"]
