@@ -278,12 +278,11 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
     // `crate::presence::spawn_journal` for the batching design.
     crate::presence::spawn_journal(store.staff_presence_store());
 
-    // Memory sweeper — periodic forced mimalloc collect. The engine's
-    // allocator keeps freed pages resident (purge_delay=-1) and only
-    // drains at its own SQL write-burst boundaries; without this the
-    // service's transient peaks (HTTP/WS/moka churn) ratchet
-    // RSS up to the historical watermark and keep it there (the
-    // 650 MB idle-RSS report, 2026-09). See src/memory.rs.
+    // Memory sweeper — periodic forced mimalloc collect. mimalloc returns
+    // freed pages to the OS lazily, so without this the service's
+    // transient peaks (HTTP/WS/moka churn) ratchet RSS up to the
+    // historical watermark and keep it there (the 650 MB idle-RSS
+    // report, 2026-09). See src/memory.rs.
     crate::memory::spawn_sweeper(config.memory.interval());
 
     // Call-session janitor — the server-side guarantee that call state

@@ -41,7 +41,7 @@ docker exec -it <backend-container> sqlite3 /app/data/app.db 'PRAGMA integrity_c
 
 ## Real client IP / rate limiting
 
-The rate limiter (`tower_governor`), the WS per-IP caps and the audio-call
+The rate limiter (`middleware::rate_limit`), the WS per-IP caps and the audio-call
 geo gate all key on the IP derived in `src/middleware/client_ip.rs`:
 right-anchored `X-Forwarded-For` with `TRUSTED_PROXY_HOPS=1` (default —
 exactly the one append Caddy makes), falling back to `CF-Connecting-IP`.

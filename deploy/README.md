@@ -365,7 +365,7 @@ What ends up where:
    - **Security → Bots** and a basic WAF rule set
    - **Security → WAF → Rate limiting** (e.g. 300 req / 10 s per IP on
      `/api/*`) — this is your *per-client* rate limiting. The backend's own
-     governor sees every request coming from the tunnel container IP, so its
+     rate limiter sees every request coming from the tunnel container IP, so its
      bucket is shared site-wide (that's why `.env` sets `RATE_LIMIT_RPM=6000`
      — it's a global safety net, not per-user).
 
@@ -547,4 +547,4 @@ is still the recommended mode (no certs, no exposed ports).
 | `pull access denied` for image on the VPS | GHCR package is private — make it public, or set `GHCR_USER`/`GHCR_TOKEN` GitHub secrets. |
 | Can't SSH after UFW enable | Use the Contabo web console/VNC; `ufw allow OpenSSH` then `ufw reload`. |
 | Deploy workflow skipped the deploy job | `SERVER_HOST` secret not set in the repo — the job prints a notice and only builds/pushes. |
-| Rate-limit 429s for everyone at once | Backend governor is site-wide behind the tunnel — raise `RATE_LIMIT_RPM` in `.env`, add a Cloudflare WAF rate rule for per-client limits. |
+| Rate-limit 429s for everyone at once | The backend rate limiter is site-wide behind the tunnel — raise `RATE_LIMIT_RPM` in `.env`, add a Cloudflare WAF rate rule for per-client limits. |

@@ -42,7 +42,7 @@ src/
 | Background jobs | Durable queue in the app database (`background_job`) |
 | OpenAPI | utoipa + utoipa-swagger-ui |
 | Compression | tower-http (gzip + brotli) |
-| Rate limit | tower-governor (token bucket per IP, `/api/*` only) |
+| Rate limit | in-process token buckets per client IP, in classes (`/api/*` only) |
 | Static files | tower-http::ServeDir with `Cache-Control` header |
 
 ## Quickstart

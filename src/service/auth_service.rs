@@ -225,8 +225,8 @@ impl AuthService {
 
         // Argon2 on the DEDICATED worker pool — never `spawn_blocking`.
         // Tokio's blocking pool spins up a fresh thread per busy slot and
-        // the engine's mimalloc (purge_delay=-1) strands Argon2's multi-MB
-        // working set in each thread's local heap: measured +2.5 MB PER
+        // mimalloc's thread-local heaps strand Argon2's multi-MB working
+        // set in each thread: measured +2.5 MB PER
         // LOGIN, permanent (60 concurrent logins = +154 MB, 2026-09-21
         // incident — see `auth::password::workers`). The dedicated pool
         // reuses two fixed threads, so the working set is allocated once
