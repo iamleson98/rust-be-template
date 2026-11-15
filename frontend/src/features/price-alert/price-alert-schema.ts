@@ -7,7 +7,7 @@
  */
 
 import type { UseFormReturn } from 'react-hook-form'
-import { z } from 'zod'
+import * as z from 'zod'
 import { phoneSchema } from '@/lib/forms'
 import { tSync } from '@/lib/i18n'
 

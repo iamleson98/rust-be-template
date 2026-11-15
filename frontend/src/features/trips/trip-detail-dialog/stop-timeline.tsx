@@ -1,5 +1,3 @@
-'use client'
-
 import type { ReactNode } from 'react'
 import { ArrowDown, Flag, MapPin, Navigation } from 'lucide-react'
 import { formatDuration } from '@/lib/format'

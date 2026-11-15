@@ -1,5 +1,3 @@
-'use client'
-
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Ticket as TicketIcon, Bus, MapPin, Armchair, User as UserIcon } from 'lucide-react'

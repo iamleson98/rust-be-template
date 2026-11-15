@@ -20,9 +20,6 @@ const ENDED_CLOSE_MS = 2600
 const ERROR_MS = 4000
 
 function signalingUrl(): string {
-  if (typeof window === 'undefined') {
-    return `${import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'}/ws-call`
-  }
   return `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws-call`
 }
 

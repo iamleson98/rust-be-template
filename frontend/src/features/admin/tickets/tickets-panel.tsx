@@ -1,5 +1,3 @@
-'use client'
-
 /**
  * TicketsPanel — the new "Vé đã bán" admin tab.
  *

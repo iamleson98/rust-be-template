@@ -1,5 +1,3 @@
-'use client'
-
 import { DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { formatDateTimeVN } from '@/lib/format'

@@ -1,5 +1,3 @@
-'use client'
-
 import { type ComponentProps, useEffect, useRef } from 'react'
 import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon } from 'lucide-react'
 import { DayButton, DayPicker, getDefaultClassNames } from 'react-day-picker'

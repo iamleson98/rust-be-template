@@ -1,5 +1,3 @@
-'use client'
-
 import { Armchair, ChevronRight, LogIn, X } from 'lucide-react'
 import type { TripSeat } from '@/api'
 import { Button } from '@/components/ui/button'

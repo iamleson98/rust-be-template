@@ -1,5 +1,3 @@
-'use client'
-
 /**
  * PriceAlertTargetField — the "Mức giá mục tiêu" input of the
  * price-alert dialog with the -10% / -20% / -30% suggestion chips

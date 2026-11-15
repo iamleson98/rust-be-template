@@ -1,5 +1,3 @@
-'use client'
-
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { AlertTriangle, CheckCircle2, Info, User, UserCheck } from 'lucide-react'

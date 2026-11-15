@@ -1,5 +1,3 @@
-'use client'
-
 import type { UseFormReturn } from 'react-hook-form'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -7,7 +5,7 @@ import { FormField, FormControl, FormItem, FormLabel, FormMessage } from '@/comp
 import { PrivacyNotice } from '@/components/seo/trust-signals'
 import { useT } from '@/lib/i18n'
 import { ChevronLeft, ChevronRight, User, Phone, Mail } from 'lucide-react'
-import { type BookingValues } from './booking-form'
+import type { BookingValues } from './booking-form'
 import { StepActions } from './step-actions'
 
 /** Step 2: who to send the ticket to. */

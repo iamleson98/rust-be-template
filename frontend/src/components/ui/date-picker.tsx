@@ -1,5 +1,3 @@
-'use client'
-
 /**
  * DatePicker — a shadcn-style single-date picker.
  *

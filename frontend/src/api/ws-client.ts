@@ -32,11 +32,6 @@ type Handler = (data: Record<string, unknown>) => void
  * works for users who logged in via `/api/auth/login`.
  */
 function buildWsUrl(token?: string | null): string {
-  if (typeof window === 'undefined') {
-    // SSR / prerender — emit a placeholder URL; never actually connects.
-    const base = `${import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'}/ws`
-    return token ? `${base}?token=${encodeURIComponent(token)}` : base
-  }
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   const base = `${proto}//${window.location.host}/ws`
   return token ? `${base}?token=${encodeURIComponent(token)}` : base
@@ -79,8 +74,10 @@ export class WsClient {
         this.reconnectAttempts = 0
         this.connect()
       } else if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-        // Socket looks open — send a ping to verify liveness.
-        this.send('ping', { __client_ts: Date.now() })
+        // Socket looks open — send a liveness ping. The fixed payload
+        // (no timestamp) matches the server's platform-level auto-response,
+        // so the probe never wakes the hibernated Durable Object.
+        this.send('ping')
       }
     } else {
       this.pausedByVisibility = true

@@ -1,5 +1,3 @@
-'use client'
-
 /**
  * The search form's date field: a lunar calendar and, for the outbound day,
  * an optional "leaving from" time in the same panel. One trigger shows both

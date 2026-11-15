@@ -1,5 +1,3 @@
-'use client'
-
 /**
  * AdminPaymentsPanel — redesigned "Thanh toán" admin page.
  *

@@ -1,9 +1,11 @@
 /**
- * Prerender script — runs AFTER `vite build` to produce the final
- * `dist/index.html` with the homepage shell rendered to static HTML, and
- * `dist/<page>.html` for the content pages in PAGES (the backend serves
- * those for `/<page>`), so crawlers and the OAuth providers' reviewers
- * read the privacy policy and terms without running scripts.
+ * Prerender script — runs AFTER `vite build` to finish `dist/index.html`
+ * (the Google tags) and to write `dist/<page>.html` for the content pages in
+ * PAGES (the backend serves those for `/<page>`), so crawlers and the OAuth
+ * providers' reviewers read the privacy policy and terms without running
+ * scripts. Every other page is a client-rendered shell: the backend fills
+ * `<!--app-head-->` in these files per request (title, description,
+ * canonical, robots, Open Graph, structured data).
  *
  * Also injects the Google tags into the built template, from env vars:
  *   - `VITE_GSC_VERIFICATION` — Search Console verification meta tag
@@ -33,11 +35,8 @@ const GA4_ID = process.env.VITE_GA4_ID?.trim() || ''
 const GOOGLE_ADS_ID = process.env.VITE_GOOGLE_ADS_ID?.trim() || ''
 const GOOGLE_ADS_CONVERSIONS = process.env.VITE_GOOGLE_ADS_CONVERSIONS?.trim() || ''
 
-/** Content pages prerendered beside the homepage: URL path → `seo.<key>` strings. */
-const PAGES = { '/privacy': 'privacy', '/terms': 'terms' }
-
-const escapeHtml = (s) =>
-  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+/** Content pages whose text is prerendered into their own `dist/<page>.html`. */
+const PAGES = ['/privacy', '/terms']
 
 /** Writes `file` plus the .gz/.br twins the backend serves precompressed. */
 function writeHtml(file, html) {
@@ -106,27 +105,17 @@ async function main() {
   })
   try {
     const { render } = await vite.ssrLoadModule('/src/entry-server.tsx')
-    const { vi } = await vite.ssrLoadModule('/src/lib/i18n/vi.ts')
 
-    // Content pages first, from the shell before the homepage fills it,
-    // with their own title and description (the client sets them later).
-    for (const [url, seo] of Object.entries(PAGES)) {
-      const html = template
-        .replace(/<title>[^<]*<\/title>/, `<title>${escapeHtml(vi[`seo.${seo}.title`])}</title>`)
-        .replace(
-          /(<meta\s+name="description"\s+content=")[^"]*(")/,
-          `$1${escapeHtml(vi[`seo.${seo}.description`])}$2`,
-        )
-        .replace('<!--app-html-->', await render(url))
-      const file = resolve(distDir, `${url.slice(1)}.html`)
-      writeHtml(file, html)
+    for (const url of PAGES) {
+      const html = template.replace('<!--app-html-->', await render(url))
+      writeHtml(resolve(distDir, `${url.slice(1)}.html`), html)
       console.log('[prerender] ✓ wrote dist%s.html (%d bytes)', url, html.length)
     }
 
-    // Inject the rendered HTML where the placeholder lives. Re-compressed
-    // so the backend's precompressed_gzip / precompressed_br serve the
-    // prerendered HTML, not the stale placeholder from vite build.
-    template = template.replace('<!--app-html-->', await render('/'))
+    // The shell the backend serves for every other page: no prerendered body.
+    // Re-compressed so the backend's precompressed_gzip / precompressed_br
+    // serve this file, not the placeholder from vite build.
+    template = template.replace('<!--app-html-->', '')
     writeHtml(templatePath, template)
     console.log('[prerender] ✓ wrote dist/index.html (+ .gz, .br; %d bytes)', template.length)
   } finally {

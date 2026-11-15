@@ -1,5 +1,3 @@
-'use client'
-
 /**
  * GatewayRedirect — the vnpay / momo / zalopay body of the PaymentDialog:
  * a success card once completed, a "waiting for gateway" notice while the

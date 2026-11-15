@@ -1,5 +1,3 @@
-'use client'
-
 import { Button } from '@/components/ui/button'
 import { Loader2, RefreshCw, ChevronLeft, Ban, Ticket } from 'lucide-react'
 import { formatVND } from '@/lib/format'

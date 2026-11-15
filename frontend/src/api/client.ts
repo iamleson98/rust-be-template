@@ -8,10 +8,9 @@ import { createAuthFetch } from './auth-fetch'
  */
 export function configureApiClient() {
   client.setConfig({
-    baseUrl:
-      typeof window !== 'undefined'
-        ? ''
-        : (import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:8080'),
+    // Same-origin relative URLs: Next.js serves the API routes (/api/*)
+    // from the same host, so SameSite cookies flow naturally.
+    baseUrl: '',
     credentials: 'include',
     fetch: createAuthFetch(),
   })

@@ -1,5 +1,3 @@
-'use client'
-
 import { type ComponentProps, type ReactElement, type ReactNode, isValidElement } from 'react'
 import { Dialog as SheetPrimitive } from '@base-ui/react/dialog'
 import { XIcon } from 'lucide-react'

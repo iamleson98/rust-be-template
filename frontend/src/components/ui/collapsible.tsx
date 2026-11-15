@@ -1,6 +1,4 @@
-'use client'
-
-import { type ComponentProps } from 'react'
+import type { ComponentProps } from 'react'
 import { Collapsible as CollapsiblePrimitive } from '@base-ui/react/collapsible'
 
 /**

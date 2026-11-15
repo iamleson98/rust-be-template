@@ -1,5 +1,3 @@
-'use client'
-
 /**
  * Admin — vehicle types panel (`/admin/vehicle-types`).
  *

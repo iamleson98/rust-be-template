@@ -378,8 +378,14 @@ export class AudioCallClient {
         return this.onRegistered(msg)
       case 'ice-servers':
         // Fresh TURN credentials while the socket stays open; calls started from now use them.
-        if (Array.isArray(msg.iceServers) && msg.iceServers.length > 0)
+        if (Array.isArray(msg.iceServers) && msg.iceServers.length > 0) {
           this.cfg.iceServers = msg.iceServers
+          // A live call must also see them: an ICE restart after the old
+          // credentials expired would otherwise relay-fail. Refreshing the
+          // configuration mid-session is the documented way (WebRTC
+          // setConfiguration); it does not touch the media path.
+          this.pc?.setConfiguration({ iceServers: this.cfg.iceServers })
+        }
         return
       case 'presence':
         this.onlineAgents = asNum(msg.onlineAgents)

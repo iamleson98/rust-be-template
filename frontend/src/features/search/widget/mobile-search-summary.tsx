@@ -1,5 +1,3 @@
-'use client'
-
 /**
  * Stand-in for the compact search widget on /search below lg (phones and
  * tablets): one summary (from → to, date, passengers) that opens the full form

@@ -1,8 +1,8 @@
 import { useMemo } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation } from '@tanstack/react-query'
-import { z } from 'zod'
+import * as z from 'zod'
 import { toast } from 'sonner'
 import { Info, Loader2 } from 'lucide-react'
 import { changePasswordMutation } from '@/api'
@@ -79,7 +79,7 @@ export function AccountPasswordPage() {
     mode: 'onSubmit',
     reValidateMode: 'onChange',
   })
-  const newPassword = form.watch('newPassword')
+  const newPassword = useWatch({ control: form.control, name: 'newPassword' })
 
   const change = useMutation({
     ...changePasswordMutation(),

@@ -1,5 +1,3 @@
-'use client'
-
 import { useState } from 'react'
 import { CheckCircle2, PhoneCall, PhoneIncoming, RefreshCw } from 'lucide-react'
 import type { BookingOut } from '@/api'

@@ -1,5 +1,3 @@
-'use client'
-
 /**
  * ShareEmailForm — the "Gửi qua email" section of the share dialog.
  *
@@ -11,7 +9,7 @@
 import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
+import * as z from 'zod'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'

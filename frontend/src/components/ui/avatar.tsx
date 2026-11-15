@@ -1,6 +1,4 @@
-'use client'
-
-import { type ComponentProps } from 'react'
+import type { ComponentProps } from 'react'
 import { Avatar as AvatarPrimitive } from '@base-ui/react/avatar'
 
 import { cn } from '@/lib/utils'

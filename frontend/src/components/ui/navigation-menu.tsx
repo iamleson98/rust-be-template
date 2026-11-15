@@ -1,5 +1,3 @@
-'use client'
-
 /**
  * NavigationMenu — Base UI implementation preserving the Radix/shadcn public API.
  *
@@ -25,7 +23,7 @@
  * `NavigationMenuItem`, `NavigationMenuContent`, `NavigationMenuTrigger`, `NavigationMenuLink`,
  * `NavigationMenuIndicator`, `NavigationMenuViewport`, `navigationMenuTriggerStyle`).
  */
-import { type ComponentProps } from 'react'
+import type { ComponentProps } from 'react'
 import { NavigationMenu as NavigationMenuPrimitive } from '@base-ui/react/navigation-menu'
 import { cva } from 'class-variance-authority'
 import { ChevronDownIcon } from 'lucide-react'

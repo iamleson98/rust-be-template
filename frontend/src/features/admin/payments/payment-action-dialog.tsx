@@ -1,5 +1,3 @@
-'use client'
-
 /**
  * Action dialog of the admin payments panel — cancel / refund /
  * mark-COD-collected confirmation.

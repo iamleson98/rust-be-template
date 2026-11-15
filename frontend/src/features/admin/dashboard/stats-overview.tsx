@@ -1,5 +1,3 @@
-'use client'
-
 /**
  * StatsOverview — the summary-report body of the AdminDashboard.
  *

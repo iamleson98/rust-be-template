@@ -1,5 +1,3 @@
-'use client'
-
 /**
  * Recent bookings card — "Vé đặt gần đây" (Row 2 of the stats
  * overview): the 5 most-recent bookings table (real

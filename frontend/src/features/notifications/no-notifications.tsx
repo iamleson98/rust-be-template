@@ -1,5 +1,3 @@
-'use client'
-
 import { memo } from 'react'
 import { EmptyState } from '@/components/empty-state'
 import { useT } from '@/lib/i18n'

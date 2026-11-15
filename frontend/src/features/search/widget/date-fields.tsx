@@ -1,10 +1,9 @@
-'use client'
-
 import type { SearchParams } from '@/lib/search-params'
 import type { UseFormReturn } from 'react-hook-form'
 import { useT } from '@/lib/i18n'
 import { FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
-import { FIELD_CONTROL, FIELD_ERROR, FIELD_ITEM, FIELD_LABEL } from './field-style'
+import { cn } from '@/lib/utils'
+import { FIELD_CONTROL, FIELD_ERROR, FIELD_INVALID, FIELD_ITEM, FIELD_LABEL } from './field-style'
 import { TripDatePicker } from './trip-date-picker'
 import type { SearchFormValues } from './schema'
 
@@ -37,7 +36,7 @@ export function SearchDateFields({
       <FormField
         control={form.control}
         name="date"
-        render={({ field }) => (
+        render={({ field, fieldState }) => (
           <FormItem className={FIELD_ITEM}>
             <FormLabel className={FIELD_LABEL}>
               {t('search.date')}{' '}
@@ -61,7 +60,8 @@ export function SearchDateFields({
               minDate={today}
               title={t('search.date')}
               placeholder={t('home.chooseDatePh')}
-              triggerClassName={FIELD_CONTROL}
+              // The red border the other fields' inputs get from `aria-invalid`.
+              triggerClassName={cn(FIELD_CONTROL, fieldState.invalid && FIELD_INVALID)}
             />
             <FormMessage className={FIELD_ERROR} />
           </FormItem>

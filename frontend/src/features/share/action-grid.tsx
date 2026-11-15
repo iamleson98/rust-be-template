@@ -1,5 +1,3 @@
-'use client'
-
 import { useT } from '@/lib/i18n'
 import { Copy, Check, Download, Facebook, MessageCircle } from 'lucide-react'
 

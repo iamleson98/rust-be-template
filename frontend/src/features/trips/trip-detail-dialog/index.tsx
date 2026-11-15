@@ -1,24 +1,24 @@
-'use client'
-
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import {
   ArrowLeftRight,
   Bus,
   CheckCircle2,
   Clock,
+  Images,
   MapPin,
   MessageSquareQuote,
   Users,
 } from 'lucide-react'
-import type { TripDetail, TripSeat } from '@/api'
+import { routePicturesOptions, type TripDetail, type TripSeat } from '@/api'
 import { ErrorState } from '@/components/error-state'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { BookingFlow } from '@/features/booking/flow/booking-flow'
-import { RouteScheduleMap } from '@/features/map/route-schedule-map'
 import { ReviewsList } from '@/features/reviews/reviews-list'
+import type { Slide } from '@/components/picture-slider'
 import { SeatMap } from '@/features/seat-plan'
 import { useTripDetail } from '@/features/trips/api'
 import { useT } from '@/lib/i18n'
@@ -32,7 +32,13 @@ import { PriceSummary } from './price-summary'
 import { StopTimeline } from './stop-timeline'
 import { TripDetailSkeleton } from './trip-detail-skeleton'
 import { TripInfo } from './trip-info'
+import { TripPictures } from './trip-pictures'
 import { tripStops } from './trip-stops'
+
+// Leaflet loads only when someone opens the route tab, not with every trip.
+const RouteScheduleMap = lazy(() =>
+  import('@/features/map/route-schedule-map').then((m) => ({ default: m.RouteScheduleMap })),
+)
 
 /** Seats one booking may hold. */
 const MAX_SEATS = 10
@@ -68,6 +74,14 @@ export function TripDetailDialog({ tripId, onClose }: { tripId: string; onClose:
           scrolls inside, unlike other dialogs. Full screen on phones. */}
       <DialogContent
         mobile="fullscreen"
+        // This dialog is a page: closing it goes back in history and the page
+        // under it mounts afresh, so Base UI's default would land on whatever
+        // was focused earlier that still exists (the search form's first field,
+        // opening its dropdown). Back on the results, focus the trip's own
+        // button; anywhere else, move focus nowhere.
+        finalFocus={() =>
+          document.querySelector<HTMLElement>(`[data-trip-select="${CSS.escape(tripId)}"]`) ?? false
+        }
         className="flex max-h-[92dvh] max-w-7xl flex-col gap-0 overflow-hidden p-0 max-md:h-dvh max-md:max-h-dvh 2xl:max-w-[88rem]"
       >
         {bookingStep !== 'idle' ? (
@@ -126,6 +140,19 @@ function TripView({ detail }: { detail: TripDetail }) {
   // The map shows the stops the timeline lists: the timetable, else the route's points.
   const mapStops = detail.schedulePoints.length > 0 ? detail.schedulePoints : detail.pickupPoints
   const located = mapStops.filter((p) => p.lat != null && p.lon != null)
+
+  // The route's gallery: its own tab, only when the route has pictures.
+  const { data: gallery } = useQuery({
+    ...routePicturesOptions({ path: { id: detail.route.id } }),
+    staleTime: 5 * 60_000,
+  })
+  const slides: Slide[] = (gallery?.items ?? []).map((p, i) => ({
+    id: p.id,
+    src: p.url,
+    thumbSrc: p.thumbUrl,
+    alt: p.altText || t('tripDetail.pictureAlt', { route: detail.route.name, index: i + 1 }),
+  }))
+  const tabCols = slides.length > 0 ? 'grid-cols-6 md:grid-cols-5' : 'grid-cols-5 md:grid-cols-4'
 
   const toggleSeat = ({ id }: TripSeat) =>
     setPicked((prev) =>
@@ -188,7 +215,9 @@ function TripView({ detail }: { detail: TripDetail }) {
       <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden md:grid-cols-[minmax(0,1fr)_320px] lg:grid-cols-[minmax(0,1.3fr)_420px]">
         <div className="flex min-h-0 min-w-0 flex-col overflow-hidden md:border-r">
           <Tabs defaultValue="seats" className="flex min-h-0 flex-1 flex-col">
-            <TabsList className="grid h-auto w-full shrink-0 grid-cols-5 rounded-none border-b border-slate-200/80 bg-white p-0 px-2 md:grid-cols-4">
+            <TabsList
+              className={`grid h-auto w-full shrink-0 ${tabCols} rounded-none border-b border-slate-200/80 bg-white p-0 px-2`}
+            >
               <TabsTrigger value="seats" className={TAB}>
                 <Bus className="h-4 w-4 shrink-0" /> {t('booking.seatSelector')}
               </TabsTrigger>
@@ -198,6 +227,11 @@ function TripView({ detail }: { detail: TripDetail }) {
               <TabsTrigger value="route" className={TAB}>
                 <MapPin className="h-4 w-4 shrink-0" /> {t('tripDetail.tabRoute')}
               </TabsTrigger>
+              {slides.length > 0 && (
+                <TabsTrigger value="pictures" className={TAB}>
+                  <Images className="h-4 w-4 shrink-0" /> {t('tripDetail.tabPictures')}
+                </TabsTrigger>
+              )}
               <TabsTrigger value="info" className={TAB}>
                 <CheckCircle2 className="h-4 w-4 shrink-0" /> {t('tripDetail.tabPolicy')}
               </TabsTrigger>
@@ -242,21 +276,25 @@ function TripView({ detail }: { detail: TripDetail }) {
               </TabsContent>
 
               <TabsContent value="route" className="m-0 space-y-5 p-4">
-                <RouteScheduleMap
-                  // No road geometry: the map joins the stops in order, first to last.
-                  // Just the two cities only when the stops have no coordinates.
-                  geometry={
-                    located.length >= 2
-                      ? null
-                      : [
-                          [detail.from.lat, detail.from.lon],
-                          [detail.to.lat, detail.to.lon],
-                        ]
-                  }
-                  pickupPoints={mapStops}
-                  fromName={detail.from.name ?? ''}
-                  toName={detail.to.name ?? ''}
-                />
+                <Suspense fallback={<div className="h-75 rounded-xl border bg-slate-50 md:h-95" />}>
+                  <RouteScheduleMap
+                    // No road geometry: the map joins the stops in order, first to last.
+                    // Just the two cities only when the stops have no coordinates.
+                    geometry={
+                      located.length >= 2
+                        ? null
+                        : [
+                            [detail.from.lat, detail.from.lon],
+                            [detail.to.lat, detail.to.lon],
+                          ]
+                    }
+                    pickupPoints={mapStops}
+                    fromName={detail.from.name ?? ''}
+                    toName={detail.to.name ?? ''}
+                    fromCityId={detail.from.cityId}
+                    toCityId={detail.to.cityId}
+                  />
+                </Suspense>
                 <StopTimeline
                   title={t('tripDetail.routeTimelineTitle')}
                   stops={stops}
@@ -269,6 +307,12 @@ function TripView({ detail }: { detail: TripDetail }) {
                   }
                 />
               </TabsContent>
+
+              {slides.length > 0 && (
+                <TabsContent value="pictures" className="m-0 p-4">
+                  <TripPictures slides={slides} />
+                </TabsContent>
+              )}
 
               <TabsContent value="info" className="m-0 space-y-4 p-4">
                 <FareTable pricing={detail.pricing} />
