@@ -7,6 +7,7 @@ use super::addresses::address_out;
 use super::validate::{is_days_of_week, regex_like_hhmm};
 use super::vehicle_types::vehicle_type_out;
 use super::{now_iso, optional_trimmed, AdminService};
+use crate::db::write::with_write;
 use crate::dto::admin::{
     AdminMutationResponse, AdminScheduleListResponse, AdminScheduleOut, AdminSchedulePointOut,
     UpsertSchedulePointItem, UpsertScheduleRequest,
@@ -494,21 +495,16 @@ impl AdminService {
         if models.is_empty() {
             return Ok(());
         }
-        use sea_orm::{DatabaseTransaction, EntityTrait, TransactionTrait};
-        let txn: DatabaseTransaction = self
-            .store
-            .db()
-            .begin()
-            .await
-            .map_err(|e| AppError::Internal(format!("begin txn: {e}")))?;
-        schedule_point::Entity::insert_many(models)
-            .exec(&txn)
-            .await
-            .map_err(|e| AppError::Internal(format!("insert points: {e}")))?;
-        txn.commit()
-            .await
-            .map_err(|e| AppError::Internal(format!("commit txn: {e}")))?;
-        Ok(())
+        use sea_orm::EntityTrait;
+        with_write(self.store.db(), |tx| {
+            let models = models.clone();
+            Box::pin(async move {
+                schedule_point::Entity::insert_many(models).exec(tx).await?;
+                Ok(())
+            })
+        })
+        .await
+        .map_err(|e| AppError::Internal(format!("insert points: {e}")))
     }
 
     /// Atomically replace a schedule's whole point sequence
@@ -518,30 +514,22 @@ impl AdminService {
         schedule_id: Uuid,
         models: Vec<schedule_point::ActiveModel>,
     ) -> AppResult<()> {
-        use sea_orm::{
-            ColumnTrait, DatabaseTransaction, EntityTrait, QueryFilter, TransactionTrait,
-        };
-        let txn: DatabaseTransaction = self
-            .store
-            .db()
-            .begin()
-            .await
-            .map_err(|e| AppError::Internal(format!("begin txn: {e}")))?;
-        schedule_point::Entity::delete_many()
-            .filter(schedule_point::Column::ScheduleId.eq(schedule_id))
-            .exec(&txn)
-            .await
-            .map_err(|e| AppError::Internal(format!("delete points: {e}")))?;
-        if !models.is_empty() {
-            schedule_point::Entity::insert_many(models)
-                .exec(&txn)
-                .await
-                .map_err(|e| AppError::Internal(format!("insert points: {e}")))?;
-        }
-        txn.commit()
-            .await
-            .map_err(|e| AppError::Internal(format!("commit txn: {e}")))?;
-        Ok(())
+        use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+        with_write(self.store.db(), |tx| {
+            let models = models.clone();
+            Box::pin(async move {
+                schedule_point::Entity::delete_many()
+                    .filter(schedule_point::Column::ScheduleId.eq(schedule_id))
+                    .exec(tx)
+                    .await?;
+                if !models.is_empty() {
+                    schedule_point::Entity::insert_many(models).exec(tx).await?;
+                }
+                Ok(())
+            })
+        })
+        .await
+        .map_err(|e| AppError::Internal(format!("replace points: {e}")))
     }
 }
 

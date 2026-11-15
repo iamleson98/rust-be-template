@@ -17,16 +17,16 @@
 
 use std::collections::HashMap;
 
-use sea_orm::{
-    ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter, Set, TransactionTrait,
-};
+use sea_orm::{ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter, Set};
 use uuid::Uuid;
 
+use crate::db::write::with_write;
 use crate::dto::seat_plan::SeatPlan;
 use crate::entity::{bus_layout, seat};
 use crate::service::seat_plan::{self, sync_seats};
 use crate::service::seat_plan_db;
 use crate::service::seat_plan_presets;
+use crate::store::StoreResult;
 
 /// (preset id, vip) — every canonical layout, in catalog order.
 ///
@@ -97,7 +97,7 @@ fn canonical_plan(preset_id: &str, vip: bool) -> Option<SeatPlan> {
 /// rely on their ids for re-pointing.
 pub async fn ensure_canonical_layouts(
     db: &DatabaseConnection,
-) -> Result<Vec<bus_layout::Model>, DbErr> {
+) -> StoreResult<Vec<bus_layout::Model>> {
     let now = now_iso();
     for &(preset_id, vip) in CANONICAL_PRESETS {
         let Some(name) = canonical_name(preset_id, vip) else {
@@ -136,16 +136,21 @@ pub async fn ensure_canonical_layouts(
             created_at: Set(now.clone()),
             updated_at: Set(now.clone()),
         };
-        let txn = db.begin().await?;
-        bus_layout::Entity::insert(layout)
-            .exec(&txn)
-            .await
-            .map_err(|e| DbErr::Custom(format!("insert canonical layout: {e}")))?;
-        seat::Entity::insert_many(seats)
-            .exec(&txn)
-            .await
-            .map_err(|e| DbErr::Custom(format!("insert canonical seats: {e}")))?;
-        txn.commit().await?;
+        with_write(db, |tx| {
+            let (layout, seats) = (layout.clone(), seats.clone());
+            Box::pin(async move {
+                bus_layout::Entity::insert(layout)
+                    .exec(tx)
+                    .await
+                    .map_err(|e| DbErr::Custom(format!("insert canonical layout: {e}")))?;
+                seat::Entity::insert_many(seats)
+                    .exec(tx)
+                    .await
+                    .map_err(|e| DbErr::Custom(format!("insert canonical seats: {e}")))?;
+                Ok(())
+            })
+        })
+        .await?;
     }
 
     // Everything that exists now, keyed for re-pointing lookups.
