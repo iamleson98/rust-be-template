@@ -207,6 +207,12 @@ pub trait BookingStore: Send + Sync {
     /// Codes are unique (`UNIQUE` constraint) — at most one row.
     async fn find_booking_by_code(&self, code: &str) -> StoreResult<Option<booking::Model>>;
 
+    /// What a conversion on the booking with this `code` is worth, as
+    /// `(amount, currency)`: the booking's total, or with `paid` the amount
+    /// of its latest completed payment. `None` when the booking does not
+    /// exist, is cancelled, or (with `paid`) has no completed payment.
+    async fn conversion_value(&self, code: &str, paid: bool) -> StoreResult<Option<(i64, String)>>;
+
     /// Batch fetch bookings by id. Used by the payment admin list to
     /// resolve booking codes without an N+1 round-trip per payment row.
     async fn find_bookings_by_ids(&self, ids: Vec<Uuid>) -> StoreResult<Vec<booking::Model>>;
@@ -330,6 +336,25 @@ impl BookingStore for DbBookingStore {
             .filter(booking::Column::Code.eq(code))
             .one(self.db.as_ref())
             .await?)
+    }
+
+    async fn conversion_value(&self, code: &str, paid: bool) -> StoreResult<Option<(i64, String)>> {
+        let Some(booking) = self.find_booking_by_code(code).await? else {
+            return Ok(None);
+        };
+        if booking.status == "cancelled" {
+            return Ok(None);
+        }
+        if !paid {
+            return Ok(Some((booking.total, booking.currency)));
+        }
+        let payment = payment::Entity::find()
+            .filter(payment::Column::BookingId.eq(booking.id))
+            .filter(payment::Column::Status.eq(payment_status::COMPLETED))
+            .order_by_desc(payment::Column::UpdatedAt)
+            .one(self.db.as_ref())
+            .await?;
+        Ok(payment.map(|p| (p.amount, p.currency)))
     }
 
     async fn find_bookings_by_ids(&self, ids: Vec<Uuid>) -> StoreResult<Vec<booking::Model>> {
