@@ -517,6 +517,16 @@ impl PresenceHub {
         })
     }
 
+    /// The `staff_presence` frame a CUSTOMER socket gets: whether the bot
+    /// is on duty and nothing else. The roster (names, load, who is in a
+    /// call) is staff business and never reaches a customer.
+    pub fn customer_json(&self, brand_id: Option<&str>) -> serde_json::Value {
+        serde_json::json!({
+            "type": "staff_presence",
+            "botActive": self.bot_active(brand_id),
+        })
+    }
+
     /// Drop entries that have zero sockets and have been idle past the
     /// grace period (missed-disconnect defense). Returns the number of
     /// purged entries.
@@ -867,6 +877,23 @@ mod tests {
         // spec gates the bot on ONLINE, not AVAILABLE.
         hub.set_in_call(&u.id.to_string(), true);
         assert!(!hub.bot_active(None));
+    }
+
+    /// A customer's `staff_presence` frame is the bot flag and nothing
+    /// else — no roster, names, load or call state.
+    #[test]
+    fn customers_hear_only_whether_the_bot_is_on_duty() {
+        let hub = PresenceHub::new();
+        assert_eq!(
+            hub.customer_json(None),
+            serde_json::json!({ "type": "staff_presence", "botActive": true })
+        );
+        let u = staff_user("employee", None);
+        hub.chat_socket_connected(&u, 1);
+        assert_eq!(
+            hub.customer_json(None),
+            serde_json::json!({ "type": "staff_presence", "botActive": false })
+        );
     }
 
     #[test]
