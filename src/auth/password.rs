@@ -42,8 +42,10 @@ const WORKER_THREADS: usize = 2;
 /// `tokio::task::spawn_blocking`. Tokio's blocking pool spins up a FRESH
 /// OS thread whenever its existing ones are busy, and the process
 /// allocator is **mimalloc**. When this was measured it ran with
-/// `purge_delay = -1` (set by the previous database engine; never
-/// return freed pages automatically). mimalloc heaps are THREAD-LOCAL:
+/// `purge_delay = -1` (an option the previous database engine set; it
+/// is no longer set, but the thread-local heap behaviour below is
+/// allocator design and still applies). SQLite itself now allocates
+/// through glibc malloc, not mimalloc. mimalloc heaps are THREAD-LOCAL:
 /// Argon2's multi-MB working set — freed at the end of every verify —
 /// stays resident in whichever blocking thread happened to run it, and
 /// with purging disabled those pages are never returned to the OS.
