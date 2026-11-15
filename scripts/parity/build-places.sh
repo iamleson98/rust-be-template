@@ -17,7 +17,7 @@ mkdir -p "$src" "$PARITY_WORK/rust/places"
 node "$here/make-osm-pbf.mjs" "$src/extract.osm.pbf" --pad
 
 port=${OSM_HTTP_PORT:-3199}
-(cd "$src" && python3 -m http.server "$port" --bind 127.0.0.1 >/dev/null 2>&1) &
+(cd "$src" && exec python3 -m http.server "$port" --bind 127.0.0.1 >/dev/null 2>&1) &
 http=$!
 trap 'kill $http 2>/dev/null || true' EXIT
 sleep 1
