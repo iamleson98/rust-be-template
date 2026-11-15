@@ -635,10 +635,11 @@ impl ChatStore for DbChatStore {
 
     // ── Channel members ─────────────────────────────────────────────
 
-    /// Insert a member row. Uses `INSERT ... ON CONFLICT DO NOTHING`
-    /// semantics so it's idempotent — re-adding an existing member is
-    /// a no-op rather than an error. We emulate this in a backend-neutral
-    /// way by catching the unique-constraint error and returning Ok.
+    /// Insert a member row. Idempotent — re-adding an existing member is
+    /// a no-op rather than an error: a UNIQUE / PRIMARY KEY collision
+    /// (identified by SQLite's result code, never by message text) is
+    /// swallowed. Other conflicts, such as a foreign-key violation for a
+    /// missing channel or user, still surface.
     async fn add_channel_member(&self, member: NewChannelMember) -> StoreResult<()> {
         let id = Uuid::new_v4();
         let now = chrono::Utc::now().to_rfc3339();
@@ -656,14 +657,11 @@ impl ChatStore for DbChatStore {
         {
             Ok(_) => Ok(()),
             Err(e) => {
-                let msg = e.to_string();
-                // UNIQUE violation → already a member. Both SQLite
-                // ("unique") and other engines ("duplicate key") surface this
-                // via the same string match.
-                if msg.contains("unique") || msg.contains("duplicate") || msg.contains("conflict") {
+                let err = StoreError::from(e);
+                if err.is_record_exists() {
                     Ok(())
                 } else {
-                    Err(e.into())
+                    Err(err)
                 }
             }
         }
@@ -1303,5 +1301,41 @@ mod tests {
         // No third page for this customer.
         let page3 = store.list_channels(user, 3, 6).await.unwrap();
         assert!(page3.is_empty());
+    }
+
+    #[tokio::test]
+    async fn adding_an_existing_member_is_a_no_op() {
+        let store = mem_store().await;
+        store
+            .db
+            .execute_unprepared(
+                r#"CREATE TABLE chat_channel_member (
+                    id TEXT PRIMARY KEY,
+                    channel_id TEXT NOT NULL,
+                    user_id TEXT NOT NULL,
+                    role TEXT(20) NOT NULL,
+                    joined_at TEXT NOT NULL,
+                    left_at TEXT
+                );
+                CREATE UNIQUE INDEX member_uniq
+                    ON chat_channel_member (channel_id, user_id);"#,
+            )
+            .await
+            .unwrap();
+        let (channel_id, user_id) = (Uuid::new_v4(), Uuid::new_v4());
+        let member = || NewChannelMember {
+            channel_id,
+            user_id,
+            role: "customer".into(),
+        };
+
+        store.add_channel_member(member()).await.unwrap();
+        // A repeat join hits the unique index: still Ok, still one row.
+        store.add_channel_member(member()).await.unwrap();
+        let rows = store
+            .list_channel_members(&channel_id.to_string())
+            .await
+            .unwrap();
+        assert_eq!(rows.len(), 1);
     }
 }
