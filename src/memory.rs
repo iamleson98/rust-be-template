@@ -255,10 +255,11 @@ mod tests {
         };
         collect();
         let after = MemorySnapshot::read();
-        // Freed-but-retained pages (mimalloc purge_delay = -1) may or
-        // may not exceed the delta threshold on a small CI box — but
-        // the collect call itself must never fault and RSS must not
-        // GROW from it.
+        // How many freed pages mimalloc hands back to the OS depends on
+        // its purge timing and on the CI box, so only the weak property
+        // is asserted: the collect call itself must never fault and RSS
+        // must not GROW from it. (SQLite allocates through glibc malloc,
+        // not mimalloc, so this sweep does not touch its heap.)
         assert!(
             after.vm_rss_kib.unwrap_or(0) <= churn_peak.vm_rss_kib.unwrap_or(0) + 1024,
             "collect must not inflate RSS: peak={} after={}",

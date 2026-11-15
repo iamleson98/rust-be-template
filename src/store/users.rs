@@ -177,14 +177,9 @@ impl DbUserStore {
                 oauth_provider: None,
                 oauth_subject: None,
             }),
-            Err(e) => {
-                let msg = e.to_string();
-                if msg.contains("unique") || msg.contains("duplicate") {
-                    Err(StoreError::Conflict(msg))
-                } else {
-                    Err(e.into())
-                }
-            }
+            // A UNIQUE / PRIMARY KEY collision maps to `Conflict` by SQLite
+            // result code (see `StoreError::from(DbErr)`), not by message.
+            Err(e) => Err(e.into()),
         }
     }
 }
@@ -350,14 +345,9 @@ impl UserStore for DbUserStore {
                 oauth_provider: Some(provider),
                 oauth_subject: Some(subject),
             }),
-            Err(e) => {
-                let msg = e.to_string();
-                if msg.contains("unique") || msg.contains("duplicate") {
-                    Err(StoreError::Conflict(msg))
-                } else {
-                    Err(e.into())
-                }
-            }
+            // A UNIQUE / PRIMARY KEY collision maps to `Conflict` by SQLite
+            // result code (see `StoreError::from(DbErr)`), not by message.
+            Err(e) => Err(e.into()),
         }
     }
 

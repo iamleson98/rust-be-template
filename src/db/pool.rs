@@ -10,10 +10,12 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use anyhow::Context;
+use futures::future::BoxFuture;
+use sea_orm::sqlx::pool::PoolConnectionMetadata;
 use sea_orm::sqlx::sqlite::{
-    SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous,
+    SqliteConnectOptions, SqliteConnection, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous,
 };
-use sea_orm::sqlx::{ConnectOptions, Connection};
+use sea_orm::sqlx::{self, ConnectOptions, Connection, TransactionManager as _};
 use sea_orm::{DatabaseConnection, SqlxSqliteConnector};
 
 use crate::config::DatabaseConfig;
@@ -26,6 +28,14 @@ pub const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
 /// file instead of `read()`ing it (address space only; the pages are
 /// file-backed and reclaimable).
 pub const MMAP_SIZE_BYTES: i64 = 268_435_456;
+
+/// `PRAGMA mmap_size` for the small readiness-lane pool (see
+/// [`PoolShape::mmap_size_bytes`]): its connections only ping, so each
+/// maps a token amount instead of a second copy of the hot database.
+pub const READINESS_MMAP_SIZE_BYTES: i64 = 8_388_608;
+
+/// Pools of at most this many connections are readiness lanes.
+const READINESS_POOL_MAX_CONNECTIONS: u32 = 2;
 
 /// `PRAGMA wal_autocheckpoint`: WAL pages after which a committing
 /// connection runs a passive checkpoint.
@@ -50,6 +60,19 @@ pub struct PoolShape {
 }
 
 impl PoolShape {
+    /// `PRAGMA mmap_size` for this pool's connections. Every connection
+    /// maps the same file separately, so the mapped pages are counted once
+    /// per connection in the process's RSS figure; a pool of at most two
+    /// connections is the readiness lane, which only runs health checks
+    /// and gets a small mapping.
+    pub fn mmap_size_bytes(&self) -> i64 {
+        if self.max_connections <= READINESS_POOL_MAX_CONNECTIONS {
+            READINESS_MMAP_SIZE_BYTES
+        } else {
+            MMAP_SIZE_BYTES
+        }
+    }
+
     /// The main application pool, as configured.
     pub fn main(cfg: &DatabaseConfig) -> Self {
         Self {
@@ -65,6 +88,14 @@ impl PoolShape {
 /// Fails fast on a non-`sqlite:` URL (e.g. a stale postgres one): sqlx
 /// would otherwise treat it as a file name.
 pub fn connect_options(cfg: &DatabaseConfig) -> anyhow::Result<SqliteConnectOptions> {
+    connect_options_for(cfg, PoolShape::main(cfg))
+}
+
+/// [`connect_options`] for a pool of the given shape.
+pub fn connect_options_for(
+    cfg: &DatabaseConfig,
+    shape: PoolShape,
+) -> anyhow::Result<SqliteConnectOptions> {
     if !cfg.url.starts_with("sqlite:") {
         let scheme = &cfg.url[..cfg.url.find(':').unwrap_or(cfg.url.len())];
         anyhow::bail!(
@@ -81,17 +112,90 @@ pub fn connect_options(cfg: &DatabaseConfig) -> anyhow::Result<SqliteConnectOpti
         .statement_cache_capacity(cfg.statement_cache_capacity)
         .pragma("temp_store", "MEMORY")
         .pragma("cache_size", format!("-{}", cfg.cache_kib))
-        .pragma("mmap_size", MMAP_SIZE_BYTES.to_string())
+        .pragma("mmap_size", shape.mmap_size_bytes().to_string())
         .pragma("wal_autocheckpoint", WAL_AUTOCHECKPOINT_PAGES.to_string())
         .pragma("journal_size_limit", JOURNAL_SIZE_LIMIT_BYTES.to_string())
         .pragma("soft_heap_limit", SOFT_HEAP_LIMIT_BYTES.to_string());
     Ok(options)
 }
 
+/// Attach the pool-level safety hooks to `options`. Every pool that serves
+/// write transactions must be built through this (see [`connect`]).
+pub(crate) fn with_guards(options: SqlitePoolOptions) -> SqlitePoolOptions {
+    options
+        .after_release(discard_if_in_transaction)
+        .before_acquire(reject_use_inside_write_body)
+        .after_connect(reject_connect_inside_write_body)
+}
+
+/// `before_acquire` hook: a checkout from inside a `with_write` body is a
+/// bug (see `db::write`). Runs on the caller's task, so it can tell.
+fn reject_use_inside_write_body(
+    _conn: &mut SqliteConnection,
+    _meta: PoolConnectionMetadata,
+) -> BoxFuture<'_, Result<bool, sqlx::Error>> {
+    Box::pin(async {
+        super::write::forbid_inside_write_body("checking a connection out of the pool");
+        Ok(true)
+    })
+}
+
+/// The same check for a checkout that opens a NEW connection, which
+/// skips `before_acquire`.
+fn reject_connect_inside_write_body(
+    _conn: &mut SqliteConnection,
+    _meta: PoolConnectionMetadata,
+) -> BoxFuture<'_, Result<(), sqlx::Error>> {
+    Box::pin(async {
+        super::write::forbid_inside_write_body("opening a pool connection");
+        Ok(())
+    })
+}
+
+/// `after_release` hook: close a connection that is still inside a
+/// transaction instead of returning it to the pool.
+///
+/// SQLite rolls a transaction back by itself after some errors
+/// (`SQLITE_FULL`, `SQLITE_IOERR`, ...). sqlx only lowers its own
+/// transaction counter when ITS `ROLLBACK` succeeds, and that statement
+/// then fails with "no transaction is active". The connection would go
+/// back to the pool with a stale depth and every later `begin_with` on it
+/// would fail with `InvalidSavePointStatement` until `max_lifetime`.
+/// A connection left in a real open transaction (a leaked `BEGIN`) would
+/// hold the database's write lock. Either way a fresh connection is
+/// cheaper than guessing.
+fn discard_if_in_transaction(
+    conn: &mut SqliteConnection,
+    _meta: PoolConnectionMetadata,
+) -> BoxFuture<'_, Result<bool, sqlx::Error>> {
+    Box::pin(async move {
+        // Dropping a transaction only QUEUES its rollback on the
+        // connection's worker; the pool's own release ping runs after this
+        // hook. Flush the queue first so a normal drop is not mistaken for
+        // a stuck transaction.
+        conn.ping().await?;
+        let depth =
+            <sqlx::Sqlite as sqlx::Database>::TransactionManager::get_transaction_depth(conn);
+        let mut handle = conn.lock_handle().await?;
+        // SAFETY: the handle is a live connection locked by `lock_handle`.
+        let autocommit =
+            unsafe { libsqlite3_sys::sqlite3_get_autocommit(handle.as_raw_handle().as_ptr()) };
+        let clean = depth == 0 && autocommit != 0;
+        if !clean {
+            tracing::warn!(
+                depth,
+                autocommit,
+                "closing a connection released inside a transaction"
+            );
+        }
+        Ok(clean)
+    })
+}
+
 /// Build a pool whose every connection runs the pragmas of
 /// [`connect_options`], and wrap it as a sea-orm connection.
 pub async fn connect(cfg: &DatabaseConfig, shape: PoolShape) -> anyhow::Result<DatabaseConnection> {
-    let mut options = connect_options(cfg)?;
+    let mut options = connect_options_for(cfg, shape)?;
     options = if shape.sqlx_logging {
         options
     } else {
@@ -109,7 +213,7 @@ pub async fn connect(cfg: &DatabaseConfig, shape: PoolShape) -> anyhow::Result<D
         .await
         .context("closing the first database connection")?;
 
-    let pool = SqlitePoolOptions::new()
+    let pool = with_guards(SqlitePoolOptions::new())
         .max_connections(shape.max_connections)
         .min_connections(shape.min_connections)
         .acquire_timeout(cfg.connect_timeout())
@@ -185,6 +289,112 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// One connection, so a released connection is certain to be the next
+    /// one handed out unless the pool closed it.
+    async fn single_connection_pool(dir: &tempfile::TempDir) -> DatabaseConnection {
+        let cfg = file_config(dir);
+        connect(
+            &cfg,
+            PoolShape {
+                max_connections: 1,
+                min_connections: 0,
+                sqlx_logging: false,
+            },
+        )
+        .await
+        .expect("connect")
+    }
+
+    #[tokio::test]
+    async fn a_connection_released_inside_a_transaction_is_closed() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let db = single_connection_pool(&dir).await;
+        let pool = db.get_sqlite_connection_pool();
+
+        // A leaked raw BEGIN: SQLite is mid-transaction, sqlx does not know.
+        let mut conn = pool.acquire().await.expect("acquire");
+        sqlx::query("BEGIN IMMEDIATE")
+            .execute(&mut *conn)
+            .await
+            .expect("begin");
+        drop(conn);
+
+        // The only connection was closed, so this is a fresh one: a reused
+        // one would answer "cannot start a transaction within a transaction".
+        let mut fresh = pool.acquire().await.expect("acquire after release");
+        sqlx::query("BEGIN IMMEDIATE")
+            .execute(&mut *fresh)
+            .await
+            .expect("the pool handed out a connection that was still in a transaction");
+        sqlx::query("ROLLBACK")
+            .execute(&mut *fresh)
+            .await
+            .expect("rollback");
+    }
+
+    /// What SQLite's own rollback after SQLITE_FULL / SQLITE_IOERR leaves
+    /// behind: no open transaction, but sqlx still counts one.
+    #[tokio::test]
+    async fn a_connection_with_a_stale_transaction_depth_is_closed() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let db = single_connection_pool(&dir).await;
+        let pool = db.get_sqlite_connection_pool();
+
+        let mut tx = pool.begin_with("BEGIN IMMEDIATE").await.expect("begin");
+        sqlx::query("ROLLBACK")
+            .execute(&mut *tx)
+            .await
+            .expect("SQLite ends the transaction behind sqlx's back");
+        drop(tx); // sqlx's queued ROLLBACK now fails; depth stays at 1
+
+        pool.begin_with("BEGIN IMMEDIATE")
+            .await
+            .expect("a connection with a stale depth was reused")
+            .rollback()
+            .await
+            .expect("rollback");
+    }
+
+    #[tokio::test]
+    async fn a_dropped_transaction_keeps_its_connection() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let db = single_connection_pool(&dir).await;
+        let pool = db.get_sqlite_connection_pool();
+        let first = pool.begin().await.expect("begin");
+        drop(first); // rolls back on drop; nothing is wrong with the connection
+        let _again = pool.begin().await.expect("begin again");
+        assert_eq!(
+            pool.size(),
+            1,
+            "an ordinary rollback must not cost the connection"
+        );
+    }
+
+    #[tokio::test]
+    async fn the_readiness_pool_maps_far_less_than_the_main_pool() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let cfg = file_config(&dir);
+        let readiness = connect(
+            &cfg,
+            PoolShape {
+                max_connections: 2,
+                min_connections: 1,
+                sqlx_logging: false,
+            },
+        )
+        .await
+        .expect("connect");
+        let mut conn = readiness
+            .get_sqlite_connection_pool()
+            .acquire()
+            .await
+            .expect("acquire");
+        assert_eq!(
+            pragma(&mut conn, "mmap_size").await,
+            READINESS_MMAP_SIZE_BYTES.to_string()
+        );
     }
 
     #[test]

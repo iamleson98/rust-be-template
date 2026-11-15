@@ -7,14 +7,23 @@
 # `BEGIN CONCURRENT` (page-level optimistic write concurrency), which
 # only exists on that branch — no release amalgamation has it.
 #
+# The default branch is `begin-concurrent-3.51`: begin-concurrent rebased
+# onto the 3.51 release line, whose tip carries a release version stamp
+# ("Version 3.51.x for the begin-concurrent branch"). Do NOT pin the
+# `begin-concurrent` trunk branch for production: it tracks SQLite trunk
+# (pre-release code, no stable-branch fixes). Set SQLITE_BRANCH to move
+# the pin to another begin-concurrent-* branch.
+#
 # Usage:
 #   ./scripts/sqlite-amalgamate.sh <commit-sha>
 #
-#   <commit-sha>  a commit on the begin-concurrent branch of
+#   <commit-sha>  a commit on the begin-concurrent-3.51 branch of
 #                 https://github.com/sqlite/sqlite (the full 40-char sha;
 #                 current pin: see vendor/libsqlite3-sys/PINNED)
 #
 # Environment:
+#   SQLITE_BRANCH   branch the commit must be on (default:
+#                   begin-concurrent-3.51).
 #   SQLITE_SRC_DIR  where to keep the sqlite clone (default: a fresh
 #                   temp dir). Reused when it already holds a clone.
 #
@@ -31,7 +40,7 @@
 set -euo pipefail
 
 SQLITE_REPO="https://github.com/sqlite/sqlite"
-SQLITE_BRANCH="begin-concurrent"
+SQLITE_BRANCH="${SQLITE_BRANCH:-begin-concurrent-3.51}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VENDOR_DIR="$SCRIPT_DIR/../vendor/libsqlite3-sys"

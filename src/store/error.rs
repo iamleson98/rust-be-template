@@ -34,16 +34,21 @@ pub enum StoreError {
 }
 
 impl StoreError {
-    /// Whether the error is worth retrying. Transient DB hiccups return
-    /// `true`; logical errors (`NotFound`, `Validation`, `Forbidden`,
-    /// `Conflict`, `Exhausted`) return `false`.
+    /// Whether the `#[retry]` layer should run the operation again.
+    /// Generic `Database` errors return `true`; logical errors
+    /// (`NotFound`, `Validation`, `Forbidden`, `Conflict`, `Exhausted`)
+    /// return `false`.
     ///
-    /// `Busy` is retryable for a single statement. A multi-statement
-    /// write transaction must instead re-run its whole body from the top
-    /// (`db::write::with_write`), never just the failing statement.
+    /// `Busy` is NOT retried here: by the time it surfaces, the statement
+    /// already waited the whole busy timeout (5 s), so three more attempts
+    /// would turn one stuck write into ~20 s against a 30 s request
+    /// timeout. Snapshot conflicts of write transactions are retried
+    /// where they can be retried correctly: `db::write::with_write` re-runs
+    /// the whole body from the top, with short pauses.
     pub fn is_retryable(&self) -> bool {
         match self {
-            StoreError::Database(_) | StoreError::Busy(_) => true,
+            StoreError::Database(_) => true,
+            StoreError::Busy(_) => false,
             StoreError::NotFound(_) => false,
             StoreError::Validation(_) => false,
             StoreError::Forbidden(_) => false,
@@ -215,7 +220,10 @@ mod tests {
         for code in [5, 261, 517, 773, 6, 262] {
             let err = StoreError::from(exec_err(code, "database is locked"));
             assert!(matches!(err, StoreError::Busy(_)), "code {code}: {err:?}");
-            assert!(err.is_retryable(), "code {code} must be retryable");
+            assert!(
+                !err.is_retryable(),
+                "code {code}: the busy timeout was already spent; with_write retries conflicts"
+            );
         }
     }
 

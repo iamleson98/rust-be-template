@@ -1,7 +1,8 @@
 //! Database engine identity for this project.
 //!
 //! The ONLY database engine is real C SQLite, built from SQLite's
-//! `begin-concurrent` branch (plain WAL mode, `BEGIN CONCURRENT`):
+//! `begin-concurrent-3.51` branch — `BEGIN CONCURRENT` on top of the 3.51
+//! release line, not on trunk (plain WAL mode):
 //!
 //! * `libsqlite3-sys` is `[patch.crates-io]`-redirected to the in-repo
 //!   copy under `vendor/libsqlite3-sys`, whose bundled amalgamation is
@@ -23,7 +24,7 @@ pub mod write;
 
 use std::ffi::CStr;
 
-/// `sqlite3_libversion()` of the linked engine (e.g. `3.55.0`).
+/// `sqlite3_libversion()` of the linked engine (e.g. `3.51.3`).
 pub fn sqlite_version() -> &'static str {
     // SAFETY: sqlite3_libversion() returns a pointer to a string literal
     // compiled into the library — never null, valid for the life of the

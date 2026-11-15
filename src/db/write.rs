@@ -24,30 +24,53 @@
 //! and always use `BEGIN IMMEDIATE`.
 //!
 //! DDL and migrations do not belong here: they use the plain connection.
+//!
+//! A body must run every statement on its `tx` and never touch the pool
+//! (`db`, a store holding it, another `with_write`): that borrows a SECOND
+//! connection, which in the `BEGIN IMMEDIATE` attempt waits for the write
+//! lock the body's own transaction holds, so it blocks itself for the
+//! whole busy timeout, and a handful of such bodies drain the pool. The
+//! pools built by [`crate::db::pool`] detect it: a connection checkout
+//! while a body runs on the same task panics in debug builds and logs an
+//! error in release builds.
 
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex as StdMutex, Weak};
 use std::time::Duration;
 
 use async_trait::async_trait;
 use rand::Rng;
 use sea_orm::sea_query::Values;
+use sea_orm::sqlx::sqlite::SqliteConnectOptions;
 use sea_orm::sqlx::{self, Sqlite, SqlitePool, Transaction};
 use sea_orm::{
     ConnectionTrait, DatabaseBackend, DatabaseConnection, DbErr, ExecResult, QueryResult,
     RuntimeErr, Statement,
 };
 use sea_query_binder::SqlxValues;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, MutexGuard};
 
 use crate::store::{StoreError, StoreResult};
 
 /// Attempts per [`with_write`] call, the last one being `BEGIN IMMEDIATE`.
 pub const MAX_ATTEMPTS: usize = 6;
 
-/// Bounds of the random pause before a retry, in milliseconds.
-const BACKOFF_MS: std::ops::RangeInclusive<u64> = 1..=20;
+/// Upper bound of the random pause before the first retry, in
+/// milliseconds; it doubles with every further retry (see [`backoff`]).
+const BACKOFF_BASE_MS: u64 = 10;
+
+/// Doublings stop here: the longest pause is `10 ms << 4` = 160 ms.
+const BACKOFF_MAX_DOUBLINGS: usize = 4;
+
+/// Random pause before retry number `retry` (1 for the first retry): up
+/// to 10 ms, doubling each time, so writers that keep colliding spread out
+/// further apart the longer the collision lasts.
+fn backoff(retry: usize) -> Duration {
+    let cap_ms = BACKOFF_BASE_MS << (retry - 1).min(BACKOFF_MAX_DOUBLINGS);
+    Duration::from_millis(rand::thread_rng().gen_range(1..=cap_ms))
+}
 
 /// How a write transaction starts.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -87,32 +110,77 @@ pub fn write_stats() -> WriteStats {
     }
 }
 
-/// Serializes `COMMIT`s of concurrent transactions within the process.
+/// The in-process queue for SQLite's write lock.
 ///
 /// A commit needs SQLite's write lock for a short moment. Left to
-/// SQLite's busy handler, many committers poll for it with sleeps and
-/// the unlucky ones time out; queueing them here hands the lock over in
-/// order instead. It is held only for the `COMMIT` statement, never
-/// while a body runs, and only by `BEGIN CONCURRENT` transactions: a
-/// `BEGIN IMMEDIATE` transaction already owns SQLite's write lock, so
-/// making it queue here while a queued committer waits for that very lock
-/// would deadlock until the busy timeout.
+/// SQLite's busy handler, writers poll for it with sleeps (up to 100 ms
+/// apart) and the unlucky ones time out; queueing them here hands the lock
+/// over in order instead (tokio's mutex is FIFO).
+///
+/// * A `BEGIN CONCURRENT` transaction takes it only for its `COMMIT`
+///   statement, never while the body runs.
+/// * A `BEGIN IMMEDIATE` transaction takes it BEFORE `BEGIN IMMEDIATE`
+///   and keeps it until commit or rollback. It then owns the queue as
+///   well as SQLite's lock, so it is not left polling against a stream of
+///   queued committers (starvation), and no committer can hold the queue
+///   while waiting for a lock the IMMEDIATE transaction owns (deadlock).
+///
+/// Every transaction therefore acquires queue first, SQLite lock second;
+/// that single order cannot form a cycle.
 static COMMIT_LOCK: Mutex<()> = Mutex::const_new(());
+
+tokio::task_local! {
+    /// Set while a [`with_write`] body runs on this task.
+    static IN_WRITE_BODY: ();
+}
+
+/// Report a pool checkout (or a nested [`with_write`]) from inside a
+/// [`with_write`] body: see the module docs. Called by the pool hooks and
+/// by [`ConcurrentTx::begin`]. Panics in debug builds, logs in release.
+///
+/// Detection covers the body's own task; a task it spawns does not
+/// inherit the marker.
+pub(crate) fn forbid_inside_write_body(what: &str) {
+    if IN_WRITE_BODY.try_with(|_| ()).is_ok() {
+        tracing::error!(
+            what,
+            "database pool used inside a with_write body; run every statement on `tx`"
+        );
+        debug_assert!(
+            false,
+            "{what} inside a with_write body: use the `tx` the body was given, never the pool"
+        );
+    }
+}
 
 /// A write transaction on one pooled connection. Implements sea-orm's
 /// [`ConnectionTrait`], so entities, `Query` builders and raw statements
 /// run on it exactly as they do on a `DatabaseTransaction`.
 pub struct ConcurrentTx {
+    // Field order matters: on a plain drop the transaction (whose rollback
+    // is queued on its connection) goes before the queue turn is released.
     tx: Mutex<Transaction<'static, Sqlite>>,
+    /// Held from before `BEGIN IMMEDIATE` until the transaction ends;
+    /// `None` for `BEGIN CONCURRENT`, which queues only at commit.
+    turn: Option<MutexGuard<'static, ()>>,
     mode: BeginMode,
 }
 
 impl ConcurrentTx {
     /// Check out a connection and start a transaction in `mode`.
+    ///
+    /// An `Immediate` transaction first waits its turn in the write queue
+    /// (see [`COMMIT_LOCK`]).
     pub async fn begin(pool: &SqlitePool, mode: BeginMode) -> Result<Self, DbErr> {
+        forbid_inside_write_body("starting a write transaction");
+        let turn = match mode {
+            BeginMode::Immediate => Some(COMMIT_LOCK.lock().await),
+            BeginMode::Concurrent => None,
+        };
         let tx = pool.begin_with(mode.statement()).await.map_err(exec_err)?;
         Ok(Self {
             tx: Mutex::new(tx),
+            turn,
             mode,
         })
     }
@@ -120,19 +188,27 @@ impl ConcurrentTx {
     /// Commit. On a conflict (`SQLITE_BUSY_SNAPSHOT`) the transaction is
     /// rolled back and the error returned.
     pub async fn commit(self) -> Result<(), DbErr> {
-        let tx = self.tx.into_inner();
+        let Self { tx, turn, .. } = self;
         // Dropping an uncommitted sqlx transaction rolls it back, which
         // is what the failure path needs.
-        let _commit_turn = match self.mode {
-            BeginMode::Concurrent => Some(COMMIT_LOCK.lock().await),
-            BeginMode::Immediate => None,
+        let _turn = match turn {
+            Some(turn) => turn,
+            None => COMMIT_LOCK.lock().await,
         };
-        tx.commit().await.map_err(exec_err)
+        tx.into_inner().commit().await.map_err(exec_err)
+    }
+
+    /// How this transaction was started.
+    pub fn mode(&self) -> BeginMode {
+        self.mode
     }
 
     /// Roll back, discarding every change.
     pub async fn rollback(self) -> Result<(), DbErr> {
-        self.tx.into_inner().rollback().await.map_err(exec_err)
+        let Self { tx, turn, .. } = self;
+        let outcome = tx.into_inner().rollback().await.map_err(exec_err);
+        drop(turn);
+        outcome
     }
 }
 
@@ -233,8 +309,7 @@ where
                     });
                 }
                 RETRIES.fetch_add(1, Ordering::Relaxed);
-                let pause = rand::thread_rng().gen_range(BACKOFF_MS);
-                tokio::time::sleep(Duration::from_millis(pause)).await;
+                tokio::time::sleep(backoff(attempt)).await;
                 attempt += 1;
             }
             outcome => return outcome,
@@ -242,14 +317,42 @@ where
     }
 }
 
-/// `BEGIN CONCURRENT` only works in WAL mode; anything else (in-memory
-/// databases in tests) falls back to `BEGIN IMMEDIATE` throughout.
+/// Whether a pool's database runs in WAL mode, which `BEGIN CONCURRENT`
+/// needs; anything else (in-memory test databases) uses `BEGIN IMMEDIATE`
+/// throughout. The journal mode is fixed per pool (the pool's connect
+/// options set it), so it is probed once, on one pooled connection, and
+/// remembered instead of costing every write an extra checkout and PRAGMA.
+///
+/// The pool is identified by its connect options: those live exactly as
+/// long as the pool does, and holding a `Weak` to them keeps their address
+/// from being reused by a newer pool while the entry exists.
 async fn supports_concurrent(pool: &SqlitePool) -> StoreResult<bool> {
+    static KNOWN: StdMutex<Vec<(Weak<SqliteConnectOptions>, bool)>> = StdMutex::new(Vec::new());
+
+    let key = pool.connect_options();
+    let lookup = |known: &[(Weak<SqliteConnectOptions>, bool)]| {
+        known
+            .iter()
+            .find(|(pool_key, _)| std::ptr::eq(pool_key.as_ptr(), Arc::as_ptr(&key)))
+            .map(|(_, wal)| *wal)
+    };
+    if let Some(wal) = lookup(&KNOWN.lock().unwrap_or_else(|e| e.into_inner())) {
+        return Ok(wal);
+    }
+
     let mode: String = sqlx::query_scalar("PRAGMA journal_mode")
         .fetch_one(pool)
         .await
         .map_err(|e| StoreError::from(query_err(e)))?;
-    Ok(mode.eq_ignore_ascii_case("wal"))
+    let wal = mode.eq_ignore_ascii_case("wal");
+
+    let mut known = KNOWN.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some(wal) = lookup(&known) {
+        return Ok(wal); // another task probed meanwhile
+    }
+    known.retain(|(pool_key, _)| pool_key.strong_count() > 0);
+    known.push((Arc::downgrade(&key), wal));
+    Ok(wal)
 }
 
 /// One begin / body / commit round.
@@ -258,7 +361,7 @@ where
     F: for<'a> FnMut(&'a ConcurrentTx) -> WriteFuture<'a, T>,
 {
     let tx = ConcurrentTx::begin(pool, mode).await?;
-    match body(&tx).await {
+    match IN_WRITE_BODY.scope((), body(&tx)).await {
         Ok(value) => {
             tx.commit().await?;
             Ok(value)
@@ -295,7 +398,7 @@ mod tests {
             .create_if_missing(true)
             .journal_mode(SqliteJournalMode::Wal)
             .busy_timeout(busy_timeout);
-        let pool = SqlitePoolOptions::new()
+        let pool = crate::db::pool::with_guards(SqlitePoolOptions::new())
             .max_connections(max)
             .connect_with(options)
             .await
@@ -371,17 +474,97 @@ mod tests {
         assert_eq!((count(&db, "t1").await, count(&db, "t2").await), (1, 1));
 
         // The contrast: with BEGIN IMMEDIATE the second writer cannot
-        // even start while the first holds the write lock.
+        // even start while the first holds the write lock. (A raw pooled
+        // connection shows SQLite's own refusal; `ConcurrentTx::begin`
+        // would instead queue behind the first writer's turn.)
         let first = ConcurrentTx::begin(pool, BeginMode::Immediate)
             .await
             .expect("first immediate writer");
-        let second = ConcurrentTx::begin(pool, BeginMode::Immediate).await;
-        let err = second.err().expect("second immediate writer must fail");
+        let err = pool
+            .begin_with("BEGIN IMMEDIATE")
+            .await
+            .expect_err("second immediate writer must fail");
         assert!(
-            matches!(StoreError::from(err), StoreError::Busy(_)),
+            matches!(
+                StoreError::from(DbErr::Exec(RuntimeErr::SqlxError(err))),
+                StoreError::Busy(_)
+            ),
             "expected a lock error"
         );
         first.rollback().await.expect("rollback");
+    }
+
+    #[tokio::test]
+    async fn immediate_writers_take_turns_instead_of_polling() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let db = wal_db(&dir, Duration::from_secs(5), 4).await;
+        let pool = db.get_sqlite_connection_pool();
+
+        let first = ConcurrentTx::begin(pool, BeginMode::Immediate)
+            .await
+            .expect("first immediate writer");
+        let queued = {
+            let pool = pool.clone();
+            tokio::spawn(async move { ConcurrentTx::begin(&pool, BeginMode::Immediate).await })
+        };
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        assert!(
+            !queued.is_finished(),
+            "must wait for the first writer's turn"
+        );
+        first.rollback().await.expect("rollback");
+        let second = tokio::time::timeout(Duration::from_secs(2), queued)
+            .await
+            .expect("woken as soon as the first writer ended")
+            .expect("task")
+            .expect("second immediate writer");
+        second.rollback().await.expect("rollback");
+    }
+
+    /// The deadlock the queue order fixes, and the starvation it prevents:
+    /// an IMMEDIATE transaction holds SQLite's write lock while a
+    /// concurrent-mode committer is already waiting to commit. The
+    /// committer must queue behind it (not sit on the queue polling for a
+    /// lock the IMMEDIATE transaction owns), and both must then finish.
+    #[tokio::test]
+    async fn a_concurrent_commit_and_an_immediate_transaction_finish_in_turn() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        // The 5 s busy timeout is far above the bound below: finishing
+        // inside it proves nobody waited on SQLite's busy handler.
+        let db = wal_db(&dir, Duration::from_secs(5), 4).await;
+        let pool = db.get_sqlite_connection_pool();
+
+        let b = ConcurrentTx::begin(pool, BeginMode::Concurrent)
+            .await
+            .expect("begin B");
+        b.execute_unprepared("INSERT INTO t2 (v) VALUES (2)")
+            .await
+            .expect("B inserts");
+        let a = ConcurrentTx::begin(pool, BeginMode::Immediate)
+            .await
+            .expect("begin A");
+        a.execute_unprepared("INSERT INTO t1 (v) VALUES (1)")
+            .await
+            .expect("A inserts");
+
+        let b_commit = tokio::spawn(b.commit());
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        assert!(
+            !b_commit.is_finished(),
+            "B committed (or failed) while A held the write lock"
+        );
+
+        let bound = Duration::from_secs(2);
+        tokio::time::timeout(bound, a.commit())
+            .await
+            .expect("A starved or deadlocked")
+            .expect("A commits");
+        tokio::time::timeout(bound, b_commit)
+            .await
+            .expect("B starved or deadlocked")
+            .expect("task")
+            .expect("B commits after A");
+        assert_eq!((count(&db, "t1").await, count(&db, "t2").await), (1, 1));
     }
 
     #[tokio::test]
@@ -411,15 +594,20 @@ mod tests {
     async fn sixteen_tasks_of_fifty_increments_lose_no_update() {
         let dir = tempfile::tempdir().expect("tempdir");
         let db = Arc::new(wal_db(&dir, Duration::from_secs(5), 8).await);
-        let retries_before = write_stats().retries;
+        // Body runs, counted inside the body itself: every run beyond one
+        // per increment is a re-run after a conflict.
+        let body_runs = Arc::new(AtomicUsize::new(0));
 
         let mut tasks = Vec::new();
         for _ in 0..16 {
-            let db = db.clone();
+            let (db, body_runs) = (db.clone(), body_runs.clone());
             tasks.push(tokio::spawn(async move {
                 for _ in 0..50 {
-                    with_write(&db, |tx| {
+                    let body_runs = body_runs.clone();
+                    with_write(&db, move |tx| {
+                        let body_runs = body_runs.clone();
                         Box::pin(async move {
+                            body_runs.fetch_add(1, Ordering::SeqCst);
                             let n = counter(tx).await;
                             set_counter(tx, n + 1).await?;
                             Ok(())
@@ -436,8 +624,8 @@ mod tests {
 
         assert_eq!(counter(db.as_ref()).await, 16 * 50);
         assert!(
-            write_stats().retries > retries_before,
-            "16 writers on one row must have conflicted at least once"
+            body_runs.load(Ordering::SeqCst) > 16 * 50,
+            "16 writers on one row must have conflicted and re-run at least once"
         );
     }
 
@@ -445,21 +633,29 @@ mod tests {
     async fn persistent_conflicts_commit_through_the_immediate_fallback() {
         let dir = tempfile::tempdir().expect("tempdir");
         let db = wal_db(&dir, Duration::from_secs(5), 4).await;
-        let fallbacks_before = write_stats().immediate_fallbacks;
-        let attempts = Arc::new(AtomicUsize::new(0));
-        let (counted, other_connection) = (attempts.clone(), db.clone());
+        let modes = Arc::new(StdMutex::new(Vec::new()));
+        let (recorded, other_connection) = (modes.clone(), db.clone());
 
         with_write(&db, move |tx| {
-            let (attempts, other_connection) = (counted.clone(), other_connection.clone());
+            let (modes, other_connection) = (recorded.clone(), other_connection.clone());
             Box::pin(async move {
                 let n = counter(tx).await;
+                let attempt = {
+                    let mut modes = modes.lock().expect("modes");
+                    modes.push(tx.mode());
+                    modes.len()
+                };
                 // Every concurrent attempt loses: another connection
                 // commits to the same row after this snapshot was taken.
                 // The final attempt holds the write lock (BEGIN IMMEDIATE),
                 // so interfering then would only deadlock on it.
-                let attempt = attempts.fetch_add(1, Ordering::SeqCst) + 1;
                 if attempt < MAX_ATTEMPTS {
-                    set_counter(&other_connection, 1000 + attempt as i64).await?;
+                    // From a separate task: it stands for another request,
+                    // and (unlike the body's own task) may use the pool.
+                    let other = other_connection.clone();
+                    tokio::spawn(async move { set_counter(&other, 1000 + attempt as i64).await })
+                        .await
+                        .expect("interfering task")?;
                 }
                 set_counter(tx, n + 1).await?;
                 Ok(())
@@ -468,8 +664,12 @@ mod tests {
         .await
         .expect("the immediate fallback must commit");
 
-        assert_eq!(attempts.load(Ordering::SeqCst), MAX_ATTEMPTS);
-        assert!(write_stats().immediate_fallbacks > fallbacks_before);
+        let modes = modes.lock().expect("modes").clone();
+        assert_eq!(modes.len(), MAX_ATTEMPTS);
+        assert!(modes[..MAX_ATTEMPTS - 1]
+            .iter()
+            .all(|m| *m == BeginMode::Concurrent));
+        assert_eq!(modes[MAX_ATTEMPTS - 1], BeginMode::Immediate);
         // The last attempt re-read the row the interference left behind.
         assert_eq!(counter(&db).await, 1000 + (MAX_ATTEMPTS as i64 - 1) + 1);
     }
@@ -522,6 +722,96 @@ mod tests {
             other => panic!("expected Exhausted, got {other:?}"),
         }
         assert!(!err.is_retryable());
+    }
+
+    #[test]
+    fn the_pause_before_a_retry_grows() {
+        for _ in 0..200 {
+            assert!(backoff(1) <= Duration::from_millis(10));
+            assert!(backoff(2) <= Duration::from_millis(20));
+            assert!(backoff(5) <= Duration::from_millis(160));
+            // Capped: a late retry never sleeps longer than 160 ms.
+            assert!(backoff(MAX_ATTEMPTS - 1) <= Duration::from_millis(160));
+            assert!(backoff(1) >= Duration::from_millis(1));
+        }
+        // The upper bound really is reached: not a constant small pause.
+        assert!((0..500).any(|_| backoff(5) > Duration::from_millis(80)));
+    }
+
+    #[tokio::test]
+    async fn the_journal_mode_is_probed_once_per_pool() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let wal = wal_db(&dir, Duration::from_secs(5), 1).await;
+        let memory = Database::connect("sqlite::memory:").await.expect("connect");
+        let (wal_pool, memory_pool) = (
+            wal.get_sqlite_connection_pool(),
+            memory.get_sqlite_connection_pool(),
+        );
+
+        assert!(supports_concurrent(wal_pool).await.expect("probe"));
+        assert!(!supports_concurrent(memory_pool).await.expect("probe"));
+
+        // The only connection of the WAL pool is checked out: a probe
+        // that still ran PRAGMA journal_mode would wait for it forever.
+        let _held = wal_pool.acquire().await.expect("acquire");
+        let answer =
+            tokio::time::timeout(Duration::from_millis(500), supports_concurrent(wal_pool))
+                .await
+                .expect("the answer must come from memory, not from a connection");
+        assert!(answer.expect("known"));
+    }
+
+    /// The misuse the module docs warn about: the body reaches for the
+    /// pool instead of `tx`.
+    #[cfg(debug_assertions)]
+    #[tokio::test]
+    #[should_panic(expected = "inside a with_write body")]
+    async fn using_the_pool_inside_a_body_is_caught() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let db = wal_db(&dir, Duration::from_secs(5), 4).await;
+        let sneaky = db.clone();
+        let _ = with_write::<(), _>(&db, move |_tx| {
+            let sneaky = sneaky.clone();
+            Box::pin(async move {
+                count(&sneaky, "t1").await; // checks a connection out of the pool
+                Ok(())
+            })
+        })
+        .await;
+    }
+
+    #[cfg(debug_assertions)]
+    #[tokio::test]
+    #[should_panic(expected = "inside a with_write body")]
+    async fn a_nested_with_write_is_caught() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let db = wal_db(&dir, Duration::from_secs(5), 4).await;
+        let inner = db.clone();
+        let _ = with_write::<(), _>(&db, move |_tx| {
+            let inner = inner.clone();
+            Box::pin(
+                async move { with_write::<(), _>(&inner, |_tx| Box::pin(async { Ok(()) })).await },
+            )
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn the_pool_stays_usable_after_a_body_finishes() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let db = wal_db(&dir, Duration::from_secs(5), 4).await;
+        with_write(&db, |tx| {
+            Box::pin(async move {
+                tx.execute_unprepared("INSERT INTO t1 (v) VALUES (1)")
+                    .await?;
+                Ok(())
+            })
+        })
+        .await
+        .expect("write");
+        // The marker is scoped to the body: the same task may use the pool
+        // again, and a spawned task may use it while a body is running.
+        assert_eq!(count(&db, "t1").await, 1);
     }
 
     #[tokio::test]
