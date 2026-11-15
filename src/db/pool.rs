@@ -10,10 +10,12 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use anyhow::Context;
+use futures::future::BoxFuture;
+use sea_orm::sqlx::pool::PoolConnectionMetadata;
 use sea_orm::sqlx::sqlite::{
-    SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous,
+    SqliteConnectOptions, SqliteConnection, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous,
 };
-use sea_orm::sqlx::{ConnectOptions, Connection};
+use sea_orm::sqlx::{self, ConnectOptions, Connection, TransactionManager as _};
 use sea_orm::{DatabaseConnection, SqlxSqliteConnector};
 
 use crate::config::DatabaseConfig;
@@ -88,6 +90,52 @@ pub fn connect_options(cfg: &DatabaseConfig) -> anyhow::Result<SqliteConnectOpti
     Ok(options)
 }
 
+/// Attach the pool-level safety hooks to `options`. Every pool that serves
+/// write transactions must be built through this (see [`connect`]).
+pub(crate) fn with_guards(options: SqlitePoolOptions) -> SqlitePoolOptions {
+    options.after_release(discard_if_in_transaction)
+}
+
+/// `after_release` hook: close a connection that is still inside a
+/// transaction instead of returning it to the pool.
+///
+/// SQLite rolls a transaction back by itself after some errors
+/// (`SQLITE_FULL`, `SQLITE_IOERR`, ...). sqlx only lowers its own
+/// transaction counter when ITS `ROLLBACK` succeeds, and that statement
+/// then fails with "no transaction is active". The connection would go
+/// back to the pool with a stale depth and every later `begin_with` on it
+/// would fail with `InvalidSavePointStatement` until `max_lifetime`.
+/// A connection left in a real open transaction (a leaked `BEGIN`) would
+/// hold the database's write lock. Either way a fresh connection is
+/// cheaper than guessing.
+fn discard_if_in_transaction(
+    conn: &mut SqliteConnection,
+    _meta: PoolConnectionMetadata,
+) -> BoxFuture<'_, Result<bool, sqlx::Error>> {
+    Box::pin(async move {
+        // Dropping a transaction only QUEUES its rollback on the
+        // connection's worker; the pool's own release ping runs after this
+        // hook. Flush the queue first so a normal drop is not mistaken for
+        // a stuck transaction.
+        conn.ping().await?;
+        let depth =
+            <sqlx::Sqlite as sqlx::Database>::TransactionManager::get_transaction_depth(conn);
+        let mut handle = conn.lock_handle().await?;
+        // SAFETY: the handle is a live connection locked by `lock_handle`.
+        let autocommit =
+            unsafe { libsqlite3_sys::sqlite3_get_autocommit(handle.as_raw_handle().as_ptr()) };
+        let clean = depth == 0 && autocommit != 0;
+        if !clean {
+            tracing::warn!(
+                depth,
+                autocommit,
+                "closing a connection released inside a transaction"
+            );
+        }
+        Ok(clean)
+    })
+}
+
 /// Build a pool whose every connection runs the pragmas of
 /// [`connect_options`], and wrap it as a sea-orm connection.
 pub async fn connect(cfg: &DatabaseConfig, shape: PoolShape) -> anyhow::Result<DatabaseConnection> {
@@ -109,7 +157,7 @@ pub async fn connect(cfg: &DatabaseConfig, shape: PoolShape) -> anyhow::Result<D
         .await
         .context("closing the first database connection")?;
 
-    let pool = SqlitePoolOptions::new()
+    let pool = with_guards(SqlitePoolOptions::new())
         .max_connections(shape.max_connections)
         .min_connections(shape.min_connections)
         .acquire_timeout(cfg.connect_timeout())
@@ -185,6 +233,87 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// One connection, so a released connection is certain to be the next
+    /// one handed out unless the pool closed it.
+    async fn single_connection_pool(dir: &tempfile::TempDir) -> DatabaseConnection {
+        let cfg = file_config(dir);
+        connect(
+            &cfg,
+            PoolShape {
+                max_connections: 1,
+                min_connections: 0,
+                sqlx_logging: false,
+            },
+        )
+        .await
+        .expect("connect")
+    }
+
+    #[tokio::test]
+    async fn a_connection_released_inside_a_transaction_is_closed() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let db = single_connection_pool(&dir).await;
+        let pool = db.get_sqlite_connection_pool();
+
+        // A leaked raw BEGIN: SQLite is mid-transaction, sqlx does not know.
+        let mut conn = pool.acquire().await.expect("acquire");
+        sqlx::query("BEGIN IMMEDIATE")
+            .execute(&mut *conn)
+            .await
+            .expect("begin");
+        drop(conn);
+
+        // The only connection was closed, so this is a fresh one: a reused
+        // one would answer "cannot start a transaction within a transaction".
+        let mut fresh = pool.acquire().await.expect("acquire after release");
+        sqlx::query("BEGIN IMMEDIATE")
+            .execute(&mut *fresh)
+            .await
+            .expect("the pool handed out a connection that was still in a transaction");
+        sqlx::query("ROLLBACK")
+            .execute(&mut *fresh)
+            .await
+            .expect("rollback");
+    }
+
+    /// What SQLite's own rollback after SQLITE_FULL / SQLITE_IOERR leaves
+    /// behind: no open transaction, but sqlx still counts one.
+    #[tokio::test]
+    async fn a_connection_with_a_stale_transaction_depth_is_closed() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let db = single_connection_pool(&dir).await;
+        let pool = db.get_sqlite_connection_pool();
+
+        let mut tx = pool.begin_with("BEGIN IMMEDIATE").await.expect("begin");
+        sqlx::query("ROLLBACK")
+            .execute(&mut *tx)
+            .await
+            .expect("SQLite ends the transaction behind sqlx's back");
+        drop(tx); // sqlx's queued ROLLBACK now fails; depth stays at 1
+
+        pool.begin_with("BEGIN IMMEDIATE")
+            .await
+            .expect("a connection with a stale depth was reused")
+            .rollback()
+            .await
+            .expect("rollback");
+    }
+
+    #[tokio::test]
+    async fn a_dropped_transaction_keeps_its_connection() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let db = single_connection_pool(&dir).await;
+        let pool = db.get_sqlite_connection_pool();
+        let first = pool.begin().await.expect("begin");
+        drop(first); // rolls back on drop; nothing is wrong with the connection
+        let _again = pool.begin().await.expect("begin again");
+        assert_eq!(
+            pool.size(),
+            1,
+            "an ordinary rollback must not cost the connection"
+        );
     }
 
     #[test]

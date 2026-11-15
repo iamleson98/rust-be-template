@@ -295,7 +295,7 @@ mod tests {
             .create_if_missing(true)
             .journal_mode(SqliteJournalMode::Wal)
             .busy_timeout(busy_timeout);
-        let pool = SqlitePoolOptions::new()
+        let pool = crate::db::pool::with_guards(SqlitePoolOptions::new())
             .max_connections(max)
             .connect_with(options)
             .await
