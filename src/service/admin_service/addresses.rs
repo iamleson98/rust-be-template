@@ -1,9 +1,11 @@
 //! A brand's named stops (stations, offices) that schedules pass through.
+//! Each one lies in one of our cities; its province follows from the city.
 
 use sea_orm::Set;
 use uuid::Uuid;
 
 use super::{now_iso, optional_trimmed, AdminService};
+use crate::cities::{self, City};
 use crate::dto::admin::{
     AdminAddressListResponse, AdminAddressOut, AdminMutationResponse, UpsertAddressRequest,
 };
@@ -11,7 +13,8 @@ use crate::entity::address;
 use crate::error::{AppError, AppResult};
 
 impl AdminService {
-    /// List addresses owned by a brand (ordered by name).
+    /// List addresses owned by a brand (ordered by name), each with the
+    /// number of schedule stops that use it.
     pub async fn list_addresses(
         &self,
         brand_id: &str,
@@ -25,7 +28,19 @@ impl AdminService {
             .list_addresses_by_brand_page(brand_id, q, limit, offset)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
-        let items: Vec<AdminAddressOut> = models.iter().map(address_out).collect();
+        let stop_counts = self
+            .store
+            .address_store()
+            .count_schedule_points_by_addresses(models.iter().map(|a| a.id).collect())
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        let items = models
+            .iter()
+            .map(|a| AdminAddressOut {
+                stop_count: Some(stop_counts.get(&a.id).copied().unwrap_or(0)),
+                ..address_out(a)
+            })
+            .collect();
         Ok(AdminAddressListResponse { items, total })
     }
 
@@ -57,6 +72,11 @@ impl AdminService {
         if !(-180.0..=180.0).contains(&lon) {
             return Err(AppError::Validation("lon must be within -180..180".into()));
         }
+        let city = city_of(
+            body.city_id
+                .as_deref()
+                .ok_or_else(|| AppError::BadRequest("cityId is required".into()))?,
+        )?;
 
         // The owning brand must exist.
         let _brand = self
@@ -76,7 +96,8 @@ impl AdminService {
             address: Set(optional_trimmed(body.address.as_deref())),
             lat: Set(lat),
             lon: Set(lon),
-            province: Set(optional_trimmed(body.province.as_deref())),
+            city_id: Set(Some(city.slug.to_string())),
+            province: Set(Some(city.name.to_string())),
             district: Set(optional_trimmed(body.district.as_deref())),
             ward: Set(optional_trimmed(body.ward.as_deref())),
             created_at: Set(now.clone()),
@@ -92,7 +113,8 @@ impl AdminService {
         Ok(AdminMutationResponse { id })
     }
 
-    /// Update an address by id (set-only-present-fields semantics).
+    /// Update an address by id: a field left out keeps its value, a blank
+    /// text field is cleared.
     pub async fn update_address(
         &self,
         id: Uuid,
@@ -132,6 +154,8 @@ impl AdminService {
             }
         }
 
+        let city = body.city_id.as_deref().map(city_of).transpose()?;
+
         let mut active: address::ActiveModel = existing.into();
         if let Some(ref v) = body.name {
             active.name = Set(v.trim().to_string());
@@ -145,8 +169,9 @@ impl AdminService {
         if let Some(v) = body.lon {
             active.lon = Set(v);
         }
-        if body.province.is_some() {
-            active.province = Set(optional_trimmed(body.province.as_deref()));
+        if let Some(city) = city {
+            active.city_id = Set(Some(city.slug.to_string()));
+            active.province = Set(Some(city.name.to_string()));
         }
         if body.district.is_some() {
             active.district = Set(optional_trimmed(body.district.as_deref()));
@@ -197,7 +222,19 @@ impl AdminService {
     }
 }
 
-/// Map an `address::Model` to its wire DTO.
+/// The city a request names by slug; the city and its province always
+/// travel together, so only one of our cities is accepted.
+fn city_of(slug: &str) -> AppResult<&'static City> {
+    let slug = slug.trim();
+    if slug.is_empty() {
+        return Err(AppError::BadRequest("cityId must not be empty".into()));
+    }
+    cities::find_by_slug(slug)
+        .ok_or_else(|| AppError::BadRequest(format!("cityId: unknown city {slug:?}")))
+}
+
+/// Map an `address::Model` to its wire DTO (without the list-only
+/// `stopCount`).
 pub(super) fn address_out(a: &address::Model) -> AdminAddressOut {
     AdminAddressOut {
         id: a.id,
@@ -206,9 +243,11 @@ pub(super) fn address_out(a: &address::Model) -> AdminAddressOut {
         address: a.address.clone(),
         lat: a.lat,
         lon: a.lon,
+        city_id: a.city_id.clone(),
         province: a.province.clone(),
         district: a.district.clone(),
         ward: a.ward.clone(),
+        stop_count: None,
         created_at: a.created_at.clone(),
         updated_at: a.updated_at.clone(),
     }

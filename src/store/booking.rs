@@ -9,11 +9,12 @@ use async_trait::async_trait;
 use sea_orm::sea_query::{BinOper, Expr, Query, SelectStatement, SimpleExpr};
 use sea_orm::{
     ColumnTrait, Condition, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, QuerySelect, TransactionError, TransactionTrait,
+    QueryOrder, QuerySelect,
 };
 use store_macros::retry;
 use uuid::Uuid;
 
+use crate::db::write::with_write;
 use crate::entity::{
     booking, booking_seat, payment, route, schedule, seat_inventory, trip_session,
 };
@@ -21,10 +22,10 @@ use crate::payment::statuses as payment_status;
 
 use super::error::{StoreError, StoreResult};
 use super::retry::RetryPolicy;
-/// Parse a uuid string for a query filter BIND. The rust-sql engine
-/// (sqlite dialect) stores Uuid columns as 16-byte BLOBs — binding a
-/// TEXT value never matches, so every uuid filter must bind the parsed
-/// `Uuid` (a BLOB parameter that does).
+/// Parse a uuid string for a query filter BIND. SQLite stores Uuid
+/// columns as 16-byte BLOBs — binding a TEXT value never matches, so
+/// every uuid filter must bind the parsed `Uuid` (a BLOB parameter that
+/// does).
 fn parse_uuid(s: &str) -> StoreResult<uuid::Uuid> {
     uuid::Uuid::parse_str(s).map_err(|_| StoreError::Validation(format!("invalid uuid: {s}")))
 }
@@ -38,6 +39,47 @@ pub enum ConfirmOutcome {
     /// Still pending, but its seats are no longer all held by it. Nothing was changed.
     SeatsLost,
 }
+
+/// The coupon a hold puts on its booking.
+#[derive(Debug, Clone)]
+pub struct HoldCoupon {
+    pub coupon_id: Uuid,
+    /// Must be the coupon's holder.
+    pub user_id: Uuid,
+    /// The operator the discount is charged to.
+    pub brand_id: Option<Uuid>,
+}
+
+/// Everything one [`BookingStore::place_hold`] writes.
+#[derive(Debug, Clone)]
+pub struct NewHold {
+    /// The `pending` booking; its `id` must be set.
+    pub booking: booking::ActiveModel,
+    pub trip_session_id: Uuid,
+    /// Seats to claim, without duplicates.
+    pub seat_ids: Vec<Uuid>,
+    /// When the claim lapses (RFC 3339, UTC).
+    pub held_until: String,
+    /// One line item per seat.
+    pub lines: Vec<booking_seat::ActiveModel>,
+    pub coupon: Option<HoldCoupon>,
+}
+
+/// What [`BookingStore::place_hold`] did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HoldOutcome {
+    Held,
+    /// A seat was no longer available. Nothing was written.
+    SeatsTaken,
+    /// The coupon is no longer the holder's held, valid coupon. Nothing
+    /// was written.
+    CouponUnavailable,
+}
+
+/// The `Conflict` messages with which a hold body rolls its transaction
+/// back; `place_hold` turns them into a [`HoldOutcome`].
+const SEATS_TAKEN: &str = "some seats are no longer available";
+const COUPON_UNAVAILABLE: &str = "the coupon is no longer available";
 
 /// What a cancelled booking gave back.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -165,6 +207,12 @@ pub trait BookingStore: Send + Sync {
     /// Codes are unique (`UNIQUE` constraint) — at most one row.
     async fn find_booking_by_code(&self, code: &str) -> StoreResult<Option<booking::Model>>;
 
+    /// What a conversion on the booking with this `code` is worth, as
+    /// `(amount, currency)`: the booking's total, or with `paid` the amount
+    /// of its latest completed payment. `None` when the booking does not
+    /// exist, is cancelled, or (with `paid`) has no completed payment.
+    async fn conversion_value(&self, code: &str, paid: bool) -> StoreResult<Option<(i64, String)>>;
+
     /// Batch fetch bookings by id. Used by the payment admin list to
     /// resolve booking codes without an N+1 round-trip per payment row.
     async fn find_bookings_by_ids(&self, ids: Vec<Uuid>) -> StoreResult<Vec<booking::Model>>;
@@ -190,24 +238,9 @@ pub trait BookingStore: Send + Sync {
     async fn insert_booking(&self, model: booking::ActiveModel) -> StoreResult<()>;
     async fn update_booking(&self, model: booking::ActiveModel) -> StoreResult<booking::Model>;
 
-    /// Hard-delete a booking row by id. ONLY for the `hold` rollback
-    /// path: a hold that failed before becoming visible (seat conflict /
-    /// line-item insert failure) removes its never-seen booking row
-    /// instead of littering `pending`/`cancelled` ghosts that no sweeper
-    /// reaps. The caller MUST release the seat_inventory claim FIRST —
-    /// `seat_inventory.held_by_booking_id` carries an FK to this row.
-    /// Returns the number of rows deleted (0 = already gone).
-    async fn delete_booking(&self, id: Uuid) -> StoreResult<u64>;
-
     async fn list_booking_seats(&self, booking_id: &str) -> StoreResult<Vec<booking_seat::Model>>;
     async fn insert_booking_seat(&self, model: booking_seat::ActiveModel) -> StoreResult<()>;
 
-    /// Batch-insert N booking_seat rows in a single INSERT statement.
-    /// Replaces the N-round-trip loop pattern in booking_service::hold.
-    async fn insert_booking_seats_batch(
-        &self,
-        models: Vec<booking_seat::ActiveModel>,
-    ) -> StoreResult<()>;
     async fn update_seat_inventory_status(
         &self,
         trip_session_id: &str,
@@ -218,6 +251,12 @@ pub trait BookingStore: Send + Sync {
         &self,
         booking_ids: Vec<String>,
     ) -> StoreResult<Vec<booking_seat::Model>>;
+
+    /// Create a pending booking and take its seats (and coupon) in ONE
+    /// transaction: a hold that cannot get everything leaves no row
+    /// behind. Of concurrent holds on the same seat exactly one wins; the
+    /// others get [`HoldOutcome::SeatsTaken`].
+    async fn place_hold(&self, hold: NewHold) -> StoreResult<HoldOutcome>;
 
     // ── Lifecycle transitions ───────────────────────────────────
     //
@@ -299,6 +338,25 @@ impl BookingStore for DbBookingStore {
             .await?)
     }
 
+    async fn conversion_value(&self, code: &str, paid: bool) -> StoreResult<Option<(i64, String)>> {
+        let Some(booking) = self.find_booking_by_code(code).await? else {
+            return Ok(None);
+        };
+        if booking.status == "cancelled" {
+            return Ok(None);
+        }
+        if !paid {
+            return Ok(Some((booking.total, booking.currency)));
+        }
+        let payment = payment::Entity::find()
+            .filter(payment::Column::BookingId.eq(booking.id))
+            .filter(payment::Column::Status.eq(payment_status::COMPLETED))
+            .order_by_desc(payment::Column::UpdatedAt)
+            .one(self.db.as_ref())
+            .await?;
+        Ok(payment.map(|p| (p.amount, p.currency)))
+    }
+
     async fn find_bookings_by_ids(&self, ids: Vec<Uuid>) -> StoreResult<Vec<booking::Model>> {
         if ids.is_empty() {
             return Ok(Vec::new());
@@ -357,14 +415,6 @@ impl BookingStore for DbBookingStore {
             .await?)
     }
 
-    #[store_macros::no_retry]
-    async fn delete_booking(&self, id: Uuid) -> StoreResult<u64> {
-        let res = booking::Entity::delete_by_id(id)
-            .exec(self.db.as_ref())
-            .await?;
-        Ok(res.rows_affected)
-    }
-
     async fn list_booking_seats(&self, booking_id: &str) -> StoreResult<Vec<booking_seat::Model>> {
         Ok(booking_seat::Entity::find()
             .filter(booking_seat::Column::BookingId.eq(parse_uuid(booking_id)?))
@@ -375,20 +425,6 @@ impl BookingStore for DbBookingStore {
     #[store_macros::no_retry]
     async fn insert_booking_seat(&self, model: booking_seat::ActiveModel) -> StoreResult<()> {
         booking_seat::Entity::insert(model)
-            .exec(self.db.as_ref())
-            .await?;
-        Ok(())
-    }
-
-    #[store_macros::no_retry]
-    async fn insert_booking_seats_batch(
-        &self,
-        models: Vec<booking_seat::ActiveModel>,
-    ) -> StoreResult<()> {
-        if models.is_empty() {
-            return Ok(());
-        }
-        booking_seat::Entity::insert_many(models)
             .exec(self.db.as_ref())
             .await?;
         Ok(())
@@ -432,70 +468,136 @@ impl BookingStore for DbBookingStore {
     }
 
     #[store_macros::no_retry]
+    async fn place_hold(&self, hold: NewHold) -> StoreResult<HoldOutcome> {
+        let hold = Arc::new(hold);
+        let held = with_write(&self.db, |txn| {
+            let hold = hold.clone();
+            Box::pin(async move {
+                let booking_id =
+                    *hold.booking.id.try_as_ref().ok_or_else(|| {
+                        StoreError::Validation("a new booking needs its id".into())
+                    })?;
+                // The seats' `held_by_booking_id` references the booking, so
+                // it goes in first; a failed hold rolls it back with the rest.
+                booking::Entity::insert(hold.booking.clone())
+                    .exec_without_returning(txn)
+                    .await?;
+                // One conditional UPDATE claims every seat. A concurrent hold
+                // that committed first made a seat unavailable (this
+                // transaction then re-runs and finds it so); a seat claimed
+                // in the meantime fails this commit instead.
+                let claimed = seat_inventory::Entity::update_many()
+                    .col_expr(seat_inventory::Column::Status, Expr::value("held"))
+                    .col_expr(
+                        seat_inventory::Column::HeldUntil,
+                        Expr::value(hold.held_until.as_str()),
+                    )
+                    .col_expr(
+                        seat_inventory::Column::HeldByBookingId,
+                        Expr::value(booking_id),
+                    )
+                    .filter(seat_inventory::Column::TripSessionId.eq(hold.trip_session_id))
+                    .filter(seat_inventory::Column::SeatId.is_in(hold.seat_ids.clone()))
+                    .filter(seat_inventory::Column::Status.eq("available"))
+                    .exec(txn)
+                    .await?
+                    .rows_affected;
+                if claimed != hold.seat_ids.len() as u64 {
+                    return Err(StoreError::Conflict(SEATS_TAKEN.into()));
+                }
+                booking_seat::Entity::insert_many(hold.lines.clone())
+                    .exec_without_returning(txn)
+                    .await?;
+                if let Some(coupon) = &hold.coupon {
+                    let reserved = super::campaigns::reserve_booking_coupon(
+                        txn,
+                        coupon.coupon_id,
+                        coupon.user_id,
+                        booking_id,
+                        coupon.brand_id,
+                        &now_iso(),
+                    )
+                    .await?;
+                    if !reserved {
+                        return Err(StoreError::Conflict(COUPON_UNAVAILABLE.into()));
+                    }
+                }
+                Ok(())
+            })
+        })
+        .await;
+        match held {
+            Ok(()) => Ok(HoldOutcome::Held),
+            Err(StoreError::Conflict(why)) if why == SEATS_TAKEN => Ok(HoldOutcome::SeatsTaken),
+            Err(StoreError::Conflict(why)) if why == COUPON_UNAVAILABLE => {
+                Ok(HoldOutcome::CouponUnavailable)
+            }
+            Err(e) => Err(e),
+        }
+    }
+
+    #[store_macros::no_retry]
     async fn confirm_pending(
         &self,
         booking_id: Uuid,
         payment_method: &str,
     ) -> StoreResult<ConfirmOutcome> {
         let method = payment_method.to_string();
-        let res = self
-            .db
-            .transaction::<_, ConfirmOutcome, StoreError>(|txn| {
-                Box::pin(async move {
-                    let Some(b) = booking::Entity::find_by_id(booking_id).one(txn).await? else {
-                        return Ok(ConfirmOutcome::NotPending);
-                    };
-                    if b.status != "pending" {
-                        return Ok(ConfirmOutcome::NotPending);
-                    }
-                    let wanted = booking_seat::Entity::find()
-                        .filter(booking_seat::Column::BookingId.eq(booking_id))
-                        .count(txn)
-                        .await?;
-                    let held = seat_inventory::Entity::find()
-                        .filter(seat_inventory::Column::HeldByBookingId.eq(booking_id))
-                        .filter(seat_inventory::Column::Status.eq("held"))
-                        .count(txn)
-                        .await?;
-                    if wanted == 0 || held != wanted {
-                        return Ok(ConfirmOutcome::SeatsLost);
-                    }
+        let res = with_write(&self.db, |txn| {
+            let method = method.clone();
+            Box::pin(async move {
+                let Some(b) = booking::Entity::find_by_id(booking_id).one(txn).await? else {
+                    return Ok(ConfirmOutcome::NotPending);
+                };
+                if b.status != "pending" {
+                    return Ok(ConfirmOutcome::NotPending);
+                }
+                let wanted = booking_seat::Entity::find()
+                    .filter(booking_seat::Column::BookingId.eq(booking_id))
+                    .count(txn)
+                    .await?;
+                let held = seat_inventory::Entity::find()
+                    .filter(seat_inventory::Column::HeldByBookingId.eq(booking_id))
+                    .filter(seat_inventory::Column::Status.eq("held"))
+                    .count(txn)
+                    .await?;
+                if wanted == 0 || held != wanted {
+                    return Ok(ConfirmOutcome::SeatsLost);
+                }
 
-                    let booked = seat_inventory::Entity::update_many()
-                        .col_expr(seat_inventory::Column::Status, Expr::value("booked"))
-                        .col_expr(
-                            seat_inventory::Column::HeldUntil,
-                            Expr::value(None::<String>),
-                        )
-                        .filter(seat_inventory::Column::HeldByBookingId.eq(booking_id))
-                        .filter(seat_inventory::Column::Status.eq("held"))
-                        .exec(txn)
-                        .await?
-                        .rows_affected;
-                    let confirmed = booking::Entity::update_many()
-                        .col_expr(booking::Column::Status, Expr::value("confirmed"))
-                        .col_expr(booking::Column::PaymentMethod, Expr::value(Some(method)))
-                        .col_expr(booking::Column::UpdatedAt, Expr::value(now_iso()))
-                        .filter(booking::Column::Id.eq(booking_id))
-                        .filter(booking::Column::Status.eq("pending"))
-                        .exec(txn)
-                        .await?
-                        .rows_affected;
-                    if booked != wanted || confirmed != 1 {
-                        // Lost a race between the checks and the writes: roll everything back.
-                        return Err(StoreError::Conflict(
-                            "booking changed during confirm".into(),
-                        ));
-                    }
-                    Ok(ConfirmOutcome::Confirmed)
-                })
+                let booked = seat_inventory::Entity::update_many()
+                    .col_expr(seat_inventory::Column::Status, Expr::value("booked"))
+                    .col_expr(
+                        seat_inventory::Column::HeldUntil,
+                        Expr::value(None::<String>),
+                    )
+                    .filter(seat_inventory::Column::HeldByBookingId.eq(booking_id))
+                    .filter(seat_inventory::Column::Status.eq("held"))
+                    .exec(txn)
+                    .await?
+                    .rows_affected;
+                let confirmed = booking::Entity::update_many()
+                    .col_expr(booking::Column::Status, Expr::value("confirmed"))
+                    .col_expr(booking::Column::PaymentMethod, Expr::value(Some(method)))
+                    .col_expr(booking::Column::UpdatedAt, Expr::value(now_iso()))
+                    .filter(booking::Column::Id.eq(booking_id))
+                    .filter(booking::Column::Status.eq("pending"))
+                    .exec(txn)
+                    .await?
+                    .rows_affected;
+                if booked != wanted || confirmed != 1 {
+                    // Lost a race between the checks and the writes: roll everything back.
+                    return Err(StoreError::Conflict(
+                        "booking changed during confirm".into(),
+                    ));
+                }
+                Ok(ConfirmOutcome::Confirmed)
             })
-            .await;
+        })
+        .await;
         match res {
-            Err(TransactionError::Transaction(StoreError::Conflict(_))) => {
-                Ok(ConfirmOutcome::SeatsLost)
-            }
-            other => other.map_err(StoreError::from),
+            Err(StoreError::Conflict(_)) => Ok(ConfirmOutcome::SeatsLost),
+            other => other,
         }
     }
 
@@ -537,57 +639,54 @@ impl BookingStore for DbBookingStore {
         hold_until: &str,
     ) -> StoreResult<bool> {
         let (method, until) = (payment_method.to_string(), hold_until.to_string());
-        self.db
-            .transaction::<_, bool, StoreError>(|txn| {
-                Box::pin(async move {
-                    let placed = booking::Entity::update_many()
-                        .col_expr(booking::Column::PaymentMethod, Expr::value(Some(method)))
-                        .col_expr(booking::Column::ExpiresAt, Expr::value(Some(until.clone())))
-                        .col_expr(booking::Column::UpdatedAt, Expr::value(now_iso()))
-                        .filter(booking::Column::Id.eq(booking_id))
-                        .filter(booking::Column::Status.eq("pending"))
-                        .exec(txn)
-                        .await?
-                        .rows_affected;
-                    if placed == 0 {
-                        return Ok(false);
-                    }
-                    seat_inventory::Entity::update_many()
-                        .col_expr(seat_inventory::Column::HeldUntil, Expr::value(Some(until)))
-                        .filter(seat_inventory::Column::HeldByBookingId.eq(booking_id))
-                        .filter(seat_inventory::Column::Status.eq("held"))
-                        .exec(txn)
-                        .await?;
-                    Ok(true)
-                })
+        with_write(&self.db, |txn| {
+            let (method, until) = (method.clone(), until.clone());
+            Box::pin(async move {
+                let placed = booking::Entity::update_many()
+                    .col_expr(booking::Column::PaymentMethod, Expr::value(Some(method)))
+                    .col_expr(booking::Column::ExpiresAt, Expr::value(Some(until.clone())))
+                    .col_expr(booking::Column::UpdatedAt, Expr::value(now_iso()))
+                    .filter(booking::Column::Id.eq(booking_id))
+                    .filter(booking::Column::Status.eq("pending"))
+                    .exec(txn)
+                    .await?
+                    .rows_affected;
+                if placed == 0 {
+                    return Ok(false);
+                }
+                seat_inventory::Entity::update_many()
+                    .col_expr(seat_inventory::Column::HeldUntil, Expr::value(Some(until)))
+                    .filter(seat_inventory::Column::HeldByBookingId.eq(booking_id))
+                    .filter(seat_inventory::Column::Status.eq("held"))
+                    .exec(txn)
+                    .await?;
+                Ok(true)
             })
-            .await
-            .map_err(StoreError::from)
+        })
+        .await
     }
 
     #[store_macros::no_retry]
     async fn complete_booking(&self, booking_id: Uuid) -> StoreResult<bool> {
-        self.db
-            .transaction::<_, bool, StoreError>(|txn| {
-                Box::pin(async move {
-                    let now = now_iso();
-                    let done = booking::Entity::update_many()
-                        .col_expr(booking::Column::Status, Expr::value("completed"))
-                        .col_expr(booking::Column::UpdatedAt, Expr::value(now.clone()))
-                        .filter(booking::Column::Id.eq(booking_id))
-                        .filter(booking::Column::Status.eq("confirmed"))
-                        .exec(txn)
-                        .await?
-                        .rows_affected;
-                    if done == 1 {
-                        // The trip happened: its coupon becomes payable.
-                        super::campaigns::redeem_booking_coupon(txn, booking_id, &now).await?;
-                    }
-                    Ok(done == 1)
-                })
+        with_write(&self.db, |txn| {
+            Box::pin(async move {
+                let now = now_iso();
+                let done = booking::Entity::update_many()
+                    .col_expr(booking::Column::Status, Expr::value("completed"))
+                    .col_expr(booking::Column::UpdatedAt, Expr::value(now.clone()))
+                    .filter(booking::Column::Id.eq(booking_id))
+                    .filter(booking::Column::Status.eq("confirmed"))
+                    .exec(txn)
+                    .await?
+                    .rows_affected;
+                if done == 1 {
+                    // The trip happened: its coupon becomes payable.
+                    super::campaigns::redeem_booking_coupon(txn, booking_id, &now).await?;
+                }
+                Ok(done == 1)
             })
-            .await
-            .map_err(StoreError::from)
+        })
+        .await
     }
 }
 
@@ -600,87 +699,198 @@ impl DbBookingStore {
         from: Vec<String>,
         expired_before: Option<String>,
     ) -> StoreResult<Option<Released>> {
-        self.db
-            .transaction::<_, Option<Released>, StoreError>(|txn| {
-                Box::pin(async move {
-                    let Some(b) = booking::Entity::find_by_id(booking_id).one(txn).await? else {
-                        return Ok(None);
-                    };
-                    if !from.contains(&b.status) {
-                        return Ok(None);
-                    }
-                    if let Some(now) = &expired_before {
-                        if b.expires_at.as_deref().is_none_or(|e| e >= now.as_str()) {
-                            return Ok(None);
-                        }
-                    }
-
-                    // Claim the transition; losing the race means someone else moved it.
-                    let claimed = booking::Entity::update_many()
-                        .col_expr(booking::Column::Status, Expr::value("cancelled"))
-                        .col_expr(booking::Column::UpdatedAt, Expr::value(now_iso()))
-                        .filter(booking::Column::Id.eq(booking_id))
-                        .filter(booking::Column::Status.eq(b.status.clone()))
-                        .exec(txn)
-                        .await?
-                        .rows_affected;
-                    if claimed == 0 {
+        with_write(&self.db, |txn| {
+            let (from, expired_before) = (from.clone(), expired_before.clone());
+            Box::pin(async move {
+                let Some(b) = booking::Entity::find_by_id(booking_id).one(txn).await? else {
+                    return Ok(None);
+                };
+                if !from.contains(&b.status) {
+                    return Ok(None);
+                }
+                if let Some(now) = &expired_before {
+                    if b.expires_at.as_deref().is_none_or(|e| e >= now.as_str()) {
                         return Ok(None);
                     }
+                }
 
-                    let seats = seat_inventory::Entity::update_many()
-                        .col_expr(seat_inventory::Column::Status, Expr::value("available"))
-                        .col_expr(
-                            seat_inventory::Column::HeldUntil,
-                            Expr::value(None::<String>),
-                        )
-                        .col_expr(
-                            seat_inventory::Column::HeldByBookingId,
-                            Expr::value(None::<Uuid>),
-                        )
-                        .filter(seat_inventory::Column::HeldByBookingId.eq(booking_id))
-                        .exec(txn)
-                        .await?
-                        .rows_affected;
-                    if seats > 0 {
-                        // Counter arithmetic is done by the engine: a read-modify-write here
-                        // would lose a concurrent hold's decrement.
-                        trip_session::Entity::update_many()
-                            .col_expr(
-                                trip_session::Column::AvailableSeats,
-                                Expr::col(trip_session::Column::AvailableSeats)
-                                    .binary(BinOper::Add, Expr::value(seats as i64)),
-                            )
-                            .filter(trip_session::Column::Id.eq(b.trip_session_id))
-                            .exec(txn)
-                            .await?;
-                    }
+                // Claim the transition; losing the race means someone else moved it.
+                let claimed = booking::Entity::update_many()
+                    .col_expr(booking::Column::Status, Expr::value("cancelled"))
+                    .col_expr(booking::Column::UpdatedAt, Expr::value(now_iso()))
+                    .filter(booking::Column::Id.eq(booking_id))
+                    .filter(booking::Column::Status.eq(b.status.clone()))
+                    .exec(txn)
+                    .await?
+                    .rows_affected;
+                if claimed == 0 {
+                    return Ok(None);
+                }
 
-                    // The trip will not happen: its coupon goes back to its owner.
-                    super::campaigns::return_booking_coupon(txn, booking_id, &now_iso()).await?;
-
-                    payment::Entity::update_many()
+                let seats = seat_inventory::Entity::update_many()
+                    .col_expr(seat_inventory::Column::Status, Expr::value("available"))
+                    .col_expr(
+                        seat_inventory::Column::HeldUntil,
+                        Expr::value(None::<String>),
+                    )
+                    .col_expr(
+                        seat_inventory::Column::HeldByBookingId,
+                        Expr::value(None::<Uuid>),
+                    )
+                    .filter(seat_inventory::Column::HeldByBookingId.eq(booking_id))
+                    .exec(txn)
+                    .await?
+                    .rows_affected;
+                if seats > 0 {
+                    // Counter arithmetic is done by the engine: a read-modify-write here
+                    // would lose a concurrent hold's decrement.
+                    trip_session::Entity::update_many()
                         .col_expr(
-                            payment::Column::Status,
-                            Expr::value(payment_status::CANCELLED),
+                            trip_session::Column::AvailableSeats,
+                            Expr::col(trip_session::Column::AvailableSeats)
+                                .binary(BinOper::Add, Expr::value(seats as i64)),
                         )
-                        .col_expr(payment::Column::UpdatedAt, Expr::value(now_iso()))
-                        .col_expr(
-                            payment::Column::FailureReason,
-                            Expr::value(Some("booking cancelled".to_string())),
-                        )
-                        .filter(payment::Column::BookingId.eq(booking_id))
-                        .filter(payment::Column::Status.eq(payment_status::PENDING))
+                        .filter(trip_session::Column::Id.eq(b.trip_session_id))
                         .exec(txn)
                         .await?;
+                }
 
-                    Ok(Some(Released {
-                        trip_session_id: b.trip_session_id,
-                        seats,
-                    }))
-                })
+                // The trip will not happen: its coupon goes back to its owner.
+                super::campaigns::return_booking_coupon(txn, booking_id, &now_iso()).await?;
+
+                payment::Entity::update_many()
+                    .col_expr(
+                        payment::Column::Status,
+                        Expr::value(payment_status::CANCELLED),
+                    )
+                    .col_expr(payment::Column::UpdatedAt, Expr::value(now_iso()))
+                    .col_expr(
+                        payment::Column::FailureReason,
+                        Expr::value(Some("booking cancelled".to_string())),
+                    )
+                    .filter(payment::Column::BookingId.eq(booking_id))
+                    .filter(payment::Column::Status.eq(payment_status::PENDING))
+                    .exec(txn)
+                    .await?;
+
+                Ok(Some(Released {
+                    trip_session_id: b.trip_session_id,
+                    seats,
+                }))
             })
+        })
+        .await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use sea_orm::{ActiveValue::Set, PaginatorTrait};
+
+    use super::*;
+    use crate::service::test_support::{fixture, Fixture};
+
+    /// A hold of the first `n` seats of the fixture's trip.
+    fn new_hold(f: &Fixture, n: usize, coupon: Option<HoldCoupon>) -> NewHold {
+        let now = now_iso();
+        let booking_id = Uuid::new_v4();
+        let seat_ids = f.seats[..n].to_vec();
+        NewHold {
+            booking: booking::ActiveModel {
+                id: Set(booking_id),
+                code: Set(format!("T-{}", booking_id.simple())),
+                trip_session_id: Set(f.trip),
+                adult_count: Set(n as i64),
+                child_count: Set(0),
+                subtotal: Set(0),
+                discount: Set(0),
+                fees: Set(0),
+                total: Set(0),
+                currency: Set("VND".into()),
+                status: Set("pending".into()),
+                created_at: Set(now.clone()),
+                updated_at: Set(now.clone()),
+                ..Default::default()
+            },
+            trip_session_id: f.trip,
+            lines: seat_ids
+                .iter()
+                .map(|&seat_id| booking_seat::ActiveModel {
+                    id: Set(Uuid::new_v4()),
+                    booking_id: Set(booking_id),
+                    seat_id: Set(seat_id),
+                    price: Set(0),
+                    created_at: Set(now.clone()),
+                    ..Default::default()
+                })
+                .collect(),
+            seat_ids,
+            held_until: now,
+            coupon,
+        }
+    }
+
+    async fn rows(f: &Fixture) -> (u64, u64) {
+        (
+            booking::Entity::find().count(f.store.db()).await.unwrap(),
+            booking_seat::Entity::find()
+                .count(f.store.db())
+                .await
+                .unwrap(),
+        )
+    }
+
+    #[tokio::test]
+    async fn a_hold_takes_the_booking_its_seats_and_line_items_together() {
+        let f = fixture(3).await;
+        let outcome = f
+            .store
+            .booking_store()
+            .place_hold(new_hold(&f, 2, None))
             .await
-            .map_err(StoreError::from)
+            .unwrap();
+        assert_eq!(outcome, HoldOutcome::Held);
+        assert_eq!(rows(&f).await, (1, 2));
+        let (available, held, booked, _) = f.seats_now().await;
+        assert_eq!((available, held, booked), (1, 2, 0));
+    }
+
+    #[tokio::test]
+    async fn a_hold_on_a_taken_seat_leaves_nothing_behind() {
+        let f = fixture(3).await;
+        let owner = f.owner().await;
+        f.hold(owner, 1).await;
+        let before = rows(&f).await;
+
+        // Seat 0 is held; seats 1 and 2 are free. The hold gets none.
+        let mut hold = new_hold(&f, 3, None);
+        hold.seat_ids = f.seats.clone();
+        let outcome = f.store.booking_store().place_hold(hold).await.unwrap();
+
+        assert_eq!(outcome, HoldOutcome::SeatsTaken);
+        assert_eq!(rows(&f).await, before, "no booking, no line items");
+        let (available, held, _, _) = f.seats_now().await;
+        assert_eq!((available, held), (2, 1), "the free seats were not claimed");
+    }
+
+    #[tokio::test]
+    async fn a_coupon_that_is_gone_rolls_the_whole_hold_back() {
+        let f = fixture(2).await;
+        let coupon = HoldCoupon {
+            coupon_id: Uuid::new_v4(),
+            user_id: f.owner().await,
+            brand_id: None,
+        };
+        let outcome = f
+            .store
+            .booking_store()
+            .place_hold(new_hold(&f, 2, Some(coupon)))
+            .await
+            .unwrap();
+
+        assert_eq!(outcome, HoldOutcome::CouponUnavailable);
+        assert_eq!(rows(&f).await, (0, 0));
+        let (available, held, _, _) = f.seats_now().await;
+        assert_eq!((available, held), (2, 0), "the seats are free again");
     }
 }

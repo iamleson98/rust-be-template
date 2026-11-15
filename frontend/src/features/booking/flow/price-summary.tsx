@@ -1,5 +1,3 @@
-'use client'
-
 import { SEAT_CLASS_LABELS } from '@/lib/labels'
 import { useMoney } from '@/lib/format'
 import { useT } from '@/lib/i18n'

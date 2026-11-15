@@ -1,5 +1,3 @@
-'use client'
-
 /**
  * City items + helpers for the route forms — the grouped Vietnamese-city
  * collection (Miền Bắc / Trung / Nam) used by the searchable city

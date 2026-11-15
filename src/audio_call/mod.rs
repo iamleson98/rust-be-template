@@ -48,9 +48,10 @@
 //! { "type": "pong" }
 //! ```
 //!
-//! `registered.iceServers` carries the STUN/TURN config from
-//! `AUDIO_CALL_ICE_SERVERS` (may be `[]` → client falls back to its default
-//! public STUN list). Client→server `hangup` may include an optional
+//! `registered.iceServers` carries the STUN/TURN config: the
+//! `AUDIO_CALL_ICE_SERVERS` JSON (may be `[]` → client falls back to its
+//! default public STUN list), per-user REST credentials, or credentials
+//! minted by Cloudflare Realtime TURN (see [`turn`]). Client→server `hangup` may include an optional
 //! `reason` (`"busy"` | `"declined"` | `"timeout"`); anything else is
 //! coerced to `"remote"` before relay.
 //!
@@ -67,6 +68,7 @@ pub mod handler;
 pub mod hub;
 pub mod janitor;
 pub mod session;
+pub mod turn;
 
 pub use handler::router;
 pub use hub::{call_hub, CallHub};

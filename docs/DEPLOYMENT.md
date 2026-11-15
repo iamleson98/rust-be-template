@@ -20,9 +20,28 @@ CACHE_BACKEND=moka
 
 Redis is not required for production right now. Reintroduce Redis only when you need a shared cache or Redis-backed worker queue across multiple app instances.
 
+## Database
+
+The backend embeds SQLite (the `begin-concurrent` build pinned in
+`vendor/libsqlite3-sys/PINNED`); the image carries no system `libsqlite3`,
+only the `sqlite3` CLI for operators:
+
+```bash
+docker exec -it <backend-container> sqlite3 /app/data/app.db 'PRAGMA integrity_check;'
+```
+
+- `/app/data` must be a local-disk volume (never NFS/overlayfs): WAL mode
+  relies on shared memory and POSIX locks.
+- The app checkpoints the WAL itself (PASSIVE every minute, TRUNCATE
+  nightly at 04:00 container-local time).
+- Back up with `VACUUM INTO`, not by copying `app.db` while the service
+  runs. Size questions: [deploy/DB-SIZE-RUNBOOK.md](deploy/DB-SIZE-RUNBOOK.md).
+- Start over from an empty database with the manual `DB reset` workflow
+  (`.github/workflows/db-reset.yml`; it backs the old files up first).
+
 ## Real client IP / rate limiting
 
-The rate limiter (`tower_governor`), the WS per-IP caps and the audio-call
+The rate limiter (`middleware::rate_limit`), the WS per-IP caps and the audio-call
 geo gate all key on the IP derived in `src/middleware/client_ip.rs`:
 right-anchored `X-Forwarded-For` with `TRUSTED_PROXY_HOPS=1` (default —
 exactly the one append Caddy makes), falling back to `CF-Connecting-IP`.

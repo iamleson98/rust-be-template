@@ -1,5 +1,3 @@
-'use client'
-
 // Extracted from the original 'my-bookings.tsx'.
 
 import { lazy } from 'react'

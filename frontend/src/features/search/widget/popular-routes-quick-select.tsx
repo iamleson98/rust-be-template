@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { routesOptions } from '@/api'
+import { CATALOG_QUERY } from '@/api/catalog-cache'
 import { useT } from '@/lib/i18n'
 import { buildSearchInput, type SearchParams } from '@/lib/search-params'
 import { cn } from '@/lib/utils'
@@ -23,7 +24,7 @@ export function PopularRoutesQuickSelect({
 }) {
   const t = useT()
   const navigate = useNavigate()
-  const { data } = useQuery(routesOptions())
+  const { data } = useQuery({ ...routesOptions(), ...CATALOG_QUERY })
   const routes = useMemo(() => {
     const seen = new Set<string>()
     return (data?.items ?? [])

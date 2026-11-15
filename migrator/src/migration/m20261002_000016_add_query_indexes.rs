@@ -39,8 +39,8 @@
 //!
 //! Build cost: one bounded scan per table on first run (the engine
 //! writes indexes transactionally); afterwards all maintenance is
-//! incremental. The shared page cache (see `apply_sqlite_pragmas`)
-//! keeps the hot index pages resident.
+//! incremental. The pooled connections' page caches and the database
+//! memory map (see `db::pool`) keep the hot index pages resident.
 
 use sea_orm_migration::prelude::*;
 

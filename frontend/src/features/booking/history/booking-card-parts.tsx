@@ -1,5 +1,3 @@
-'use client'
-
 // Extracted from the original 'booking-card.tsx'.
 
 import { formatDateTimeVN } from '@/lib/format'

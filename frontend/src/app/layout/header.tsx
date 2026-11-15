@@ -1,5 +1,3 @@
-'use client'
-
 import { memo, useCallback } from 'react'
 import { useUi } from '@/stores/ui'
 import { usePrefs } from '@/stores/prefs'
@@ -35,6 +33,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { personInitials } from '@/lib/text'
 
 /** The site's light, translucent bar (the admin console has its own frame). */
 const tone = {
@@ -63,13 +62,7 @@ export const Header = memo(function Header() {
 
   const logout = useLogout()
 
-  const initials = (user?.name ?? '?')
-    .trim()
-    .split(/\s+/)
-    .map((s) => s[0])
-    .slice(-2)
-    .join('')
-    .toUpperCase()
+  const initials = personInitials(user?.name)
 
   // Primary destinations, from md up (phones have the bottom tab bar).
   const links = [

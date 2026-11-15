@@ -1,5 +1,3 @@
-'use client'
-
 /**
  * ShareTripCard — what is being shared, as the recipient will see it: the
  * operator, the route, when it leaves, the vehicle and the starting price,

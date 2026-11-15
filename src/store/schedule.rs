@@ -9,16 +9,17 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use sea_orm::{
     ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
-    QuerySelect, TransactionTrait,
+    QuerySelect,
 };
 use store_macros::retry;
 use uuid::Uuid;
 
+use crate::db::write::with_write;
 use crate::entity::{
     booking_seat, bus_layout, schedule, schedule_fare, seat, seat_inventory, trip_session,
 };
 
-use super::error::{StoreError, StoreResult};
+use super::error::StoreResult;
 use super::retry::RetryPolicy;
 
 /// A page of bus layouts plus the total matching-row count (before
@@ -85,12 +86,14 @@ pub trait ScheduleStore: Send + Sync {
     async fn list_bus_layouts_by_ids(&self, ids: Vec<Uuid>) -> StoreResult<Vec<bus_layout::Model>>;
 
     /// Paginated list with an optional brand filter, ordered by
-    /// `created_at` (newest first) for stable pages. `limit=None`
-    /// returns every matching row (legacy "fetch all" consumers such as
-    /// the schedule form's seat-map picker).
+    /// `created_at` (newest first) for stable pages. With `include_shared`
+    /// the brand filter also lets the shared catalog (layouts without a
+    /// brand) through. `limit=None` returns every matching row (legacy
+    /// "fetch all" consumers such as the schedule form's seat-map picker).
     async fn list_bus_layouts_page(
         &self,
         brand_id: Option<&str>,
+        include_shared: bool,
         limit: Option<u64>,
         offset: u64,
     ) -> StoreResult<BusLayoutPage>;
@@ -302,21 +305,20 @@ impl ScheduleStore for DbScheduleStore {
         schedule_id: Uuid,
         fares: Vec<schedule_fare::ActiveModel>,
     ) -> StoreResult<()> {
-        self.db
-            .transaction::<_, (), StoreError>(|txn| {
-                Box::pin(async move {
-                    schedule_fare::Entity::delete_many()
-                        .filter(schedule_fare::Column::ScheduleId.eq(schedule_id))
-                        .exec(txn)
-                        .await?;
-                    if !fares.is_empty() {
-                        schedule_fare::Entity::insert_many(fares).exec(txn).await?;
-                    }
-                    Ok(())
-                })
+        with_write(&self.db, |txn| {
+            let fares = fares.clone();
+            Box::pin(async move {
+                schedule_fare::Entity::delete_many()
+                    .filter(schedule_fare::Column::ScheduleId.eq(schedule_id))
+                    .exec(txn)
+                    .await?;
+                if !fares.is_empty() {
+                    schedule_fare::Entity::insert_many(fares).exec(txn).await?;
+                }
+                Ok(())
             })
-            .await
-            .map_err(StoreError::from)
+        })
+        .await
     }
 
     // ── BusLayout ───────────────────────────────────────────────
@@ -350,21 +352,22 @@ impl ScheduleStore for DbScheduleStore {
     async fn list_bus_layouts_page(
         &self,
         brand_id: Option<&str>,
+        include_shared: bool,
         limit: Option<u64>,
         offset: u64,
     ) -> StoreResult<BusLayoutPage> {
         let mut base = bus_layout::Entity::find().order_by_desc(bus_layout::Column::CreatedAt);
         if let Some(brand_id) = brand_id.map(str::trim).filter(|s| !s.is_empty()) {
             // Parse to Uuid — see `parse_uuid` (TEXT param ≠ BLOB column on SQLite).
-            // The brand scope INCLUDES the global canonical catalog
-            // (brand_id IS NULL): the schedule form picks the vehicle
-            // from the shared catalog plus the brand's own customs.
             let brand_uuid = super::parse_uuid(brand_id)?;
-            base = base.filter(
-                sea_orm::Condition::any()
-                    .add(bus_layout::Column::BrandId.eq(brand_uuid))
-                    .add(bus_layout::Column::BrandId.is_null()),
-            );
+            let mut scope =
+                sea_orm::Condition::any().add(bus_layout::Column::BrandId.eq(brand_uuid));
+            // The schedule form picks the vehicle from the shared
+            // catalog plus the brand's own customs.
+            if include_shared {
+                scope = scope.add(bus_layout::Column::BrandId.is_null());
+            }
+            base = base.filter(scope);
         }
         let total = base.clone().count(self.db.as_ref()).await?;
         // SQLite requires LIMIT before OFFSET. "No limit" (limit = None)

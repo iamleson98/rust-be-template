@@ -12,6 +12,11 @@ pub struct AccessTokenClaims {
     pub iat: i64,
     pub exp: i64,
     pub typ: String, // "access"
+    /// Unique token id. Without it two tokens minted in the same second
+    /// are byte-identical, and revoking one device's would revoke the
+    /// other's. Tokens minted before it existed carry none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub jti: Option<String>,
 }
 
 pub struct JwtManager {
@@ -50,6 +55,7 @@ impl JwtManager {
             iat: now.timestamp(),
             exp: exp.timestamp(),
             typ: "access".into(),
+            jti: Some(Uuid::new_v4().to_string()),
         };
         let token = encode(&Header::default(), &claims, &self.encoding)
             .map_err(|e| anyhow::anyhow!("jwt encode: {e}"))?;
@@ -112,6 +118,35 @@ mod tests {
         assert_eq!(claims.iss, "test-issuer");
         assert_eq!(claims.typ, "access");
         assert!(claims.exp > claims.iat);
+    }
+
+    /// Two tokens minted for one user in the same second differ, so
+    /// revoking one leaves the other valid.
+    #[test]
+    fn tokens_minted_in_one_second_are_distinct() {
+        let mgr = JwtManager::new(test_cfg());
+        let user_id = Uuid::new_v4();
+        let a = mgr.issue_access(user_id).expect("encode");
+        let b = mgr.issue_access(user_id).expect("encode");
+        assert_ne!(a, b);
+    }
+
+    /// The Worker's tokens (HS256 via `jose`, same secret and issuer, plus
+    /// a `jti`) verify here, so sessions survive the cutover. The fixture
+    /// token expires in 2100.
+    #[test]
+    fn a_worker_minted_access_token_verifies() {
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("../../tests/fixtures/wp6_ref_auth.json"))
+                .expect("fixture");
+        let mut cfg = test_cfg();
+        cfg.secret = fixture["jwtSecret"].as_str().expect("secret").into();
+        cfg.issuer = fixture["issuer"].as_str().expect("issuer").into();
+        let claims = JwtManager::new(cfg)
+            .verify_access(fixture["accessToken"].as_str().expect("token"))
+            .expect("the Worker's token must verify");
+        assert_eq!(claims.sub.to_string(), fixture["userId"].as_str().unwrap());
+        assert!(claims.jti.is_some());
     }
 
     /// Wrong secret must be rejected — guards the verify path against

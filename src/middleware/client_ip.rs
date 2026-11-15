@@ -1,50 +1,113 @@
 //! Derive the REAL client IP from the proxy chain.
 //!
-//! Deployment chain for browser traffic is:
+//! Two deployments, chosen by `CLIENT_IP_SOURCE` (see [`ClientIpSource`]):
 //!
-//! ```text
-//! Cloudflare (orange-cloud) ─► nginx stream SNI router ─► Caddy ─► app
-//! ```
+//! * **`cf-connecting-ip`** — Cloudflare Tunnel (`cloudflared` on the same
+//!   host forwards to the app on loopback). Every connection's TCP peer is
+//!   `127.0.0.1`, so the peer says nothing about the visitor; Cloudflare's
+//!   `CF-Connecting-IP` does, and `cloudflared` passes it through. The header
+//!   is honoured ONLY when the peer is loopback: anything else reaching the
+//!   port could have written it, so it is dropped and the peer is the client.
+//!   `X-Forwarded-For` is never used here: Cloudflare appends to a
+//!   client-supplied list, so its entries are forgeable.
+//! * **`xff`** (default) — a reverse proxy in front that appends to
+//!   `X-Forwarded-For` (`TRUSTED_PROXY_HOPS` appends, default 1): the true
+//!   client is `hops + 1` entries from the RIGHT, since the client's own
+//!   entries sit at the front. When the selected entry is a Cloudflare edge or
+//!   a private address (a proxy that does not trust Cloudflare's header and
+//!   recorded its own peer), `CF-Connecting-IP` names the visitor.
 //!
-//! * nginx's SNI router is a `stream{}` block — it passes TLS bytes
-//!   through untouched and never rewrites HTTP headers.
-//! * Cloudflare appends the true client IP to `X-Forwarded-For` AND sets
-//!   the authoritative `CF-Connecting-IP`.
-//! * Caddy (`reverse_proxy`) trusts its docker-network peer
-//!   (`trusted_proxies` in `deploy/Caddyfile.datxevui`) and APPENDS that
-//!   peer to `X-Forwarded-For` — so the chain arriving here is
-//!   `visitor_ip, 172.18.0.1` and the true client IP is
-//!   `TRUSTED_PROXY_HOPS + 1` entries from the RIGHT (default hops = 1:
-//!   exactly the one append Caddy makes). Without that trust, Caddy
-//!   REPLACES the header with the peer alone (`172.18.0.1` for everyone)
-//!   — the private-entry + `CF-Connecting-IP` fallback below recovers
-//!   the visitor even in that degraded shape (load test 2026-10-15:
-//!   the whole site shared ONE ~100 rps rate-limit bucket because of
-//!   it).
-//! * The client's own `X-Forwarded-For` entries (spoofable padding) sit
-//!   at the FRONT of the list.
+//! [`trusted_forwarding_headers`] enforces the first rule once, at the top of
+//! the stack, by deleting the headers that cannot be trusted; every consumer
+//! ([`real_client_ip`], [`header_client_ip`]) then reads what is left.
 //!
-//! Mobile/programmatic clients may bypass Cloudflare and hit nginx/Caddy
-//! directly — then `X-Forwarded-For` only has Caddy's append (the socket
-//! peer) and the same right-anchored parse yields it.
+//! Why this matters: keying a per-IP limit (HTTP rate limits, the WebSocket
+//! caps `WS_MAX_PER_IP`) on the socket peer puts EVERY visitor in one bucket
+//! behind any proxy ("site works for 10 users, then nobody can chat"; the
+//! 2026-10-15 load test shared ONE ~100 rps bucket the same way).
 //!
-//! Why this matters for the WS hubs: `ConnectInfo<SocketAddr>` behind
-//! this chain is always CADDY's overlay IP. Keying the per-IP connection
-//! caps (`WS_MAX_PER_IP`, both `/ws` and `/ws-call`) on the socket peer
-//! puts EVERY user in one bucket — the hub rejects connection #11 while
-//! the real per-user count is 1 (production incident class: "site works
-//! for 10 users, then nobody can chat"). The HTTP rate limiter already
-//! derives its key this way (`ClientIpKeyExtractor` in `routes/router.rs`,
-//! SEC-2026-RL); the WS hubs used to be the odd one out.
-//!
-//! Tradeoff (documented): when a client connects DIRECTLY to the origin
-//! with a spoofed `X-Forwarded-For`, the spoofed entry can be selected.
-//! That only weakens the per-IP convenience cap — the global cap
-//! (`WS_MAX_CONNECTIONS`) and authentication are unaffected. Forensic
-//! accuracy is not the goal; fairness of the per-IP bucket is.
+//! Tradeoff (documented) in `xff` mode: a client connecting DIRECTLY to the
+//! origin with a spoofed `X-Forwarded-For` can choose its bucket. That only
+//! weakens a per-IP convenience cap; the global caps and authentication are
+//! unaffected.
 
+use std::net::{IpAddr, SocketAddr};
+
+use axum::extract::{ConnectInfo, Request, State};
 use axum::http::HeaderMap;
-use std::net::IpAddr;
+use axum::middleware::Next;
+use axum::response::Response;
+
+use crate::config::CLIENT_IP_SOURCE_CF;
+
+/// Which header names the client (`CLIENT_IP_SOURCE`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ClientIpSource {
+    /// A proxy appends to `X-Forwarded-For`.
+    Xff,
+    /// Cloudflare Tunnel on this host sets `CF-Connecting-IP`.
+    CfConnectingIp,
+}
+
+impl ClientIpSource {
+    /// The config value is validated at startup; anything but the Cloudflare
+    /// spelling is the `X-Forwarded-For` chain.
+    pub fn from_config(value: &str) -> Self {
+        if value == CLIENT_IP_SOURCE_CF {
+            Self::CfConnectingIp
+        } else {
+            Self::Xff
+        }
+    }
+}
+
+/// Warns at boot about the one setting that silently weakens per-IP limits:
+/// `xff` while the listener is bound to loopback. Then every peer is a
+/// same-host proxy (`cloudflared`), whose `X-Forwarded-For` Cloudflare
+/// appends to a client-supplied list, so visitors can pick their own bucket;
+/// `cf-connecting-ip` is the mode for that deployment.
+pub fn warn_if_xff_behind_loopback(source: ClientIpSource, bind_host: &str) {
+    if xff_behind_loopback(source, bind_host) {
+        tracing::warn!(
+            bind = bind_host,
+            "CLIENT_IP_SOURCE=xff but the server listens on loopback only, so every \
+             connection comes from a local proxy; if that is cloudflared, set \
+             CLIENT_IP_SOURCE={CLIENT_IP_SOURCE_CF} (X-Forwarded-For is client-forgeable there)"
+        );
+    }
+}
+
+fn xff_behind_loopback(source: ClientIpSource, bind_host: &str) -> bool {
+    source == ClientIpSource::Xff
+        && (bind_host == "localhost"
+            || bind_host
+                .trim_matches(['[', ']'])
+                .parse::<IpAddr>()
+                .is_ok_and(|ip| ip.to_canonical().is_loopback()))
+}
+
+/// Deletes the forwarding headers this deployment cannot trust, so everything
+/// downstream may read them as given. A no-op in `xff` mode; in
+/// `cf-connecting-ip` mode `X-Forwarded-For` always goes (forgeable through
+/// Cloudflare) and `CF-Connecting-IP` goes unless the TCP peer is loopback.
+pub async fn trusted_forwarding_headers(
+    State(source): State<ClientIpSource>,
+    mut req: Request,
+    next: Next,
+) -> Response {
+    if source == ClientIpSource::CfConnectingIp {
+        let from_loopback = req
+            .extensions()
+            .get::<ConnectInfo<SocketAddr>>()
+            .is_some_and(|peer| peer.0.ip().to_canonical().is_loopback());
+        let headers = req.headers_mut();
+        headers.remove("x-forwarded-for");
+        if !from_loopback {
+            headers.remove("cf-connecting-ip");
+        }
+    }
+    next.run(req).await
+}
 
 /// `TRUSTED_PROXY_HOPS` — number of trusted proxies that APPEND to
 /// `X-Forwarded-For` before the request reaches the app. Default 1
@@ -220,6 +283,18 @@ mod tests {
         s.parse().unwrap()
     }
 
+    #[test]
+    fn xff_on_a_loopback_listener_is_flagged() {
+        use ClientIpSource::{CfConnectingIp, Xff};
+        for host in ["127.0.0.1", "127.0.0.2", "::1", "[::1]", "localhost"] {
+            assert!(xff_behind_loopback(Xff, host), "{host}");
+            assert!(!xff_behind_loopback(CfConnectingIp, host), "{host}");
+        }
+        for host in ["0.0.0.0", "::", "10.0.0.5", "203.0.113.7", "example.com"] {
+            assert!(!xff_behind_loopback(Xff, host), "{host}");
+        }
+    }
+
     /// XFF with spoofed padding at the front: `[spoof, real, caddy]`,
     /// hops = 1 → the entry 2-from-the-right = real client IP.
     #[test]
@@ -376,5 +451,93 @@ mod tests {
             ]);
             assert_eq!(real_client_ip(&h, ip("10.0.0.9")), ip(visitor), "{visitor}");
         }
+    }
+
+    async fn client_seen_by_handler(
+        source: ClientIpSource,
+        peer: &str,
+        pairs: &[(&str, &str)],
+    ) -> IpAddr {
+        use axum::body::Body;
+        use axum::routing::get;
+        use tower::ServiceExt;
+
+        let app = axum::Router::new()
+            .route(
+                "/",
+                get(
+                    |ConnectInfo(peer): ConnectInfo<SocketAddr>, h: HeaderMap| async move {
+                        real_client_ip(&h, peer.ip()).to_string()
+                    },
+                ),
+            )
+            .layer(axum::middleware::from_fn_with_state(
+                source,
+                trusted_forwarding_headers,
+            ));
+        let mut req = axum::http::Request::builder().uri("/");
+        for (k, v) in pairs {
+            req = req.header(*k, *v);
+        }
+        let mut req = req.body(Body::empty()).unwrap();
+        req.extensions_mut()
+            .insert(ConnectInfo(SocketAddr::new(ip(peer), 4000)));
+        let body = app.oneshot(req).await.unwrap().into_body();
+        let bytes = axum::body::to_bytes(body, 64).await.unwrap();
+        String::from_utf8(bytes.to_vec()).unwrap().parse().unwrap()
+    }
+
+    /// Behind Cloudflare Tunnel the peer is loopback and `CF-Connecting-IP`
+    /// names the visitor, whatever `X-Forwarded-For` claims.
+    #[tokio::test]
+    async fn tunnel_mode_trusts_cf_connecting_ip_from_a_loopback_peer() {
+        for peer in ["127.0.0.1", "::1"] {
+            let got = client_seen_by_handler(
+                ClientIpSource::CfConnectingIp,
+                peer,
+                &[
+                    ("cf-connecting-ip", "14.160.0.9"),
+                    ("x-forwarded-for", "1.2.3.4, 14.160.0.9"),
+                ],
+            )
+            .await;
+            assert_eq!(got, ip("14.160.0.9"), "{peer}");
+        }
+    }
+
+    /// Any other peer could have written the header: it is the client itself.
+    #[tokio::test]
+    async fn tunnel_mode_ignores_forwarding_headers_from_other_peers() {
+        let got = client_seen_by_handler(
+            ClientIpSource::CfConnectingIp,
+            "203.0.113.50",
+            &[
+                ("cf-connecting-ip", "14.160.0.9"),
+                ("x-forwarded-for", "14.160.0.9"),
+            ],
+        )
+        .await;
+        assert_eq!(got, ip("203.0.113.50"));
+    }
+
+    /// In `xff` mode nothing is removed: the proxy chain logic stands.
+    #[tokio::test]
+    async fn xff_mode_leaves_the_headers_alone() {
+        let got = client_seen_by_handler(
+            ClientIpSource::Xff,
+            "10.0.0.9",
+            &[("x-forwarded-for", "203.0.113.7, 198.51.100.99")],
+        )
+        .await;
+        assert_eq!(got, ip("203.0.113.7"));
+    }
+
+    #[test]
+    fn the_config_value_picks_the_source() {
+        assert_eq!(
+            ClientIpSource::from_config("cf-connecting-ip"),
+            ClientIpSource::CfConnectingIp
+        );
+        assert_eq!(ClientIpSource::from_config("xff"), ClientIpSource::Xff);
     }
 }

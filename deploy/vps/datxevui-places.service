@@ -1,0 +1,56 @@
+[Unit]
+Description=datxevui place-index build (Geofabrik extract, validate, publish a new generation)
+Documentation=https://github.com/iamleson98/rust-be-template/tree/HEAD/deploy/vps
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=datxevui
+Group=datxevui
+# Downloads the Vietnam extract (skipped when Geofabrik's MD5 is unchanged),
+# builds records.bin, validates it, flips places/current to the new
+# generation. datxevui.service notices the flip within a minute; no restart.
+ExecStart=/opt/datxevui/current/datxevui places-build
+Environment=SERVER_HOST=127.0.0.1
+Environment=SERVER_PORT=8080
+Environment=DATABASE_URL=sqlite:///var/lib/datxevui/app.db?mode=rwc
+Environment=PLACES_DIR=/var/lib/datxevui/places
+Environment=RUST_LOG=info
+EnvironmentFile=/etc/datxevui/env
+# Peak RSS measured so far: 665 MB, from a debug build on macOS. A Linux
+# release build has not been measured yet; that measurement is a cutover gate
+# (docs/CUTOVER.md), so the cap leaves ~80% headroom over the only number we
+# have. Still capped below the app (1300M) so that if the box ever runs out,
+# this unit is the one the kernel kills.
+MemoryHigh=1000M
+MemoryMax=1200M
+OOMScoreAdjust=500
+TasksMax=128
+TimeoutStartSec=2h
+# Never compete with the site for CPU or disk.
+Nice=19
+IOSchedulingClass=idle
+CPUWeight=10
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictSUIDSGID=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+LockPersonality=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+UMask=0077
+StateDirectory=datxevui
+StateDirectoryMode=0755

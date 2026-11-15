@@ -1,12 +1,13 @@
 //! Departure schedules and their ordered stop points.
 
-use sea_orm::Set;
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, Set};
 use uuid::Uuid;
 
 use super::addresses::address_out;
 use super::validate::{is_days_of_week, regex_like_hhmm};
 use super::vehicle_types::vehicle_type_out;
 use super::{now_iso, optional_trimmed, AdminService};
+use crate::db::write::with_write;
 use crate::dto::admin::{
     AdminMutationResponse, AdminScheduleListResponse, AdminScheduleOut, AdminSchedulePointOut,
     UpsertSchedulePointItem, UpsertScheduleRequest,
@@ -126,7 +127,9 @@ impl AdminService {
         Ok(AdminScheduleListResponse { items })
     }
 
-    /// Create a new schedule.
+    /// Create a schedule together with its points and fares, in one
+    /// transaction: a failure part-way never leaves a schedule without its
+    /// stops or prices.
     pub async fn create_schedule(
         &self,
         body: &UpsertScheduleRequest,
@@ -147,44 +150,39 @@ impl AdminService {
                 "departureTime must be HH:MM (00:00–23:59)".into(),
             ));
         }
+        self.ensure_route_exists(route_id).await?;
 
-        let days_of_week = body.days_of_week.clone();
-        if let Some(ref d) = days_of_week {
-            if !is_days_of_week(d) {
-                return Err(AppError::Validation(
-                    "daysOfWeek must be 7-char 0/1 bitmask".into(),
-                ));
-            }
-        }
+        let days_of_week = days_of_week(body.days_of_week.as_deref())?;
+        let effective_from = effective_date("effectiveFrom", body.effective_from.as_deref())?;
+        let effective_to = effective_date("effectiveTo", body.effective_to.as_deref())?;
+        check_date_order(effective_from.as_deref(), effective_to.as_deref())?;
 
         // Validate the vehicle type reference BEFORE inserting so a bad
         // id can't wedge the FK (and reads as a friendly 4xx, not 500).
-        if let Some(vt_id) = body.vehicle_type_id {
+        let posted_vehicle_type = body.vehicle_type_id.flatten();
+        if let Some(vt_id) = posted_vehicle_type {
             self.ensure_vehicle_type_exists(vt_id).await?;
         }
         // The layout is the single vehicle choice: its class wins over
         // any separately-posted vehicleType so the search facets and
         // the seat map can never disagree.
-        let vehicle_type_id = match body.bus_layout_id {
-            Some(layout_id) => {
-                let derived = self.vehicle_type_of_layout(layout_id).await?;
-                if derived.is_none() {
-                    // A layout without a class keeps the posted type —
-                    // legacy layouts before canonicalization.
-                    body.vehicle_type_id
-                } else {
-                    derived
-                }
-            }
-            None => body.vehicle_type_id,
+        let bus_layout_id = body.bus_layout_id.flatten();
+        let vehicle_type_id = match bus_layout_id {
+            Some(layout_id) => self
+                .vehicle_type_of_layout(layout_id)
+                .await?
+                // A layout without a class keeps the posted type —
+                // legacy layouts before canonicalization.
+                .or(posted_vehicle_type),
+            None => posted_vehicle_type,
         };
 
         let id = Uuid::new_v4();
         let base_price_adult = body.base_price_adult.unwrap_or(0);
         let base_price_child = child_override(body.base_price_child);
         check_child_price("basePriceChild", base_price_child, base_price_adult)?;
-        // Validate the point sequence and fares BEFORE inserting the schedule
-        // so a rejected payload can't leave a half-configured schedule behind.
+        // Validate the point sequence and fares BEFORE writing anything so
+        // a rejected payload can't leave a half-configured schedule behind.
         let fare_models = body
             .class_fares
             .as_deref()
@@ -195,39 +193,45 @@ impl AdminService {
             None => None,
         };
 
-        let now = now_iso();
         let model = schedule::ActiveModel {
             id: Set(id),
             route_id: Set(route_id),
             departure_time: Set(departure_time),
-            effective_from: Set(body.effective_from.clone()),
-            effective_to: Set(body.effective_to.clone()),
+            effective_from: Set(effective_from),
+            effective_to: Set(effective_to),
             days_of_week: Set(days_of_week),
-            bus_layout_id: Set(body.bus_layout_id),
+            bus_layout_id: Set(bus_layout_id),
             vehicle_type_id: Set(vehicle_type_id),
             base_price_adult: Set(base_price_adult),
             base_price_child: Set(base_price_child),
-            amenities: Set(body.amenities.clone()),
-            created_at: Set(now),
+            amenities: Set(optional_trimmed(body.amenities.as_deref())),
+            created_at: Set(now_iso()),
         };
 
-        self.store
-            .schedule_store()
-            .insert_schedule(model)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-
-        if let Some(models) = point_models {
-            self.insert_points(models).await?;
-        }
-        if let Some(models) = fare_models {
-            self.save_fares(id, models).await?;
-        }
+        with_write(self.store.db(), |tx| {
+            let (model, point_models, fare_models) =
+                (model.clone(), point_models.clone(), fare_models.clone());
+            Box::pin(async move {
+                schedule::Entity::insert(model).exec(tx).await?;
+                if let Some(points) = point_models.filter(|p| !p.is_empty()) {
+                    schedule_point::Entity::insert_many(points).exec(tx).await?;
+                }
+                if let Some(fares) = fare_models.filter(|f| !f.is_empty()) {
+                    schedule_fare::Entity::insert_many(fares).exec(tx).await?;
+                }
+                Ok(())
+            })
+        })
+        .await
+        .map_err(|e| AppError::Internal(format!("insert schedule: {e}")))?;
 
         Ok(AdminMutationResponse { id })
     }
 
-    /// Update a schedule by id.
+    /// Update a schedule by id. A field left out keeps its value, `null`
+    /// clears an optional one, and `points` / `classFares`, when present,
+    /// replace the whole list. The row and its lists are written in one
+    /// transaction.
     pub async fn update_schedule(
         &self,
         id: Uuid,
@@ -257,6 +261,9 @@ impl AdminService {
 
         // The (possibly updated) route scopes point validation — resolve it
         // before applying field updates.
+        if let Some(route_id) = body.route_id {
+            self.ensure_route_exists(route_id).await?;
+        }
         let final_route_id = body.route_id.unwrap_or(original_route_id);
         // Validate the new point sequence BEFORE mutating the schedule row.
         let point_models = match &body.points {
@@ -276,68 +283,90 @@ impl AdminService {
             }
             active.departure_time = Set(v.clone());
         }
-        if let Some(ref v) = body.effective_from {
-            active.effective_from = Set(Some(v.clone()));
+        let effective_from = body
+            .effective_from
+            .as_deref()
+            .map(|v| effective_date("effectiveFrom", Some(v)))
+            .transpose()?;
+        let effective_to = body
+            .effective_to
+            .as_deref()
+            .map(|v| effective_date("effectiveTo", Some(v)))
+            .transpose()?;
+        if let (Some(from), Some(to)) = (&effective_from, &effective_to) {
+            check_date_order(from.as_deref(), to.as_deref())?;
         }
-        if let Some(ref v) = body.effective_to {
-            active.effective_to = Set(Some(v.clone()));
+        if let Some(v) = effective_from {
+            active.effective_from = Set(v);
         }
-        if let Some(ref v) = body.days_of_week {
-            active.days_of_week = Set(Some(v.clone()));
+        if let Some(v) = effective_to {
+            active.effective_to = Set(v);
+        }
+        if body.days_of_week.is_some() {
+            active.days_of_week = Set(days_of_week(body.days_of_week.as_deref())?);
         }
         let mut layout_class_applied = false;
-        if let Some(v) = body.bus_layout_id {
-            active.bus_layout_id = Set(Some(v));
+        if let Some(layout) = body.bus_layout_id {
+            active.bus_layout_id = Set(layout);
             // The layout's class follows the re-point so the facets and
             // the seat map stay in agreement.
-            if let Some(derived) = self.vehicle_type_of_layout(v).await? {
+            if let Some(derived) = match layout {
+                Some(layout_id) => self.vehicle_type_of_layout(layout_id).await?,
+                None => None,
+            } {
                 active.vehicle_type_id = Set(Some(derived));
                 layout_class_applied = true;
             }
         }
-        if let Some(v) = body.vehicle_type_id {
-            self.ensure_vehicle_type_exists(v).await?;
+        if let Some(vehicle_type) = body.vehicle_type_id {
+            if let Some(v) = vehicle_type {
+                self.ensure_vehicle_type_exists(v).await?;
+            }
             // Applied only when no layout class overrode it above —
             // the layout is the single source of the schedule's class.
             if !layout_class_applied {
-                active.vehicle_type_id = Set(Some(v));
+                active.vehicle_type_id = Set(vehicle_type);
             }
         }
         active.base_price_adult = Set(base_price_adult);
         active.base_price_child = Set(base_price_child);
-        if let Some(ref v) = body.amenities {
-            active.amenities = Set(Some(v.clone()));
+        if body.amenities.is_some() {
+            active.amenities = Set(optional_trimmed(body.amenities.as_deref()));
         }
 
-        let updated = self
-            .store
-            .schedule_store()
-            .update_schedule(active)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
+        let updated = with_write(self.store.db(), |tx| {
+            let (active, point_models, fare_models) =
+                (active.clone(), point_models.clone(), fare_models.clone());
+            Box::pin(async move {
+                let updated = schedule::Entity::update(active).exec(tx).await?;
+                if let Some(points) = point_models {
+                    schedule_point::Entity::delete_many()
+                        .filter(schedule_point::Column::ScheduleId.eq(id))
+                        .exec(tx)
+                        .await?;
+                    if !points.is_empty() {
+                        schedule_point::Entity::insert_many(points).exec(tx).await?;
+                    }
+                }
+                if let Some(fares) = fare_models {
+                    schedule_fare::Entity::delete_many()
+                        .filter(schedule_fare::Column::ScheduleId.eq(id))
+                        .exec(tx)
+                        .await?;
+                    if !fares.is_empty() {
+                        schedule_fare::Entity::insert_many(fares).exec(tx).await?;
+                    }
+                }
+                Ok(updated)
+            })
+        })
+        .await
+        .map_err(|e| AppError::Internal(format!("update schedule: {e}")))?;
 
-        if let Some(models) = point_models {
-            self.replace_points(id, models).await?;
-        }
-        if let Some(models) = fare_models {
-            self.save_fares(id, models).await?;
-        }
         // Seats still for sale on upcoming trips follow the new prices.
         fares::reprice_upcoming(&self.store, &updated).await?;
 
         Ok(AdminMutationResponse { id })
-    }
-
-    async fn save_fares(
-        &self,
-        schedule_id: Uuid,
-        models: Vec<schedule_fare::ActiveModel>,
-    ) -> AppResult<()> {
-        self.store
-            .schedule_store()
-            .replace_fares(schedule_id, models)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))
     }
 
     /// Delete a schedule by id.
@@ -347,6 +376,22 @@ impl AdminService {
             .delete_schedule(id)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
+        Ok(())
+    }
+
+    /// Schedules and pickup points belong to a route that exists — a bad
+    /// id reads as a friendly 4xx, not an FK failure.
+    pub(super) async fn ensure_route_exists(&self, route_id: Uuid) -> AppResult<()> {
+        if self
+            .store
+            .route_store()
+            .find_route_by_id(route_id)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?
+            .is_none()
+        {
+            return Err(AppError::Validation("routeId names no route".into()));
+        }
         Ok(())
     }
 
@@ -488,61 +533,6 @@ impl AdminService {
             })
             .collect())
     }
-
-    /// Insert freshly built points inside a single transaction.
-    async fn insert_points(&self, models: Vec<schedule_point::ActiveModel>) -> AppResult<()> {
-        if models.is_empty() {
-            return Ok(());
-        }
-        use sea_orm::{DatabaseTransaction, EntityTrait, TransactionTrait};
-        let txn: DatabaseTransaction = self
-            .store
-            .db()
-            .begin()
-            .await
-            .map_err(|e| AppError::Internal(format!("begin txn: {e}")))?;
-        schedule_point::Entity::insert_many(models)
-            .exec(&txn)
-            .await
-            .map_err(|e| AppError::Internal(format!("insert points: {e}")))?;
-        txn.commit()
-            .await
-            .map_err(|e| AppError::Internal(format!("commit txn: {e}")))?;
-        Ok(())
-    }
-
-    /// Atomically replace a schedule's whole point sequence
-    /// (delete-then-insert in one transaction).
-    async fn replace_points(
-        &self,
-        schedule_id: Uuid,
-        models: Vec<schedule_point::ActiveModel>,
-    ) -> AppResult<()> {
-        use sea_orm::{
-            ColumnTrait, DatabaseTransaction, EntityTrait, QueryFilter, TransactionTrait,
-        };
-        let txn: DatabaseTransaction = self
-            .store
-            .db()
-            .begin()
-            .await
-            .map_err(|e| AppError::Internal(format!("begin txn: {e}")))?;
-        schedule_point::Entity::delete_many()
-            .filter(schedule_point::Column::ScheduleId.eq(schedule_id))
-            .exec(&txn)
-            .await
-            .map_err(|e| AppError::Internal(format!("delete points: {e}")))?;
-        if !models.is_empty() {
-            schedule_point::Entity::insert_many(models)
-                .exec(&txn)
-                .await
-                .map_err(|e| AppError::Internal(format!("insert points: {e}")))?;
-        }
-        txn.commit()
-            .await
-            .map_err(|e| AppError::Internal(format!("commit txn: {e}")))?;
-        Ok(())
-    }
 }
 
 /// Point kind derived from its position in the sequence.
@@ -553,6 +543,41 @@ fn point_kind(index: usize, total: usize) -> &'static str {
         "drop"
     } else {
         "middle"
+    }
+}
+
+/// The `daysOfWeek` mask a request carries; blank clears it (every day).
+fn days_of_week(raw: Option<&str>) -> AppResult<Option<String>> {
+    let mask = optional_trimmed(raw);
+    if let Some(mask) = &mask {
+        if !is_days_of_week(mask) {
+            return Err(AppError::Validation(
+                "daysOfWeek must be 7-char 0/1 bitmask".into(),
+            ));
+        }
+    }
+    Ok(mask)
+}
+
+/// An `effectiveFrom` / `effectiveTo` date (`YYYY-MM-DD`); blank clears it.
+fn effective_date(field: &str, raw: Option<&str>) -> AppResult<Option<String>> {
+    let date = optional_trimmed(raw);
+    if let Some(date) = &date {
+        let well_formed =
+            date.len() == 10 && chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d").is_ok();
+        if !well_formed {
+            return Err(AppError::Validation(format!("{field} must be YYYY-MM-DD")));
+        }
+    }
+    Ok(date)
+}
+
+fn check_date_order(from: Option<&str>, to: Option<&str>) -> AppResult<()> {
+    match (from, to) {
+        (Some(from), Some(to)) if from > to => Err(AppError::Validation(
+            "effectiveFrom must not be after effectiveTo".into(),
+        )),
+        _ => Ok(()),
     }
 }
 

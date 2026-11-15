@@ -62,6 +62,27 @@ pub(super) fn valid_slug(s: &str) -> bool {
         && !s.ends_with('-')
 }
 
+/// Longest brand logo URL kept.
+pub(super) const MAX_LOGO_URL_CHARS: usize = 2048;
+
+/// A brand logo is a file this app stored (`POST /api/uploads/brand-logo`
+/// answers with `/api/media/brands/logos/{16 hex}.{jpg|png|webp|svg}`) or
+/// an https image hosted elsewhere.
+pub(super) fn valid_logo_url(url: &str) -> bool {
+    if let Some(file) = url.strip_prefix("/api/media/brands/logos/") {
+        return match file.split_once('.') {
+            Some((hash, ext)) => {
+                hash.len() == 16
+                    && hash.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
+                    && matches!(ext, "jpg" | "png" | "webp" | "svg")
+            }
+            None => false,
+        };
+    }
+    url.strip_prefix("https://")
+        .is_some_and(|rest| !rest.is_empty() && !rest.chars().any(char::is_whitespace))
+}
+
 /// `HH:MM` time validator (00:00 – 23:59).
 pub(super) fn regex_like_hhmm(s: &str) -> bool {
     let b = s.as_bytes();
@@ -186,5 +207,29 @@ mod tests {
         assert!(valid_vehicle_type_code("bus").is_none());
         assert!(valid_vehicle_type_code("limo").is_none());
         assert!(valid_vehicle_type_code("").is_none());
+    }
+
+    #[test]
+    fn logo_urls_are_our_uploads_or_https() {
+        assert!(valid_logo_url(
+            "/api/media/brands/logos/0123456789abcdef.webp"
+        ));
+        assert!(valid_logo_url(
+            "/api/media/brands/logos/0123456789abcdef.svg"
+        ));
+        assert!(valid_logo_url("https://cdn.example.com/logo.png"));
+        for bad in [
+            "http://example.com/logo.png",
+            "/api/media/brands/logos/0123456789abcdef.gif",
+            "/api/media/brands/logos/0123456789ABCDEF.webp",
+            "/api/media/brands/logos/short.webp",
+            "/api/media/routes/0123456789abcdef.webp",
+            "/api/media/brands/logos/../../x.png",
+            "https://",
+            "https://exa mple.com/a.png",
+            "javascript:alert(1)",
+        ] {
+            assert!(!valid_logo_url(bad), "{bad}");
+        }
     }
 }

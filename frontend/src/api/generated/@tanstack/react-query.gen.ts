@@ -3,8 +3,8 @@
 import { type DefaultError, type InfiniteData, infiniteQueryOptions, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { adminAddressesCreate, adminAddressesDelete, adminAddressesList, adminAddressesUpdate, adminBookingsExport, adminBookingsGet, adminBookingsList, adminBookingsStats, adminBookingsUpdateStatus, adminBrandsCreate, adminBrandsDelete, adminBrandsList, adminBrandsUpdate, adminBusLayoutsCreate, adminBusLayoutsDelete, adminBusLayoutsDetail, adminBusLayoutsFitPlan, adminBusLayoutsList, adminBusLayoutsPresets, adminBusLayoutsReplacePlan, adminBusLayoutsUpdate, adminCampaignsCreate, adminCampaignsDelete, adminCampaignsGet, adminCampaignsList, adminCampaignsUpdate, adminCouponsList, adminCouponsPayouts, adminCouponsReject, adminCouponsSettle, adminCronJobsCancel, adminCronJobsList, adminCronJobsTrigger, adminCronJobsUpdate, adminPaymentSummary, adminPickupPointsCreate, adminPickupPointsDelete, adminPickupPointsList, adminPickupPointsUpdate, adminReviewsDelete, adminReviewsList, adminReviewsModerate, adminReviewsSummary, adminRoutesCreate, adminRoutesDelete, adminRoutesList, adminRoutesUpdate, adminSchedulesCreate, adminSchedulesDelete, adminSchedulesList, adminSchedulesUpdate, adminVehicleTypesCreate, adminVehicleTypesDelete, adminVehicleTypesList, adminVehicleTypesUpdate, authLogin, authLogout, authMe, authRefresh, authRegister, bookingsCancel, bookingsDetail, bookingsHold, bookingsList, bookingsPlace, brandDetail, brands, campaignsClaim, campaignsList, cancelPayment, changePassword, chatMarkRead, chatStats, claimChannel, closeChannel, couponsGiveUp, couponsMine, createChannel, createPayment, createPost, databaseSize, databaseVacuum, deleteAllPictures, deletePicture, deletePost, deleteUser, employeeLogin, getPayment, getPost, getStaffPresence, getUser, health, listAdminPayments, listBookingPayments, listChannels, listExchanges, listMessages, listPictures, listPosts, listProviders, listRuns, listUsers, loyaltySummary, markCodCollected, mediaServe, momoIpn, notificationsList, notificationsMarkRead, nullclawStatus, oauthCallback, oauthProviders, oauthStart, onlineChannels, type Options, patchPicture, placesList, placesReverse, placesSearch, postMessage, priceAlertsCreate, priceAlertsList, priceAlertsRemove, processMemory, ready, recommendations, registerDevice, releaseChannel, reportConversion, reportVitals, reviewsCreate, reviewsGet, reviewsList, reviewsMine, reviewsRemove, reviewsStats, reviewsTags, reviewsUpdate, robots, routePictures, routes, routingDirections, routingIsochrone, routingMatrix, searchTrips, searchTripsGeo, setUserRole, sitemap, stats, systemMetrics, systemStatus, tripDetail, unregisterDevice, updatePaymentStatus, updatePost, uploadPicture, vnpayIpn, zalopayCallback } from '../sdk.gen';
-import type { AdminAddressesCreateData, AdminAddressesCreateResponse, AdminAddressesDeleteData, AdminAddressesDeleteResponse, AdminAddressesListData, AdminAddressesListResponse, AdminAddressesUpdateData, AdminAddressesUpdateResponse, AdminBookingsExportData, AdminBookingsExportResponse, AdminBookingsGetData, AdminBookingsGetResponse, AdminBookingsListData, AdminBookingsListResponse, AdminBookingsStatsData, AdminBookingsStatsResponse, AdminBookingsUpdateStatusData, AdminBookingsUpdateStatusResponse, AdminBrandsCreateData, AdminBrandsCreateResponse, AdminBrandsDeleteData, AdminBrandsDeleteResponse, AdminBrandsListData, AdminBrandsListResponse, AdminBrandsUpdateData, AdminBrandsUpdateResponse, AdminBusLayoutsCreateData, AdminBusLayoutsCreateResponse, AdminBusLayoutsDeleteData, AdminBusLayoutsDeleteResponse, AdminBusLayoutsDetailData, AdminBusLayoutsDetailResponse, AdminBusLayoutsFitPlanData, AdminBusLayoutsFitPlanResponse, AdminBusLayoutsListData, AdminBusLayoutsListResponse, AdminBusLayoutsPresetsData, AdminBusLayoutsPresetsResponse, AdminBusLayoutsReplacePlanData, AdminBusLayoutsReplacePlanResponse, AdminBusLayoutsUpdateData, AdminBusLayoutsUpdateResponse, AdminCampaignsCreateData, AdminCampaignsCreateResponse, AdminCampaignsDeleteData, AdminCampaignsDeleteResponse, AdminCampaignsGetData, AdminCampaignsGetResponse, AdminCampaignsListData, AdminCampaignsListResponse, AdminCampaignsUpdateData, AdminCampaignsUpdateResponse, AdminCouponsListData, AdminCouponsListResponse, AdminCouponsPayoutsData, AdminCouponsPayoutsResponse, AdminCouponsRejectData, AdminCouponsRejectResponse, AdminCouponsSettleData, AdminCouponsSettleResponse, AdminCronJobsCancelData, AdminCronJobsCancelResponse, AdminCronJobsListData, AdminCronJobsListResponse, AdminCronJobsTriggerData, AdminCronJobsTriggerResponse, AdminCronJobsUpdateData, AdminCronJobsUpdateResponse, AdminPaymentSummaryData, AdminPaymentSummaryResponse, AdminPickupPointsCreateData, AdminPickupPointsCreateResponse, AdminPickupPointsDeleteData, AdminPickupPointsDeleteResponse, AdminPickupPointsListData, AdminPickupPointsListResponse, AdminPickupPointsUpdateData, AdminPickupPointsUpdateResponse, AdminReviewsDeleteData, AdminReviewsDeleteResponse, AdminReviewsListData, AdminReviewsListResponse, AdminReviewsModerateData, AdminReviewsModerateResponse, AdminReviewsSummaryData, AdminReviewsSummaryResponse, AdminRoutesCreateData, AdminRoutesCreateResponse, AdminRoutesDeleteData, AdminRoutesDeleteResponse, AdminRoutesListData, AdminRoutesListResponse, AdminRoutesUpdateData, AdminRoutesUpdateResponse, AdminSchedulesCreateData, AdminSchedulesCreateResponse, AdminSchedulesDeleteData, AdminSchedulesDeleteResponse, AdminSchedulesListData, AdminSchedulesListResponse, AdminSchedulesUpdateData, AdminSchedulesUpdateResponse, AdminVehicleTypesCreateData, AdminVehicleTypesCreateResponse, AdminVehicleTypesDeleteData, AdminVehicleTypesDeleteResponse, AdminVehicleTypesListData, AdminVehicleTypesListResponse, AdminVehicleTypesUpdateData, AdminVehicleTypesUpdateResponse, AuthLoginData, AuthLoginResponse, AuthLogoutData, AuthLogoutResponse, AuthMeData, AuthMeResponse, AuthRefreshData, AuthRefreshResponse, AuthRegisterData, AuthRegisterResponse, BookingsCancelData, BookingsCancelResponse, BookingsDetailData, BookingsDetailResponse, BookingsHoldData, BookingsHoldResponse, BookingsListData, BookingsListResponse, BookingsPlaceData, BookingsPlaceResponse, BrandDetailData, BrandDetailResponse, BrandsData, BrandsResponse, CampaignsClaimData, CampaignsClaimResponse, CampaignsListData, CampaignsListResponse, CancelPaymentData, CancelPaymentResponse2, ChangePasswordData, ChangePasswordResponse, ChatMarkReadData, ChatMarkReadResponse, ChatStatsData, ChatStatsResponse2, ClaimChannelData, ClaimChannelResponse, CloseChannelData, CloseChannelResponse, CouponsGiveUpData, CouponsGiveUpResponse, CouponsMineData, CouponsMineResponse, CreateChannelData, CreateChannelResponse2, CreatePaymentData, CreatePaymentResponse2, CreatePostData, CreatePostResponse, DatabaseSizeData, DatabaseSizeResponse2, DatabaseVacuumData, DatabaseVacuumResponse, DeleteAllPicturesData, DeleteAllPicturesResponse, DeletePictureData, DeletePictureResponse, DeletePostData, DeletePostResponse, DeleteUserData, DeleteUserResponse, EmployeeLoginData, EmployeeLoginResponse, GetPaymentData, GetPaymentResponse, GetPostData, GetPostResponse, GetStaffPresenceData, GetStaffPresenceResponse, GetUserData, GetUserResponse, HealthData, HealthResponse2, ListAdminPaymentsData, ListAdminPaymentsResponse, ListBookingPaymentsData, ListBookingPaymentsResponse, ListChannelsData, ListChannelsResponse, ListExchangesData, ListExchangesResponse, ListMessagesData, ListMessagesResponse, ListPicturesData, ListPicturesResponse, ListPostsData, ListPostsResponse2, ListProvidersData, ListProvidersResponse, ListRunsData, ListRunsResponse, ListUsersData, ListUsersResponse, LoyaltySummaryData, LoyaltySummaryResponse, MarkCodCollectedData, MarkCodCollectedResponse2, MediaServeData, MomoIpnData, MomoIpnResponse, NotificationsListData, NotificationsListResponse, NotificationsMarkReadData, NotificationsMarkReadResponse, NullclawStatusData, NullclawStatusResponse2, OauthCallbackData, OauthProvidersData, OauthProvidersResponse, OauthStartData, OnlineChannelsData, OnlineChannelsResponse2, PatchPictureData, PatchPictureResponse, PlacesListData, PlacesListResponse, PlacesReverseData, PlacesReverseResponse, PlacesSearchData, PlacesSearchResponse, PostMessageData, PostMessageResponse, PriceAlertsCreateData, PriceAlertsCreateResponse, PriceAlertsListData, PriceAlertsListResponse, PriceAlertsRemoveData, PriceAlertsRemoveResponse, ProcessMemoryData, ProcessMemoryResponse2, ReadyData, ReadyError, ReadyResponse, RecommendationsData, RecommendationsResponse, RegisterDeviceData, RegisterDeviceResponse2, ReleaseChannelData, ReleaseChannelResponse, ReportConversionData, ReportConversionResponse2, ReportVitalsData, ReportVitalsResponse, ReviewsCreateData, ReviewsCreateResponse, ReviewsGetData, ReviewsGetResponse, ReviewsListData, ReviewsListResponse, ReviewsMineData, ReviewsMineResponse, ReviewsRemoveData, ReviewsRemoveResponse, ReviewsStatsData, ReviewsStatsResponse, ReviewsTagsData, ReviewsTagsResponse, ReviewsUpdateData, ReviewsUpdateResponse, RobotsData, RoutePicturesData, RoutePicturesResponse, RoutesData, RoutesResponse, RoutingDirectionsData, RoutingDirectionsResponse, RoutingIsochroneData, RoutingIsochroneResponse, RoutingMatrixData, RoutingMatrixResponse, SearchTripsData, SearchTripsGeoData, SearchTripsGeoResponse, SearchTripsResponse, SetUserRoleData, SetUserRoleResponse2, SitemapData, SitemapResponse, StatsData, StatsResponse2, SystemMetricsData, SystemMetricsResponse, SystemStatusData, SystemStatusResponse2, TripDetailData, TripDetailResponse, UnregisterDeviceData, UnregisterDeviceResponse2, UpdatePaymentStatusData, UpdatePaymentStatusResponse2, UpdatePostData, UpdatePostResponse, UploadPictureData, UploadPictureResponse, VnpayIpnData, VnpayIpnResponse, ZalopayCallbackData, ZalopayCallbackResponse } from '../types.gen';
+import { adminAddressesCreate, adminAddressesDelete, adminAddressesList, adminAddressesUpdate, adminBookingsExport, adminBookingsGet, adminBookingsList, adminBookingsStats, adminBookingsUpdateStatus, adminBrandsCreate, adminBrandsDelete, adminBrandsList, adminBrandsUpdate, adminBusLayoutsCreate, adminBusLayoutsDelete, adminBusLayoutsDetail, adminBusLayoutsFitPlan, adminBusLayoutsList, adminBusLayoutsPresets, adminBusLayoutsReplacePlan, adminBusLayoutsUpdate, adminCampaignsCreate, adminCampaignsDelete, adminCampaignsGet, adminCampaignsList, adminCampaignsUpdate, adminCouponsList, adminCouponsPayouts, adminCouponsReject, adminCouponsSettle, adminCronJobsCancel, adminCronJobsList, adminCronJobsTrigger, adminCronJobsUpdate, adminPaymentSummary, adminPickupPointsCreate, adminPickupPointsDelete, adminPickupPointsList, adminPickupPointsUpdate, adminReviewsDelete, adminReviewsList, adminReviewsModerate, adminReviewsSummary, adminRoutesCreate, adminRoutesDelete, adminRoutesList, adminRoutesUpdate, adminSchedulesCreate, adminSchedulesDelete, adminSchedulesList, adminSchedulesUpdate, adminVehicleTypesCreate, adminVehicleTypesDelete, adminVehicleTypesList, adminVehicleTypesUpdate, authLogin, authLogout, authMe, authRefresh, authRegister, bookingsCancel, bookingsDetail, bookingsHold, bookingsList, bookingsPlace, brandDetail, brandProfile, brands, campaignsClaim, campaignsList, cancelPayment, changePassword, chatMarkRead, chatStats, claimChannel, closeChannel, couponsGiveUp, couponsMine, createChannel, createPayment, createPost, databaseSize, databaseVacuum, deleteAllPictures, deletePicture, deletePost, deleteUser, employeeLogin, getPayment, getPost, getStaffPresence, getUser, health, listAdminPayments, listBookingPayments, listChannels, listExchanges, listMessages, listPictures, listPosts, listProviders, listRuns, listUsers, loyaltySummary, markCodCollected, mediaServe, momoIpn, notificationsList, notificationsMarkRead, nullclawStatus, oauthCallback, oauthProviders, oauthStart, onlineChannels, type Options, patchPicture, placesList, placesReverse, placesSearch, postMessage, priceAlertsCreate, priceAlertsList, priceAlertsRemove, processMemory, ready, recommendations, registerDevice, releaseChannel, reportConversion, reportVitals, reviewsCreate, reviewsGet, reviewsList, reviewsMine, reviewsRemove, reviewsStats, reviewsTags, reviewsUpdate, robots, routePictures, routes, routingDirections, routingIsochrone, routingMatrix, searchTrips, searchTripsGeo, setUserRole, sitemap, stats, systemMetrics, systemStatus, tripDetail, unregisterDevice, updatePaymentStatus, updatePost, uploadBrandLogo, uploadPicture, vnpayIpn, zalopayCallback } from '../sdk.gen';
+import type { AdminAddressesCreateData, AdminAddressesCreateResponse, AdminAddressesDeleteData, AdminAddressesDeleteResponse, AdminAddressesListData, AdminAddressesListResponse, AdminAddressesUpdateData, AdminAddressesUpdateResponse, AdminBookingsExportData, AdminBookingsExportResponse, AdminBookingsGetData, AdminBookingsGetResponse, AdminBookingsListData, AdminBookingsListResponse, AdminBookingsStatsData, AdminBookingsStatsResponse, AdminBookingsUpdateStatusData, AdminBookingsUpdateStatusResponse, AdminBrandsCreateData, AdminBrandsCreateResponse, AdminBrandsDeleteData, AdminBrandsDeleteResponse, AdminBrandsListData, AdminBrandsListResponse, AdminBrandsUpdateData, AdminBrandsUpdateResponse, AdminBusLayoutsCreateData, AdminBusLayoutsCreateResponse, AdminBusLayoutsDeleteData, AdminBusLayoutsDeleteResponse, AdminBusLayoutsDetailData, AdminBusLayoutsDetailResponse, AdminBusLayoutsFitPlanData, AdminBusLayoutsFitPlanResponse, AdminBusLayoutsListData, AdminBusLayoutsListResponse, AdminBusLayoutsPresetsData, AdminBusLayoutsPresetsResponse, AdminBusLayoutsReplacePlanData, AdminBusLayoutsReplacePlanResponse, AdminBusLayoutsUpdateData, AdminBusLayoutsUpdateResponse, AdminCampaignsCreateData, AdminCampaignsCreateResponse, AdminCampaignsDeleteData, AdminCampaignsDeleteResponse, AdminCampaignsGetData, AdminCampaignsGetResponse, AdminCampaignsListData, AdminCampaignsListResponse, AdminCampaignsUpdateData, AdminCampaignsUpdateResponse, AdminCouponsListData, AdminCouponsListResponse, AdminCouponsPayoutsData, AdminCouponsPayoutsResponse, AdminCouponsRejectData, AdminCouponsRejectResponse, AdminCouponsSettleData, AdminCouponsSettleResponse, AdminCronJobsCancelData, AdminCronJobsCancelResponse, AdminCronJobsListData, AdminCronJobsListResponse, AdminCronJobsTriggerData, AdminCronJobsTriggerResponse, AdminCronJobsUpdateData, AdminCronJobsUpdateResponse, AdminPaymentSummaryData, AdminPaymentSummaryResponse, AdminPickupPointsCreateData, AdminPickupPointsCreateResponse, AdminPickupPointsDeleteData, AdminPickupPointsDeleteResponse, AdminPickupPointsListData, AdminPickupPointsListResponse, AdminPickupPointsUpdateData, AdminPickupPointsUpdateResponse, AdminReviewsDeleteData, AdminReviewsDeleteResponse, AdminReviewsListData, AdminReviewsListResponse, AdminReviewsModerateData, AdminReviewsModerateResponse, AdminReviewsSummaryData, AdminReviewsSummaryResponse, AdminRoutesCreateData, AdminRoutesCreateResponse, AdminRoutesDeleteData, AdminRoutesDeleteResponse, AdminRoutesListData, AdminRoutesListResponse, AdminRoutesUpdateData, AdminRoutesUpdateResponse, AdminSchedulesCreateData, AdminSchedulesCreateResponse, AdminSchedulesDeleteData, AdminSchedulesDeleteResponse, AdminSchedulesListData, AdminSchedulesListResponse, AdminSchedulesUpdateData, AdminSchedulesUpdateResponse, AdminVehicleTypesCreateData, AdminVehicleTypesCreateResponse, AdminVehicleTypesDeleteData, AdminVehicleTypesDeleteResponse, AdminVehicleTypesListData, AdminVehicleTypesListResponse, AdminVehicleTypesUpdateData, AdminVehicleTypesUpdateResponse, AuthLoginData, AuthLoginResponse, AuthLogoutData, AuthLogoutResponse, AuthMeData, AuthMeResponse, AuthRefreshData, AuthRefreshResponse, AuthRegisterData, AuthRegisterResponse, BookingsCancelData, BookingsCancelResponse, BookingsDetailData, BookingsDetailResponse, BookingsHoldData, BookingsHoldResponse, BookingsListData, BookingsListResponse, BookingsPlaceData, BookingsPlaceResponse, BrandDetailData, BrandDetailResponse, BrandProfileData, BrandProfileResponse, BrandsData, BrandsResponse, CampaignsClaimData, CampaignsClaimResponse, CampaignsListData, CampaignsListResponse, CancelPaymentData, CancelPaymentResponse2, ChangePasswordData, ChangePasswordResponse, ChatMarkReadData, ChatMarkReadResponse, ChatStatsData, ChatStatsResponse2, ClaimChannelData, ClaimChannelResponse, CloseChannelData, CloseChannelResponse, CouponsGiveUpData, CouponsGiveUpResponse, CouponsMineData, CouponsMineResponse, CreateChannelData, CreateChannelResponse2, CreatePaymentData, CreatePaymentResponse2, CreatePostData, CreatePostResponse, DatabaseSizeData, DatabaseSizeResponse2, DatabaseVacuumData, DatabaseVacuumResponse, DeleteAllPicturesData, DeleteAllPicturesResponse, DeletePictureData, DeletePictureResponse, DeletePostData, DeletePostResponse, DeleteUserData, DeleteUserResponse, EmployeeLoginData, EmployeeLoginResponse, GetPaymentData, GetPaymentResponse, GetPostData, GetPostResponse, GetStaffPresenceData, GetStaffPresenceResponse, GetUserData, GetUserResponse, HealthData, HealthResponse2, ListAdminPaymentsData, ListAdminPaymentsResponse, ListBookingPaymentsData, ListBookingPaymentsResponse, ListChannelsData, ListChannelsResponse, ListExchangesData, ListExchangesResponse, ListMessagesData, ListMessagesResponse, ListPicturesData, ListPicturesResponse, ListPostsData, ListPostsResponse2, ListProvidersData, ListProvidersResponse, ListRunsData, ListRunsResponse, ListUsersData, ListUsersResponse, LoyaltySummaryData, LoyaltySummaryResponse, MarkCodCollectedData, MarkCodCollectedResponse2, MediaServeData, MomoIpnData, MomoIpnResponse, NotificationsListData, NotificationsListResponse, NotificationsMarkReadData, NotificationsMarkReadResponse, NullclawStatusData, NullclawStatusResponse2, OauthCallbackData, OauthProvidersData, OauthProvidersResponse, OauthStartData, OnlineChannelsData, OnlineChannelsResponse2, PatchPictureData, PatchPictureResponse, PlacesListData, PlacesListResponse, PlacesReverseData, PlacesReverseResponse, PlacesSearchData, PlacesSearchResponse, PostMessageData, PostMessageResponse, PriceAlertsCreateData, PriceAlertsCreateResponse, PriceAlertsListData, PriceAlertsListResponse, PriceAlertsRemoveData, PriceAlertsRemoveResponse, ProcessMemoryData, ProcessMemoryResponse2, ReadyData, ReadyError, ReadyResponse, RecommendationsData, RecommendationsResponse, RegisterDeviceData, RegisterDeviceResponse2, ReleaseChannelData, ReleaseChannelResponse, ReportConversionData, ReportConversionResponse2, ReportVitalsData, ReportVitalsResponse, ReviewsCreateData, ReviewsCreateResponse, ReviewsGetData, ReviewsGetResponse, ReviewsListData, ReviewsListResponse, ReviewsMineData, ReviewsMineResponse, ReviewsRemoveData, ReviewsRemoveResponse, ReviewsStatsData, ReviewsStatsResponse, ReviewsTagsData, ReviewsTagsResponse, ReviewsUpdateData, ReviewsUpdateResponse, RobotsData, RoutePicturesData, RoutePicturesResponse, RoutesData, RoutesResponse, RoutingDirectionsData, RoutingDirectionsResponse, RoutingIsochroneData, RoutingIsochroneResponse, RoutingMatrixData, RoutingMatrixResponse, SearchTripsData, SearchTripsGeoData, SearchTripsGeoResponse, SearchTripsResponse, SetUserRoleData, SetUserRoleResponse2, SitemapData, SitemapResponse, StatsData, StatsResponse2, SystemMetricsData, SystemMetricsResponse, SystemStatusData, SystemStatusResponse2, TripDetailData, TripDetailResponse, UnregisterDeviceData, UnregisterDeviceResponse2, UpdatePaymentStatusData, UpdatePaymentStatusResponse2, UpdatePostData, UpdatePostResponse, UploadBrandLogoData, UploadBrandLogoResponse, UploadPictureData, UploadPictureResponse, VnpayIpnData, VnpayIpnResponse, ZalopayCallbackData, ZalopayCallbackResponse } from '../types.gen';
 
 export type QueryKey<TOptions extends Options> = [
     Pick<TOptions, 'baseUrl' | 'body' | 'headers' | 'path' | 'query'> & {
@@ -43,8 +43,10 @@ export const adminAddressesListQueryKey = (options?: Options<AdminAddressesListD
 
 /**
  * `GET /api/admin/addresses?brandId=&q=&limit=&offset=` — list a
- * brand's addresses. `q`/`limit`/`offset` feed the searchable,
- * infinite-scroll schedule point picker; omitting `limit` returns all.
+ * brand's addresses, each with how many schedule stops use it
+ * (`stopCount`). `q` matches the name or the street; `q`/`limit`/`offset`
+ * feed the searchable, infinite-scroll schedule point picker; omitting
+ * `limit` returns all.
  */
 export const adminAddressesListOptions = (options?: Options<AdminAddressesListData>) => queryOptions<AdminAddressesListResponse, DefaultError, AdminAddressesListResponse, ReturnType<typeof adminAddressesListQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -92,8 +94,10 @@ export const adminAddressesListInfiniteQueryKey = (options?: Options<AdminAddres
 
 /**
  * `GET /api/admin/addresses?brandId=&q=&limit=&offset=` — list a
- * brand's addresses. `q`/`limit`/`offset` feed the searchable,
- * infinite-scroll schedule point picker; omitting `limit` returns all.
+ * brand's addresses, each with how many schedule stops use it
+ * (`stopCount`). `q` matches the name or the street; `q`/`limit`/`offset`
+ * feed the searchable, infinite-scroll schedule point picker; omitting
+ * `limit` returns all.
  */
 export const adminAddressesListInfiniteOptions = (options?: Options<AdminAddressesListData>) => {
     const opts = infiniteQueryOptions<AdminAddressesListResponse, DefaultError, InfiniteData<AdminAddressesListResponse>, QueryKey<Options<AdminAddressesListData>>, number | Pick<QueryKey<Options<AdminAddressesListData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
@@ -121,7 +125,7 @@ export const adminAddressesListInfiniteOptions = (options?: Options<AdminAddress
 };
 
 /**
- * `POST /api/admin/addresses` — create an address.
+ * `POST /api/admin/addresses` — create an address in one of our cities.
  */
 export const adminAddressesCreateMutation = (options?: Partial<Options<AdminAddressesCreateData>>): UseMutationOptions<AdminAddressesCreateResponse, DefaultError, Options<AdminAddressesCreateData>> => {
     const mutationOptions: UseMutationOptions<AdminAddressesCreateResponse, DefaultError, Options<AdminAddressesCreateData>> = {
@@ -139,7 +143,8 @@ export const adminAddressesCreateMutation = (options?: Partial<Options<AdminAddr
 };
 
 /**
- * `DELETE /api/admin/addresses/{id}` — delete an address.
+ * `DELETE /api/admin/addresses/{id}` — delete an address no schedule
+ * stops at (deleting it would silently drop those stops).
  */
 export const adminAddressesDeleteMutation = (options?: Partial<Options<AdminAddressesDeleteData>>): UseMutationOptions<AdminAddressesDeleteResponse, DefaultError, Options<AdminAddressesDeleteData>> => {
     const mutationOptions: UseMutationOptions<AdminAddressesDeleteResponse, DefaultError, Options<AdminAddressesDeleteData>> = {
@@ -157,7 +162,8 @@ export const adminAddressesDeleteMutation = (options?: Partial<Options<AdminAddr
 };
 
 /**
- * `PUT /api/admin/addresses/{id}` — update an address.
+ * `PUT /api/admin/addresses/{id}` — update an address; fields left out
+ * keep their values and a blank (or `null`) detail is cleared.
  */
 export const adminAddressesUpdateMutation = (options?: Partial<Options<AdminAddressesUpdateData>>): UseMutationOptions<AdminAddressesUpdateResponse, DefaultError, Options<AdminAddressesUpdateData>> => {
     const mutationOptions: UseMutationOptions<AdminAddressesUpdateResponse, DefaultError, Options<AdminAddressesUpdateData>> = {
@@ -431,7 +437,8 @@ export const adminBusLayoutsListQueryKey = (options?: Options<AdminBusLayoutsLis
 
 /**
  * `GET /api/admin/bus-layouts` — list bus layouts, with optional brand
- * filter and offset pagination.
+ * filter and offset pagination. `includeShared=true` adds the shared
+ * catalog (layouts without a brand) to a brand's own layouts.
  */
 export const adminBusLayoutsListOptions = (options?: Options<AdminBusLayoutsListData>) => queryOptions<AdminBusLayoutsListResponse, DefaultError, AdminBusLayoutsListResponse, ReturnType<typeof adminBusLayoutsListQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -450,7 +457,8 @@ export const adminBusLayoutsListInfiniteQueryKey = (options?: Options<AdminBusLa
 
 /**
  * `GET /api/admin/bus-layouts` — list bus layouts, with optional brand
- * filter and offset pagination.
+ * filter and offset pagination. `includeShared=true` adds the shared
+ * catalog (layouts without a brand) to a brand's own layouts.
  */
 export const adminBusLayoutsListInfiniteOptions = (options?: Options<AdminBusLayoutsListData>) => {
     const opts = infiniteQueryOptions<AdminBusLayoutsListResponse, DefaultError, InfiniteData<AdminBusLayoutsListResponse>, QueryKey<Options<AdminBusLayoutsListData>>, number | Pick<QueryKey<Options<AdminBusLayoutsListData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
@@ -1352,10 +1360,13 @@ export const listPicturesOptions = (options: Options<ListPicturesData>) => query
  * * `file` (required) — JPEG / PNG / WebP, ≤ 10 MiB. Validated by
  * magic bytes AND fully decoded server-side (rejects polyglot /
  * corrupt files); the client-declared Content-Type is ignored.
+ * Stored as WebP (long edge ≤ 1920 px) plus a 640 px WebP
+ * thumbnail; the original and its EXIF are never kept.
  * * `alt_text` (optional) — accessible description, ≤ 255 chars.
  *
- * Idempotent on content: re-uploading the exact same bytes for the
- * same route returns the existing row with `deduped: true`.
+ * At most 10 pictures per route. Idempotent on content: re-uploading
+ * an image that encodes to the same WebP for the same route returns
+ * the existing row with `deduped: true`.
  */
 export const uploadPictureMutation = (options?: Partial<Options<UploadPictureData>>): UseMutationOptions<UploadPictureResponse, DefaultError, Options<UploadPictureData>> => {
     const mutationOptions: UseMutationOptions<UploadPictureResponse, DefaultError, Options<UploadPictureData>> = {
@@ -1523,8 +1534,9 @@ export const databaseSizeOptions = (options?: Options<DatabaseSizeData>) => quer
  * `POST /api/admin/system/database/vacuum` — guarded in-place
  * compaction. Rebuilds the file (drops freelist + fragmentation
  * slack); expect IO ≈ one full-DB read + write for the duration.
- * Runs on the shared single-writer engine: concurrent writers queue on
- * the engine's own write lock — run it in a quiet window.
+ * VACUUM holds SQLite's write lock for its duration: concurrent writers
+ * wait up to `busy_timeout` and then fail with SQLITE_BUSY — run it in
+ * a quiet window.
  */
 export const databaseVacuumMutation = (options?: Partial<Options<DatabaseVacuumData>>): UseMutationOptions<DatabaseVacuumResponse, DefaultError, Options<DatabaseVacuumData>> => {
     const mutationOptions: UseMutationOptions<DatabaseVacuumResponse, DefaultError, Options<DatabaseVacuumData>> = {
@@ -1695,6 +1707,10 @@ export const adminVehicleTypesUpdateMutation = (options?: Partial<Options<AdminV
  * the background and is retried by a later sweep; its outcome is
  * observable in the `ad_conversion` table's `status` column, never in
  * this response.
+ *
+ * The beacon is trusted for nothing but the click ids: the event must
+ * be `booking` or `purchase`, `transactionId` a real booking's code, and
+ * value and currency come from the database.
  */
 export const reportConversionMutation = (options?: Partial<Options<ReportConversionData>>): UseMutationOptions<ReportConversionResponse2, DefaultError, Options<ReportConversionData>> => {
     const mutationOptions: UseMutationOptions<ReportConversionResponse2, DefaultError, Options<ReportConversionData>> = {
@@ -2072,6 +2088,26 @@ export const brandDetailOptions = (options: Options<BrandDetailData>) => queryOp
     queryKey: brandDetailQueryKey(options)
 });
 
+export const brandProfileQueryKey = (options: Options<BrandProfileData>) => createQueryKey('brandProfile', options, false, ['brands']);
+
+/**
+ * `GET /api/brands/{slug}/profile` — everything a brand's page shows in
+ * one read: the brand, its locations (at most 60), its active routes
+ * with timetables and the trips leaving in the next 3 days (at most 40).
+ */
+export const brandProfileOptions = (options: Options<BrandProfileData>) => queryOptions<BrandProfileResponse, DefaultError, BrandProfileResponse, ReturnType<typeof brandProfileQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await brandProfile({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: brandProfileQueryKey(options)
+});
+
 export const campaignsListQueryKey = (options?: Options<CampaignsListData>) => createQueryKey('campaignsList', options, false, ['campaigns']);
 
 /**
@@ -2125,7 +2161,7 @@ export const listChannelsQueryKey = (options?: Options<ListChannelsData>) => cre
  * display "who" without a second round-trip per channel.
  *
  * **Pagination**: `limit` (default 50, max 200) + `offset` (default
- * 0) page through the `last_message_at DESC` ordering — the initial
+ * 0) page through the newest-activity-first ordering — the initial
  * page returns the most recently active channels; scrolling the
  * admin channel list down fetches subsequent pages. The list is
  * ordered most-recent-first, so a full page means "there may be more".
@@ -2157,7 +2193,7 @@ export const listChannelsInfiniteQueryKey = (options?: Options<ListChannelsData>
  * display "who" without a second round-trip per channel.
  *
  * **Pagination**: `limit` (default 50, max 200) + `offset` (default
- * 0) page through the `last_message_at DESC` ordering — the initial
+ * 0) page through the newest-activity-first ordering — the initial
  * page returns the most recently active channels; scrolling the
  * admin channel list down fetches subsequent pages. The list is
  * ordered most-recent-first, so a full page means "there may be more".
@@ -2822,7 +2858,7 @@ export const markCodCollectedMutation = (options?: Partial<Options<MarkCodCollec
 export const placesListQueryKey = (options?: Options<PlacesListData>) => createQueryKey('placesList', options, false, ['places']);
 
 /**
- * `GET /api/places` — list places.
+ * `GET /api/places` — the most populous cities and towns.
  */
 export const placesListOptions = (options?: Options<PlacesListData>) => queryOptions<PlacesListResponse, DefaultError, PlacesListResponse, ReturnType<typeof placesListQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -2840,7 +2876,7 @@ export const placesListOptions = (options?: Options<PlacesListData>) => queryOpt
 export const placesListInfiniteQueryKey = (options?: Options<PlacesListData>): QueryKey<Options<PlacesListData>> => createQueryKey('placesList', options, true, ['places']);
 
 /**
- * `GET /api/places` — list places.
+ * `GET /api/places` — the most populous cities and towns.
  */
 export const placesListInfiniteOptions = (options?: Options<PlacesListData>) => {
     const opts = infiniteQueryOptions<PlacesListResponse, DefaultError, InfiniteData<PlacesListResponse>, QueryKey<Options<PlacesListData>>, number | null | Pick<QueryKey<Options<PlacesListData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
@@ -2870,7 +2906,9 @@ export const placesListInfiniteOptions = (options?: Options<PlacesListData>) => 
 export const placesReverseQueryKey = (options: Options<PlacesReverseData>) => createQueryKey('placesReverse', options, false, ['places']);
 
 /**
- * `GET /api/places/reverse` — reverse geocode coordinates.
+ * `GET /api/places/reverse` — the places nearest to a point, nearest first.
+ *
+ * A point off the globe has no places near it: an empty list, like the Worker.
  */
 export const placesReverseOptions = (options: Options<PlacesReverseData>) => queryOptions<PlacesReverseResponse, DefaultError, PlacesReverseResponse, ReturnType<typeof placesReverseQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -2888,7 +2926,7 @@ export const placesReverseOptions = (options: Options<PlacesReverseData>) => que
 export const placesSearchQueryKey = (options: Options<PlacesSearchData>) => createQueryKey('placesSearch', options, false, ['places']);
 
 /**
- * `GET /api/places/search` — search places by query.
+ * `GET /api/places/search` — place autocomplete.
  */
 export const placesSearchOptions = (options: Options<PlacesSearchData>) => queryOptions<PlacesSearchResponse, DefaultError, PlacesSearchResponse, ReturnType<typeof placesSearchQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -3655,6 +3693,30 @@ export const tripDetailOptions = (options: Options<TripDetailData>) => queryOpti
     queryKey: tripDetailQueryKey(options)
 });
 
+/**
+ * `POST /api/uploads/brand-logo` — upload one brand logo.
+ *
+ * Multipart field `file` (required): JPEG / PNG / WebP (stored as WebP
+ * scaled to 512 px, metadata dropped) or SVG (stored as uploaded after
+ * a safety check), ≤ 5 MiB. The format is read from the content, never
+ * from the declared Content-Type. Content-addressed: the same logo
+ * uploaded twice yields the same key.
+ */
+export const uploadBrandLogoMutation = (options?: Partial<Options<UploadBrandLogoData>>): UseMutationOptions<UploadBrandLogoResponse, DefaultError, Options<UploadBrandLogoData>> => {
+    const mutationOptions: UseMutationOptions<UploadBrandLogoResponse, DefaultError, Options<UploadBrandLogoData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await uploadBrandLogo({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        },
+        meta: { resource: 'uploads' }
+    };
+    return mutationOptions;
+};
+
 export const listUsersQueryKey = (options?: Options<ListUsersData>) => createQueryKey('listUsers', options, false, ['users']);
 
 /**
@@ -3821,7 +3883,8 @@ export const readyOptions = (options?: Options<ReadyData>) => queryOptions<Ready
 export const robotsQueryKey = (options?: Options<RobotsData>) => createQueryKey('robots', options, false, ['seo']);
 
 /**
- * `GET /robots.txt` — dynamic robots.txt that points to the sitemap.
+ * `GET /robots.txt` — one rule group for every crawler; the sitemap pointer
+ * follows the configured public origin.
  */
 export const robotsOptions = (options?: Options<RobotsData>) => queryOptions<unknown, DefaultError, unknown, ReturnType<typeof robotsQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -3839,7 +3902,9 @@ export const robotsOptions = (options?: Options<RobotsData>) => queryOptions<unk
 export const sitemapQueryKey = (options?: Options<SitemapData>) => createQueryKey('sitemap', options, false, ['seo']);
 
 /**
- * `GET /sitemap.xml` — list the public routes for SEO crawlers.
+ * `GET /sitemap.xml` — the indexable pages: the static ones, one per active
+ * brand, and one search page per city pair some active route serves ("vé xe
+ * Hà Nội đi Đà Nẵng"). Never lists `/login` or a page that is not indexed.
  */
 export const sitemapOptions = (options?: Options<SitemapData>) => queryOptions<SitemapResponse, DefaultError, SitemapResponse, ReturnType<typeof sitemapQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {

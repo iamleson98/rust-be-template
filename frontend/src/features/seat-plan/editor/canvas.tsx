@@ -1,5 +1,3 @@
-'use client'
-
 import type { KeyboardEvent } from 'react'
 import { FlipHorizontal2, ListOrdered, Minus, Plus, Redo2, Trash2, Undo2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'

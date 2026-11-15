@@ -3,12 +3,11 @@
 //! Returns real-time metrics about the server: WebSocket hub stats,
 //! database pool, cache, uptime, and process info. Admin-only.
 //!
-//! The `database.engine` section surfaces the rustqlite engine's own
-//! resource usage — memory used (page-cache footprint), throughput
-//! (rows/writes/steps per second, computed between successive
-//! scrapes), + performance capacity (cache hit rate, live
-//! connections, transaction + busy contention) — sourced from the
-//! engine's built-in counters via `sqlite3::engine_stats()`.
+//! The `database.engine` section identifies the linked SQLite build and
+//! reports its process-wide heap usage (`sqlite3_status64`). Pool
+//! occupancy and file/pager figures live in `database` itself and in
+//! `/api/admin/system/database`; a value SQLite cannot report is left
+//! out rather than shown as zero.
 //!
 //! Also hosts `/api/admin/system/metrics` — live host-level metrics
 //! (CPU / RAM / disks / process / host info) for the admin
@@ -131,8 +130,7 @@ pub struct ResourceGuardStats {
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct DatabaseStats {
-    /// Backend name — always `"sqlite (rust-sql engine)"` in this
-    /// build (rustqlite via the sqlx-sqlite C-ABI compat layer).
+    /// Backend name — always `"sqlite (begin-concurrent)"`.
     pub backend: String,
     /// Masked DB URL (password hidden).
     pub url_masked: String,
@@ -140,166 +138,38 @@ pub struct DatabaseStats {
     pub max_connections: u32,
     /// Configured min pool connections.
     pub min_connections: u32,
-    /// Current active connections (in use). `-1` if unavailable
-    /// (e.g. SQLite which doesn't have a pool).
-    pub active_connections: i32,
-    /// Current idle connections (in pool, available). `-1` if unavailable.
-    pub idle_connections: i32,
+    /// Pool connections currently checked out (open minus idle).
+    pub active_connections: u32,
+    /// Pool connections open and idle (available).
+    pub idle_connections: u32,
     /// Database file size in MB (SQLite only — WAL + main DB file).
     /// `0.0` when no file backs the URL (not the case here).
     pub size_mb: f64,
-    /// Engine-level resource usage: memory used, throughput, and
-    /// performance capacity. Sourced from the rustqlite engine's
-    /// built-in counters (`sqlite3::engine_stats()` — process-global
-    /// atomics bumped on the hot path at ~1 ns each, the same trade
-    /// SQLite's own `SQLITE_STATUS` counters make).
+    /// The linked SQLite build and its heap usage.
     pub engine: EngineStatsOut,
 }
 
-/// Live resource usage of the rustqlite engine — the "database
-/// engine" card group on the admin system page.
+/// The linked SQLite build — the "database engine" card group on the
+/// admin system page.
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct EngineStatsOut {
-    /// Engine build identity (`sqlite3_source_id()` — names rustqlite).
+    /// Build identity (`sqlite3_sourceid()`: check-in timestamp + hash).
     pub version: String,
-    pub connections: EngineConnectionsOut,
-    /// Memory used by the engine's page caches (the engine's own
-    /// memory footprint, distinct from process RSS).
+    /// `sqlite3_libversion()`, e.g. `3.51.3`.
+    pub sqlite_version: String,
     pub memory: EngineMemoryOut,
-    /// Live throughput rates (per second, computed between successive
-    /// scrapes of this endpoint) + lifetime totals.
-    pub throughput: EngineThroughputOut,
-    /// Page-cache performance (hit rate — the primary "performance
-    /// capacity" signal for a page-cache-driven engine).
-    pub cache: EngineCacheOut,
-    pub transactions: EngineTransactionsOut,
-    /// Write-slot contention (how often writers waited for the
-    /// engine-level transaction slot + how many timed out).
-    pub contention: EngineContentionOut,
-    /// One entry per registered engine (per database file). Usually
-    /// exactly one — the app's `app.db`.
-    pub files: Vec<EngineFileOut>,
 }
 
-#[derive(Debug, Serialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct EngineConnectionsOut {
-    /// Total `sqlite3_open*` calls since process start.
-    pub opened: u64,
-    /// Connections fully dropped since process start.
-    pub closed: u64,
-    /// Live C-ABI connections right now (each sqlx pool connection
-    /// = one).
-    pub live: u64,
-}
-
+/// SQLite's own heap usage, process-wide (`SQLITE_STATUS_MEMORY_USED`:
+/// page caches, prepared statements, schema — not process RSS).
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct EngineMemoryOut {
-    /// Page-cache memory in use across all engine files (pages
-    /// currently cached × page size), in MB.
-    pub cache_mb: f64,
-    /// Page-cache capacity in MB (the configured upper bound the
-    /// caches may grow to).
-    pub cache_capacity_mb: f64,
-    /// Cache utilization, 0.0–100.0 — `cache / capacity`.
-    pub utilization_pct: f64,
-    /// Frames currently buffered in the write-ahead log.
-    pub wal_frames: u64,
-    /// On-disk database size across all files, in MB.
-    pub db_size_mb: f64,
-    /// Reclaimable freelist pages across all files.
-    pub freelist_pages: u64,
-}
-
-#[derive(Debug, Serialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct EngineThroughputOut {
-    /// Rows delivered to clients per second (between scrapes).
-    pub rows_per_sec: f64,
-    /// Write statements completed per second.
-    pub writes_per_sec: f64,
-    /// Statement steps per second (total statement progress).
-    pub steps_per_sec: f64,
-    /// Total rows returned since process start.
-    pub rows_returned: u64,
-    /// Total writes executed since process start.
-    pub writes_executed: u64,
-    /// Total statements prepared since process start.
-    pub statements_prepared: u64,
-    /// Total statement steps since process start.
-    pub steps: u64,
-    /// Row mutations since open (the engine's `total_changes`).
-    pub total_changes: u64,
-}
-
-#[derive(Debug, Serialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct EngineCacheOut {
-    /// Page-cache hits since open.
-    pub hits: u64,
-    /// Page-cache misses (file/WAL reads) since open.
-    pub misses: u64,
-    /// Hit rate, 0.0–100.0. High (> 95) = working set fits in memory.
-    pub hit_rate_pct: f64,
-}
-
-#[derive(Debug, Serialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct EngineTransactionsOut {
-    pub begun: u64,
-    pub committed: u64,
-    pub rolled_back: u64,
-    /// True when a transaction owns the engine write slot right now.
-    pub active: bool,
-}
-
-#[derive(Debug, Serialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct EngineContentionOut {
-    /// Times a writer had to WAIT for a foreign transaction's slot.
-    pub busy_waits: u64,
-    /// Waits that exhausted `busy_timeout` and returned SQLITE_BUSY.
-    pub busy_timeouts: u64,
-}
-
-/// Per-database-file engine snapshot (usually one: the app DB).
-#[derive(Debug, Serialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct EngineFileOut {
-    /// Registry key — canonical file path (or shared-memory name).
-    pub name: String,
-    /// Page size in bytes.
-    pub page_size_bytes: u64,
-    /// Pages in the database file.
-    pub page_count: u64,
-    /// Database size in MB (`page_count × page_size`).
-    pub size_mb: f64,
-    /// Freelist pages (reclaimable space).
-    pub freelist_pages: u64,
-    /// Pages currently held in the shared page cache.
-    pub cache_pages: u64,
-    /// Cache capacity in pages.
-    pub cache_capacity_pages: u64,
-    /// Cache memory in use, MB.
-    pub cache_mb: f64,
-    /// Cache capacity, MB.
-    pub cache_capacity_mb: f64,
-    /// Cache hits since open.
-    pub cache_hits: u64,
-    /// Cache misses since open.
-    pub cache_misses: u64,
-    /// Hit rate, 0.0–100.0.
-    pub hit_rate_pct: f64,
-    /// Frames currently in the write-ahead log.
-    pub wal_frames: u64,
-    /// Row mutations since open.
-    pub total_changes: u64,
-    /// Live C-ABI connections sharing this engine right now.
-    pub live_connections: u64,
-    /// True when a transaction owns the engine slot right now.
-    pub transaction_active: bool,
+    /// Bytes SQLite currently has allocated, in MB.
+    pub heap_mb: f64,
+    /// Highest value of `heap_mb` since process start.
+    pub heap_peak_mb: f64,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -478,8 +348,8 @@ pub async fn system_status(
     // ── Database stats ─────────────────────────────────────────────
     let db_url_masked = mask_db_url(&st.config.database.url);
     let db_backend = crate::cli::util::db_backend_name().to_string();
-    let (active_connections, idle_connections, size_mb) = collect_db_stats(&st).await;
-    let engine = engine_stats_with_rates();
+    let (active_connections, idle_connections, size_mb) = collect_db_stats(&st);
+    let engine = engine_stats();
 
     // ── Hardware-bounded admission telemetry ───────────────────────
     let wm = crate::middleware::resource_guard::ResourceWatermarks::from_config(&st.config.ws);
@@ -537,185 +407,38 @@ pub async fn system_status(
     }))
 }
 
-/// Collect DB stats for the admin system endpoint.
-///
-/// The rust-sql engine (sqlite dialect) uses a single connection, not
-/// a pool → returns `(-1, -1, file_size_mb)`. The file size is the sum
-/// of `app.db` + `app.db-wal` (WAL mode).
-async fn collect_db_stats(st: &AppState) -> (i32, i32, f64) {
-    // rust-sql (sqlite dialect) — compute the file size (main DB + WAL).
-    let db_path = st
-        .config
-        .database
-        .url
-        .strip_prefix("sqlite:")
-        .unwrap_or(&st.config.database.url)
-        .trim_start_matches("./")
-        .split('?')
-        .next()
-        .unwrap_or("app.db");
-    let size_mb = std::fs::metadata(db_path)
-        .map(|m| m.len() as f64 / 1024.0 / 1024.0)
-        .unwrap_or(0.0)
-        + std::fs::metadata(format!("{}-wal", db_path))
-            .map(|m| m.len() as f64 / 1024.0 / 1024.0)
-            .unwrap_or(0.0);
-    // Single connection (not a pool) — return -1 to indicate "not
-    // applicable".
-    (-1, -1, size_mb)
+/// Collect DB stats for the admin system endpoint: `(active, idle,
+/// file_size_mb)`. Pool figures come from the sqlx pool; the file size
+/// is `app.db` + `app.db-wal`.
+fn collect_db_stats(st: &AppState) -> (u32, u32, f64) {
+    let pool = st.db.get_sqlite_connection_pool();
+    let open = pool.size();
+    let idle = u32::try_from(pool.num_idle()).unwrap_or(u32::MAX);
+    let size_mb =
+        db_footprint_bytes(&db_file_path(&st.config.database.url)) as f64 / 1024.0 / 1024.0;
+    (open.saturating_sub(idle), idle, size_mb)
 }
 
-/// Previous engine-stats snapshot — the reference point for computing
-/// live throughput rates. Updated on every scrape of
-/// `/api/admin/system` (the frontend polls every 5 s, so rates always
-/// reflect the last ~5 s window).
-static PREV_ENGINE: std::sync::OnceLock<
-    std::sync::Mutex<Option<(std::time::Instant, sqlite3::EngineStats)>>,
-> = std::sync::OnceLock::new();
-
-/// Snapshot the engine's resource usage + compute live throughput
-/// rates from the delta since the previous scrape.
-///
-/// Rates: `rows_per_sec` etc. are `(current - previous) / elapsed`.
-/// The first scrape after boot has no previous snapshot → rates are
-/// 0.0 (the same warm-up semantics as sysinfo's CPU sampling). If two
-/// scrapes land within the same millisecond, `elapsed` floors at 1 ms
-/// to avoid division blow-ups.
-fn engine_stats_with_rates() -> EngineStatsOut {
-    let raw = sqlite3::engine_stats();
-    let now = std::time::Instant::now();
-
-    // ── Throughput rates (delta vs. previous scrape) ───────────────
-    let (rows_per_sec, writes_per_sec, steps_per_sec) = {
-        let mut prev = PREV_ENGINE
-            .get_or_init(|| std::sync::Mutex::new(None))
-            .lock()
-            .unwrap_or_else(|e| e.into_inner());
-        let rates = match prev.as_ref() {
-            Some((t, p)) => {
-                let elapsed = now.duration_since(*t).as_secs_f64().max(0.001);
-                (
-                    raw.rows_returned.saturating_sub(p.rows_returned) as f64 / elapsed,
-                    raw.writes_executed.saturating_sub(p.writes_executed) as f64 / elapsed,
-                    raw.steps.saturating_sub(p.steps) as f64 / elapsed,
-                )
-            }
-            None => (0.0, 0.0, 0.0),
-        };
-        *prev = Some((now, raw.clone()));
-        rates
-    };
-
-    // ── Aggregates across all registered engine files ─────────────
-    let live: u64 = raw.files.iter().map(|f| f.live_connections as u64).sum();
-    let cache_hits: u64 = raw.files.iter().map(|f| f.cache_hits).sum();
-    let cache_misses: u64 = raw.files.iter().map(|f| f.cache_misses).sum();
-    let hit_rate_pct = if cache_hits + cache_misses > 0 {
-        cache_hits as f64 / (cache_hits + cache_misses) as f64 * 100.0
-    } else {
-        0.0
-    };
-    // Memory: cache pages × page size per file. `page_size` can be 0
-    // only for engines with no pages yet — treat as no footprint.
-    let cache_bytes: u64 = raw
-        .files
-        .iter()
-        .map(|f| (f.cache_pages as u64) * (f.page_size as u64))
-        .sum();
-    let cache_capacity_bytes: u64 = raw
-        .files
-        .iter()
-        .map(|f| (f.cache_capacity_pages as u64) * (f.page_size as u64))
-        .sum();
-    let db_bytes: u64 = raw
-        .files
-        .iter()
-        .map(|f| (f.page_count as u64) * (f.page_size as u64))
-        .sum();
-    let total_changes: i64 = raw.files.iter().map(|f| f.total_changes).sum();
-    let tx_active = raw.files.iter().any(|f| f.transaction_active);
-    let wal_frames: u64 = raw.files.iter().map(|f| f.wal_frames).sum();
-    let freelist_pages: u32 = raw.files.iter().map(|f| f.freelist_pages).sum();
-
-    let files = raw
-        .files
-        .iter()
-        .map(|f| {
-            let f_hits = f.cache_hits;
-            let f_misses = f.cache_misses;
-            let f_hit_rate = if f_hits + f_misses > 0 {
-                f_hits as f64 / (f_hits + f_misses) as f64 * 100.0
-            } else {
-                0.0
-            };
-            EngineFileOut {
-                name: f.name.clone(),
-                page_size_bytes: f.page_size as u64,
-                page_count: f.page_count as u64,
-                size_mb: (f.page_count as f64 * f.page_size as f64) / 1024.0 / 1024.0,
-                freelist_pages: f.freelist_pages as u64,
-                cache_pages: f.cache_pages as u64,
-                cache_capacity_pages: f.cache_capacity_pages as u64,
-                cache_mb: (f.cache_pages as f64 * f.page_size as f64) / 1024.0 / 1024.0,
-                cache_capacity_mb: (f.cache_capacity_pages as f64 * f.page_size as f64)
-                    / 1024.0
-                    / 1024.0,
-                cache_hits: f_hits,
-                cache_misses: f_misses,
-                hit_rate_pct: f_hit_rate,
-                wal_frames: f.wal_frames,
-                total_changes: f.total_changes.max(0) as u64,
-                live_connections: f.live_connections as u64,
-                transaction_active: f.transaction_active,
-            }
-        })
-        .collect();
-
+/// SQLite's process-wide heap usage and peak (`sqlite3_status64`).
+fn engine_stats() -> EngineStatsOut {
+    let (mut current, mut peak) = (0_i64, 0_i64);
+    // SAFETY: both out-pointers are valid for the call; `reset_flag` 0
+    // leaves the high-water mark untouched.
+    unsafe {
+        libsqlite3_sys::sqlite3_status64(
+            libsqlite3_sys::SQLITE_STATUS_MEMORY_USED,
+            &mut current,
+            &mut peak,
+            0,
+        );
+    }
     EngineStatsOut {
-        version: crate::db::engine_source_id().to_string(),
-        connections: EngineConnectionsOut {
-            opened: raw.connections_opened,
-            closed: raw.connections_closed,
-            live,
-        },
+        version: crate::db::sqlite_source_id().to_string(),
+        sqlite_version: crate::db::sqlite_version().to_string(),
         memory: EngineMemoryOut {
-            cache_mb: cache_bytes as f64 / 1024.0 / 1024.0,
-            cache_capacity_mb: cache_capacity_bytes as f64 / 1024.0 / 1024.0,
-            utilization_pct: if cache_capacity_bytes > 0 {
-                cache_bytes as f64 / cache_capacity_bytes as f64 * 100.0
-            } else {
-                0.0
-            },
-            wal_frames,
-            db_size_mb: db_bytes as f64 / 1024.0 / 1024.0,
-            freelist_pages: freelist_pages as u64,
+            heap_mb: current as f64 / 1024.0 / 1024.0,
+            heap_peak_mb: peak as f64 / 1024.0 / 1024.0,
         },
-        throughput: EngineThroughputOut {
-            rows_per_sec,
-            writes_per_sec,
-            steps_per_sec,
-            rows_returned: raw.rows_returned,
-            writes_executed: raw.writes_executed,
-            statements_prepared: raw.statements_prepared,
-            steps: raw.steps,
-            total_changes: total_changes.max(0) as u64,
-        },
-        cache: EngineCacheOut {
-            hits: cache_hits,
-            misses: cache_misses,
-            hit_rate_pct,
-        },
-        transactions: EngineTransactionsOut {
-            begun: raw.transactions_begun,
-            committed: raw.transactions_committed,
-            rolled_back: raw.transactions_rolled_back,
-            active: tx_active,
-        },
-        contention: EngineContentionOut {
-            busy_waits: raw.busy_waits,
-            busy_timeouts: raw.busy_timeouts,
-        },
-        files,
     }
 }
 
@@ -829,9 +552,8 @@ pub struct DbPragmasOut {
     pub freelist_pages: i64,
     /// `journal_mode` (expect `wal`).
     pub journal_mode: String,
-    /// Configured engine-wide page-cache budget in KiB
-    /// (DATABASE_CACHE_KIB; the rust-sql engine shares ONE pager per
-    /// file across the pool, so this is a single budget, not per-conn).
+    /// Configured page-cache budget in KiB PER pooled connection
+    /// (DATABASE_CACHE_KIB).
     pub cache_kib: i64,
 }
 
@@ -871,14 +593,14 @@ pub struct DbProbeOut {
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct DatabaseSizeResponse {
-    /// Engine identity (rust-sql build).
+    /// Build identity of the linked SQLite (`sqlite3_sourceid()`).
     pub engine: String,
     /// Masked DATABASE_URL (password-free display form).
     pub url_masked: String,
     pub files: DbFilesOut,
     pub pragmas: DbPragmasOut,
     /// Top-25 largest objects (tables + indexes) from `dbstat`; `None`
-    /// when the engine build lacks the dbstat virtual table.
+    /// when that query fails.
     pub top_tables: Option<Vec<DbTableSizeOut>>,
     /// Present only with `?probe=1`.
     pub probe: Option<DbProbeOut>,
@@ -961,7 +683,7 @@ async fn vacuum_into_probe(db: &sea_orm::DatabaseConnection) -> Result<(u64, f64
     use sea_orm::ConnectionTrait;
     let started = std::time::Instant::now();
     let tmp = std::env::temp_dir().join(format!(
-        "dbsize-probe-{}-{}.rsql",
+        "dbsize-probe-{}-{}.db",
         std::process::id(),
         chrono::Utc::now().timestamp_millis()
     ));
@@ -1026,8 +748,8 @@ pub async fn database_size(
     let freelist_pages = pragma_i64(&st.db, "freelist_count").await.unwrap_or(0);
     let journal_mode = pragma_str(&st.db, "journal_mode").await.unwrap_or_default();
 
-    // dbstat top-25 by footprint (tables + indexes). The rust-sql engine
-    // may not build the dbstat virtual table — degrade to `None`.
+    // dbstat top-25 by footprint (tables + indexes); `None` when the
+    // query fails.
     let top_tables: Option<Vec<DbTableSizeOut>> = {
         use sea_orm::{ConnectionTrait, Statement};
         let sql = "SELECT name, COUNT(*) AS pages, SUM(pgsize) AS bytes \
@@ -1083,7 +805,7 @@ pub async fn database_size(
     };
 
     Ok(Json(DatabaseSizeResponse {
-        engine: crate::db::engine_source_id().to_string(),
+        engine: crate::db::sqlite_source_id().to_string(),
         url_masked: mask_db_url(&st.config.database.url),
         files: DbFilesOut {
             db_path,
@@ -1106,8 +828,9 @@ pub async fn database_size(
 /// `POST /api/admin/system/database/vacuum` — guarded in-place
 /// compaction. Rebuilds the file (drops freelist + fragmentation
 /// slack); expect IO ≈ one full-DB read + write for the duration.
-/// Runs on the shared single-writer engine: concurrent writers queue on
-/// the engine's own write lock — run it in a quiet window.
+/// VACUUM holds SQLite's write lock for its duration: concurrent writers
+/// wait up to `busy_timeout` and then fail with SQLITE_BUSY — run it in
+/// a quiet window.
 #[utoipa::path(
     post,
     path = "/api/admin/system/database/vacuum",
@@ -1132,8 +855,8 @@ pub async fn database_vacuum(
     let before_bytes = db_footprint_bytes(&db_path);
     let started = std::time::Instant::now();
 
-    // The engine is single-writer: a VACUUM takes the write lock for its
-    // duration. Failure surfaces as a 500 with the engine's own error.
+    // A VACUUM takes the write lock for its duration. Failure surfaces
+    // as a 500 with SQLite's own error.
     st.db
         .execute_unprepared("VACUUM;")
         .await

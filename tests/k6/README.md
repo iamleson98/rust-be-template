@@ -307,8 +307,9 @@ the business logic.
 
 k6 runs all VUs in a single process → all requests come from one IP
 (`127.0.0.1` if running locally). The backend's rate limiter
-(`tower_governor`, 600 RPM / 100 burst per IP) keys on the TCP source
-IP → all VUs share ONE rate-limit bucket. At 50+ VUs, you'll hit 429s
+(per-client-IP token buckets, `middleware::rate_limit`; 600 reads/min
+per IP by default) keys on the client IP → all VUs share ONE rate-limit
+bucket. At 50+ VUs, you'll hit 429s
 before the backend's actual capacity ceiling.
 
 ### The solution — Docker containers with separate IPs

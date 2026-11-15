@@ -131,10 +131,10 @@ export function jobHeading(job: { jobType: string; description?: string | null }
   return job.description ?? job.jobType
 }
 
-/** Friendly job-type label: "osm.import" → "Làm mới chỉ mục địa điểm OSM". */
+/** Friendly job-type label: "coupons.expire" → "Hết hạn mã giảm giá chưa dùng". */
 export function jobTypeLabel(jobType: string): string {
-  if (jobType === 'osm.import') {
-    return tSync('adminCronJobs.osmImportLabel')
+  if (jobType === 'coupons.expire') {
+    return tSync('adminCronJobs.couponsExpireLabel')
   }
   return jobType
 }

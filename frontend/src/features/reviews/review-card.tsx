@@ -1,5 +1,3 @@
-'use client'
-
 /**
  * ReviewCard — one review row of the ReviewsList (author avatar,
  * stars, comment, tag badges, photos, brand reply, helpful button),

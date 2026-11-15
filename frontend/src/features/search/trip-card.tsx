@@ -22,6 +22,8 @@ import { cn } from '@/lib/utils'
 import { useGuest } from '@/stores/guest'
 import { usePrefs } from '@/stores/prefs'
 import { useUi } from '@/stores/ui'
+import { brandInitials } from '@/lib/text'
+import { TRIP_FRESH_MS } from '@/features/trips/api'
 
 const AMENITY_ICON: Record<string, typeof Wifi> = {
   wifi: Wifi,
@@ -46,14 +48,6 @@ function minutesBetween(departureAt?: string | null, arrivalAt?: string | null) 
   const arr = parseDateSafe(arrivalAt)
   return dep && arr && arr > dep ? Math.round((arr.getTime() - dep.getTime()) / 60_000) : null
 }
-
-const initials = (name: string) =>
-  name
-    .split(/\s+/)
-    .map((w) => w[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase()
 
 /**
  * One search result. The times and the journey lead (what people compare
@@ -84,7 +78,7 @@ export const TripCard = memo(function TripCard({
   const prefetch = useCallback(() => {
     void queryClient.prefetchQuery({
       ...tripDetailOptions({ path: { id: trip.tripId } }),
-      staleTime: 60_000,
+      staleTime: TRIP_FRESH_MS,
     })
   }, [queryClient, trip.tripId])
 
@@ -166,9 +160,21 @@ export const TripCard = memo(function TripCard({
         <div className="min-w-0 sm:p-5">
           {/* Operator */}
           <div className="flex items-center gap-2.5">
-            <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary text-xs font-bold text-primary-foreground">
-              {initials(trip.brandName)}
-            </span>
+            {trip.brandLogo ? (
+              <span className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-xl bg-slate-100 ring-1 ring-black/5">
+                <img
+                  src={trip.brandLogo}
+                  alt=""
+                  loading="lazy"
+                  decoding="async"
+                  className="h-full w-full object-contain"
+                />
+              </span>
+            ) : (
+              <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary text-xs font-bold text-primary-foreground">
+                {brandInitials(trip.brandName)}
+              </span>
+            )}
             <div className="min-w-0 flex-1">
               <Link
                 to="/brands/$slug"
@@ -300,6 +306,8 @@ export const TripCard = memo(function TripCard({
           </div>
           <button
             type="button"
+            // The trip dialog hands focus back here when it closes.
+            data-trip-select={trip.tripId}
             onClick={(e) => {
               e.stopPropagation()
               select()

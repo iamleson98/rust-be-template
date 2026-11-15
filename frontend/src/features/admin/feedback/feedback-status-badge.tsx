@@ -1,5 +1,3 @@
-'use client'
-
 /**
  * Moderation status badge for the admin feedback table.
  *

@@ -1,5 +1,3 @@
-'use client'
-
 import { Ban, CheckCircle2, DollarSign, Flag, Ticket as TicketIcon } from 'lucide-react'
 import type { AdminBookingTotals } from '@/api'
 import { StatGrid, StatTile } from '@/components/console/stat-tile'

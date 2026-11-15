@@ -67,7 +67,7 @@ pub struct AppState {
     /// The shared DB connection pool — needed by the admin system
     /// endpoints that run engine-level diagnostics (`PRAGMA page_count`
     /// / freelist, `VACUUM INTO` probes, dbstat) directly against the
-    /// rust-sql engine. Services keep their own `Arc` clones; this is
+    /// SQLite engine. Services keep their own `Arc` clones; this is
     /// the raw pool for routes that predate any service abstraction.
     pub db: Arc<sea_orm::DatabaseConnection>,
 

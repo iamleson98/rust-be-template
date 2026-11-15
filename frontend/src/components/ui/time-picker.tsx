@@ -1,5 +1,3 @@
-'use client'
-
 /**
  * TimePicker — a custom time field in the house style (no native
  * `<input type="time">`, whose look and keyboard differ per browser).

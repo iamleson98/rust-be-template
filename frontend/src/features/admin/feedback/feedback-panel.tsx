@@ -1,5 +1,3 @@
-'use client'
-
 /**
  * FeedbackPanel — the admin "Phản hồi" page (`/admin/feedback`).
  *

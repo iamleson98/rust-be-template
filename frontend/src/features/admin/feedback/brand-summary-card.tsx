@@ -1,5 +1,3 @@
-'use client'
-
 /**
  * Brand summary cards of the admin feedback page — the per-brand
  * volume, status breakdown and average star rating row. Clicking a

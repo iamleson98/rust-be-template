@@ -1,5 +1,3 @@
-'use client'
-
 import type { ReactNode } from 'react'
 import { Flag, MapPin } from 'lucide-react'
 import type { TripPickupPoint } from '@/api'

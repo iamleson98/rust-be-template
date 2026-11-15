@@ -128,7 +128,7 @@ describe('analytics', () => {
       expect(beacon).toHaveBeenCalledTimes(1)
     })
 
-    it('the beacon body carries event, stringified value, currency, transaction id and click ids', async () => {
+    it('the beacon body carries the event, the transaction id and the click ids only', async () => {
       vi.spyOn(navigator, 'sendBeacon').mockImplementation(beacon)
       window.history.replaceState({}, '', '/?gclid=click-1')
       captureClickIds()
@@ -140,20 +140,16 @@ describe('analytics', () => {
       expect(body).toEqual({
         event: 'purchase',
         transactionId: 'DXV-9',
-        value: '250000',
-        currency: 'VND',
         clickIds: { gclid: 'click-1' },
       })
     })
 
-    it('omits absent payload fields instead of sending them null/undefined', async () => {
+    it('sends no beacon without a transaction id (the server would refuse it)', () => {
       vi.spyOn(navigator, 'sendBeacon').mockImplementation(beacon)
 
       trackConversion('booking', {})
 
-      const blob = beacon.mock.calls[0][1] as Blob
-      const body = JSON.parse(await blob.text()) as Record<string, unknown>
-      expect(body).toEqual({ event: 'booking', clickIds: {} })
+      expect(beacon).not.toHaveBeenCalled()
     })
 
     it('never throws when sendBeacon is unavailable', () => {

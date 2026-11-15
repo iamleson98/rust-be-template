@@ -1,5 +1,3 @@
-'use client'
-
 /**
  * useMyLocation — progressive-accuracy geolocation acquisition.
  *

@@ -1,5 +1,3 @@
-'use client'
-
 /**
  * Filter toolbar of the admin feedback panel — status tabs (with the
  * active brand's per-status counts), the debounced search input and

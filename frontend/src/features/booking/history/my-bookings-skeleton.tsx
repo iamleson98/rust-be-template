@@ -1,5 +1,3 @@
-'use client'
-
 import { memo } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Shimmer } from '@/components/ui/shimmer'

@@ -1,5 +1,3 @@
-'use client'
-
 import { Skeleton } from '@/components/ui/skeleton'
 import { Headset, Activity, Clock } from 'lucide-react'
 import { useT } from '@/lib/i18n'

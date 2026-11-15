@@ -22,9 +22,10 @@ pub struct RoutePictureOut {
     pub route_id: Uuid,
     /// Display order; `0` is the cover picture.
     pub sort_order: i64,
-    /// Public URL of the ORIGINAL image (content-addressed, immutable).
+    /// Public URL of the full-size WebP (long edge ≤ 1920px;
+    /// content-addressed, immutable).
     pub url: String,
-    /// Public URL of the JPEG thumbnail (long edge ≤ 640px) — use this
+    /// Public URL of the WebP thumbnail (long edge ≤ 640px) — use this
     /// in lists/grids, `url` in the detail gallery.
     pub thumb_url: String,
     /// Accessible description; `null` when the admin didn't provide one.
@@ -44,6 +45,26 @@ pub struct RoutePictureOut {
 pub struct RoutePictureListResponse {
     pub route_id: Uuid,
     pub items: Vec<RoutePictureOut>,
+}
+
+/// Multipart body of `POST /api/uploads/brand-logo` (documentation only:
+/// the handler reads the parts itself).
+#[derive(ToSchema)]
+pub struct BrandLogoUploadForm {
+    /// The logo: JPEG, PNG, WebP or SVG, ≤ 5 MiB.
+    #[schema(value_type = String, format = Binary)]
+    pub file: Vec<u8>,
+}
+
+/// Multipart body of `POST /api/admin/routes/{id}/pictures` (documentation
+/// only: the handler reads the parts itself).
+#[derive(ToSchema)]
+pub struct RoutePictureUploadForm {
+    /// The picture: JPEG, PNG or WebP.
+    #[schema(value_type = String, format = Binary)]
+    pub file: Vec<u8>,
+    /// Accessible description, at most 255 characters.
+    pub alt_text: Option<String>,
 }
 
 /// `POST /api/admin/routes/{id}/pictures` — upload result.

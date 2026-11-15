@@ -1,5 +1,3 @@
-'use client'
-
 import { useMemo } from 'react'
 import { Baby, Info } from 'lucide-react'
 import type { ChildFarePolicy, TripSeat, TripSeatDeck } from '@/api'

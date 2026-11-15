@@ -14,7 +14,6 @@ use validator::Validate;
 use crate::dto::booking::BookingOut;
 use crate::dto::fares::{ChildFarePolicy, SeatClassCount, SeatClassFare};
 use crate::dto::seat_plan::SeatPlan;
-use crate::validation::validate_phone;
 
 fn empty_string_as_none<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
 where
@@ -22,6 +21,25 @@ where
 {
     Option::<String>::deserialize(deserializer)
         .map(|value| value.filter(|value| !value.trim().is_empty()))
+}
+
+/// For text fields of a partial update: `null` reads as a blank string, so
+/// it clears the value like `""` does, while an absent field stays `None`
+/// (leave as is).
+fn null_as_blank<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    Option::<String>::deserialize(deserializer).map(|value| Some(value.unwrap_or_default()))
+}
+
+/// For a child price of a partial update: `null` reads as `0`, the price
+/// that means "the brand's child discount applies".
+fn null_as_zero<'de, D>(deserializer: D) -> Result<Option<i64>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    Option::<i64>::deserialize(deserializer).map(|value| Some(value.unwrap_or_default()))
 }
 
 /// With `#[serde(default)]`: an absent field is `None` (leave as is) and an
@@ -32,6 +50,22 @@ where
     T: Deserialize<'de>,
 {
     Option::<T>::deserialize(deserializer).map(Some)
+}
+
+/// For id fields of a partial update: an absent field is `None` (leave as
+/// is), while `null` and a blank string are `Some(None)` (clear it) and
+/// anything else must be a UUID.
+fn clearable_id<'de, D>(deserializer: D) -> Result<Option<Option<Uuid>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let raw = Option::<String>::deserialize(deserializer)?;
+    match raw.as_deref().map(str::trim) {
+        None | Some("") => Ok(Some(None)),
+        Some(id) => Uuid::parse_str(id)
+            .map(|id| Some(Some(id)))
+            .map_err(serde::de::Error::custom),
+    }
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -82,11 +116,15 @@ pub struct UpsertBrandRequest {
     pub name: Option<String>,
     #[validate(length(min = 1, max = 120))]
     pub slug: Option<String>,
-    #[validate(length(max = 500))]
+    /// An uploaded logo (`/api/media/brands/logos/…`) or an https URL;
+    /// blank or `null` clears it. Checked by the service.
+    #[serde(default, deserialize_with = "null_as_blank")]
     pub logo_url: Option<String>,
     #[validate(length(max = 5000))]
     pub description: Option<String>,
-    #[validate(length(max = 20), custom(function = "validate_phone"))]
+    /// A hotline as the brand writes it (`1900 6067`, `1800…`, `0…`, `+84…`):
+    /// any text up to 32 characters, like the reference admin API.
+    #[validate(length(max = 32))]
     #[serde(default, deserialize_with = "empty_string_as_none")]
     pub contact_phone: Option<String>,
     #[validate(email, length(max = 255))]
@@ -194,12 +232,18 @@ pub struct AdminAddressOut {
     pub address: Option<String>,
     pub lat: f64,
     pub lon: f64,
+    /// Slug of the city the point is in; `null` only on points older than
+    /// the field that no city name matched.
+    pub city_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub province: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub district: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ward: Option<String>,
+    /// Schedule stops at this address (the list endpoint only).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stop_count: Option<i64>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -214,22 +258,31 @@ pub struct AdminAddressListResponse {
 }
 
 /// Request body for `POST /api/admin/addresses` + `PUT /api/admin/addresses/{id}`.
+///
+/// On an update a field left out keeps its value; `null` or a blank string
+/// clears an optional text field.
 #[derive(Debug, Deserialize, ToSchema, Default, Validate)]
 #[serde(rename_all = "camelCase")]
 pub struct UpsertAddressRequest {
     pub brand_id: Option<Uuid>,
-    #[validate(length(min = 1, max = 255))]
+    #[validate(length(min = 1, max = 200))]
     pub name: Option<String>,
-    #[validate(length(max = 1000))]
+    #[serde(default, deserialize_with = "null_as_blank")]
+    #[validate(length(max = 500))]
     pub address: Option<String>,
     #[validate(range(min = -90.0, max = 90.0))]
     pub lat: Option<f64>,
     #[validate(range(min = -180.0, max = 180.0))]
     pub lon: Option<f64>,
-    #[validate(length(max = 100))]
-    pub province: Option<String>,
+    /// Slug of one of our cities (`crate::cities`); required to create. The
+    /// point's `province` follows from it.
+    #[serde(default, deserialize_with = "null_as_blank")]
+    #[validate(length(max = 64))]
+    pub city_id: Option<String>,
+    #[serde(default, deserialize_with = "null_as_blank")]
     #[validate(length(max = 100))]
     pub district: Option<String>,
+    #[serde(default, deserialize_with = "null_as_blank")]
     #[validate(length(max = 100))]
     pub ward: Option<String>,
 }
@@ -319,29 +372,43 @@ pub struct AdminScheduleListResponse {
 }
 
 /// Request body for `POST /api/admin/schedules` + `PUT /api/admin/schedules/{id}`.
+///
+/// On an update a field left out keeps its value; `null` (or a blank string)
+/// clears an optional one.
 #[derive(Debug, Deserialize, ToSchema, Default, Validate)]
 #[serde(rename_all = "camelCase")]
 pub struct UpsertScheduleRequest {
     pub route_id: Option<Uuid>,
     #[validate(length(min = 1, max = 10))]
     pub departure_time: Option<String>,
+    #[serde(default, deserialize_with = "null_as_blank")]
     pub effective_from: Option<String>,
+    #[serde(default, deserialize_with = "null_as_blank")]
     pub effective_to: Option<String>,
+    #[serde(default, deserialize_with = "null_as_blank")]
     #[validate(length(max = 20))]
     pub days_of_week: Option<String>,
-    /// Bus layout id (string on the wire, `Uuid` in Rust).
-    pub bus_layout_id: Option<Uuid>,
-    /// Vehicle class from the admin-managed `vehicle_type` catalog.
-    /// Validated in the service (404-style validation error when unknown).
-    pub vehicle_type_id: Option<Uuid>,
+    /// Bus layout id (string on the wire, `Uuid` in Rust); `null` unlinks it.
+    #[serde(default, deserialize_with = "clearable_id")]
+    #[schema(value_type = Option<Uuid>)]
+    pub bus_layout_id: Option<Option<Uuid>>,
+    /// Vehicle class from the admin-managed `vehicle_type` catalog; `null`
+    /// unlinks it. Validated in the service (404-style validation error
+    /// when unknown).
+    #[serde(default, deserialize_with = "clearable_id")]
+    #[schema(value_type = Option<Uuid>)]
+    pub vehicle_type_id: Option<Option<Uuid>>,
     #[validate(range(min = 0, max = 1_000_000_000))]
     pub base_price_adult: Option<i64>,
-    /// Child price of a standard seat; `0` = the brand's discount applies.
+    /// Child price of a standard seat; `0` or `null` = the brand's discount
+    /// applies.
+    #[serde(default, deserialize_with = "null_as_zero")]
     #[validate(range(min = 0, max = 1_000_000_000))]
     pub base_price_child: Option<i64>,
     /// When present, replaces the fares of every non-standard seat class.
     #[validate(length(max = 20), nested)]
     pub class_fares: Option<Vec<SeatClassFare>>,
+    #[serde(default, deserialize_with = "null_as_blank")]
     #[validate(length(max = 5000))]
     pub amenities: Option<String>,
     /// When present, replaces the schedule's whole point sequence.
@@ -387,6 +454,7 @@ pub struct UpsertPickupPointRequest {
     pub route_id: Option<Uuid>,
     #[validate(length(min = 1, max = 255))]
     pub name: Option<String>,
+    #[serde(default, deserialize_with = "null_as_blank")]
     #[validate(length(max = 1000))]
     pub address: Option<String>,
     #[validate(range(min = -90.0, max = 90.0))]
@@ -395,6 +463,7 @@ pub struct UpsertPickupPointRequest {
     pub lon: Option<f64>,
     #[validate(range(min = 0, max = 1000))]
     pub stop_order: Option<i64>,
+    #[serde(default, deserialize_with = "null_as_blank")]
     #[validate(length(max = 20))]
     pub kind: Option<String>,
 }
@@ -461,9 +530,15 @@ pub struct SeatGridSpec {
 pub struct UpsertBusLayoutRequest {
     #[validate(length(min = 1, max = 255))]
     pub name: Option<String>,
-    pub brand_id: Option<Uuid>,
+    /// Owning brand; on an update `null` makes the layout part of the
+    /// shared catalog.
+    #[serde(default, deserialize_with = "clearable_id")]
+    #[schema(value_type = Option<Uuid>)]
+    pub brand_id: Option<Option<Uuid>>,
     /// Legacy vehicle-class code (`limousine`, `sleeper`, …) — kept in
-    /// sync with the `vehicle_type` catalog codes.
+    /// sync with the `vehicle_type` catalog codes. `null` or a blank string
+    /// clears it.
+    #[serde(default, deserialize_with = "null_as_blank")]
     #[validate(length(max = 30))]
     pub vehicle_type: Option<String>,
     /// Total bookable seats. When `seat_grid` is provided the computed
@@ -805,6 +880,9 @@ pub struct AdminPickupPointsQuery {
 #[into_params(parameter_in = Query)]
 pub struct AdminBusLayoutsQuery {
     pub brand_id: Option<Uuid>,
+    /// With `brandId`: the shared catalog (layouts without a brand) is
+    /// listed too, next to the brand's own layouts.
+    pub include_shared: Option<bool>,
     /// Page size (clamped to `[1, 200]` by the service). `None` = all
     /// rows (legacy consumers).
     pub limit: Option<u64>,
@@ -944,5 +1022,26 @@ mod tests {
         assert!(request.contact_phone.is_none());
         assert!(request.contact_email.is_none());
         assert!(request.validate().is_ok());
+    }
+
+    #[test]
+    fn brand_hotlines_are_free_text_up_to_32_characters() {
+        let accepts = |phone: &str| {
+            let request: UpsertBrandRequest =
+                serde_json::from_value(json!({ "contactPhone": phone })).unwrap();
+            request.validate().is_ok()
+        };
+
+        for phone in [
+            "1900 6067",
+            "19006067",
+            "1800 1234",
+            "0912345678",
+            "+84912345678",
+        ] {
+            assert!(accepts(phone), "{phone} should be accepted");
+        }
+        assert!(accepts(&"9".repeat(32)));
+        assert!(!accepts(&"9".repeat(33)));
     }
 }

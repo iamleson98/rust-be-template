@@ -7,21 +7,19 @@
 #
 # Build:
 #   docker build -t datxevui:latest .
-#   (No database feature flags — the rust-sql engine is always compiled in.)
+#   (No database feature flags — SQLite is always compiled in.)
 #
 # Run:
 #   docker run -p 8080:8080 --env-file .env datxevui:latest
 #
 # Persistent data (bind or named volumes):
-#   - /app/data     — rust-sql database file + OSM PBF downloads
-#   - /app/index    — Tantivy place-search index (see SEARCH_INDEX_DIR)
+#   - /app/data     — SQLite database file
+#   - /app/index    — place-search generations (see PLACES_DIR)
 #   - /app/storage  — local file uploads
 #
-#   The Tantivy index lives at /app/index/osm-index — NESTED one level
-#   inside its volume on purpose: the biweekly osm.import job builds into
-#   a sibling staging dir (/app/index/osm-index.staging) and atomically
-#   renames it over the live index. Siblings must share a filesystem or
-#   rename(2) fails with EXDEV. Do NOT flatten this to /app/osm-index.
+#   The place generations live at /app/index/places (PLACES_DIR): every
+#   generation and the `current` symlink share this volume, so publishing
+#   one is an atomic rename.
 #
 # Why cargo-chef: caches the deps layer across code changes — saves
 # ~3-5 minutes per CI run when Cargo.toml hasn't changed.
@@ -75,12 +73,11 @@ RUN cargo install cargo-chef --locked --version ^0.1
 WORKDIR /app
 
 FROM chef AS planner
-# rust-sql/ (engine submodule) is a path dependency of the patched
-# libsqlite3-sys → cargo chef must walk it to build the recipe.
-# .cargo/config.toml sets RUSTQLITE_LINK_MODE=rlib for every cargo run.
+# vendor/ (the patched libsqlite3-sys with the begin-concurrent SQLite
+# amalgamation) is a path dependency → cargo chef must walk it to build
+# the recipe.
 COPY Cargo.toml Cargo.lock ./
-COPY .cargo/ .cargo/
-COPY rust-sql/ ./rust-sql/
+COPY vendor/ ./vendor/
 COPY store_macros/ ./store_macros/
 COPY migrator/ ./migrator/
 RUN cargo chef prepare --recipe-path recipe.json
@@ -90,9 +87,10 @@ RUN cargo chef prepare --recipe-path recipe.json
 # ════════════════════════════════════════════════════════════════════
 FROM chef AS builder
 
-# NOTE: no BACKEND_FEATURES arg anymore — the database engine is not a
-# cargo feature; every build links the rust-sql (rustqlite) engine
-# unconditionally (see the engine block in Cargo.toml).
+# NOTE: no BACKEND_FEATURES arg — the database engine is not a cargo
+# feature; every build compiles the vendored SQLite amalgamation (the
+# rust base image ships the C compiler it needs) unconditionally (see
+# the engine block in Cargo.toml).
 
 # Install build deps. pkg-config + libssl-dev for openssl/rustls.
 # ca-certificates for cargo to fetch crates. curl for healthchecks.
@@ -104,18 +102,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Cook deps from recipe — cached unless recipe.json (i.e. Cargo.toml) changes.
 # cargo-chef's recipe skeletonizes WORKSPACE members only; the [patch.crates-io]
-# path dependencies (the rust-sql engine submodule) are NOT members, so they
+# path dependencies (the vendored libsqlite3-sys) are NOT members, so they
 # must exist on disk before `cook` or cargo cannot resolve the patch.
-# .cargo/config.toml must be present too: RUSTQLITE_LINK_MODE=rlib applies to
-# every cargo invocation, cook included — without it the compat build script
-# defaults to dylib mode and emits flags the final link cannot satisfy (and
-# the fingerprint flip would rebuild everything after cook anyway).
-# Bonus: the engine + compat compile INSIDE the cached cook layer — app-code
-# edits don't recompile the engine.
+# Bonus: the SQLite amalgamation compiles INSIDE the cached cook layer —
+# app-code edits don't recompile it.
 COPY --from=planner /app/recipe.json recipe.json
 COPY Cargo.toml Cargo.lock ./
-COPY .cargo/ .cargo/
-COPY rust-sql/ ./rust-sql/
+COPY vendor/ ./vendor/
 RUN cargo chef cook --release --recipe-path recipe.json
 
 # Workspace members + app source: the cook wrote their SKELETONS (manifest
@@ -135,25 +128,25 @@ FROM debian:bookworm-slim AS runtime
 # - ca-certificates: for HTTPS cert validation
 # - curl: for healthcheck
 # - tini: PID 1 init (proper signal handling)
-# NOTE: no sqlite3 CLI and no libsqlite3-0 — the database engine is
-# pure-Rust rustqlite compiled INTO the binary (rlib link mode). There
-# is no C SQLite anywhere in the image (the legacy C-SQLite → rustqlite
-# boot migration and its sqlite3 CLI dependency were removed 2026-09).
+# - sqlite3: the CLI for operators (`docker exec … sqlite3 /app/data/app.db`:
+#   integrity_check, VACUUM INTO backups, ad-hoc queries). The app itself
+#   does not use it — it links the vendored SQLite statically, and no
+#   libsqlite3 is needed at runtime.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libssl3 ca-certificates curl tini \
+    libssl3 ca-certificates curl tini sqlite3 \
     && rm -rf /var/lib/apt/lists/* \
     && useradd -r -s /bin/false -u 1000 app
 
 ARG VERSION=dev
 ARG CREATED=1970-01-01T00:00:00Z
-ARG ENGINE_SHA=unknown
+ARG SQLITE_SOURCE_ID=unknown
 
 # OCI labels — `docker inspect` shows exactly which git tag built this.
 LABEL org.opencontainers.image.title="datxevui" \
       org.opencontainers.image.description="DatXeVui — Rust/Axum backend serving the React frontend, API, WebSocket, and Tantivy place search" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.created="${CREATED}" \
-      com.datxevui.rust-sql.sha="${ENGINE_SHA}" \
+      com.datxevui.sqlite.source_id="${SQLITE_SOURCE_ID}" \
       org.opencontainers.image.source="https://github.com/iamleson98/rust-be-template" \
       org.opencontainers.image.licenses="MIT"
 
@@ -179,9 +172,8 @@ ENV SERVER_PORT=8080
 ENV DATABASE_URL=sqlite:./data/app.db?mode=rwc
 ENV STATIC_FILES_DIR=./frontend/dist
 ENV STORAGE_LOCAL_ROOT=./storage
-# Tantivy place-search: index + OSM extract both live on volumes.
-ENV SEARCH_INDEX_DIR=/app/index/osm-index
-ENV SEARCH_OSM_PBF_PATH=/app/data/vietnam-latest.osm.pbf
+# Place search: the `places-build` generations live on a volume.
+ENV PLACES_DIR=/app/index/places
 
 EXPOSE 8080
 USER app

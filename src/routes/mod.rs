@@ -28,6 +28,7 @@ mod router;
 mod routing;
 mod seo;
 pub mod system;
+mod uploads;
 mod users;
 mod vitals;
 mod webhooks;

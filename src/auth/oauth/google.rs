@@ -15,7 +15,7 @@
 //! ## Notes
 //!
 //! Google's `userinfo` endpoint returns `email_verified: bool`. We
-//! reject the response if `email_verified` is `false` — binding an
+//! reject the response unless `email_verified` is `true` — binding an
 //! OAuth identity to an unverified email would let an attacker
 //! pre-register a victim's email on Google and then use that OAuth
 //! identity to take over the local account.
@@ -136,30 +136,36 @@ impl OAuthProvider for GoogleProvider {
             )));
         }
 
-        #[derive(Deserialize)]
-        struct GoogleProfile {
-            sub: String,
-            email: String,
-            email_verified: Option<bool>,
-            name: Option<String>,
-            picture: Option<String>,
-        }
         let p: GoogleProfile = resp
             .json()
             .await
             .map_err(|e| AppError::Internal(format!("google profile parse: {e}")))?;
+        p.into_profile()
+    }
+}
 
-        // Reject unverified emails — see module docs.
-        if p.email_verified == Some(false) {
+#[derive(Deserialize)]
+struct GoogleProfile {
+    sub: String,
+    email: String,
+    email_verified: Option<bool>,
+    name: Option<String>,
+    picture: Option<String>,
+}
+
+impl GoogleProfile {
+    /// Only a profile Google says is verified (`email_verified: true`) is
+    /// accepted: a missing flag proves nothing either — see module docs.
+    fn into_profile(self) -> Result<OAuthProfile, AppError> {
+        if self.email_verified != Some(true) {
             return Err(AppError::BadRequest("Google email is not verified".into()));
         }
-
         Ok(OAuthProfile {
             provider: "google".into(),
-            subject: p.sub,
-            email: p.email,
-            name: p.name.unwrap_or_else(|| "Người dùng Google".into()),
-            avatar_url: p.picture,
+            subject: self.sub,
+            email: self.email,
+            name: self.name.unwrap_or_else(|| "Người dùng Google".into()),
+            avatar_url: self.picture,
         })
     }
 }
@@ -167,6 +173,29 @@ impl OAuthProvider for GoogleProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn profile(json: &str) -> Result<OAuthProfile, AppError> {
+        serde_json::from_str::<GoogleProfile>(json)
+            .unwrap()
+            .into_profile()
+    }
+
+    #[test]
+    fn only_a_verified_email_signs_in() {
+        let ok = profile(r#"{"sub":"1","email":"a@b.c","email_verified":true}"#).unwrap();
+        assert_eq!(ok.email, "a@b.c");
+        assert_eq!(ok.name, "Người dùng Google");
+        for body in [
+            r#"{"sub":"1","email":"a@b.c","email_verified":false}"#,
+            r#"{"sub":"1","email":"a@b.c"}"#,
+            r#"{"sub":"1","email":"a@b.c","email_verified":null}"#,
+        ] {
+            assert!(
+                matches!(profile(body), Err(AppError::BadRequest(_))),
+                "{body}"
+            );
+        }
+    }
 
     #[test]
     fn builds_authorization_url() {

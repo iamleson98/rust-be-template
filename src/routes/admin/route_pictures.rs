@@ -1,7 +1,7 @@
 //! Admin — Route picture endpoints (`/api/admin/routes/{id}/pictures`).
 //!
-//! Owns the media write path: multipart upload (validated +
-//! thumbnailed + content-addressed by `RouteMediaService`), reorder /
+//! Owns the media write path: multipart upload (validated, re-encoded to
+//! WebP with a thumbnail, content-addressed by `RouteMediaService`), reorder /
 //! alt-text patch, single + bulk delete. The public read path lives in
 //! `routes/public.rs` (`GET /api/routes/{id}/pictures`) and the byte
 //! proxy in `routes/media.rs`.
@@ -22,7 +22,7 @@ use uuid::Uuid;
 use validator::Validate;
 
 use crate::dto::route_media::{
-    RoutePictureDeleteResponse, RoutePictureListResponse, RoutePictureOut,
+    RoutePictureDeleteResponse, RoutePictureListResponse, RoutePictureOut, RoutePictureUploadForm,
     RoutePictureUploadResponse, RoutePicturesBulkDeleteResponse, UpdateRoutePictureInput,
 };
 use crate::error::AppError;
@@ -65,16 +65,19 @@ pub async fn list_pictures(
 ///   * `file` (required) — JPEG / PNG / WebP, ≤ 10 MiB. Validated by
 ///     magic bytes AND fully decoded server-side (rejects polyglot /
 ///     corrupt files); the client-declared Content-Type is ignored.
+///     Stored as WebP (long edge ≤ 1920 px) plus a 640 px WebP
+///     thumbnail; the original and its EXIF are never kept.
 ///   * `alt_text` (optional) — accessible description, ≤ 255 chars.
 ///
-/// Idempotent on content: re-uploading the exact same bytes for the
-/// same route returns the existing row with `deduped: true`.
+/// At most 10 pictures per route. Idempotent on content: re-uploading
+/// an image that encodes to the same WebP for the same route returns
+/// the existing row with `deduped: true`.
 #[utoipa::path(
     post,
     path = "/api/admin/routes/{id}/pictures",
     tag = "admin",
     params(("id" = Uuid, Path, description = "Route ID")),
-    request_body(content = Vec<u8>, description = "multipart/form-data: `file` (image), optional `alt_text`", content_type = "multipart/form-data"),
+    request_body(content = RoutePictureUploadForm, content_type = "multipart/form-data"),
     responses(
         (status = 201, description = "Stored picture (or existing row when deduped)", body = RoutePictureUploadResponse),
         (status = 400, description = "Validation failed (format / size / count cap)"),

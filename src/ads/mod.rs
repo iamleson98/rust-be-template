@@ -23,6 +23,11 @@
 //!   soon as the row is durable).
 //! * Dedupe at the storage boundary: `(event, transaction_id)` is
 //!   unique, so the browser may retry the beacon freely.
+//! * The beacon is public (it fires after the session may have lapsed), so
+//!   it is trusted for nothing but the click ids: a conversion must name a
+//!   real booking by its code, a `purchase` needs a completed payment, and
+//!   the value and currency are read from the database
+//!   ([`AdsHub::report`]).
 //!
 //! ## The credential group (see `.env.example` / `docs/GOOGLE_ADS.md`)
 //!
@@ -37,7 +42,22 @@ use std::sync::{Arc, OnceLock};
 
 use sea_orm::DatabaseConnection;
 
-use crate::store::{AdConversionStore, DbAdConversionStore, NewAdConversion, StoreError};
+use crate::dto::ad_conversion::{ReportConversionRequest, ReportConversionResponse};
+use crate::error::AppError;
+use crate::store::{
+    AdConversionStore, BookingStore, DbAdConversionStore, DbBookingStore, NewAdConversion,
+    StoreError,
+};
+
+/// The conversions the site reports: a booking held, a booking paid.
+const EVENTS: [&str; 2] = ["booking", "purchase"];
+
+/// The longest booking code accepted as a transaction id.
+const MAX_TRANSACTION_ID_LEN: usize = 128;
+
+/// Click ids are opaque tokens (typically ~100 chars); the stored length
+/// is capped so a hostile beacon can't bloat rows.
+const MAX_CLICK_ID_LEN: usize = 1024;
 
 /// Record + attempt outcome for the route's response.
 #[derive(Debug)]
@@ -53,6 +73,7 @@ pub struct RecordOutcome {
 /// Process-global ads hub.
 pub struct AdsHub {
     conversions: Arc<DbAdConversionStore>,
+    bookings: DbBookingStore,
     api: Option<GoogleAdsApi>,
 }
 
@@ -61,10 +82,7 @@ static ADS: OnceLock<AdsHub> = OnceLock::new();
 /// Initialise the hub at server boot. `None` credentials →
 /// record-only mode (uploads stay `unconfigured`, logged once).
 pub fn init(db: Arc<DatabaseConnection>, api: Option<GoogleAdsApi>) {
-    let hub = AdsHub {
-        conversions: Arc::new(DbAdConversionStore::new(db)),
-        api,
-    };
+    let hub = AdsHub::new(db, api);
     if hub.api.is_none() {
         tracing::info!(
             "ads: GOOGLE_ADS_* credentials incomplete — conversion recording only \
@@ -82,11 +100,72 @@ pub fn ads() -> &'static AdsHub {
 }
 
 impl AdsHub {
+    pub fn new(db: Arc<DatabaseConnection>, api: Option<GoogleAdsApi>) -> Self {
+        Self {
+            conversions: Arc::new(DbAdConversionStore::new(db.clone())),
+            bookings: DbBookingStore::new(db),
+            api,
+        }
+    }
+
     /// Whether the Google Ads API credential group is complete (and
     /// thus server-side uploads happen). Surfaced by the beacon
     /// response so ops can verify the pipeline is live end-to-end.
     pub fn is_upload_enabled(&self) -> bool {
         self.api.is_some()
+    }
+
+    /// Verify and record a beacon from the browser.
+    ///
+    /// Only `booking` and `purchase` events are accepted, and
+    /// `transaction_id` must be the code of a real, uncancelled booking
+    /// (`purchase`: one with a completed payment). The beacon's own
+    /// `value` and `currency` are ignored: they come from the booking or
+    /// its payment, so a forged beacon can neither invent revenue nor
+    /// write rows for bookings that do not exist.
+    pub async fn report(
+        &self,
+        req: ReportConversionRequest,
+    ) -> Result<ReportConversionResponse, AppError> {
+        let event = req.event.trim().to_lowercase();
+        if !EVENTS.contains(&event.as_str()) {
+            return Err(AppError::BadRequest(format!(
+                "event must be one of {}",
+                EVENTS.join(", ")
+            )));
+        }
+        let code = req.transaction_id.trim();
+        if code.is_empty() || code.len() > MAX_TRANSACTION_ID_LEN {
+            return Err(AppError::BadRequest(
+                "transactionId must be a booking code".into(),
+            ));
+        }
+        let (amount, currency) = self
+            .bookings
+            .conversion_value(code, event == "purchase")
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?
+            .ok_or_else(|| AppError::NotFound(format!("no {event} for this booking")))?;
+
+        let click_ids = req.click_ids;
+        let outcome = self
+            .record(NewAdConversion {
+                event,
+                transaction_id: code.to_string(),
+                conversion_value: Some(amount.to_string()),
+                currency: Some(currency.to_uppercase()),
+                gclid: click_id(click_ids.gclid),
+                wbraid: click_id(click_ids.wbraid),
+                gbraid: click_id(click_ids.gbraid),
+            })
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        Ok(ReportConversionResponse {
+            ok: true,
+            stored: outcome.stored,
+            upload_attempted: outcome.upload_attempted,
+            server_upload_enabled: self.is_upload_enabled(),
+        })
     }
 
     /// Persist a conversion (deduped) and kick an upload attempt when
@@ -156,6 +235,12 @@ impl AdsHub {
     }
 }
 
+/// A click id as stored: trimmed; blank or over-long becomes absent.
+fn click_id(id: Option<String>) -> Option<String> {
+    id.map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty() && s.len() <= MAX_CLICK_ID_LEN)
+}
+
 /// A ready-to-use Google Ads API client (refresh-token OAuth).
 #[derive(Clone)]
 pub struct GoogleAdsApi {
@@ -218,8 +303,18 @@ impl GoogleAdsApi {
         Ok(tok)
     }
 
+    /// The `uploadClickConversions` endpoint of the configured API version
+    /// (`GOOGLE_ADS_API_VERSION`; Google retires old versions, so the
+    /// version is configuration, not code).
+    pub fn upload_url(&self) -> String {
+        format!(
+            "https://googleads.googleapis.com/{}/customers/{}:uploadClickConversions",
+            self.cfg.api_version, self.cfg.customer_id
+        )
+    }
+
     /// Upload one conversion via
-    /// `POST /v17/customers/{cid}:uploadClickConversions`.
+    /// `POST /{version}/customers/{cid}:uploadClickConversions`.
     async fn upload(&self, m: &crate::entity::ad_conversion::Model) -> Result<(), String> {
         let action = self
             .cfg
@@ -250,13 +345,9 @@ impl GoogleAdsApi {
             conv["gbraid"] = serde_json::Value::String(g.to_string());
         }
 
-        let url = format!(
-            "https://googleads.googleapis.com/v17/customers/{}:uploadClickConversions",
-            self.cfg.customer_id
-        );
         let mut req = self
             .http
-            .post(&url)
+            .post(self.upload_url())
             .bearer_auth(&token)
             .header("developer-token", &self.cfg.developer_token)
             .json(&serde_json::json!({

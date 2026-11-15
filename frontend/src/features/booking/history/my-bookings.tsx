@@ -1,5 +1,3 @@
-'use client'
-
 /**
  * MyBookings — the booking history of the SIGNED-IN user.
  *

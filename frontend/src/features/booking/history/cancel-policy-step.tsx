@@ -1,5 +1,3 @@
-'use client'
-
 // Extracted from the original 'cancel-dialog.tsx'.
 
 import type { UseFormReturn } from 'react-hook-form'
@@ -8,7 +6,7 @@ import { Separator } from '@/components/ui/separator'
 import { Checkbox } from '@/components/ui/checkbox'
 import { AlertTriangle, ShieldCheck, Clock } from 'lucide-react'
 import { FormField, FormItem, FormControl, FormMessage } from '@/components/ui/form'
-import { type CancelValues } from './cancel-dialog-schema'
+import type { CancelValues } from './cancel-dialog-schema'
 
 export function CancelPolicyStep({ form }: { form: UseFormReturn<CancelValues> }) {
   const t = useT()

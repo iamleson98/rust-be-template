@@ -1,5 +1,3 @@
-'use client'
-
 // Extracted from the original 'search-widget.tsx'.
 
 import type { SearchParams } from '@/lib/search-params'

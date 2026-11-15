@@ -1,4 +1,4 @@
-import { type ComponentProps } from 'react'
+import type { ComponentProps } from 'react'
 import { Slot } from '@/components/ui/slot'
 import { ChevronRight, MoreHorizontal } from 'lucide-react'
 

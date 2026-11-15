@@ -1,19 +1,20 @@
 //! Database side of seat plans — shared by the admin API and the
 //! `layouts-normalize` CLI so both change a layout the same way.
 //!
-//! Writes run DIRECTLY on the transaction (entity ops on `&txn`): going
+//! Writes run DIRECTLY on the transaction (entity ops on `tx`): going
 //! through the store methods would check out a SECOND pooled connection
-//! and deadlock on SQLite's table lock.
+//! and wait for the transaction's own write lock.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use sea_orm::sea_query::Expr;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter, Set,
-    TransactionTrait, Unchanged,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set, Unchanged,
 };
 use uuid::Uuid;
 
+use crate::db::write::with_write;
 use crate::dto::seat_plan::SeatPlan;
 use crate::entity::{bus_layout, seat};
 use crate::service::seat_plan::{self, SeatSpec, SeatSync};
@@ -45,6 +46,17 @@ pub fn new_seat(layout_id: Uuid, spec: &SeatSpec, now: &str) -> seat::ActiveMode
     }
 }
 
+/// What [`apply_plan`] writes, owned so the transaction body can run again.
+struct PlanWrite {
+    old_labels: HashMap<Uuid, String>,
+    deletes: Vec<Uuid>,
+    updates: Vec<(Uuid, SeatSpec)>,
+    inserts: Vec<SeatSpec>,
+    total_seats: i16,
+    layout_data: String,
+    now: String,
+}
+
 /// Make the layout's `seat` rows and stored plan match `plan`, in one
 /// transaction. `sync` is [`seat_plan::sync_seats`]'s verdict for
 /// `existing`; kept seats keep their ids.
@@ -55,57 +67,75 @@ pub async fn apply_plan(
     existing: &[seat::Model],
     sync: &SeatSync,
     now: &str,
-) -> Result<(), DbErr> {
-    let old: HashMap<Uuid, &seat::Model> = existing.iter().map(|s| (s.id, s)).collect();
-    let txn = db.begin().await?;
-    if !sync.deletes.is_empty() {
-        seat::Entity::delete_many()
-            .filter(seat::Column::Id.is_in(sync.deletes.clone()))
-            .exec(&txn)
-            .await?;
-    }
-    // (seat_label is UNIQUE per layout.) Park every relabelled seat on a
-    // throwaway label first so swaps and shifts never collide.
-    for (seat_id, spec) in &sync.updates {
-        if old[seat_id].seat_label != spec.label {
-            let parked = format!("~{}", &seat_id.simple().to_string()[..8]);
-            seat::Entity::update_many()
-                .col_expr(seat::Column::SeatLabel, Expr::value(parked))
-                .filter(seat::Column::Id.eq(*seat_id))
-                .exec(&txn)
-                .await?;
-        }
-    }
-    for (seat_id, spec) in &sync.updates {
-        seat::ActiveModel {
-            id: Unchanged(*seat_id),
-            seat_label: Set(spec.label.clone()),
-            seat_class: Set(spec.class.clone()),
-            row_num: Set(Some(spec.row)),
-            col_num: Set(Some(spec.col)),
-            is_window: Set(spec.is_window),
-            floor: Set(spec.floor),
-            ..Default::default()
-        }
-        .update(&txn)
-        .await?;
-    }
-    if !sync.inserts.is_empty() {
-        let fresh: Vec<_> = sync
-            .inserts
+) -> StoreResult<()> {
+    // The transaction body may run more than once and cannot borrow the
+    // caller's data, so it works on one owned copy.
+    let write = Arc::new(PlanWrite {
+        old_labels: existing
             .iter()
-            .map(|s| new_seat(layout_id, s, now))
-            .collect();
-        seat::Entity::insert_many(fresh).exec(&txn).await?;
-    }
-    bus_layout::ActiveModel {
-        id: Unchanged(layout_id),
-        total_seats: Set(Some(seat_plan::sellable_count(plan) as i16)),
-        layout_data: Set(Some(seat_plan::to_stored(plan))),
-        updated_at: Set(now.to_string()),
-        ..Default::default()
-    }
-    .update(&txn)
-    .await?;
-    txn.commit().await
+            .map(|s| (s.id, s.seat_label.clone()))
+            .collect(),
+        deletes: sync.deletes.clone(),
+        updates: sync.updates.clone(),
+        inserts: sync.inserts.clone(),
+        total_seats: seat_plan::sellable_count(plan) as i16,
+        layout_data: seat_plan::to_stored(plan),
+        now: now.to_string(),
+    });
+    with_write(db, |tx| {
+        let w = write.clone();
+        Box::pin(async move {
+            if !w.deletes.is_empty() {
+                seat::Entity::delete_many()
+                    .filter(seat::Column::Id.is_in(w.deletes.clone()))
+                    .exec(tx)
+                    .await?;
+            }
+            // (seat_label is UNIQUE per layout.) Park every relabelled seat on a
+            // throwaway label first so swaps and shifts never collide.
+            for (seat_id, spec) in &w.updates {
+                if w.old_labels[seat_id] != spec.label {
+                    let parked = format!("~{}", &seat_id.simple().to_string()[..8]);
+                    seat::Entity::update_many()
+                        .col_expr(seat::Column::SeatLabel, Expr::value(parked))
+                        .filter(seat::Column::Id.eq(*seat_id))
+                        .exec(tx)
+                        .await?;
+                }
+            }
+            for (seat_id, spec) in &w.updates {
+                seat::ActiveModel {
+                    id: Unchanged(*seat_id),
+                    seat_label: Set(spec.label.clone()),
+                    seat_class: Set(spec.class.clone()),
+                    row_num: Set(Some(spec.row)),
+                    col_num: Set(Some(spec.col)),
+                    is_window: Set(spec.is_window),
+                    floor: Set(spec.floor),
+                    ..Default::default()
+                }
+                .update(tx)
+                .await?;
+            }
+            if !w.inserts.is_empty() {
+                let fresh: Vec<_> = w
+                    .inserts
+                    .iter()
+                    .map(|s| new_seat(layout_id, s, &w.now))
+                    .collect();
+                seat::Entity::insert_many(fresh).exec(tx).await?;
+            }
+            bus_layout::ActiveModel {
+                id: Unchanged(layout_id),
+                total_seats: Set(Some(w.total_seats)),
+                layout_data: Set(Some(w.layout_data.clone())),
+                updated_at: Set(w.now.clone()),
+                ..Default::default()
+            }
+            .update(tx)
+            .await?;
+            Ok(())
+        })
+    })
+    .await
 }

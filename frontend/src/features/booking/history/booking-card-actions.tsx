@@ -1,5 +1,3 @@
-'use client'
-
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Loader2, Ban, CreditCard, MessageSquare, Star, QrCode, Search } from 'lucide-react'

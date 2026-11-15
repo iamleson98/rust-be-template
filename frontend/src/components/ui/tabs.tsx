@@ -1,6 +1,4 @@
-'use client'
-
-import { type ComponentProps } from 'react'
+import type { ComponentProps } from 'react'
 import { Tabs as TabsPrimitive } from '@base-ui/react/tabs'
 
 import { cn } from '@/lib/utils'

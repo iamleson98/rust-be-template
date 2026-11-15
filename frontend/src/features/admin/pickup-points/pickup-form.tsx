@@ -1,5 +1,3 @@
-'use client'
-
 /**
  * PickupPointFormDialog — create/edit a PickupPoint under a given Route.
  *
@@ -11,9 +9,9 @@
 import { useMutation } from '@tanstack/react-query'
 import { adminPickupPointsCreateMutation, adminPickupPointsUpdateMutation } from '@/api'
 import { useEffect, useMemo } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
+import * as z from 'zod'
 import {
   Dialog,
   DialogContent,
@@ -38,7 +36,12 @@ import { MapPin, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { requiredText, positiveInt, optionalText } from '@/lib/forms'
 import { useT } from '@/lib/i18n'
-import type { AdminPickupPointOut, PlaceOut, AdminRouteOut, UpsertPickupPointRequest } from '@/api'
+import type {
+  AdminPickupPointOut,
+  PlaceSearchHit,
+  AdminRouteOut,
+  UpsertPickupPointRequest,
+} from '@/api'
 import { getErrorMessage } from '@/lib/error-message'
 
 // Schema factory — takes `t` so validation messages follow the UI language.
@@ -71,7 +74,7 @@ export function PickupPointFormDialog({
   open: boolean
   pickup: AdminPickupPointOut | null
   route: AdminRouteOut | null
-  places: PlaceOut[]
+  places: PlaceSearchHit[]
   existingCount: number
   onOpenChange: (open: boolean) => void
   onSaved: () => void
@@ -123,7 +126,7 @@ export function PickupPointFormDialog({
     return [...places].sort((a, b) => a.name.localeCompare(b.name, 'vi'))
   }, [places])
 
-  const nameValue = form.watch('name')
+  const nameValue = useWatch({ control: form.control, name: 'name' })
 
   const onSelectPlace = (placeId: string) => {
     form.setValue('placeId', placeId, { shouldValidate: true, shouldDirty: true })

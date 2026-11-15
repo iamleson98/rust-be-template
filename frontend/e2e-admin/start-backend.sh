@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Started by playwright.admin.config.ts — boots the Rust backend with the
-# dev SQLite DB + seeded Tantivy index. Reused if already running.
+# dev SQLite DB. Reused if already running.
 #
 # CORS_ORIGINS must include the Playwright dev-server origin
 # (http://localhost:5184) — the backend's anti-scraping middleware
@@ -27,24 +27,23 @@ now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 next_run = (datetime.now(timezone.utc) + timedelta(days=365)).strftime("%Y-%m-%dT%H:%M:%SZ")
 db.execute(
     "INSERT OR IGNORE INTO scheduled_job (id, job_type, enabled, interval_days, at_hour, at_minute, next_run_at, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?)",
-    (uuid.uuid4().bytes, "osm.import", 1, 14, 2, 0, next_run, now, now),
+    (uuid.uuid4().bytes, "coupons.expire", 1, 14, 2, 0, next_run, now, now),
 )
 db.execute(
-    "UPDATE scheduled_job SET enabled=1, interval_days=14, at_hour=2, at_minute=0, next_run_at=?, updated_at=? WHERE job_type='osm.import'",
+    "UPDATE scheduled_job SET enabled=1, interval_days=14, at_hour=2, at_minute=0, next_run_at=?, updated_at=? WHERE job_type='coupons.expire'",
     (next_run, now),
 )
-db.execute("DELETE FROM job_run WHERE job_type='osm.import'")
+db.execute("DELETE FROM job_run WHERE job_type='coupons.expire'")
 db.execute(
     "INSERT INTO job_run (id, job_type, status, detail, error, started_at, finished_at, created_at) VALUES (?,?,?,?,?,?,?,?)",
-    (uuid.uuid4().bytes, "osm.import", "succeeded",
-     '{"phase":"done","message":"indexed 30 places"}', None,
+    (uuid.uuid4().bytes, "coupons.expire", "succeeded",
+     '{"phase":"done","message":"expired 3 unused coupons"}', None,
      "2026-08-18T18:00:00Z", "2026-08-18T18:41:00Z", "2026-08-18T17:59:00Z"),
 )
 db.commit()
 PYEOF
 DATABASE_URL="sqlite:///tmp/vexevn/app.db?mode=rwc" \
 JWT_SECRET="dev-secret-for-local-testing-only-0123456789" \
-SEARCH_INDEX_DIR="./search-index" \
 SCHEDULER_ENABLED="false" \
 CORS_ORIGINS="http://localhost:5184,http://127.0.0.1:5184,http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173" \
 RUST_LOG="warn" \

@@ -66,14 +66,13 @@ impl RbacChecker {
     }
 
     /// Convenience: ensure the user has the permission or return a
-    /// `Forbidden` error (mapped to HTTP 403 by the error layer).
+    /// `Forbidden` error naming the permission (an `AppError::Forbidden`, 403,
+    /// once it crosses `?` into a handler).
     pub async fn require(&self, user_id: Uuid, permission: &str) -> Result<(), StoreError> {
         if self.check(user_id, permission).await? {
             Ok(())
         } else {
-            Err(StoreError::Forbidden(format!(
-                "missing permission: {permission}"
-            )))
+            Err(StoreError::Forbidden(permission.to_string()))
         }
     }
 

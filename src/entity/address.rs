@@ -16,6 +16,10 @@ pub struct Model {
     pub lat: f64,
     #[sea_orm(column_type = "Double")]
     pub lon: f64,
+    /// Slug of the city the point is in (`crate::cities`); `NULL` on points
+    /// older than the column that no city name matched.
+    #[sea_orm(column_type = "Text", nullable)]
+    pub city_id: Option<String>,
     #[sea_orm(column_type = "Text", nullable)]
     pub province: Option<String>,
     #[sea_orm(column_type = "Text", nullable)]

@@ -15,14 +15,14 @@ use sea_orm::{
 use store_macros::retry;
 use uuid::Uuid;
 
-use crate::entity::{seat, seat_inventory, trip_session};
+use crate::entity::{schedule, seat, seat_inventory, trip_session};
 
 use super::error::{StoreError, StoreResult};
 use super::retry::RetryPolicy;
-/// Parse a uuid string for a query filter BIND. The rust-sql engine
-/// (sqlite dialect) stores Uuid columns as 16-byte BLOBs — binding a
-/// TEXT value never matches, so every uuid filter must bind the parsed
-/// `Uuid` (a BLOB parameter that does).
+/// Parse a uuid string for a query filter BIND. SQLite stores Uuid
+/// columns as 16-byte BLOBs — binding a TEXT value never matches, so
+/// every uuid filter must bind the parsed `Uuid` (a BLOB parameter that
+/// does).
 fn parse_uuid(s: &str) -> StoreResult<uuid::Uuid> {
     uuid::Uuid::parse_str(s).map_err(|_| StoreError::Validation(format!("invalid uuid: {s}")))
 }
@@ -102,29 +102,11 @@ pub trait TripStore: Send + Sync {
         model: seat_inventory::ActiveModel,
     ) -> StoreResult<seat_inventory::Model>;
 
-    /// Bulk release — flips ALL seats held by the given booking back to
-    /// 'available' in a single conditional UPDATE. Used by
-    /// `booking_service::cancel`, `::confirm` (expiry-cleanup path) and
-    /// `hold`'s conflict rollback. Returns the number of seats released.
-    /// Idempotent — safe to call even if no seats are currently held.
-    async fn release_held_seats_for_booking(&self, held_by_booking_id: &str) -> StoreResult<u64>;
-
     /// Bulk mark held seats as 'booked' for a given booking (the
     /// confirmation step). Single SQL UPDATE replaces the per-seat
     /// loop in `booking_service::confirm`. Returns the number of seats
     /// flipped. Idempotent — safe to call on already-booked seats.
     async fn mark_seats_booked_for_booking(&self, held_by_booking_id: &str) -> StoreResult<u64>;
-
-    /// Bulk claim — flips ALL of `seat_ids` from 'available' → 'held' in a
-    /// single conditional UPDATE (the booking `hold` step). See the impl
-    /// for the TOCTOU/serialization argument.
-    async fn try_hold_seats_bulk(
-        &self,
-        trip_session_id: &str,
-        seat_ids: &[String],
-        held_by_booking_id: &str,
-        held_until: &str,
-    ) -> StoreResult<u64>;
 
     /// Atomic `available_seats = available_seats - n` (one UPDATE, value
     /// derived in SQL). Replaces the read-modify-write in `hold` where two
@@ -201,10 +183,22 @@ pub trait TripStore: Send + Sync {
     async fn delete_unsold_seats_of_trips(&self, trip_ids: Vec<Uuid>) -> StoreResult<u64>;
     /// Scheduled trips departing on `date_gte` (`YYYY-MM-DD`) or later.
     async fn count_upcoming_trips(&self, date_gte: &str) -> StoreResult<u64>;
+    /// Scheduled trips from `date_gte` with seats left, each with its
+    /// schedule, soonest first: by date, then the schedule's departure
+    /// time, then id.
     async fn list_upcoming_trips(
         &self,
         date_gte: &str,
         limit: u64,
+    ) -> StoreResult<Vec<(trip_session::Model, schedule::Model)>>;
+
+    /// Scheduled trips of these schedules departing from `date_from` to
+    /// `date_to` (`YYYY-MM-DD`, both inclusive), by date.
+    async fn list_scheduled_trips_between(
+        &self,
+        schedule_ids: Vec<Uuid>,
+        date_from: &str,
+        date_to: &str,
     ) -> StoreResult<Vec<trip_session::Model>>;
 }
 
@@ -334,8 +328,7 @@ impl TripStore for DbTripStore {
     ) -> StoreResult<trip_session::Model> {
         // Materialize the returned Model from the ActiveModel BEFORE the
         // insert — the generator sets every field, so no RETURNING
-        // round-trip is needed (the rust-sql engine's RETURNING support
-        // is untested).
+        // round-trip is needed.
         let inserted: trip_session::Model = model
             .clone()
             .try_into()
@@ -465,42 +458,6 @@ impl TripStore for DbTripStore {
     }
 
     #[store_macros::no_retry]
-    async fn try_hold_seats_bulk(
-        &self,
-        trip_session_id: &str,
-        seat_ids: &[String],
-        held_by_booking_id: &str,
-        held_until: &str,
-    ) -> StoreResult<u64> {
-        use sea_orm::sea_query::Expr;
-        if seat_ids.is_empty() {
-            return Ok(0);
-        }
-        let tid = parse_uuid(trip_session_id)?;
-        let bid = parse_uuid(held_by_booking_id)?;
-        let sids: Result<Vec<uuid::Uuid>, _> = seat_ids.iter().map(|s| parse_uuid(s)).collect();
-        let sids = sids?;
-        // One conditional UPDATE for the whole request — the
-        // `status = 'available'` guard makes this safe under concurrent
-        // holds: the engine serializes the UPDATE, so only one request
-        // can flip a given seat from 'available' to 'held'; an overlapping
-        // hold simply leaves that row unclaimed (rows_affected < seat
-        // count → caller rolls back). Callers must validate duplicates
-        // BEFORE calling: an IN-list with the same seat twice would claim
-        // one row and report a false conflict.
-        let res = seat_inventory::Entity::update_many()
-            .col_expr(seat_inventory::Column::Status, Expr::value("held"))
-            .col_expr(seat_inventory::Column::HeldUntil, Expr::value(held_until))
-            .col_expr(seat_inventory::Column::HeldByBookingId, Expr::value(bid))
-            .filter(seat_inventory::Column::TripSessionId.eq(tid))
-            .filter(seat_inventory::Column::SeatId.is_in(sids))
-            .filter(seat_inventory::Column::Status.eq("available"))
-            .exec(self.db.as_ref())
-            .await?;
-        Ok(res.rows_affected)
-    }
-
-    #[store_macros::no_retry]
     async fn decrement_available_seats(&self, trip_session_id: &str, n: i64) -> StoreResult<u64> {
         use sea_orm::sea_query::{BinOper, Expr};
         let tid = parse_uuid(trip_session_id)?;
@@ -513,30 +470,6 @@ impl TripStore for DbTripStore {
                     .binary(BinOper::Sub, Expr::value(n)),
             )
             .filter(trip_session::Column::Id.eq(tid))
-            .exec(self.db.as_ref())
-            .await?;
-        Ok(res.rows_affected)
-    }
-
-    #[store_macros::no_retry]
-    async fn release_held_seats_for_booking(&self, held_by_booking_id: &str) -> StoreResult<u64> {
-        // Single bulk UPDATE — replaces the N-row load + N sequential
-        // UPDATE pattern that previously dominated cancel/confirm latency
-        // for multi-seat bookings. Conditional on `held_by_booking_id`
-        // so it never releases a different booking's holds.
-        use sea_orm::sea_query::Expr;
-        let bid = parse_uuid(held_by_booking_id)?;
-        let res = seat_inventory::Entity::update_many()
-            .col_expr(seat_inventory::Column::Status, Expr::value("available"))
-            .col_expr(
-                seat_inventory::Column::HeldUntil,
-                Expr::value(None::<String>),
-            )
-            .col_expr(
-                seat_inventory::Column::HeldByBookingId,
-                Expr::value(None::<uuid::Uuid>),
-            )
-            .filter(seat_inventory::Column::HeldByBookingId.eq(bid))
             .exec(self.db.as_ref())
             .await?;
         Ok(res.rows_affected)
@@ -762,14 +695,42 @@ impl TripStore for DbTripStore {
         &self,
         date_gte: &str,
         limit: u64,
-    ) -> StoreResult<Vec<trip_session::Model>> {
+    ) -> StoreResult<Vec<(trip_session::Model, schedule::Model)>> {
         Ok(trip_session::Entity::find()
+            .find_also_related(schedule::Entity)
             .filter(trip_session::Column::DepartureDate.gte(date_gte.to_string()))
             .filter(trip_session::Column::AvailableSeats.gt(0))
             .filter(trip_session::Column::Status.eq("scheduled"))
             .order_by_asc(trip_session::Column::DepartureDate)
+            .order_by_asc(schedule::Column::DepartureTime)
+            .order_by_asc(trip_session::Column::Id)
             .limit(limit)
             .all(self.db.as_ref())
-            .await?)
+            .await?
+            .into_iter()
+            .filter_map(|(trip, schedule)| Some((trip, schedule?)))
+            .collect())
+    }
+
+    async fn list_scheduled_trips_between(
+        &self,
+        schedule_ids: Vec<Uuid>,
+        date_from: &str,
+        date_to: &str,
+    ) -> StoreResult<Vec<trip_session::Model>> {
+        let mut out = Vec::new();
+        for chunk in schedule_ids.chunks(super::FANOUT_CHUNK) {
+            out.extend(
+                trip_session::Entity::find()
+                    .filter(trip_session::Column::ScheduleId.is_in(chunk.to_vec()))
+                    .filter(trip_session::Column::DepartureDate.gte(date_from.to_string()))
+                    .filter(trip_session::Column::DepartureDate.lte(date_to.to_string()))
+                    .filter(trip_session::Column::Status.eq("scheduled"))
+                    .order_by_asc(trip_session::Column::DepartureDate)
+                    .all(self.db.as_ref())
+                    .await?,
+            );
+        }
+        Ok(out)
     }
 }

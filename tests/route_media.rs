@@ -1,10 +1,10 @@
 //! Route-media integration tests — full pipeline on the real stack:
-//! in-memory rust-sql DB + LocalStorage (tempdir) + RouteMediaService.
+//! in-memory SQLite DB + LocalStorage (tempdir) + RouteMediaService.
 //!
 //! What this exercises (service level, no HTTP):
 //! - upload validation: non-image rejection, size/format gates
 //! - content-addressed dedupe (identical bytes → same row, deduped=true)
-//! - thumbnail generation (JPEG, long-edge capped) + immutable cache
+//! - WebP re-encode + thumbnail generation (long-edge capped) + immutable cache
 //!   headers on stored objects
 //! - picture-count cap
 //! - list / patch (reorder + alt_text) / delete (row + objects)
@@ -18,15 +18,6 @@
 //! hostile keys, 304 on If-None-Match) lives in tests/api_smoke.rs —
 //! that endpoint is mounted outside the rate-limited `/api` nest
 //! precisely so it is testable in the one-shot harness.
-
-// Link anchor: rustc only places an rlib on a TEST binary's link line
-// when the test's own code references the crate. The rustqlite engine
-// (`sqlite3` crate — the sqlite3_* C ABI) is otherwise dropped and
-// sqlx-sqlite's FFI references go unresolved. Referencing the compat
-// crate's Rust-visible `engine_version` pulls the engine + compat
-// rlibs onto THIS binary's link line.
-#[used]
-static ENGINE_LINK: fn() -> &'static str = sqlite3::engine_version;
 
 use std::sync::Arc;
 
@@ -181,7 +172,7 @@ async fn upload_creates_picture_thumb_and_immutable_objects() -> anyhow::Result<
     assert_eq!(p.sort_order, 0);
     assert_eq!(p.width, 1200);
     assert_eq!(p.height, 800);
-    assert_eq!(p.mime_type, "image/png");
+    assert_eq!(p.mime_type, "image/webp");
     assert_eq!(p.alt_text.as_deref(), Some("Sleeper bus interior"));
     // Dev mode (no CDN base) → backend-relative proxy URLs.
     assert!(p.url.starts_with("/api/media/routes/"), "url: {}", p.url);
@@ -199,12 +190,12 @@ async fn upload_creates_picture_thumb_and_immutable_objects() -> anyhow::Result<
 
     // Serve round-trip: bytes, content type, ETag.
     let served = ctx.service.serve(key).await?;
-    assert_eq!(served.content_type, "image/png");
+    assert_eq!(served.content_type, "image/webp");
     assert!(served.etag.starts_with('"') && served.etag.ends_with('"'));
     assert!(!served.bytes.is_empty());
 
     let thumb_served = ctx.service.serve(thumb_key).await?;
-    assert_eq!(thumb_served.content_type, "image/jpeg");
+    assert_eq!(thumb_served.content_type, "image/webp");
     // Thumbnail long edge ≤ 640 for a 1200x800 original.
     let t = image::load_from_memory(&thumb_served.bytes)?;
     assert!(

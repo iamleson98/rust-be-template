@@ -24,59 +24,37 @@ use crate::state::AppState;
 
 use super::hub::{hub, Admission, Refusal};
 
-/// Extract the browser-origin `https://host` or `http://host` from the
-/// `Origin` header. Returns `None` if the header is missing or malformed.
-/// We don't trust `X-Forwarded-Host` here — that's a transport-level
-/// concern handled by the reverse proxy (Caddy/Nginx); the WS upgrade
-/// already happens after TLS termination so the `Host`/`Origin` we see
-/// is whatever the browser sent.
-fn parse_origin(headers: &HeaderMap) -> Option<String> {
-    let origin = headers.get("origin")?.to_str().ok()?;
-    let origin = origin.trim();
-    if origin.is_empty() {
-        return None;
-    }
-    // Sanity check: only allow http(s) schemes. This rejects `file://`,
-    // `data:`, and other origin forms that have no business opening a WS.
-    if !(origin.starts_with("https://") || origin.starts_with("http://")) {
-        return None;
-    }
-    Some(origin.to_string())
-}
-
-/// Cross-Site WebSocket Hijacking (CSWSH) defense: reject WS upgrades
-/// whose `Origin` header is not in the CORS allowlist. Without this,
-/// a malicious page on `attacker.com` can `new WebSocket('wss://app/ws?token=...')`
-/// using a cookie the browser auto-sends → the attacker's page reads every
-/// chat message the user receives (CSWSH / OWASP API6:2023).
+/// Cross-Site WebSocket Hijacking (CSWSH) defense, as the Worker does it
+/// (`authenticateWs`): a browser attaches the signed-in user's cookie to a
+/// socket opened by ANY site, so a COOKIE-authenticated upgrade must come
+/// from an `Origin` in the CORS allowlist. Without it a page on
+/// `attacker.com` could read every chat message the user receives
+/// (OWASP API6:2023).
 ///
-/// Returns `Ok(())` if the origin is allowed (or if no allowlist is
-/// configured, which is the dev case). Returns `Err` with a 403 if
-/// the origin is rejected.
+/// * `?token=<jwt>` upgrades (the mobile app, programmatic clients) carry
+///   their own credential, which a hostile page cannot forge, so they skip
+///   the check.
+/// * A cookie upgrade with NO `Origin` is a non-browser client: browsers
+///   always send one on a WebSocket handshake, and a hostile page cannot
+///   suppress it. It passes, as in the Worker.
+///
+/// An empty allowlist (the dev case) allows everything; in production
+/// `CORS_ORIGINS` MUST be set. Returns a 403 when the origin is rejected.
 pub(crate) fn check_ws_origin(
     headers: &HeaderMap,
     allowed_origins: &[String],
     token_auth: bool,
 ) -> Result<(), AppError> {
-    // Empty allowlist = dev mode, allow all. In prod this MUST be set.
-    if allowed_origins.is_empty() {
+    if token_auth || allowed_origins.is_empty() {
         return Ok(());
     }
-    let Some(origin) = parse_origin(headers) else {
-        // No Origin header = non-browser client (mobile app, CLI,
-        // server-to-server). Allowed ONLY when the upgrade carries an
-        // explicit `?token=<jwt>` — an attacker page riding ambient
-        // cookies for CSWSH can't forge that (it would need the raw
-        // token, at which point the Origin check isn't the defense
-        // that matters). Cookie-only handshakes without Origin stay
-        // rejected.
-        if token_auth {
-            return Ok(());
-        }
-        tracing::debug!("ws upgrade rejected: missing Origin header");
-        return Err(AppError::Forbidden("missing Origin header".into()));
+    let Some(origin) = headers.get("origin") else {
+        return Ok(());
     };
-    if allowed_origins.iter().any(|allowed| allowed == &origin) {
+    // Whatever is there — `null`, `file://…`, bytes that are not text — must
+    // match an allowed origin exactly, so it is refused when it does not.
+    let origin = origin.to_str().unwrap_or_default().trim();
+    if allowed_origins.iter().any(|allowed| allowed == origin) {
         return Ok(());
     }
     tracing::warn!(origin = %origin, "ws upgrade rejected: origin not allowed");
@@ -109,7 +87,7 @@ impl WsLimits {
     fn from_config(cfg: &crate::config::Config) -> Self {
         Self {
             channel_cap: cfg.ws.channel_capacity,
-            heartbeat_sec: cfg.ws.heartbeat_sec,
+            heartbeat_sec: super::ping_interval_sec(cfg.ws.heartbeat_sec),
             idle_timeout_sec: cfg.ws.idle_timeout_sec,
             max_per_ip: cfg.ws.max_per_ip,
         }
@@ -244,6 +222,18 @@ pub async fn handle_socket(
     // NORMAL teardown path, so rooms/presence/slots are all released.
     hub().set_closer(sid, close_tx.clone());
 
+    // Who the server took this socket for: the first frame, as in the
+    // Cloudflare hub, so a client can confirm its sign-in before it joins.
+    hub().send_to(
+        sid,
+        &json!({
+            "type": "hello",
+            "userId": user.id,
+            "name": user.name,
+            "role": user.role,
+        }),
+    );
+
     // If this is staff (employee OR admin), register their presence
     // socket and let every staff dashboard know availability changed.
     // Broadcast scope is GLOBAL (None): every staff client renders the
@@ -277,7 +267,7 @@ pub async fn handle_socket(
     // ── Write pump ──────────────────────────────────────────────────────
     let mut write_task = {
         let mut sink = sink;
-        let mut heartbeat = tokio::time::interval(Duration::from_secs(limits.heartbeat_sec.max(1)));
+        let mut heartbeat = tokio::time::interval(Duration::from_secs(limits.heartbeat_sec));
         heartbeat.tick().await; // consume immediate tick
         tokio::spawn(async move {
             use futures::SinkExt;
@@ -430,6 +420,12 @@ async fn handle_text(
         "read" => handle_read(st, user, &msg).await,
         "typing" => {
             handle_typing(sid, user, &msg);
+            Ok(())
+        }
+        // Liveness probe (the SPA sends it when a tab wakes up): a dead
+        // socket surfaces when the answer never comes.
+        "ping" => {
+            hub().send_to(sid, &json!({ "type": "pong" }));
             Ok(())
         }
         _ => {
@@ -989,7 +985,7 @@ fn handle_typing(sid: u64, user: &SessionUser, msg: &serde_json::Value) {
             "type": "typing",
             "channelId": channel_id,
             "userId": user.id,
-            "userName": user.name,
+            "name": user.name,
             "isTyping": is_typing,
         }),
         sid,
@@ -1099,4 +1095,49 @@ pub fn spawn_metrics_logger() {
             );
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::http::HeaderValue;
+
+    const SITE: &str = "https://datxevui.com";
+
+    fn headers(origin: Option<&str>) -> HeaderMap {
+        let mut h = HeaderMap::new();
+        if let Some(o) = origin {
+            h.insert("origin", HeaderValue::from_str(o).unwrap());
+        }
+        h
+    }
+
+    fn check(origin: Option<&str>, token_auth: bool) -> bool {
+        check_ws_origin(&headers(origin), &[SITE.to_string()], token_auth).is_ok()
+    }
+
+    #[test]
+    fn a_cookie_upgrade_needs_an_allowed_origin() {
+        assert!(check(Some(SITE), false));
+        assert!(!check(Some("https://attacker.example"), false));
+        assert!(!check(Some("null"), false));
+        assert!(!check(Some("file:///tmp/x.html"), false));
+    }
+
+    #[test]
+    fn a_cookie_upgrade_without_origin_is_not_a_browser() {
+        assert!(check(None, false));
+    }
+
+    #[test]
+    fn a_token_upgrade_skips_the_origin_check() {
+        assert!(check(None, true));
+        assert!(check(Some("https://attacker.example"), true));
+    }
+
+    #[test]
+    fn no_allowlist_allows_everything() {
+        let h = headers(Some("https://anywhere.example"));
+        assert!(check_ws_origin(&h, &[], false).is_ok());
+    }
 }

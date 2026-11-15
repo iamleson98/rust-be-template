@@ -59,12 +59,12 @@ ok "compose plugin: $(docker compose version --short)"
 # ── 2. Deploy directory + stack files ──────────────────────────────────
 say "2/5 Deploy dir: $DEPLOY_DIR"
 mkdir -p "$DEPLOY_DIR"
-for f in docker-compose.contabo.yml Caddyfile.cloudflare import-osm.sh; do
+for f in docker-compose.contabo.yml Caddyfile.cloudflare places-build.sh; do
   if [ -f "$SCRIPT_DIR/$f" ]; then
     install -m 0644 "$SCRIPT_DIR/$f" "$DEPLOY_DIR/$f"
   fi
 done
-[ -x "$SCRIPT_DIR/import-osm.sh" ] && install -m 0755 "$SCRIPT_DIR/import-osm.sh" "$DEPLOY_DIR/import-osm.sh"
+[ -x "$SCRIPT_DIR/places-build.sh" ] && install -m 0755 "$SCRIPT_DIR/places-build.sh" "$DEPLOY_DIR/places-build.sh"
 ok "stack files in place"
 
 # ── 3. .env (never overwrite an existing one) ──────────────────────────
@@ -86,7 +86,7 @@ else
 RUST_LOG=info,backend=info,tower_http=warn
 SERVER_REQUEST_TIMEOUT_SECS=30
 
-# ── Database (rust-sql engine file on the app-data volume; migrations run on boot) ─
+# ── Database (SQLite file on the app-data volume; migrations run on boot) ─
 DATABASE_URL=sqlite:/app/data/app.db?mode=rwc
 
 # ── JWT (random, generated once) ─────────────────────────────────
@@ -106,7 +106,7 @@ SCHEDULER_TZ_OFFSET_MINUTES=420
 
 # ── Rate limiting ────────────────────────────────────────────────
 # NOTE: behind the tunnel every request reaches the backend from the
-# cloudflared container IP, so the governor bucket is SHARED by all
+# cloudflared container IP, so the rate-limit bucket is SHARED by all
 # visitors. Keep it generous as a global safety net; do per-client
 # limiting with a Cloudflare WAF rate rule (free plan supports it).
 RATE_LIMIT_RPM=6000
@@ -116,9 +116,8 @@ RATE_LIMIT_BURST=1000
 STATIC_FILES_DIR=./frontend/dist
 STATIC_FILES_CACHE_MAX_AGE=86400
 
-# ── Tantivy place search (volumes; see import-osm.sh) ─────────────
-SEARCH_INDEX_DIR=/app/index/osm-index
-SEARCH_OSM_PBF_PATH=/app/data/vietnam-latest.osm.pbf
+# ── Place search generations (volume) ─────────────────────────────
+PLACES_DIR=/app/index/places
 
 # ── CORS / OAuth base (same origin — backend serves the frontend) ─
 CORS_ORIGINS=${ORIGIN}
@@ -171,8 +170,8 @@ Done. Next steps:
   2. Start the stack:
        cd $DEPLOY_DIR
        docker compose -f docker-compose.contabo.yml up -d
-  3. Build the Tantivy place index (one-off, ~500 MB download):
-       bash import-osm.sh
+  3. Build the place index (one-off, ~500 MB download):
+       bash places-build.sh
   4. Create the first admin account — visit /login and register; the
      first registered user becomes admin automatically.
 

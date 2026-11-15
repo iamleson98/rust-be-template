@@ -3,10 +3,9 @@
  * conversions & click-id capture.
  *
  * - The `gtag.js` script and the Google Ads conversion labels are
- *   injected into `index.html` by the prerender script from env vars
- *   (`VITE_GA4_ID`, `VITE_GOOGLE_ADS_ID`,
- *   `VITE_GOOGLE_ADS_CONVERSIONS`) — see `prerender.mjs` and
- *   `docs/GOOGLE_ADS.md`.
+ *   injected into the document by `prerender.mjs` at build time from env
+ *   vars (`VITE_GA4_ID`, `VITE_GOOGLE_ADS_ID`,
+ *   `VITE_GOOGLE_ADS_CONVERSIONS`) — see `docs/GOOGLE_ADS.md`.
  * - This module provides the typed runtime helpers: page-view on SPA
  *   navigation, conversion dispatch at the money moments, and Google
  *   Ads click-id (`gclid`/`wbraid`/`gbraid`) capture for attribution.
@@ -18,6 +17,8 @@
  * these — we fire `page_view` events manually on each route change.
  * The call is made from `RouteMeta` in `router/route-meta.tsx`.
  */
+
+import type { ReportConversionRequest } from '@/api'
 
 // Augment the Window type so TypeScript knows about `gtag`.
 declare global {
@@ -93,7 +94,7 @@ export function trackConversion(event: ConversionEvent, payload: ConversionPaylo
   const sendTo =
     typeof window !== 'undefined' ? window.__GOOGLE_ADS_CONVERSIONS__?.[event] : undefined
   if (typeof window === 'undefined' || !window.gtag || !sendTo) {
-    if (import.meta.env.DEV) {
+    if (import.meta.env.MODE !== 'production') {
       console.debug('[ads] conversion not sent (gtag/label unconfigured):', event, payload)
     }
     return
@@ -113,14 +114,16 @@ export function trackConversion(event: ConversionEvent, payload: ConversionPaylo
  */
 function beaconConversionServerSide(event: ConversionEvent, payload: ConversionPayload): void {
   if (typeof navigator === 'undefined' || typeof navigator.sendBeacon !== 'function') return
+  // The server verifies the booking code and takes the revenue from its own
+  // records, so a beacon without a code is refused and none is sent.
+  if (!payload.transactionId) return
   try {
-    const body = JSON.stringify({
+    const request: ReportConversionRequest = {
       event,
-      ...(payload.transactionId && { transactionId: payload.transactionId }),
-      ...(payload.value !== undefined && { value: String(payload.value) }),
-      ...(payload.currency && { currency: payload.currency }),
+      transactionId: payload.transactionId,
       clickIds: getClickIds(),
-    })
+    }
+    const body = JSON.stringify(request)
     navigator.sendBeacon('/api/ads/conversions', new Blob([body], { type: 'application/json' }))
   } catch {
     // Beacon is best-effort on top of the gtag path — never let it

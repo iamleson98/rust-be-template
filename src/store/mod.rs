@@ -17,13 +17,14 @@ pub use self::address::{AddressStore, DbAddressStore, GeoBox};
 pub use self::ads_conversion::{AdConversionStore, DbAdConversionStore, NewAdConversion};
 pub use self::audit::{AuditStore, DbAuditStore};
 pub use self::booking::{
-    BookingFilter, BookingOrder, BookingStore, ConfirmOutcome, DbBookingStore, Released,
+    BookingFilter, BookingOrder, BookingStore, ConfirmOutcome, DbBookingStore, HoldCoupon,
+    HoldOutcome, NewHold, Released,
 };
 pub use self::brands::{BrandStore, CacheBrandStore, DbBrandStore};
 pub use self::campaigns::{CampaignStore, DbCampaignStore};
 pub use self::chat::{CacheChatStore, ChatStore, DbChatStore, NewChatMessage, NewNullClawExchange};
 pub use self::composite::CompositeStore;
-pub use self::error::{StoreError, StoreResult};
+pub use self::error::{sqlite_error_code, StoreError, StoreResult};
 pub use self::job_queue::{DbJobQueueStore, JobQueueStore};
 pub use self::jobs::{DbJobStore, JobStore};
 
@@ -72,10 +73,9 @@ pub(crate) const FANOUT_CHUNK: usize = 500;
 /// [`StoreError::Validation`].
 ///
 /// Why this exists: several store methods accept ids as `&str` (the
-/// wire-facing convention). The rust-sql engine (sqlite dialect) stores
-/// `Uuid` columns as 16-byte BLOBs, so filtering with `.eq(some_string)`
-/// (a TEXT parameter) NEVER matches — BLOB ≠ TEXT in the engine's
-/// comparison rules. Binding the parsed [`uuid::Uuid`] (a BLOB parameter)
+/// wire-facing convention). SQLite stores `Uuid` columns as 16-byte
+/// BLOBs, so filtering with `.eq(some_string)` (a TEXT parameter) NEVER
+/// matches — BLOB ≠ TEXT in SQLite's comparison rules. Binding the parsed [`uuid::Uuid`] (a BLOB parameter)
 /// matches correctly. Every `&str`-id filter must go through this.
 pub(crate) fn parse_uuid(s: &str) -> StoreResult<uuid::Uuid> {
     uuid::Uuid::parse_str(s).map_err(|_| StoreError::Validation(format!("invalid UUID: {s:?}")))

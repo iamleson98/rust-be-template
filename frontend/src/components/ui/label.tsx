@@ -1,6 +1,4 @@
-'use client'
-
-import { type LabelHTMLAttributes } from 'react'
+import type { LabelHTMLAttributes } from 'react'
 
 import { Slot } from '@/components/ui/slot'
 import { cn } from '@/lib/utils'

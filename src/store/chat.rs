@@ -9,6 +9,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
+use sea_orm::sea_query::{Expr, Order};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter,
     QueryOrder, QuerySelect, Set,
@@ -58,6 +59,33 @@ pub struct NewChannelMember {
     pub role: String,
 }
 
+/// Channel lists run newest activity first, then newest channel first.
+/// Activity is the last message, or the creation time for a channel
+/// nobody has written in yet — a fresh channel is one staff must see, so
+/// it sorts by when it appeared, not behind every channel with a message.
+fn newest_activity_first<Q: QueryOrder>(query: Q) -> Q {
+    query
+        .order_by(
+            Expr::cust("COALESCE(last_message_at, created_at)"),
+            Order::Desc,
+        )
+        .order_by_desc(chat_channel::Column::CreatedAt)
+}
+
+/// [`newest_activity_first`] for rows already in memory.
+fn sort_newest_activity_first(channels: &mut [chat_channel::Model]) {
+    channels.sort_by(|a, b| {
+        let activity = |c: &chat_channel::Model| {
+            c.last_message_at
+                .clone()
+                .unwrap_or_else(|| c.created_at.clone())
+        };
+        activity(b)
+            .cmp(&activity(a))
+            .then_with(|| b.created_at.cmp(&a.created_at))
+    });
+}
+
 // ────────────────────────────────────────────────────────────────
 //  Trait
 // ────────────────────────────────────────────────────────────────
@@ -70,7 +98,7 @@ pub trait ChatStore: Send + Sync {
     /// Used by the customer-facing chat widget.
     ///
     /// `offset` is 0-based page pagination on the same ordering
-    /// (`last_message_at DESC`) — supports the admin workspace's
+    /// (newest activity first, then newest channel) — supports the admin workspace's
     /// infinite channel list (scroll down → fetch the next page of
     /// older-activity channels).
     async fn list_channels(
@@ -83,8 +111,9 @@ pub trait ChatStore: Send + Sync {
     /// Optionally filtered by brand. Used by the admin chat dashboard
     /// so all support staff see the same queue.
     ///
-    /// `offset` is 0-based page pagination on `last_message_at DESC`
-    /// (most recent activity first) — the queue's initial page shows
+    /// `offset` is 0-based page pagination, newest activity first and
+    /// then newest channel (a channel nobody has written in yet counts
+    /// from its creation) — the queue's initial page shows
     /// the most recent channels, scrolling down appends older ones.
     async fn list_open_channels(
         &self,
@@ -261,13 +290,13 @@ impl ChatStore for DbChatStore {
         limit: u64,
         offset: u64,
     ) -> StoreResult<Vec<chat_channel::Model>> {
-        Ok(chat_channel::Entity::find()
-            .filter(chat_channel::Column::UserId.eq(user_id))
-            .order_by_desc(chat_channel::Column::LastMessageAt)
-            .offset(offset)
-            .limit(limit)
-            .all(self.db.as_ref())
-            .await?)
+        Ok(newest_activity_first(
+            chat_channel::Entity::find().filter(chat_channel::Column::UserId.eq(user_id)),
+        )
+        .offset(offset)
+        .limit(limit)
+        .all(self.db.as_ref())
+        .await?)
     }
 
     async fn list_open_channels(
@@ -287,11 +316,12 @@ impl ChatStore for DbChatStore {
         // `offset` pages through the queue on the same ordering —
         // the admin workspace's channel list loads the most recent
         // `limit` channels first + fetches more as the staff scrolls.
-        let mut q = chat_channel::Entity::find()
-            .filter(chat_channel::Column::Status.is_in(["open", "assigned"]))
-            .order_by_desc(chat_channel::Column::LastMessageAt)
-            .offset(offset)
-            .limit(limit);
+        let mut q = newest_activity_first(
+            chat_channel::Entity::find()
+                .filter(chat_channel::Column::Status.is_in(["open", "assigned"])),
+        )
+        .offset(offset)
+        .limit(limit);
         if let Some(brand_id) = brand_id {
             q = q.filter(chat_channel::Column::BrandId.eq(brand_id));
         }
@@ -314,7 +344,7 @@ impl ChatStore for DbChatStore {
             }
             out.extend(q.all(self.db.as_ref()).await?);
         }
-        out.sort_by(|a, b| b.last_message_at.cmp(&a.last_message_at));
+        sort_newest_activity_first(&mut out);
         Ok(out)
     }
 
@@ -371,7 +401,7 @@ impl ChatStore for DbChatStore {
         // message per channel. The outer query averages the difference.
         //
         // NOTE: `created_at` is stored as TEXT (ISO 8601 RFC 3339).
-        // The rust-sql engine's `julianday()` converts to a float
+        // SQLite's `julianday()` converts to a float
         // (days) — multiply by 86400.0 for seconds.
         let backend = self.db.as_ref().get_database_backend();
         let sql = r#"SELECT
@@ -612,22 +642,17 @@ impl ChatStore for DbChatStore {
     async fn increment_unread(&self, channel_id: &str, side: &str) -> StoreResult<()> {
         let uuid = Uuid::parse_str(channel_id)
             .map_err(|_| StoreError::Validation(format!("invalid channel id: {channel_id}")))?;
-        let existing = chat_channel::Entity::find_by_id(uuid)
-            .one(self.db.as_ref())
-            .await?
-            .ok_or_else(|| StoreError::NotFound(format!("channel {channel_id}")))?;
-        // Capture the current counters BEFORE `existing.into()` moves
-        // the model into `ActiveModel` (the original `existing` would
-        // be borrowed-after-move otherwise).
-        let next_unread_user = existing.unread_user + 1;
-        let next_unread_employee = existing.unread_employee + 1;
-        let mut am: chat_channel::ActiveModel = existing.into();
-        if side == "user" {
-            am.unread_user = Set(next_unread_user);
+        let column = if side == "user" {
+            chat_channel::Column::UnreadUser
         } else {
-            am.unread_employee = Set(next_unread_employee);
-        }
-        am.update(self.db.as_ref()).await?;
+            chat_channel::Column::UnreadEmployee
+        };
+        // One statement, so two messages arriving together both count.
+        chat_channel::Entity::update_many()
+            .col_expr(column, Expr::col(column).add(1))
+            .filter(chat_channel::Column::Id.eq(uuid))
+            .exec(self.db.as_ref())
+            .await?;
         Ok(())
     }
 
@@ -635,10 +660,11 @@ impl ChatStore for DbChatStore {
 
     // ── Channel members ─────────────────────────────────────────────
 
-    /// Insert a member row. Uses `INSERT ... ON CONFLICT DO NOTHING`
-    /// semantics so it's idempotent — re-adding an existing member is
-    /// a no-op rather than an error. We emulate this in a backend-neutral
-    /// way by catching the unique-constraint error and returning Ok.
+    /// Insert a member row. Idempotent — re-adding an existing member is
+    /// a no-op rather than an error: a UNIQUE / PRIMARY KEY collision
+    /// (identified by SQLite's result code, never by message text) is
+    /// swallowed. Other conflicts, such as a foreign-key violation for a
+    /// missing channel or user, still surface.
     async fn add_channel_member(&self, member: NewChannelMember) -> StoreResult<()> {
         let id = Uuid::new_v4();
         let now = chrono::Utc::now().to_rfc3339();
@@ -656,14 +682,11 @@ impl ChatStore for DbChatStore {
         {
             Ok(_) => Ok(()),
             Err(e) => {
-                let msg = e.to_string();
-                // UNIQUE violation → already a member. Both SQLite
-                // ("unique") and other engines ("duplicate key") surface this
-                // via the same string match.
-                if msg.contains("unique") || msg.contains("duplicate") || msg.contains("conflict") {
+                let err = StoreError::from(e);
+                if err.is_record_exists() {
                     Ok(())
                 } else {
-                    Err(e.into())
+                    Err(err)
                 }
             }
         }
@@ -1264,6 +1287,68 @@ mod tests {
         assert_eq!(branded[0].user_id, online_b);
     }
 
+    /// Newest activity first, where a channel nobody has written in counts
+    /// from its creation, and a tie goes to the newer channel — on every
+    /// list the staff and customers see.
+    #[tokio::test]
+    async fn lists_order_by_last_activity_then_creation() {
+        let store = mem_store().await;
+        let user = Uuid::new_v4();
+        let at = |last: Option<&str>, created: &str| {
+            let mut am = channel(user, "open", "");
+            am.last_message_at = Set(last.map(str::to_string));
+            am.created_at = Set(created.into());
+            am
+        };
+        let older_tie = at(Some("2026-09-02T09:00:00Z"), "2026-09-01T09:00:00Z");
+        let newer_tie = at(Some("2026-09-02T09:00:00Z"), "2026-09-02T08:00:00Z");
+        // No message yet: its activity is when it was created.
+        let silent_but_new = at(None, "2026-09-03T09:00:00Z");
+        let silent_and_old = at(None, "2026-08-30T09:00:00Z");
+        let ids: Vec<Uuid> = [&older_tie, &newer_tie, &silent_but_new, &silent_and_old]
+            .iter()
+            .map(|am| am.id.clone().unwrap())
+            .collect();
+        for am in [older_tie, newer_tie, silent_but_new, silent_and_old] {
+            chat_channel::Entity::insert(am)
+                .exec(store.db.as_ref())
+                .await
+                .unwrap();
+        }
+        let (older_tie, newer_tie, silent_but_new, silent_and_old) =
+            (ids[0], ids[1], ids[2], ids[3]);
+        let expected = vec![silent_but_new, newer_tie, older_tie, silent_and_old];
+
+        let ids_of = |channels: Vec<chat_channel::Model>| -> Vec<Uuid> {
+            channels.into_iter().map(|c| c.id).collect()
+        };
+        assert_eq!(
+            ids_of(store.list_open_channels(None, 50, 0).await.unwrap()),
+            expected,
+            "the staff queue"
+        );
+        assert_eq!(
+            ids_of(store.list_channels(user, 50, 0).await.unwrap()),
+            expected,
+            "the customer's own channels"
+        );
+        assert_eq!(
+            ids_of(
+                store
+                    .list_open_channels_of_users(None, &[user])
+                    .await
+                    .unwrap()
+            ),
+            expected,
+            "the online-now section"
+        );
+        // Paging walks the same order.
+        assert_eq!(
+            ids_of(store.list_open_channels(None, 2, 2).await.unwrap()),
+            vec![older_tie, silent_and_old]
+        );
+    }
+
     #[tokio::test]
     async fn customer_channel_list_pages_by_offset() {
         let store = mem_store().await;
@@ -1303,5 +1388,41 @@ mod tests {
         // No third page for this customer.
         let page3 = store.list_channels(user, 3, 6).await.unwrap();
         assert!(page3.is_empty());
+    }
+
+    #[tokio::test]
+    async fn adding_an_existing_member_is_a_no_op() {
+        let store = mem_store().await;
+        store
+            .db
+            .execute_unprepared(
+                r#"CREATE TABLE chat_channel_member (
+                    id TEXT PRIMARY KEY,
+                    channel_id TEXT NOT NULL,
+                    user_id TEXT NOT NULL,
+                    role TEXT(20) NOT NULL,
+                    joined_at TEXT NOT NULL,
+                    left_at TEXT
+                );
+                CREATE UNIQUE INDEX member_uniq
+                    ON chat_channel_member (channel_id, user_id);"#,
+            )
+            .await
+            .unwrap();
+        let (channel_id, user_id) = (Uuid::new_v4(), Uuid::new_v4());
+        let member = || NewChannelMember {
+            channel_id,
+            user_id,
+            role: "customer".into(),
+        };
+
+        store.add_channel_member(member()).await.unwrap();
+        // A repeat join hits the unique index: still Ok, still one row.
+        store.add_channel_member(member()).await.unwrap();
+        let rows = store
+            .list_channel_members(&channel_id.to_string())
+            .await
+            .unwrap();
+        assert_eq!(rows.len(), 1);
     }
 }

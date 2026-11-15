@@ -64,12 +64,9 @@ endif
 
 # Generate entities from the database into src/entity
 #
-# Runs IN-PROCESS through the rust-sql engine (sea-schema discovery +
-# sea-orm-codegen compiled inside the migrator crate, where the
-# workspace [patch] routes sqlite3_* FFI to rustqlite). The standalone
-# `sea-orm-cli generate entity` binary links REAL SQLite and cannot
-# read rust-sql database files ("file is not a database"), so it must
-# NOT be used here.
+# Runs IN-PROCESS (sea-schema discovery + sea-orm-codegen compiled
+# inside the migrator crate, so it uses the workspace SQLite build);
+# no separately installed sea-orm-cli is needed.
 #
 # NOTE: This overwrites mod.rs — if you have extra entity files not yet in the DB,
 #       re-add their `pub mod` lines to mod.rs after running this.
@@ -160,7 +157,7 @@ fmt: fmt-rust fmt-toml fmt-web fmt-mobile
 	@echo "✅ all formatting applied (rust, toml, web, mobile)"
 
 # Workspace members only — `--all` would also format the vendored
-# rust-sql submodule and dirty the pin (see ci.yml Rustfmt step).
+# libsqlite3-sys copy under vendor/.
 FMT_PKGS ?= -p backend -p store_macros -p migrator
 
 fmt-rust:

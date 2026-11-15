@@ -35,10 +35,11 @@
 use std::sync::Arc;
 
 use chrono::Utc;
-use sea_orm::{Set, TransactionTrait};
+use sea_orm::Set;
 use uuid::Uuid;
 
 use crate::config::PaymentConfig;
+use crate::db::write::with_write;
 use crate::dto::payment::{
     AdminPaymentListResponse, AdminPaymentOut, AdminPaymentSummary, BankTransferInstructions,
     CancelPaymentResponse, CreatePaymentReq, CreatePaymentResponse, ListPaymentsResponse,
@@ -69,6 +70,45 @@ fn ensure_owner(owner: Option<Uuid>, caller: Option<&str>) -> AppResult<()> {
         Some(c) if Uuid::parse_str(c) == Ok(owner) => Ok(()),
         Some(_) => Err(AppError::Forbidden("not your booking".into())),
     }
+}
+
+/// The gateways switched on (`*_ENABLED=true`) whose credentials are
+/// incomplete. Such a gateway cannot take or verify a payment, so the
+/// process must not start with one: an operator who enabled it expects it
+/// to work.
+pub fn misconfigured_gateways(cfg: &PaymentConfig) -> Vec<&'static str> {
+    [
+        (providers::VNPAY, cfg.vnpay.enabled, cfg.vnpay.is_active()),
+        (providers::MOMO, cfg.momo.enabled, cfg.momo.is_active()),
+        (
+            providers::ZALOPAY,
+            cfg.zalopay.enabled,
+            cfg.zalopay.is_active(),
+        ),
+        (
+            providers::VIETQR,
+            cfg.vietqr.enabled,
+            cfg.vietqr.is_active(),
+        ),
+    ]
+    .into_iter()
+    .filter(|(_, enabled, active)| *enabled && !*active)
+    .map(|(name, _, _)| name)
+    .collect()
+}
+
+/// Boot-time check: fails with the list of enabled-but-misconfigured
+/// gateways (called by `Config::validate`).
+pub fn ensure_gateways_configured(cfg: &PaymentConfig) -> anyhow::Result<()> {
+    let bad = misconfigured_gateways(cfg);
+    if bad.is_empty() {
+        return Ok(());
+    }
+    anyhow::bail!(
+        "payment gateway(s) enabled but missing credentials: {} \
+         (set the credentials or switch `<PROVIDER>_ENABLED` off)",
+        bad.join(", ")
+    )
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -170,6 +210,10 @@ impl PaymentService {
         if hold_expired(&booking) {
             return Err(AppError::Gone("booking hold has expired".into()));
         }
+        // A provider that is switched off (or misconfigured) is refused
+        // BEFORE the booking's hold moves: a refused request must leave the
+        // checkout hold and its deadline exactly as they were.
+        let provider = self.select_provider(&req.provider)?;
         // A coupon can cover the whole fare. Gateways refuse a zero amount,
         // so such a booking is placed with pay-on-board (nothing to collect).
         if booking.total <= 0 && req.provider != providers::COD {
@@ -200,7 +244,6 @@ impl PaymentService {
         self.cancel_prior_pending_payments(booking.id).await?;
 
         // Dispatch to provider.
-        let provider = self.select_provider(&req.provider)?;
         let return_url = format!(
             "{}/payments/{}/return",
             self.cfg.public_base_url.trim_end_matches('/'),
@@ -430,6 +473,7 @@ impl PaymentService {
         &self,
         params: &std::collections::BTreeMap<String, String>,
     ) -> AppResult<()> {
+        self.select_provider(providers::VNPAY)?;
         let (_, txn_ref) = self.vnpay.verify_ipn(params)?;
 
         // Look up payment by txn_ref.
@@ -512,6 +556,7 @@ impl PaymentService {
 
     /// MoMo IPN: POST JSON body.
     pub async fn handle_momo_ipn(&self, payload: &MomoIpnPayload) -> AppResult<()> {
+        self.select_provider(providers::MOMO)?;
         let verification = self.momo.verify_ipn(payload)?;
 
         let p = self
@@ -583,6 +628,7 @@ impl PaymentService {
         payload: &ZalopayCallbackPayload,
         raw_body: &[u8],
     ) -> AppResult<()> {
+        self.select_provider(providers::ZALOPAY)?;
         let verification = self.zalopay.verify_callback(payload, raw_body)?;
 
         // ZaloPay uses `app_trans_id` (yyMMdd_bookingcode) as the txn ref.
@@ -883,12 +929,16 @@ impl PaymentService {
         let booking_id_str = p.booking_id;
         let provider = p.provider.clone();
 
-        // Transactional: payment UPDATE + booking confirm.
-        let db = self.store.db();
+        // Collecting the payment is one transaction; confirming the booking
+        // is another, so a payment that was collected stays collected even
+        // when its booking can no longer be confirmed.
         let p_id = p.id;
-        let provider_trans_id_clone = provider_trans_id.clone();
-        let provider_response_clone = provider_response.clone();
-        db.transaction::<_, (), AppError>(|txn| {
+        with_write(self.store.db(), |txn| {
+            let (now, provider_trans_id, provider_response) = (
+                now.clone(),
+                provider_trans_id.clone(),
+                provider_response.clone(),
+            );
             Box::pin(async move {
                 use crate::entity::payment as p;
                 use sea_orm::sea_query::Expr;
@@ -896,35 +946,20 @@ impl PaymentService {
 
                 p::Entity::update_many()
                     .col_expr(p::Column::Status, Expr::value(statuses::COMPLETED))
-                    .col_expr(p::Column::UpdatedAt, Expr::value(now.clone()))
-                    .col_expr(
-                        p::Column::ProviderTransId,
-                        Expr::value(provider_trans_id_clone.clone()),
-                    )
-                    .col_expr(
-                        p::Column::ProviderResponse,
-                        Expr::value(provider_response_clone),
-                    )
+                    .col_expr(p::Column::UpdatedAt, Expr::value(now))
+                    .col_expr(p::Column::ProviderTransId, Expr::value(provider_trans_id))
+                    .col_expr(p::Column::ProviderResponse, Expr::value(provider_response))
                     .filter(p::Column::Id.eq(p_id))
                     .filter(p::Column::Status.eq(statuses::PENDING))
                     .exec(txn)
-                    .await
-                    .map_err(|e| AppError::Internal(e.to_string()))?;
+                    .await?;
                 Ok(())
             })
         })
-        .await
-        .map_err(|e| match e {
-            sea_orm::TransactionError::Connection(e) => {
-                AppError::Internal(format!("transaction start failed: {e}"))
-            }
-            sea_orm::TransactionError::Transaction(app_err) => app_err,
-        })?;
+        .await?;
 
-        // Confirm the booking outside the txn — `booking.confirm()` runs its
-        // own transaction; running it nested would require passing the txn
-        // handle down, which we explicitly avoid (see CompositeStore::db() docs).
-        // A failure is logged and recorded on the payment by the helper.
+        // Confirm the booking after the commit. A failure is logged and
+        // recorded on the payment by the helper.
         let _ = self
             .confirm_paid_booking(booking_id_str, p_id, &provider)
             .await;

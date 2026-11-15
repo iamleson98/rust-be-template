@@ -10,6 +10,25 @@ import { vi } from 'vitest'
 import { cleanup } from '@testing-library/react'
 import { afterEach } from 'vitest'
 
+// ── Web storage ──────────────────────────────────────────────
+// Node 25+ ships its own `localStorage` / `sessionStorage` globals. Without
+// `--localstorage-file` they are an unusable placeholder that shadows jsdom's
+// real Storage (reads give undefined, so `localStorage.clear()` throws).
+// Point the globals back at jsdom's own implementation.
+{
+  const dom = (globalThis as { jsdom?: { window: Window } }).jsdom
+  for (const name of ['localStorage', 'sessionStorage'] as const) {
+    // Never read the global first: touching Node's placeholder logs a warning.
+    if (dom) {
+      Object.defineProperty(globalThis, name, {
+        configurable: true,
+        enumerable: true,
+        get: () => dom.window[name],
+      })
+    }
+  }
+}
+
 // Auto-cleanup after each test (unmount React components).
 afterEach(() => {
   cleanup()
@@ -52,6 +71,11 @@ window.ResizeObserver = MockResizeObserver as unknown as typeof ResizeObserver
 // ── Mock Element.getAnimations (Base UI waits on exit animations) ──
 if (!Element.prototype.getAnimations) {
   Element.prototype.getAnimations = () => []
+}
+
+// ── Mock Element.scrollIntoView (jsdom doesn't implement it) ──
+if (!Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = vi.fn()
 }
 
 // ── Mock scrollTo (jsdom doesn't implement it) ────────────────

@@ -1,5 +1,3 @@
-'use client'
-
 import { Armchair } from 'lucide-react'
 import { useT } from '@/lib/i18n'
 import { PASSENGER_TYPE_META } from './booking-form'

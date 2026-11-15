@@ -2,6 +2,12 @@
 //!
 //! Dispatches to the CLI parser defined in [`backend::cli`].
 
+/// mimalloc as the process allocator: lower fragmentation and cheaper
+/// allocation for the many small, short-lived buffers of an async web
+/// server. `backend::memory::collect` returns its freed pages to the OS.
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     install_panic_hook();

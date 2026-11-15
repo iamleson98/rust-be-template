@@ -18,12 +18,17 @@ use crate::entity::price_alert;
 use super::error::{StoreError, StoreResult};
 use super::retry::RetryPolicy;
 
-/// Parse a uuid string for a query filter BIND. The rust-sql engine
-/// (sqlite dialect) stores Uuid columns as 16-byte BLOBs — binding a
-/// TEXT value never matches, so every uuid filter must bind the parsed
-/// `Uuid` (a BLOB parameter that does).
+/// Parse a uuid string for a query filter BIND. SQLite stores `Uuid`
+/// columns as 16-byte BLOBs — binding a TEXT value never matches, so a
+/// filter on one must bind the parsed `Uuid` (a BLOB parameter that does).
 fn parse_uuid(s: &str) -> StoreResult<uuid::Uuid> {
     uuid::Uuid::parse_str(s).map_err(|_| StoreError::Validation(format!("invalid uuid: {s}")))
+}
+
+/// The `user_id` column is TEXT holding the hyphenated uuid the service
+/// wrote, so a filter binds that string form, never a `Uuid` (a BLOB).
+fn user_key(s: &str) -> StoreResult<String> {
+    parse_uuid(s).map(|u| u.to_string())
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -114,8 +119,8 @@ impl PriceAlertStore for DbPriceAlertStore {
         limit: u64,
         offset: u64,
     ) -> StoreResult<Vec<price_alert::Model>> {
-        let mut q = price_alert::Entity::find()
-            .filter(price_alert::Column::UserId.eq(parse_uuid(user_id)?));
+        let mut q =
+            price_alert::Entity::find().filter(price_alert::Column::UserId.eq(user_key(user_id)?));
         if let Some(s) = status {
             q = q.filter(price_alert::Column::Status.eq(s.to_string()));
         }
@@ -153,7 +158,7 @@ impl PriceAlertStore for DbPriceAlertStore {
     ) -> StoreResult<u64> {
         let mut q = price_alert::Entity::find();
         if let Some(uid) = user_id {
-            q = q.filter(price_alert::Column::UserId.eq(parse_uuid(uid)?));
+            q = q.filter(price_alert::Column::UserId.eq(user_key(uid)?));
         }
         if let Some(p) = phone {
             q = q.filter(price_alert::Column::Phone.eq(p.to_string()));
@@ -190,7 +195,7 @@ impl PriceAlertStore for DbPriceAlertStore {
         }
         match user_id {
             Some(uid) => {
-                q = q.filter(price_alert::Column::UserId.eq(parse_uuid(uid)?));
+                q = q.filter(price_alert::Column::UserId.eq(user_key(uid)?));
             }
             None => {
                 q = q

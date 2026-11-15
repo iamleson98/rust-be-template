@@ -1,5 +1,3 @@
-'use client'
-
 import { type ComponentProps, type ReactElement, isValidElement } from 'react'
 import { Popover as PopoverPrimitive } from '@base-ui/react/popover'
 

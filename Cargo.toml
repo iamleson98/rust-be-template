@@ -10,49 +10,34 @@ name = "backend"
 path = "src/main.rs"
 
 [workspace]
-members = ["store_macros", "migrator"]
-exclude = ["rust-sql"]
+members = ["store_macros", "migrator", "tools/place-extract"]
 
-# ── Database engine: rustqlite (submodule rust-sql) — the ONLY one ──
+# ── Database engine: real C SQLite (begin-concurrent-3.51 branch) ──
 #
-# sea-orm speaks its sqlite dialect through sqlx-sqlite, and every
-# sqlite3_* FFI call lands in the PURE-RUST rustqlite engine:
-# `libsqlite3-sys` is patched to rustqlite's drop-in replacement AND
-# `rustqlite-compat` (the sqlite3_* C ABI implemented on the rustqlite
-# engine) is linked as a Rust rlib compiled into the binary. There is
-# no C SQLite, no libsqlite3.so, and no postgres backend — the engine
-# is not a cargo feature anymore; EVERY build links rust-sql.
-#
-# The link mode is selected by RUSTQLITE_LINK_MODE=rlib in
-# .cargo/config.toml (see that file for the full rationale); the whole
-# engine builds from source with the app — no prebuilt artifacts, no
-# rpath, no system-libsqlite3 fallback.
-#
-# The submodule pin lives in .gitmodules + the gitlink; `git submodule
-# update --init --recursive` after clone. CI/Docker check it out with
-# submodules: recursive.
-#
-# NOTE: the engine enables mimalloc as the global allocator (its
-# default feature). This is deliberate — it also accelerates the rest
-# of the process — but it means the binary links mimalloc.
+# sea-orm speaks its sqlite dialect through sqlx-sqlite, and sqlx's
+# `sqlite` feature compiles the bundled SQLite amalgamation from
+# `libsqlite3-sys`. That crate is patched to the in-repo copy under
+# vendor/libsqlite3-sys, whose amalgamation is built from SQLite's
+# `begin-concurrent-3.51` branch (it adds `BEGIN CONCURRENT`, the page-level
+# optimistic write concurrency the write path relies on; plain WAL
+# mode, no wal2). `vendor/libsqlite3-sys/PINNED` records the exact
+# commit; regenerate it with `scripts/sqlite-amalgamate.sh <sha>`.
+# The compile flags live in vendor/libsqlite3-sys/build.rs.
 [patch.crates-io]
-libsqlite3-sys = { path = "rust-sql/compat/libsqlite3-sys" }
+libsqlite3-sys = { path = "vendor/libsqlite3-sys" }
 
 [dependencies]
 store_macros = { path = "store_macros" }
 migrator = { path = "migrator" }
-# The engine itself: exports the sqlite3_* symbols sqlx-sqlite calls.
-# (rlib link mode — see .cargo/config.toml.) Unconditional: rust-sql
-# is the only database engine in this project.
-rustqlite-compat = { path = "rust-sql/compat/rustqlite-compat" }
-# Direct FFI to the ONE mimalloc instance the engine links as the
-# global allocator (rustqlite default feature). Version + features
-# mirror rust-sql's own pin so cargo resolves both to a single copy.
-# Used by `memory::collect()` — the engine sets purge_delay=-1 (never
-# auto-return freed pages) and only drains at its own write-burst
-# boundaries; the SERVICE's transient peaks (axum/serde/tantivy/moka
-# churn) need the periodic mi_collect in src/memory.rs or RSS sticks
-# at the historical watermark forever.
+# Direct FFI to the bundled SQLite's identity functions (`db::sqlite_version`
+# / `db::sqlite_source_id`). No features: sqlx-sqlite selects them, and
+# `[patch.crates-io]` above swaps in the vendored copy.
+libsqlite3-sys = { version = "0.30", default-features = false }
+# mimalloc is the process-wide #[global_allocator] (src/main.rs).
+# `libmimalloc-sys` is the same library, used directly for
+# `memory::collect()` (periodic mi_collect, see src/memory.rs); the
+# `extended` feature exposes mi_collect.
+mimalloc = "0.1"
 libmimalloc-sys = { version = "0.1", features = ["extended"] }
 
 # Async runtime — explicit features instead of "full" to keep compile + binary lean.
@@ -67,21 +52,24 @@ axum = { version = "0.8", features = ["ws", "macros", "tokio", "multipart"] }
 axum-extra = { version = "0.10", features = ["typed-header", "cookie"] }
 tower = { version = "0.5", features = ["util", "limit", "timeout"] }
 tower-http = { version = "0.6", features = ["compression-gzip", "compression-br", "cors", "fs", "trace", "set-header", "limit"] }
-tower_governor = "0.7"
 
-# Database — sea-orm on the rust-sql (rustqlite) engine, always.
-# sqlx-sqlite is the dialect driver; its FFI is satisfied by the
-# patched libsqlite3-sys + rustqlite-compat (see the engine block
-# above). There is no backend selection at build or runtime time.
+# Database — sea-orm on real C SQLite, always. sqlx-sqlite is the
+# dialect driver; its FFI is satisfied by the patched libsqlite3-sys
+# (see the engine block above). There is no backend selection at
+# build or runtime.
 sea-orm = { version = "1.1", default-features = false, features = ["runtime-tokio-rustls", "macros", "with-chrono", "with-uuid", "with-json", "sqlx-sqlite"] }
 sea-orm-migration = { version = "1.1", default-features = false, features = ["runtime-tokio-rustls", "sqlx-sqlite"] }
 sea-query = "0.32"
+# Binds sea-query values to sqlx statements for `db::write::ConcurrentTx`
+# (the same binder sea-orm uses internally; features match sea-orm's).
+sea-query-binder = { version = "0.7", default-features = false, features = ["sqlx-sqlite", "with-chrono", "with-uuid", "with-json"] }
 
 # Serialization
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1", features = ["v4", "serde"] }
+regex = "1"
 
 # Auth
 # jsonwebtoken 10 made the crypto provider opt-in: default features
@@ -95,6 +83,9 @@ uuid = { version = "1", features = ["v4", "serde"] }
 # against future feature unification flipping auto-detection.
 jsonwebtoken = { version = "10", features = ["rust_crypto"] }
 argon2 = "0.5"
+# Verifies the `pbkdf2$<iter>$<salt>$<hash>` hashes imported from the
+# Worker's D1 (they are rehashed to Argon2 on the next login).
+pbkdf2 = { version = "0.12", default-features = false, features = ["hmac"] }
 hmac = "0.12"
 sha2 = "0.10"
 # TURN REST auth (draft-uberti-behave-turn-rest): per-user time-limited
@@ -132,13 +123,14 @@ tokio-util = { version = "0.7", features = ["io"] }
 # HTTP client (for Valhalla routing proxy)
 reqwest = { version = "0.12", features = ["json", "rustls-tls", "stream", "http2"], default-features = false }
 
-# Search / OSM place index (Tantivy fulltext + geo + OSM PBF ingestion)
-tantivy = "0.22"
-osmpbf = "0.3"
-geo = "0.29"
-rstar = "0.12"
-deunicode = "1"
-regex = "1"
+# In-process place engine (fst term index, atomically swapped generations);
+# `place-extract` supplies the place records and the OSM extractor.
+place-extract = { path = "tools/place-extract" }
+fst = { version = "0.4", features = ["levenshtein"] }
+unicode-normalization = "0.1"
+md-5 = "0.10"
+indexmap = "2"
+arc-swap = "1"
 num_cpus = "1"
 
 # High-concurrency maps for WS hubs
@@ -158,6 +150,10 @@ sysinfo = "0.32"
 #   in src/payment/vietqr.rs — no `crc` crate needed.)
 qrcode = { version = "0.14", default-features = false, features = ["image", "svg"] }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }
+# Lossy WebP encoder (bundled libwebp, built with `cc` like the vendored
+# SQLite). `image`'s own WebP encoder is lossless-only and produces huge
+# files; no `img` feature: callers hand it raw RGB/RGBA buffers.
+webp = { version = "0.3", default-features = false }
 
 # Vietnamese text helpers — none anymore: `unidecode` was removed
 # 2026-10 (zero usages; the OSM normalizer uses `deunicode` above).
@@ -185,38 +181,27 @@ time = "0.3"
 
 # CLI
 clap = { version = "4", features = ["derive", "env"] }
-tempfile = "3.27.0"
 
 [features]
 default = []
 
-# The database engine is NOT a feature flag anymore — every build links
-# the rust-sql (rustqlite) engine via the sqlx-sqlite C-ABI compat
-# layer (see the engine block at the top of this file). The former
-# `sqlite` / `postgres` backend features were removed 2026-09.
+# The database engine is NOT a feature flag — every build links the
+# vendored SQLite (see the engine block at the top of this file).
 
-# ── cargo-machete (unused-dependency detector) false positives ──
+# ── cargo-machete (unused-dependency detector) false positive ──
 #
-# `rustqlite-compat` — LINK-ONLY dependency: it exports the sqlite3_*
-# C-ABI symbols that the patched libsqlite3-sys/sqlx-sqlite call; no
-# Rust source ever names the crate, but removing it breaks linking.
-#
-# `sea-query` — accessed exclusively through sea-orm's re-export
-# (`sea_orm::sea_query::…`); the direct pin documents the expected
-# major and keeps it aligned with sea-orm's own requirement.
+# `md-5` — the package is named `md-5` but its library is `md5`
+# (`use md5::…` in src/places/build.rs), which machete cannot map back.
 [package.metadata.cargo-machete]
-ignored = ["rustqlite-compat", "sea-query"]
+ignored = ["md-5"]
 
 [dev-dependencies]
+tempfile = "3.27.0"
 tokio-test = "0.4"
 # WebSocket client for socket-level tests (same version axum links).
 tokio-tungstenite = "0.29"
 http-body-util = "0.1"
 tower = { version = "0.5", features = ["util"] }
-# Direct C-ABI access for the engine regression test
-# (tests/engine_regression.rs) — drives the rustqlite engine exactly
-# the way sqlx-sqlite does.
-libsqlite3-sys = { path = "rust-sql/compat/libsqlite3-sys" }
 
 [profile.release]
 opt-level = 3

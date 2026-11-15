@@ -1,5 +1,3 @@
-'use client'
-
 /**
  * Table columns for the admin payments DataTable.
  *

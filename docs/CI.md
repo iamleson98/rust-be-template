@@ -48,11 +48,11 @@ enabling a queue later (Settings → Branches → Require merge queue) is a
 zero-code-change toggle for when concurrent merges become routine.
 
 **The weekly canary is drift detection, not re-verification.** Backend
-jobs build against *upstream* rust-sql master ("the engine rides
-master") and CVE advisories accumulate over time. Without a `push`
+jobs resolve the newest compatible crates' advisories and the newest
+stable Rust, and CVE advisories accumulate over time. Without a `push`
 trigger, a quiet week would leave that drift invisible. The Monday
 03:00 UTC scheduled run exercises the full matrix on current master —
-engine regressions and fresh advisories surface within 7 days. Note:
+fresh advisories and new compiler lints surface within 7 days. Note:
 GitHub auto-disables scheduled workflows after 60 days of repo
 inactivity (any push re-enables); this repo merges far more often.
 
@@ -69,11 +69,11 @@ smoke build dominates PR wall-clock time, cargo already gates the
 backend code, and `deploy.yml` builds the identical tree when a tag
 ships. It remains part of the matrix for `schedule`, `merge_group`,
 and `workflow_dispatch` runs, where it keeps catching Dockerfile /
-engine-build drift that cargo cannot see.
+build drift (Dockerfile, the vendored SQLite amalgamation) that cargo cannot see.
 
 | Changed files | Jobs that run |
 |---|---|
-| `**/*.rs`, `Cargo.toml`/`lock`, `rust-sql` (submodule pin), `.cargo/`, `deny.toml`, `taplo.toml`, `frontend/openapi.json` | backend, backend-audit, backend-quality, docker-build (non-PR events only) |
+| `**/*.rs`, `Cargo.toml`/`lock`, `vendor/` (the patched SQLite crate), `.cargo/`, `deny.toml`, `taplo.toml`, `frontend/openapi.json` | backend, backend-audit, backend-quality, docker-build (non-PR events only) |
 | `frontend/**` (non-markdown) | frontend, frontend-e2e, docker-build (non-PR events only) |
 | `mobile/**` (non-markdown) | mobile |
 | `Dockerfile`, `.dockerignore` | docker-build (non-PR events only) |
@@ -103,7 +103,7 @@ changes.
 
 | Stack | Gate | Tool | Fix recipe |
 |---|---|---|---|
-| Backend | Format | `cargo fmt -p backend -p store_macros -p migrator -- --check` (workspace members only — the rust-sql submodule is NOT our style responsibility) | `make fmt-rust` |
+| Backend | Format | `cargo fmt -p backend -p store_macros -p migrator -- --check` (workspace members only — `vendor/libsqlite3-sys` is an upstream crate, not our style) | `make fmt-rust` |
 | Backend | Compile | `cargo check --all-targets` | read the error 🙂 |
 | Backend | Lint | `cargo clippy -D warnings` | `make lint-rust` |
 | Backend | Tests + doctests | `cargo test --all-targets` / `--doc` | `make test-rust` |
@@ -183,9 +183,10 @@ binaries" steps of ci.yml.
   + `deny.toml`), hadolint ignores (`.hadolint.yaml`), machete
   false-positives (`[package.metadata.cargo-machete]`) all carry the
   *reason* and the *revisit condition* inline.
-- **The engine rides master** — every backend job updates the rust-sql
-  submodule to upstream `master` before building, so engine regressions
-  surface in CI, not in production. Findings inside `rust-sql/` are
+- **The SQLite build is pinned** — `vendor/libsqlite3-sys/PINNED` records
+  the begin-concurrent commit; a unit test asserts the linked
+  `sqlite3_sourceid()` equals it. Bumping it is a deliberate change
+  (`scripts/sqlite-amalgamate.sh`). Findings inside `vendor/` are
   upstream's (machete filters that block).
 - **Superseded runs are cancelled** — `concurrency` groups keep the
   queue short; only the latest push per ref runs to completion.
@@ -211,8 +212,3 @@ binaries" steps of ci.yml.
   default-branch analysis baseline refreshes weekly (Monday 04:30 UTC
   schedule) instead of on every merge — PR gates still prevent new
   unanalyzed code from landing.
-- **Engine drift between CI and deploy** — deploys always build with the
-  *newest* upstream rust-sql master (deliberate; see deploy.yml's
-  "RELEASES ALWAYS SHIP THE NEWEST ENGINE" note), so the shipped engine
-  may be newer than what the merged PR's CI run exercised. The weekly
-  canary bounds that exposure to 7 days.

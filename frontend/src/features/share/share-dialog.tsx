@@ -1,5 +1,3 @@
-'use client'
-
 /**
  * ShareDialog — the trip sharing dialog.
  *

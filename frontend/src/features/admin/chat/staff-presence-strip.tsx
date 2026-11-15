@@ -1,5 +1,3 @@
-'use client'
-
 import { Bot } from 'lucide-react'
 import { useT } from '@/lib/i18n'
 import { relativeTime } from '@/lib/format'

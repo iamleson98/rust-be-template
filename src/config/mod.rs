@@ -32,6 +32,8 @@ pub struct Config {
     pub contact: ContactConfig,
     pub oauth: OAuthConfig,
     pub google_ads: GoogleAdsConfig,
+    pub auth: AuthConfig,
+    pub places: PlacesConfig,
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -71,7 +73,18 @@ pub struct ServerConfig {
     pub tcp_keepalive_secs: Option<u64>,
     pub tcp_nodelay: bool,
     pub valhalla_url: Option<String>,
+    /// Where the real client address comes from (`CLIENT_IP_SOURCE`):
+    /// [`CLIENT_IP_SOURCE_XFF`] (default — the right-anchored
+    /// `X-Forwarded-For` entry, see `middleware::client_ip`) or
+    /// [`CLIENT_IP_SOURCE_CF`] (`CF-Connecting-IP`, for an origin that
+    /// only Cloudflare Tunnel reaches).
+    pub client_ip_source: String,
 }
+
+/// `CLIENT_IP_SOURCE` value: trust the `X-Forwarded-For` chain.
+pub const CLIENT_IP_SOURCE_XFF: &str = "xff";
+/// `CLIENT_IP_SOURCE` value: trust the `CF-Connecting-IP` header.
+pub const CLIENT_IP_SOURCE_CF: &str = "cf-connecting-ip";
 
 impl Default for ServerConfig {
     fn default() -> Self {
@@ -86,6 +99,9 @@ impl Default for ServerConfig {
             tcp_keepalive_secs: env_parse("SERVER_TCP_KEEPALIVE_SECS").or(Some(60)),
             tcp_nodelay: env_parse("SERVER_TCP_NODELAY").unwrap_or(true),
             valhalla_url: env_var("SERVER_VALHALLA_URL"),
+            client_ip_source: env_var("CLIENT_IP_SOURCE")
+                .unwrap_or_else(|| CLIENT_IP_SOURCE_XFF.into())
+                .to_ascii_lowercase(),
         }
     }
 }
@@ -107,16 +123,12 @@ pub struct DatabaseConfig {
     pub idle_timeout_secs: u64,
     pub max_lifetime_secs: u64,
     pub statement_cache_capacity: usize,
-    /// Shared page-cache budget in KiB, applied as `PRAGMA cache_size =
-    /// -cache_kib` (SQLite's negative form = KiB). The rustqlite engine
-    /// keeps ONE pager (and therefore ONE page cache) per database file,
-    /// shared by every pooled C-ABI connection (see `engines()` in
-    /// rust-sql/compat/rustqlite-compat — `OpenTarget::File` keys by
-    /// canonical path and weak-upgrades to the live engine), so this is
-    /// a single engine-wide budget, NOT a per-connection one.
-    /// Default 65536 KiB = 64 MiB: the production DB is ~625 MB and the
-    /// engine default (SQLite's -2000 KiB) showed a permanently full
-    /// 2 MB cache with a correspondingly poor hit rate.
+    /// Page-cache budget in KiB PER pooled connection, applied as
+    /// `PRAGMA cache_size = -cache_kib` (SQLite's negative form = KiB).
+    /// Every connection has its own cache, so the pool's worst case is
+    /// `max_connections × cache_kib`; the database file's hot part is
+    /// additionally memory-mapped (see `db::pool`). Default 8192 KiB =
+    /// 8 MiB per connection.
     pub cache_kib: i64,
     pub enable_sqlx_logs: bool,
 }
@@ -125,19 +137,17 @@ impl Default for DatabaseConfig {
     fn default() -> Self {
         Self {
             url: env_var("DATABASE_URL").unwrap_or_else(|| "sqlite://./app.db?mode=rwc".into()),
-            // 8 pooled connections (min 2), not 20: SQLite is a
-            // single-writer engine and the rustqlite compat layer shares
-            // ONE engine (and ONE page cache — see `cache_kib`) per
-            // database file across all pooled connections, so a big pool
-            // only adds lock contention for zero throughput. See
-            // apply_sqlite_pragmas in server.rs for what the pool runs.
+            // 8 pooled connections (min 2), not 20: every connection has
+            // its own page cache (see `cache_kib`) and writers contend at
+            // commit, so a big pool costs memory and retries for no
+            // throughput. `db::pool` sets the pragmas on each connection.
             max_connections: env_parse("DATABASE_MAX_CONNECTIONS").unwrap_or(8),
             min_connections: env_parse("DATABASE_MIN_CONNECTIONS").unwrap_or(2),
             connect_timeout_secs: env_parse("DATABASE_CONNECT_TIMEOUT_SECS").unwrap_or(10),
             idle_timeout_secs: env_parse("DATABASE_IDLE_TIMEOUT_SECS").unwrap_or(600),
             max_lifetime_secs: env_parse("DATABASE_MAX_LIFETIME_SECS").unwrap_or(1800),
             statement_cache_capacity: env_parse("DATABASE_STATEMENT_CACHE_CAPACITY").unwrap_or(100),
-            cache_kib: env_parse("DATABASE_CACHE_KIB").unwrap_or(65_536),
+            cache_kib: env_parse("DATABASE_CACHE_KIB").unwrap_or(8_192),
             enable_sqlx_logs: env_parse("DATABASE_ENABLE_SQLX_LOGS").unwrap_or(false),
         }
     }
@@ -451,6 +461,16 @@ impl Default for SchedulerConfig {
 pub struct RateLimitConfig {
     pub rpm: u32,
     pub burst: u32,
+    /// Per-IP requests per minute on the expensive "strict" class: search
+    /// fan-out, recommendations, auth, uploads, ads, vitals and WebSocket
+    /// upgrades (`RATE_LIMIT_STRICT_RPM`, default 100).
+    pub strict_rpm: u32,
+    /// Per-IP attempts per minute on login, register and password routes
+    /// (`RATE_LIMIT_AUTH_PER_MIN`, default 10).
+    pub auth_per_min: u32,
+    /// Per-IP mutating requests per minute (`RATE_LIMIT_WRITE_PER_MIN`,
+    /// default 30).
+    pub write_per_min: u32,
 }
 
 impl Default for RateLimitConfig {
@@ -458,6 +478,29 @@ impl Default for RateLimitConfig {
         Self {
             rpm: env_parse("RATE_LIMIT_RPM").unwrap_or(600),
             burst: env_parse("RATE_LIMIT_BURST").unwrap_or(100),
+            strict_rpm: env_parse("RATE_LIMIT_STRICT_RPM").unwrap_or(100),
+            auth_per_min: env_parse("RATE_LIMIT_AUTH_PER_MIN").unwrap_or(10),
+            write_per_min: env_parse("RATE_LIMIT_WRITE_PER_MIN").unwrap_or(30),
+        }
+    }
+}
+
+/// Sign-in abuse protection.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct AuthConfig {
+    /// Consecutive failed sign-ins that lock an account
+    /// (`AUTH_LOCKOUT_MAX_FAILURES`, default 5).
+    pub lockout_max_failures: u32,
+    /// How long that lock lasts, in seconds (`AUTH_LOCKOUT_SECS`,
+    /// default 900).
+    pub lockout_secs: u64,
+}
+
+impl Default for AuthConfig {
+    fn default() -> Self {
+        Self {
+            lockout_max_failures: env_parse("AUTH_LOCKOUT_MAX_FAILURES").unwrap_or(5),
+            lockout_secs: env_parse("AUTH_LOCKOUT_SECS").unwrap_or(900),
         }
     }
 }
@@ -466,6 +509,10 @@ impl Default for RateLimitConfig {
 pub struct StaticFilesConfig {
     pub dir: PathBuf,
     pub cache_max_age: u64,
+    /// Directory holding the previous Next.js build's `static/` assets,
+    /// served under `/_next/static/*` so pages cached before the cutover
+    /// still find their chunks (`LEGACY_NEXT_DIR`). Unset → not served.
+    pub legacy_next_dir: Option<PathBuf>,
 }
 
 impl Default for StaticFilesConfig {
@@ -475,6 +522,7 @@ impl Default for StaticFilesConfig {
                 .map(PathBuf::from)
                 .unwrap_or_else(|| PathBuf::from("./static")),
             cache_max_age: env_parse("STATIC_FILES_CACHE_MAX_AGE").unwrap_or(86_400),
+            legacy_next_dir: env_var("LEGACY_NEXT_DIR").map(PathBuf::from),
         }
     }
 }
@@ -594,7 +642,7 @@ pub struct AudioCallConfig {
     /// janitor entirely (both expiries above stop working).
     pub janitor_interval_sec: u64,
     /// TURN credential mode (`AUDIO_CALL_TURN_AUTH_MODE`, `static` |
-    /// `rest`, default `static`).
+    /// `rest` | `cloudflare`, default `static`).
     ///
     /// * `static` — one shared long-lived username/credential pair baked
     ///   into `AUDIO_CALL_ICE_SERVERS` and pushed to every peer unchanged
@@ -608,8 +656,12 @@ pub struct AudioCallConfig {
     ///   only impersonates ONE user until its expiry, and staff-side
     ///   credential rotation is just a secret change + reconnect.
     ///
-    /// Requires a coordinated flip (coturn must challenge with the SAME
-    /// secret the backend signs with): see deploy/turn.sh
+    /// * `cloudflare` — Cloudflare Realtime TURN: credentials are minted
+    ///   by Cloudflare's API from `TURN_KEY_ID` / `TURN_KEY_API_TOKEN`;
+    ///   no TURN server of our own, no inbound ports.
+    ///
+    /// `rest` requires a coordinated flip (coturn must challenge with the
+    /// SAME secret the backend signs with): see deploy/turn.sh
     /// `--use-auth-secret`.
     pub turn_auth_mode: String,
     /// Shared HMAC secret for `rest` mode (`TURN_SECRET` — the same
@@ -617,6 +669,13 @@ pub struct AudioCallConfig {
     /// `--static-auth-secret`). Empty in `rest` mode disables minting and
     /// falls back to the static iceServers (logged loudly).
     pub turn_shared_secret: String,
+    /// Cloudflare Realtime TURN key id (`TURN_KEY_ID`). With
+    /// `AUDIO_CALL_TURN_AUTH_MODE=cloudflare` the backend asks
+    /// Cloudflare for short-lived credentials instead of signing them
+    /// itself; both this and the token are then required.
+    pub turn_key_id: String,
+    /// API token paired with [`Self::turn_key_id`] (`TURN_KEY_API_TOKEN`).
+    pub turn_key_api_token: String,
     /// Minimum lifetime of minted TURN credentials in seconds
     /// (`AUDIO_CALL_TURN_CRED_TTL_SECS`, default 3600). The lifetime is
     /// raised to cover a whole call (see [`Self::turn_cred_lifetime_sec`]),
@@ -695,6 +754,8 @@ impl Default for AudioCallConfig {
                 .unwrap_or_else(|| "static".into())
                 .to_ascii_lowercase(),
             turn_shared_secret: env_var("TURN_SECRET").unwrap_or_default(),
+            turn_key_id: env_var("TURN_KEY_ID").unwrap_or_default(),
+            turn_key_api_token: env_var("TURN_KEY_API_TOKEN").unwrap_or_default(),
             turn_cred_ttl_sec: env_parse("AUDIO_CALL_TURN_CRED_TTL_SECS").unwrap_or(3600),
             allowed_countries: env_var("CALL_ALLOWED_COUNTRIES")
                 .unwrap_or_default()
@@ -852,8 +913,6 @@ pub fn mint_turn_credential(shared_secret: &str, username: &str) -> String {
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct SearchConfig {
-    pub index_dir: Option<PathBuf>,
-    pub osm_pbf_path: Option<PathBuf>,
     /// Override for the Vietnam OSM extract download URL (default:
     /// Geofabrik). Useful for mirrors or tests.
     pub osm_download_url: Option<String>,
@@ -862,9 +921,32 @@ pub struct SearchConfig {
 impl SearchConfig {
     pub fn from_env() -> Self {
         Self {
-            index_dir: env_var("SEARCH_INDEX_DIR").map(PathBuf::from),
-            osm_pbf_path: env_var("SEARCH_OSM_PBF_PATH").map(PathBuf::from),
             osm_download_url: env_var("SEARCH_OSM_DOWNLOAD_URL"),
+        }
+    }
+}
+
+/// Place index generations built by `places-build` (see `src/places`).
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct PlacesConfig {
+    /// Root of the generation store: `gen-<ts>/records.bin` plus the
+    /// `current` symlink to the live generation (`PLACES_DIR`, default
+    /// `./places`).
+    pub dir: PathBuf,
+    /// Extractor profile, `travel` | `landmarks` | `full` | `all`
+    /// (`PLACES_PROFILE`, default `all`).
+    pub profile: String,
+}
+
+impl Default for PlacesConfig {
+    fn default() -> Self {
+        Self {
+            dir: env_var("PLACES_DIR")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from("./places")),
+            profile: env_var("PLACES_PROFILE")
+                .unwrap_or_else(|| "all".into())
+                .to_ascii_lowercase(),
         }
     }
 }
@@ -997,6 +1079,10 @@ pub struct GoogleAdsConfig {
     /// server-side twin of the browser's
     /// `VITE_GOOGLE_ADS_CONVERSIONS` label map.
     pub conversion_actions: std::collections::HashMap<String, String>,
+    /// Google Ads REST API version, e.g. `v21`
+    /// (`GOOGLE_ADS_API_VERSION`, default `v21`). Google retires old
+    /// versions on a schedule, so it is configuration, not code.
+    pub api_version: String,
 }
 
 impl Default for GoogleAdsConfig {
@@ -1020,6 +1106,7 @@ impl GoogleAdsConfig {
             client_secret: env_var("GOOGLE_ADS_CLIENT_SECRET").unwrap_or_default(),
             refresh_token: env_var("GOOGLE_ADS_REFRESH_TOKEN").unwrap_or_default(),
             conversion_actions,
+            api_version: env_var("GOOGLE_ADS_API_VERSION").unwrap_or_else(|| "v21".into()),
         }
     }
 
@@ -1053,7 +1140,7 @@ impl Default for PaymentConfig {
             vnpay: VnpayConfig::default(),
             momo: MomoConfig::default(),
             zalopay: ZalopayConfig::default(),
-            vietqr: VietQrConfig::default(),
+            vietqr: VietQrConfig::from_env(),
             cod_enabled: env_parse("PAYMENT_COD_ENABLED").unwrap_or(true),
         }
     }
@@ -1268,6 +1355,8 @@ impl Config {
             contact: ContactConfig::from_env(),
             oauth: OAuthConfig::from_env(),
             google_ads: GoogleAdsConfig::from_env(),
+            auth: AuthConfig::default(),
+            places: PlacesConfig::default(),
         };
 
         cfg.validate()?;
@@ -1293,6 +1382,44 @@ impl Config {
         let tz = self.scheduler.tz_offset_minutes;
         if !(-1439..=1439).contains(&tz) {
             anyhow::bail!("SCHEDULER_TZ_OFFSET_MINUTES must be within ±23:59 (got {tz})");
+        }
+        if !matches!(
+            self.server.client_ip_source.as_str(),
+            CLIENT_IP_SOURCE_XFF | CLIENT_IP_SOURCE_CF
+        ) {
+            anyhow::bail!(
+                "CLIENT_IP_SOURCE must be `{CLIENT_IP_SOURCE_XFF}` or `{CLIENT_IP_SOURCE_CF}` \
+                 (got `{}`)",
+                self.server.client_ip_source
+            );
+        }
+        if self.auth.lockout_max_failures == 0 {
+            anyhow::bail!("AUTH_LOCKOUT_MAX_FAILURES must be > 0");
+        }
+        if !matches!(
+            self.places.profile.as_str(),
+            "travel" | "landmarks" | "full" | "all"
+        ) {
+            anyhow::bail!(
+                "PLACES_PROFILE must be travel | landmarks | full | all (got `{}`)",
+                self.places.profile
+            );
+        }
+        let ads_version = &self.google_ads.api_version;
+        if !ads_version
+            .strip_prefix('v')
+            .is_some_and(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()))
+        {
+            anyhow::bail!("GOOGLE_ADS_API_VERSION must look like `v21` (got `{ads_version}`)");
+        }
+        crate::service::payment_service::ensure_gateways_configured(&self.payment)?;
+        let audio = &self.audio_call;
+        if audio.turn_auth_mode == "cloudflare"
+            && (audio.turn_key_id.is_empty() || audio.turn_key_api_token.is_empty())
+        {
+            anyhow::bail!(
+                "AUDIO_CALL_TURN_AUTH_MODE=cloudflare needs TURN_KEY_ID and TURN_KEY_API_TOKEN"
+            );
         }
         if !self.cookie.secure {
             tracing::warn!(
@@ -1382,7 +1509,7 @@ fn mask_db_url(url: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::mask_db_url;
-    use super::{mint_turn_credential, AudioCallConfig};
+    use super::{mint_turn_credential, AudioCallConfig, Config, CLIENT_IP_SOURCE_XFF};
 
     #[test]
     fn masks_postgres_password() {
@@ -1537,5 +1664,60 @@ mod tests {
             out2,
             "rest-without-secret must degrade to the static list"
         );
+    }
+
+    fn valid_config() -> Config {
+        let mut cfg = Config::default();
+        cfg.jwt.secret = "k".repeat(40);
+        cfg
+    }
+
+    #[test]
+    fn new_settings_default_to_the_worker_parity_values() {
+        let cfg = valid_config();
+        assert_eq!(cfg.rate_limit.strict_rpm, 100);
+        assert_eq!(cfg.rate_limit.auth_per_min, 10);
+        assert_eq!(cfg.rate_limit.write_per_min, 30);
+        assert_eq!(cfg.auth.lockout_max_failures, 5);
+        assert_eq!(cfg.auth.lockout_secs, 900);
+        assert_eq!(cfg.google_ads.api_version, "v21");
+        assert_eq!(cfg.places.profile, "all");
+        assert_eq!(cfg.server.client_ip_source, CLIENT_IP_SOURCE_XFF);
+        assert!(cfg.static_files.legacy_next_dir.is_none());
+        cfg.validate().expect("defaults validate");
+    }
+
+    fn assert_rejected(name: &str, mutate: impl FnOnce(&mut Config)) {
+        let mut cfg = valid_config();
+        mutate(&mut cfg);
+        let err = cfg.validate().expect_err(name).to_string();
+        assert!(err.contains(name), "{name}: {err}");
+    }
+
+    #[test]
+    fn validation_rejects_malformed_new_settings() {
+        assert_rejected("CLIENT_IP_SOURCE", |c| {
+            c.server.client_ip_source = "cf".into()
+        });
+        assert_rejected("AUTH_LOCKOUT_MAX_FAILURES", |c| {
+            c.auth.lockout_max_failures = 0
+        });
+        assert_rejected("PLACES_PROFILE", |c| c.places.profile = "everything".into());
+        assert_rejected("GOOGLE_ADS_API_VERSION", |c| {
+            c.google_ads.api_version = "21".into()
+        });
+        assert_rejected("TURN_KEY_ID", |c| {
+            c.audio_call.turn_auth_mode = "cloudflare".into();
+            c.audio_call.turn_key_id = String::new();
+        });
+    }
+
+    #[test]
+    fn cloudflare_turn_mode_validates_with_credentials() {
+        let mut cfg = valid_config();
+        cfg.audio_call.turn_auth_mode = "cloudflare".into();
+        cfg.audio_call.turn_key_id = "key".into();
+        cfg.audio_call.turn_key_api_token = "token".into();
+        cfg.validate().expect("complete cloudflare TURN config");
     }
 }

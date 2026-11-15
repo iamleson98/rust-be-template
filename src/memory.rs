@@ -2,39 +2,30 @@
 //!
 //! ## Why this exists (the 650 MB idle-RSS mystery, 2026-09)
 //!
-//! The rust-sql engine links **mimalloc** as the process-wide global
-//! allocator and deliberately sets `purge_delay = -1` (freed pages are
-//! NEVER returned to the OS automatically) — the per-allocation purge
-//! timer costs ~25 ns/alloc and the engine's hot paths are
-//! allocation-intensive. The engine compensates by draining its own
-//! wake (`mi_collect(true)`) at write-burst boundaries (big-transaction
-//! COMMIT / auto-commit storm end, see rust-sql `drain_mimalloc_wake`).
+//! The process allocator is **mimalloc** (`#[global_allocator]` in
+//! `main.rs`). mimalloc keeps freed pages in its heaps and hands them
+//! back to the OS only lazily, and never for a thread-local heap that is
+//! still alive. The service around the database — axum request handling,
+//! serde_json bodies, the WebSocket hubs, tantivy search-result
+//! assembly, moka cache churn — allocates through it, so every
+//! transient peak (a big OSM search, a batch of JSON responses, a
+//! presence fan-out) can leave its freed pages resident: **RSS ratchets
+//! up to the historical watermark and stays there.**
 //!
-//! That drain, however, only fires from the ENGINE's SQL paths. The
-//! service around it — axum request handling, serde_json bodies, the
-//! WebSocket hubs, tantivy search-result assembly, moka cache churn —
-//! allocates through the same global mimalloc but nobody ever collects
-//! for it. Every transient peak (a big OSM search, a batch of JSON
-//! responses, a presence fan-out) leaves its freed pages resident:
-//! **RSS ratchets up to the historical watermark and stays there.**
-//!
-//! [`collect`] is the counterpart for the service side: a periodic,
-//! cheap (µs-scale when nothing is pending) forced collect that returns
-//! those pages to the OS. It is the same call the engine makes for
-//! itself — running it once a minute from the sweeper task cannot
-//! interfere with the engine's latency tuning (it does not flip any
-//! option; it only performs the collect the engine already performs
-//! at its own boundaries).
+//! [`collect`] is the counterpart: a periodic, cheap (µs-scale when
+//! nothing is pending) forced collect that returns those pages to the
+//! OS, run once a minute from the sweeper task.
 //!
 //! ## The rest of the idle footprint
 //!
 //! * **Tantivy mmaps** (file-backed, reclaimable): the Vietnam OSM
 //!   index is mmap'd by tantivy; touched pages count toward RSS but
 //!   are evictable under pressure. Not heap — not collected here.
-//! * **SQLite shared page cache**: rustqlite has no mmap; all pooled
-//!   connections share ONE engine (and ONE page cache) per database
-//!   file — sized by `PRAGMA cache_size` / `DATABASE_CACHE_KIB`
-//!   (default 64 MiB, see `apply_sqlite_pragmas` in server.rs).
+//! * **SQLite**: allocates through the C allocator, not mimalloc. Each
+//!   pooled connection has its own page cache of `DATABASE_CACHE_KIB`
+//!   (default 8 MiB) and memory-maps up to 256 MiB of the database file
+//!   (file-backed, reclaimable); SQLite's heap is capped by a soft limit
+//!   of 128 MiB. See `db::pool`.
 //! * **moka cache**: entry bytes are capped by a weigher
 //!   (`CACHE_MAX_CAPACITY`, see `cache::moka`).
 //!
@@ -51,10 +42,8 @@ use utoipa::ToSchema;
 /// Force a full mimalloc collection, returning freed pages to the OS.
 ///
 /// Safe to call from any thread at any time (mimalloc's collect is
-/// thread-safe; it acquires its own locks). The `libmimalloc-sys`
-/// version/features here mirror rust-sql's own pin exactly, so cargo
-/// resolves both to ONE copy of the library — the same allocator the
-/// engine tuned.
+/// thread-safe; it acquires its own locks). `libmimalloc-sys` is the
+/// same copy the `mimalloc` crate (the global allocator) links.
 pub fn collect() {
     // SAFETY: `mi_collect` is a plain C function taking a `bool`; it
     // has no preconditions and does not hand back anything owned.
@@ -266,10 +255,11 @@ mod tests {
         };
         collect();
         let after = MemorySnapshot::read();
-        // Freed-but-retained pages (mimalloc purge_delay = -1) may or
-        // may not exceed the delta threshold on a small CI box — but
-        // the collect call itself must never fault and RSS must not
-        // GROW from it.
+        // How many freed pages mimalloc hands back to the OS depends on
+        // its purge timing and on the CI box, so only the weak property
+        // is asserted: the collect call itself must never fault and RSS
+        // must not GROW from it. (SQLite allocates through glibc malloc,
+        // not mimalloc, so this sweep does not touch its heap.)
         assert!(
             after.vm_rss_kib.unwrap_or(0) <= churn_peak.vm_rss_kib.unwrap_or(0) + 1024,
             "collect must not inflate RSS: peak={} after={}",

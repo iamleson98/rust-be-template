@@ -24,22 +24,19 @@ pub struct ClickIds {
 /// Fire-and-forget: the response only acknowledges storage — the
 /// Google Ads API upload happens asynchronously and never blocks the
 /// user's flow.
+///
+/// The beacon carries no revenue or currency: both are read from the booking
+/// (or its completed payment) in the database.
 #[derive(Debug, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ReportConversionRequest {
     /// Conversion event name — must match a key in the
     /// `GOOGLE_ADS_CONVERSION_ACTIONS` map (`booking` | `purchase`).
     pub event: String,
-    /// Stable dedupe id — the booking code. Repeat beacons collapse.
-    /// Optional: an id-less conversion can't be deduped (mirroring
-    /// Google's own optional `orderId`) — the server mints a uuid so
-    /// each fire is recorded distinctly.
-    pub transaction_id: Option<String>,
-    /// Revenue (decimal string, e.g. `"250000"` or `"250000.00"`) —
-    /// kept verbatim so no float rounding reaches Google.
-    pub value: Option<String>,
-    /// ISO-4217 currency code (`VND`).
-    pub currency: Option<String>,
+    /// The booking code — required: the server verifies it against a
+    /// real, uncancelled booking (a missing or unknown code is rejected)
+    /// and it is the dedupe id, so repeat beacons collapse.
+    pub transaction_id: String,
     /// The landing click ids (attribution join key).
     #[serde(default)]
     pub click_ids: ClickIds,

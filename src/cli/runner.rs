@@ -9,7 +9,7 @@ use super::parser::{Cli, Command};
 /// Entry point for the CLI. Parses args, sets up logging, dispatches.
 pub async fn run() -> anyhow::Result<()> {
     // Load .env into process env BEFORE clap parses, so that `#[arg(env = ...)]`
-    // attributes (e.g. SEARCH__INDEX_DIR) can pick up values from the file.
+    // attributes (e.g. BIND_ADDR) can pick up values from the file.
     let _ = dotenvy::dotenv();
 
     let cli = Cli::parse();
@@ -30,12 +30,8 @@ pub async fn run() -> anyhow::Result<()> {
             println!("{}", crate::cli::util::db_backend_name());
             Ok(())
         }
-        Command::ImportOsm {
-            pbf_path,
-            index_dir,
-            heap_bytes,
-            threads,
-        } => commands::import_osm::run(pbf_path, index_dir, heap_bytes, threads).await,
+        Command::PlacesBuild { force } => crate::places::build::run(force).await,
+        Command::ImportD1 { stage, out, report } => super::import_d1::run(stage, out, report).await,
         Command::AdsSweep { limit } => commands::ads_sweep::run(limit).await,
         Command::LayoutsNormalize { apply } => commands::layouts_normalize::run(apply).await,
         Command::LayoutsCanonicalize { apply, reset_trips } => {

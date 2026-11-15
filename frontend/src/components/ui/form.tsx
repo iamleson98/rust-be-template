@@ -1,5 +1,3 @@
-'use client'
-
 import { type ComponentProps, createContext, useContext, useId } from 'react'
 import { Slot } from '@/components/ui/slot'
 import {

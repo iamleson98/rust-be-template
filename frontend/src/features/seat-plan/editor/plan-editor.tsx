@@ -1,5 +1,3 @@
-'use client'
-
 import { Canvas } from './canvas'
 import { Inspector } from './inspector'
 import { Palette } from './palette'

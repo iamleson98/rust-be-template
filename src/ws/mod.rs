@@ -19,8 +19,10 @@
 //!   `WS_FD_HIGH_WATERMARK_PCT`, default 90%), so existing connections keep
 //!   working while the box degrades gracefully. A static cap remains
 //!   available as an operator override.
-//! * **Server-initiated heartbeat** (`ws_heartbeat_sec`, default 30s) —
-//!   Ping frames keep NAT bindings warm and probe for dead peers.
+//! * **Server-initiated heartbeat** (`ws_heartbeat_sec`, default 30s,
+//!   never above [`MAX_PING_INTERVAL_SEC`]) — Ping frames keep NAT
+//!   bindings and the Cloudflare proxy's idle timer warm and probe for
+//!   dead peers.
 //! * **Idle timeout** (`ws_idle_timeout_sec`, default 90s) — half-open
 //!   sockets (no frame received) are force-closed, freeing the slot.
 //! * **Channel-exists cache** (moka, 60s TTL) — short-circuits the DB
@@ -35,6 +37,18 @@ pub use handler::{drain_all_connections, router, spawn_idem_gc, spawn_metrics_lo
 pub use hub::{hub, init_with_config, ChatHub, ClientTx, HubStats, Session};
 
 use std::sync::atomic::{AtomicUsize, Ordering};
+
+/// The longest a socket may go without a server ping. Cloudflare's proxy
+/// closes a WebSocket that is silent for a minute or two, and the site
+/// sits behind it (tunnel or proxy), so no setting may space pings wider
+/// than this — `WS_HEARTBEAT_SEC` above it, or `0`, still pings at it.
+pub(crate) const MAX_PING_INTERVAL_SEC: u64 = 50;
+
+/// The server-ping period for a configured `WS_HEARTBEAT_SEC`: the
+/// setting, held to `1..=`[`MAX_PING_INTERVAL_SEC`] seconds.
+pub(crate) fn ping_interval_sec(configured: u64) -> u64 {
+    configured.clamp(1, MAX_PING_INTERVAL_SEC)
+}
 
 /// Takes one from a connection counter, stopping at zero: a double
 /// release leaves 0 rather than wrapping to `usize::MAX` for another
@@ -57,6 +71,15 @@ pub(crate) fn saturating_decrement(n: &AtomicUsize) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pings_are_never_spaced_wider_than_the_proxy_tolerates() {
+        assert_eq!(ping_interval_sec(30), 30, "the default is kept");
+        assert_eq!(ping_interval_sec(50), 50);
+        assert_eq!(ping_interval_sec(51), 50);
+        assert_eq!(ping_interval_sec(3600), 50, "a lazy setting is held back");
+        assert_eq!(ping_interval_sec(0), 1, "0 must not mean never (or panic)");
+    }
 
     #[test]
     fn a_counter_never_drops_below_zero() {

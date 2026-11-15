@@ -4,23 +4,24 @@ Answers the recurring question — **"the database file is X MB, is that
 right? would SQLite be smaller?"** — with numbers instead of guesswork,
 using two admin endpoints shipped in `perf/ws-call-scalability`.
 
-## Background (what we already know about the format)
+## Background
 
-The engine is **rust-sql (rustqlite)**, on-disk format `RSQLDB05`, 4 KiB
-pages. Benchmarks on identical data (engine build `d76bbb9`, see the
-`dbsize_exp*.py` experiments):
+The engine is **real SQLite** (the `begin-concurrent` build, plain WAL
+mode), 4 KiB pages. Two things make the file bigger than its live data:
 
-| Measurement | Result |
-| --- | --- |
-| Same data, fresh file | native ≈ **1.07 ×** the VACUUM-INTO SQLite file |
-| Delete 25% contiguous, re-insert same volume | freelist pages fully **reused** (0 leaked) |
-| Scattered deletes | pages stay ~80% full — **SQLite behaves identically** |
-| `VACUUM` | shrinks the file (305.8 → 258.0 MB in the test) |
-| WAL growth | bounded by `wal_autocheckpoint=1000` pages |
+* **Freelist pages** — space freed by deletes, reused by later writes, so
+  an active file stops growing.
+* **Fragmentation** — scattered deletes leave pages partly full; only
+  `VACUUM` repacks them.
 
-**Conclusion:** the format is NOT a bloat cause. A big file means either
-(a) the live data genuinely is that big, or (b) churn fragmentation —
-which `VACUUM` fixes. The endpoints below tell you which.
+The WAL (`app.db-wal`) is separate: the app checkpoints it every minute
+(PASSIVE) and truncates it nightly at 04:00 local time
+(`src/db/checkpoint.rs`), and `wal_autocheckpoint=1000` pages bounds it
+between ticks.
+
+A big file therefore means either (a) the live data genuinely is that
+big, or (b) churn fragmentation — which `VACUUM` fixes. The endpoints
+below tell you which.
 
 ## 1. Read the size report (no side effects)
 
@@ -37,12 +38,11 @@ What to look at:
   a VACUUM can reclaim.
 * `topTables[]` — the 25 largest objects (tables + indexes). This is
   how you find "the audit log is 400 MB" style answers.
-* `pragmas.cacheKiB` — engine-wide page cache budget (DATABASE_CACHE_KIB,
-  default 64 MiB). Sanity: if this reads 2048, the v0.5.21 cache fix is
-  not live.
+* `pragmas.cacheKiB` — page cache budget of EACH pooled connection
+  (`DATABASE_CACHE_KIB`, default 8 MiB), not a process-wide total.
 
-`topTables` may be `null` if the engine build lacks the `dbstat` virtual
-table — the rest of the report is unaffected.
+`topTables` may be `null` if the `dbstat` virtual table is unavailable —
+the rest of the report is unaffected.
 
 ## 2. Probe the ground-truth compacted size
 
@@ -53,8 +53,8 @@ curl -s "https://datxevui.com/api/admin/system/database?probe=1" \
 
 `probe=1` runs `VACUUM INTO` a throwaway temp file, measures it, deletes
 it. `compactedBytes` is what the SAME live data costs on a fresh,
-fully-compacted copy of the SAME engine — the one number that settles
-"is my file bloated".
+fully-compacted copy — the one number that settles "is my file
+bloated".
 
 **Cost:** one full-DB read + one compacted write + free disk ≈ the
 compacted size. On the current prod DB expect tens of seconds and ~2 GB
@@ -68,11 +68,6 @@ temp space. Don't run it during a write burst.
 | `0.7 – 0.9` | Moderate slack (freelist + fragmentation) | Optional VACUUM; check again after the next busy week. |
 | `< 0.7` | Real bloat — ≥ 30% of the file is reclaimable | VACUUM (§3) + investigate what churns. |
 
-Note: `probe.compactedBytes ≈ SQLite × 0.93` for the same data (the
-1.07 × format overhead runs in reverse here) — so "would SQLite be
-smaller?" is answered too: only by that factor, before ITS OWN
-fragmentation.
-
 ## 3. Compact (guarded VACUUM)
 
 ```bash
@@ -82,9 +77,11 @@ curl -X POST https://datxevui.com/api/admin/system/database/vacuum \
 
 * Rebuilds the file in place: drops freelist + fragmentation slack,
   then checkpoints the WAL so `afterBytes` is honest.
-* Takes the engine's single write lock for the duration — concurrent
-  writers QUEUE (they don't fail), but latency spikes. Run it in a
-  quiet window; expect roughly a full-DB read+write of wall time.
+* Takes SQLite's write lock for the duration — concurrent writers wait
+  up to the 5 s `busy_timeout` and then fail with a busy error (the app
+  retries those where it can), so run it in a quiet window; expect
+  roughly a full-DB read+write of wall time and free disk of about the
+  database size.
 * `reclaimedBytes` will be small when the file was already tight — that
   is a normal answer, not a failure.
 * RBAC-gated (`admin:stats:read`), logged at INFO with before/after.
@@ -110,6 +107,6 @@ data, not the file:
 
 | Knob | Default | Effect |
 | --- | --- | --- |
-| `DATABASE_CACHE_KIB` | 65536 | Engine-wide page cache (v0.5.21 fix; do not lower below the working set). |
-| `wal_autocheckpoint` | 1000 pages | WAL bound — already engine-managed. |
+| `DATABASE_CACHE_KIB` | 8192 | Page cache PER pooled connection; total ≈ `DATABASE_MAX_CONNECTIONS` × this. |
+| `wal_autocheckpoint` | 1000 pages | WAL bound between the background checkpoint ticks. |
 | `WS_SLOW_CONSUMER_THRESHOLD` | 128 | Not DB, but the same "RAM does not accumulate" story on the WS side. |

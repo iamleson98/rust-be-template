@@ -36,16 +36,14 @@ services:
       - STORAGE_S3_FORCE_PATH_STYLE=true
       - STORAGE_PUBLIC_BASE_URL=${STORAGE_PUBLIC_BASE_URL:-}
 
-      # ── Database (rust-sql engine file on the data volume) ──────
+      # ── Database (SQLite file on the data volume) ──────────────
       - DATABASE_URL=${DATABASE_URL:-sqlite:/app/data/app.db?mode=rwc}
-      # Shared engine page cache (KiB). 512 MiB was sized for the
-      # 2026-10-11 backfill that pre-created ~40 seat rows per trip for
-      # the whole sell window (app.db past 650 MB, inserts thrashing).
-      # Seats are now created when a trip is first opened and departed
-      # trips' unsold seats are pruned, so the hot set is the trip,
-      # schedule and route rows plus the seats of trips people open:
-      # 128 MiB holds it with room, and RSS follows the cache.
-      - DATABASE_CACHE_KIB=${DATABASE_CACHE_KIB:-131072}
+      # Page cache PER pooled connection (KiB); the pool holds up to
+      # DATABASE_MAX_CONNECTIONS of them. The hot set is the trip,
+      # schedule and route rows plus the seats of trips people open
+      # (seats are created on first open and pruned after departure);
+      # the database file is also memory-mapped, so 8 MiB each suffices.
+      - DATABASE_CACHE_KIB=${DATABASE_CACHE_KIB:-8192}
 
       # ── JWT (generated on first run, see deploy.sh) ────────────
       - JWT_SECRET=${JWT_SECRET:?JWT_SECRET is required in .env}
@@ -125,26 +123,15 @@ services:
       #    intentionally not required.
       - CACHE_BACKEND=${CACHE_BACKEND:-moka}
 
-      # ── Allocator RSS hygiene (2026-09-21 login-RSS incident) ──
-      # Engine knob (rust-sql tune_mimalloc): freed mimalloc pages
-      # madvise back to the OS after ~25 ms of thread idleness instead
-      # of being retained forever (purge_delay=-1 default). Fixes the
-      # "RSS only ever grows" ratchet from thread-local heap stranding
-      # (argon2 verifies, tantivy searches, image decodes — anything
-      # big + transient on tokio blocking threads).
-      - RUSTSQL_MIMALLOC_PURGE_DELAY_MS=${RUSTSQL_MIMALLOC_PURGE_DELAY_MS:-25}
-
-      # Everything else (STATIC_FILES_DIR, SEARCH_INDEX_DIR,
-      # SEARCH_OSM_PBF_PATH, STORAGE_LOCAL_ROOT, SCHEDULER)
+      # Everything else (STATIC_FILES_DIR, PLACES_DIR,
+      # STORAGE_LOCAL_ROOT, SCHEDULER)
       # comes from the image defaults baked into the Dockerfile.
 
     volumes:
-      # rust-sql DB file + OSM PBF downloads
+      # SQLite DB file
       - vexevn-data:/app/data
-      # Tantivy place-search index — the live index is NESTED at
-      # /app/index/osm-index so the importer's sibling staging dir
-      # (osm-index.staging) shares the volume filesystem and its
-      # atomic rename never hits EXDEV. Do NOT flatten.
+      # Place-search generations (PLACES_DIR=/app/index/places): every
+      # generation and the `current` symlink share this volume.
       - vexevn-index:/app/index
       # Local file uploads
       - vexevn-storage:/app/storage
@@ -154,7 +141,7 @@ services:
 
     deploy:
       replicas: 1
-      # rust-sql DB file + local volumes pin the app to the manager node.
+      # SQLite DB file + local volumes pin the app to the manager node.
       placement:
         constraints:
           - node.role == manager

@@ -211,8 +211,15 @@ use utoipa::OpenApi;
         // LAST on purpose (see the addresses comment above): appending
         // keeps the existing SDK function numbers stable.
         crate::routes::ads::report_conversion,
+        // public brand page — everything a brand's page shows in one read,
+        // and the admin brand-logo upload. Appended LAST on purpose (see
+        // the addresses comment above).
+        crate::routes::public::brand_profile,
+        crate::routes::uploads::upload_brand_logo,
     ),
     components(schemas(
+        // shared
+        crate::dto::SortOrder,
         // auth
         crate::routes::auth::RegisterRequest,
         crate::routes::auth::LoginRequest,
@@ -301,7 +308,7 @@ use utoipa::OpenApi;
         // vitals
         crate::routes::vitals::VitalsReport,
         // places
-        crate::dto::place::PlaceOut,
+        crate::dto::place::PlaceEngine,
         crate::dto::place::PlaceListResponse,
         crate::dto::place::PlaceSearchHit,
         crate::dto::place::PlaceSearchResponse,
@@ -322,6 +329,7 @@ use utoipa::OpenApi;
         crate::dto::route_media::RoutePictureOut,
         crate::dto::route_media::RoutePictureListResponse,
         crate::dto::route_media::RoutePictureUploadResponse,
+        crate::dto::route_media::RoutePictureUploadForm,
         crate::dto::route_media::RoutePictureDeleteResponse,
         crate::dto::route_media::RoutePicturesBulkDeleteResponse,
         crate::dto::route_media::UpdateRoutePictureInput,
@@ -442,6 +450,15 @@ use utoipa::OpenApi;
         crate::dto::ad_conversion::ClickIds,
         crate::dto::ad_conversion::ReportConversionRequest,
         crate::dto::ad_conversion::ReportConversionResponse,
+        // public brand page + brand-logo upload (appended last, same rule)
+        crate::dto::public::BrandProfile,
+        crate::dto::public::ProfileBrand,
+        crate::dto::public::ProfileLocation,
+        crate::dto::public::ProfileRoute,
+        crate::dto::public::ProfileSchedule,
+        crate::dto::public::ProfileTrip,
+        crate::routes::uploads::BrandLogoUploadResponse,
+        crate::dto::route_media::BrandLogoUploadForm,
     )),
     tags(
         (name = "auth", description = "Authentication endpoints"),
@@ -464,6 +481,7 @@ use utoipa::OpenApi;
         (name = "admin", description = "Admin CRUD + moderation (requires employee role)"),
         (name = "nullclaw", description = "NullClaw AI provider"),
         (name = "ads", description = "Server-side Google Ads conversion recording"),
+        (name = "uploads", description = "Image uploads (brand logos)"),
     )
 )]
 pub struct ApiDoc;
@@ -479,7 +497,7 @@ mod tests {
     ///
     /// ```sh
     /// cargo test --lib dump_openapi_spec_for_the_frontend_sdk
-    /// cd frontend && bun run openapi-ts
+    /// cd frontend && bun run openapi
     /// ```
     ///
     /// (The config used to point at a live server; a checked-in spec

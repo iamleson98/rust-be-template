@@ -1,5 +1,3 @@
-'use client'
-
 import { useMutation } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { adminBusLayoutsFitPlanMutation, type BusLayoutPreset, type SeatPlan } from '@/api'

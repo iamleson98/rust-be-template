@@ -38,7 +38,7 @@ pub trait AddressStore: Send + Sync {
 
     async fn find_address_by_id(&self, id: Uuid) -> StoreResult<Option<address::Model>>;
     async fn list_addresses_by_brand(&self, brand_id: &str) -> StoreResult<Vec<address::Model>>;
-    /// Paginated + name-filtered list for a brand — the searchable,
+    /// Paginated + name/street-filtered list for a brand — the searchable,
     /// infinite-scroll schedule-point picker. Returns (page items, total
     /// matching rows). `limit=None` returns every matching row.
     async fn list_addresses_by_brand_page(
@@ -54,6 +54,12 @@ pub trait AddressStore: Send + Sync {
     async fn update_address(&self, model: address::ActiveModel) -> StoreResult<address::Model>;
     async fn delete_address(&self, id: Uuid) -> StoreResult<()>;
     async fn count_schedule_points_by_address(&self, address_id: Uuid) -> StoreResult<usize>;
+    /// Schedule stops per address for these ids; an address no schedule
+    /// stops at has no entry.
+    async fn count_schedule_points_by_addresses(
+        &self,
+        address_ids: Vec<Uuid>,
+    ) -> StoreResult<HashMap<Uuid, i64>>;
 
     // ── Schedule points (reads; transactional writes live in the service) ──
 
@@ -131,15 +137,18 @@ impl AddressStore for DbAddressStore {
         // Parse to Uuid — see `parse_uuid` (a TEXT parameter never
         // matches the BLOB-stored uuid column on SQLite).
         let brand_uuid = super::parse_uuid(brand_id)?;
-        // LOWER(name) LIKE — portable case-insensitive contains across
-        // the rust-sql engine (same trick as the route store).
+        // LOWER(..) LIKE — case-insensitive contains on the name or the
+        // street (same approach as the route store).
         let needle = q
             .map(str::trim)
             .filter(|s| !s.is_empty())
             .map(|s| format!("%{}%", s.to_lowercase()));
         let base = address::Entity::find().filter(address::Column::BrandId.eq(brand_uuid));
         let base = match needle {
-            Some(n) => base.filter(Expr::cust_with_values("LOWER(name) LIKE ?", [n])),
+            Some(n) => base.filter(Expr::cust_with_values(
+                "(LOWER(name) LIKE ? OR LOWER(address) LIKE ?)",
+                [n.clone(), n],
+            )),
             None => base,
         };
         let total = base.clone().count(self.db.as_ref()).await?;
@@ -198,6 +207,27 @@ impl AddressStore for DbAddressStore {
             .filter(schedule_point::Column::AddressId.eq(address_id))
             .count(self.db.as_ref())
             .await? as usize)
+    }
+
+    async fn count_schedule_points_by_addresses(
+        &self,
+        address_ids: Vec<Uuid>,
+    ) -> StoreResult<HashMap<Uuid, i64>> {
+        use sea_orm::sea_query::Expr;
+        let mut counts = HashMap::with_capacity(address_ids.len());
+        for chunk in address_ids.chunks(super::FANOUT_CHUNK) {
+            let rows: Vec<(Uuid, i64)> = schedule_point::Entity::find()
+                .filter(schedule_point::Column::AddressId.is_in(chunk.to_vec()))
+                .select_only()
+                .column(schedule_point::Column::AddressId)
+                .column_as(Expr::col(schedule_point::Column::Id).count(), "count")
+                .group_by(schedule_point::Column::AddressId)
+                .into_tuple::<(Uuid, i64)>()
+                .all(self.db.as_ref())
+                .await?;
+            counts.extend(rows);
+        }
+        Ok(counts)
     }
 
     async fn list_points_by_schedule(

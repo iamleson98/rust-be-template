@@ -1,5 +1,3 @@
-'use client'
-
 /**
  * VehicleTypeFormDialog — create/edit a vehicle type (admin catalog).
  *
@@ -11,9 +9,9 @@
 import { adminVehicleTypesCreateMutation, adminVehicleTypesUpdateMutation } from '@/api'
 import { useMutation } from '@tanstack/react-query'
 import { useEffect } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
+import * as z from 'zod'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -107,8 +105,8 @@ export function VehicleTypeFormDialog({
     defaultValues: emptyDefaults,
   })
 
-  const codeValue = form.watch('code')
-  const labelValue = form.watch('label')
+  const codeValue = useWatch({ control: form.control, name: 'code' })
+  const labelValue = useWatch({ control: form.control, name: 'label' })
 
   useEffect(() => {
     if (open) {

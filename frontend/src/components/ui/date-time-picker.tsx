@@ -1,5 +1,3 @@
-'use client'
-
 /**
  * DateTimePicker — a day and a time in one field, in the house style (no
  * native `datetime-local`). The value is a wall-clock `yyyy-MM-ddTHH:mm`.

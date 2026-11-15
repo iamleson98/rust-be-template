@@ -1,5 +1,3 @@
-'use client'
-
 import { priceAlertsCreateMutation, priceAlertsRemoveMutation, priceAlertsListOptions } from '@/api'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useUi } from '@/stores/ui'
@@ -8,7 +6,7 @@ import { useSearchForm } from '@/stores/search-form'
 import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
+import * as z from 'zod'
 import { useT } from '@/lib/i18n'
 import type { PriceAlertOut as PriceAlert } from '@/api'
 import {

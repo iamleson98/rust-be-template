@@ -1,5 +1,3 @@
-'use client'
-
 import { cancelPaymentMutation, createPaymentMutation } from '@/api'
 import { useMutation } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'

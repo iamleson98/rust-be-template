@@ -18,42 +18,15 @@
     <link rel="apple-touch-icon" href="/icons/icon-192.png" />
     <link rel="mask-icon" href="/logo-mask.svg" color="#147cd3" />
 
-    <title>DatXeVui — Đặt vé xe khách online toàn Việt Nam</title>
-    <meta
-      name="description"
-      content="Đặt vé xe khách trực tuyến: limousine, giường nằm, ghế ngồi. So sánh giá từ Phương Trang, Thanh Bình, Limousine Việt. Chọn ghế trực quan, thanh toán an toàn, hỗ trợ 24/7."
-    />
-    <meta
-      name="keywords"
-      content="đặt vé xe, vé xe khách, xe limousine, giường nằm, Phương Trang, Thanh Bình, vé xe online, DatXeVui, vé xe Hà Nội Đà Nẵng, vé xe Hồ Chí Minh Đà Lạt"
-    />
-    <meta name="author" content="DatXeVui" />
-    <meta name="application-name" content="DatXeVui" />
-    <meta name="category" content="Travel" />
     <meta name="color-scheme" content="light" />
-    <link rel="canonical" href="https://datxevui.com" />
-    <meta property="og:title" content="DatXeVui — Đặt vé xe khách online toàn Việt Nam" />
-    <meta
-      property="og:description"
-      content="So sánh giá từ hàng chục hãng xe uy tín. Chọn ghế trực quan, thanh toán an toàn, hỗ trợ 24/7."
-    />
-    <meta property="og:url" content="https://datxevui.com" />
-    <meta property="og:site_name" content="DatXeVui" />
-    <meta property="og:locale" content="vi_VN" />
-    <meta property="og:type" content="website" />
-    <meta property="og:image" content="/og-image.png" />
-    <meta property="og:image:width" content="1200" />
-    <meta property="og:image:height" content="630" />
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="DatXeVui — Đặt vé xe khách online" />
-    <meta
-      name="twitter:description"
-      content="Đặt vé xe khách toàn Việt Nam — limousine, giường nằm, ghế ngồi"
-    />
-    <meta name="twitter:image" content="/og-image.png" />
     <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
     <link rel="preconnect" href="https://tile.openstreetmap.org" crossorigin />
     <link rel="dns-prefetch" href="https://unpkg.com" />
+
+    <!-- The backend replaces this per request with the page's own head:
+         title, description, canonical, robots, Open Graph, Twitter card,
+         structured data (and the hero preload on the home page). -->
+    <!--app-head-->
 
     <!-- ── Google tags — injected by prerender.mjs at build time ────
          Placeholders replaced when `bun run build` runs:
@@ -69,14 +42,6 @@
     <!-- %GOOGLE_TAGS% -->
 
     <link rel="stylesheet" href="/fonts/geist.css" />
-
-    <link
-      rel="preload"
-      as="image"
-      href="/hero-vietnam-bus.avif"
-      type="image/avif"
-      fetchpriority="high"
-    />
 
     <style>
       :root {
@@ -119,93 +84,6 @@
         }
       }
     </style>
-
-    <script type="application/ld+json">
-      {
-        "@context": "https://schema.org",
-        "@type": "WebSite",
-        "name": "DatXeVui",
-        "url": "https://datxevui.com",
-        "description": "Đặt vé xe khách trực tuyến — limousine, giường nằm, ghế ngồi toàn Việt Nam.",
-        "inLanguage": "vi-VN",
-        "potentialAction": {
-          "@type": "SearchAction",
-          "target": {
-            "@type": "EntryPoint",
-            "urlTemplate": "https://datxevui.com/search?from={from}&to={to}&date={date}"
-          },
-          "query-input": "required name=from"
-        }
-      }
-    </script>
-    <script type="application/ld+json">
-      {
-        "@context": "https://schema.org",
-        "@type": "Organization",
-        "name": "DatXeVui",
-        "url": "https://datxevui.com",
-        "logo": "https://datxevui.com/logo.svg",
-        "description": "Nền tảng đặt vé xe khách trực tuyến toàn Việt Nam — limousine, giường nằm, ghế ngồi.",
-        "foundingDate": "2024",
-        "areaServed": "VN",
-        "knowsLanguage": ["vi", "en"],
-        "contactPoint": {
-          "@type": "ContactPoint",
-          "telephone": "+84-1900-6067",
-          "contactType": "customer service",
-          "areaServed": "VN",
-          "availableLanguage": ["vi", "en"]
-        }
-      }
-    </script>
-    <script type="application/ld+json">
-      {
-        "@context": "https://schema.org",
-        "@type": "FAQPage",
-        "mainEntity": [
-          {
-            "@type": "Question",
-            "name": "Làm thế nào để đặt vé xe trên DatXeVui?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "Chỉ với 4 bước: (1) Tìm chuyến xe phù hợp theo điểm đi/đến và ngày giờ. (2) Chọn ghế yêu thích trên sơ đồ ghế trực quan. (3) Thanh toán qua MoMo, VNPay, ZaloPay hoặc thẻ ngân hàng. (4) Nhận vé điện tử qua SMS và email ngay sau khi thanh toán thành công."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "Tôi có thể đổi hoặc hoàn vé không?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "Có. Bạn được đổi vé miễn phí trước 24 giờ so với giờ khởi hành. Với hoàn vé: thu phí 10% nếu hoàn trước 24 giờ, thu phí 30% nếu hoàn trong vòng 24 giờ, và không hoàn vé sau giờ khởi hành."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "Những phương thức thanh toán nào được hỗ trợ?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "DatXeVui hỗ trợ MoMo, VNPay, ZaloPay, Visa, Mastercard và chuyển khoản ngân hàng. Tất cả giao dịch đều được mã hoá SSL 256-bit."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "Vé điện tử có hợp lệ không?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "Có. Vé điện tử trên DatXeVui có mã QR và được Bộ GTVT cấp phép hoạt động. Bạn chỉ cần xuất trình mã QR trên điện thoại khi lên xe."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "Trẻ em có được giảm giá không?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "Có: trẻ dưới 2 tuổi đi miễn phí, trẻ từ 2-5 tuổi được giảm 50% giá vé, trẻ từ 6 tuổi trở lên mua vé như người lớn."
-            }
-          }
-        ]
-      }
-    </script>
   </head>
 
   <body class="antialiased bg-background text-foreground">

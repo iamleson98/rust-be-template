@@ -1,5 +1,3 @@
-'use client'
-
 /**
  * Menubar — Base UI implementation preserving the Radix/shadcn public API.
  *
@@ -27,7 +25,7 @@
  * | `<Menubar.SubContent>`         | `<Menu.Portal>` + `<Menu.Positioner>` + `<Menu.Popup>` |
  * | `data-state="open|closed"`     | `data-open`/`data-closed` + (shimmed) `data-state` via `render` |
  */
-import { type ComponentProps, type ReactElement } from 'react'
+import type { ComponentProps, ReactElement } from 'react'
 import { Menubar as MenubarPrimitive } from '@base-ui/react/menubar'
 import { Menu as MenuPrimitive } from '@base-ui/react/menu'
 import { Separator } from '@base-ui/react/separator'

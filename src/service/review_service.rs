@@ -17,11 +17,12 @@ use uuid::Uuid;
 
 use crate::dto::admin::{AdminReviewBrandSummary, AdminReviewBrandSummaryListResponse};
 use crate::dto::review::{
-    CreateReviewInput, ReviewDeleteResponse, ReviewListResponse, ReviewMutationResponse, ReviewOut,
-    ReviewStats, ReviewTagsResponse, UpdateReviewInput,
+    parse_tags, CreateReviewInput, ReviewDeleteResponse, ReviewListResponse,
+    ReviewMutationResponse, ReviewOut, ReviewStats, ReviewTagsResponse, UpdateReviewInput,
 };
 use crate::entity::review;
 use crate::error::{AppError, AppResult};
+use crate::service::trip_time;
 use crate::store::CompositeStore;
 
 // ────────────────────────────────────────────────────────────────
@@ -247,14 +248,7 @@ impl ReviewService {
             return Err(AppError::Validation("rating must be 1-5".into()));
         }
 
-        // Validate content length if provided
-        if let Some(ref content) = input.content {
-            if content.len() > 5000 {
-                return Err(AppError::Validation(
-                    "content must be at most 5000 characters".into(),
-                ));
-            }
-        }
+        assert_content_fits(input.content.as_deref())?;
 
         // ── Verified-ride checks (booking-scoped reviews) ──────────
         let mut brand_id = input.brand_id;
@@ -298,13 +292,29 @@ impl ReviewService {
                     AppError::NotFound("the trip for this booking no longer exists".into())
                 })?;
 
-            let departed = trip
-                .departure_date
-                .as_str()
-                .split('T')
-                .next()
-                .map(|d| d < &Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true)[..10])
-                .unwrap_or(false);
+            // The schedule gives the departure time and the route/brand chain.
+            let schedule = self
+                .store
+                .schedule_store()
+                .find_schedule_by_id(trip.schedule_id)
+                .await
+                .map_err(|e| AppError::Internal(e.to_string()))?;
+            // A trip counts as ridden once its Vietnam departure instant has
+            // passed (comparing the date with the UTC date would open a
+            // morning bus seven hours late).
+            let departed = match schedule.as_ref().and_then(|s| {
+                trip_time::departure_instant(
+                    &trip.departure_date,
+                    &s.departure_time,
+                    trip.actual_departure_at.as_deref(),
+                )
+            }) {
+                Some(leaves) => leaves <= Utc::now(),
+                None => {
+                    trip.departure_date.split('T').next().unwrap_or_default()
+                        < trip_time::local_today().as_str()
+                }
+            };
             let cancelled = booking.status == "cancelled" || trip.status == "cancelled";
             if cancelled {
                 return Err(AppError::Validation(
@@ -319,13 +329,13 @@ impl ReviewService {
             }
 
             // Duplicate review guard (one review per booking).
-            let mine = self
+            let already = self
                 .store
                 .review_store()
-                .list_reviews(None, None, caller_user_id, None, None, 200, 0)
+                .list_reviews_by_bookings(vec![booking_id])
                 .await
                 .map_err(|e| AppError::Internal(e.to_string()))?;
-            if mine.iter().any(|r| r.booking_id == Some(booking_id)) {
+            if !already.is_empty() {
                 return Err(AppError::Conflict(
                     "you have already reviewed this booking".into(),
                 ));
@@ -333,12 +343,6 @@ impl ReviewService {
 
             // Denormalize: review rides the booking's chain
             // (trip → schedule → route → brand).
-            let schedule = self
-                .store
-                .schedule_store()
-                .find_schedule_by_id(trip.schedule_id)
-                .await
-                .map_err(|e| AppError::Internal(e.to_string()))?;
             if let Some(schedule) = schedule {
                 route_id = Some(schedule.route_id);
                 if let Some(route) = self
@@ -449,7 +453,21 @@ impl ReviewService {
             }
         }
 
+        assert_content_fits(input.content.as_deref())?;
+
+        // Rewriting an approved review sends it back to moderation: what
+        // was approved is no longer what is published.
+        let edited = input.rating.is_some()
+            || input.title.is_some()
+            || input.content.is_some()
+            || input.tags.is_some()
+            || input.photos.is_some();
+        let back_to_moderation = edited && existing.status == "approved";
+
         let mut active: review::ActiveModel = existing.into();
+        if back_to_moderation {
+            active.status = Set("pending".to_string());
+        }
 
         if let Some(rating) = input.rating {
             active.rating = Set(rating as i64);
@@ -458,11 +476,6 @@ impl ReviewService {
             active.title = Set(Some(title.clone()));
         }
         if let Some(ref content) = input.content {
-            if content.len() > 5000 {
-                return Err(AppError::Validation(
-                    "content must be at most 5000 characters".into(),
-                ));
-            }
             active.content = Set(Some(content.clone()));
         }
         if let Some(ref tags) = input.tags {
@@ -674,14 +687,7 @@ pub(crate) async fn reconcile_brand_ratings(store: &CompositeStore) -> AppResult
 
 /// Map a `review::Model` row to the `ReviewOut` DTO.
 pub fn review_to_dto(r: &review::Model) -> ReviewOut {
-    let tags: Vec<String> = r
-        .tags
-        .as_deref()
-        .unwrap_or("")
-        .split(',')
-        .filter(|s| !s.is_empty())
-        .map(|s| s.to_string())
-        .collect();
+    let tags = parse_tags(r.tags.as_deref().unwrap_or(""), false);
 
     let photos: Vec<String> = r
         .photos
@@ -709,6 +715,19 @@ pub fn review_to_dto(r: &review::Model) -> ReviewOut {
         created_at: r.created_at.clone(),
         updated_at: r.updated_at.clone(),
         user_id: r.user_id,
+    }
+}
+
+/// The longest review text, in characters (not bytes: Vietnamese text
+/// takes up to three bytes per letter).
+const MAX_CONTENT_CHARS: usize = 5000;
+
+fn assert_content_fits(content: Option<&str>) -> AppResult<()> {
+    match content {
+        Some(c) if c.chars().count() > MAX_CONTENT_CHARS => Err(AppError::Validation(format!(
+            "content must be at most {MAX_CONTENT_CHARS} characters"
+        ))),
+        _ => Ok(()),
     }
 }
 

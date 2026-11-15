@@ -1,12 +1,10 @@
-# ─── DB reset: remove the rust-sql DB file and let the backend ──────
+# ─── DB reset: remove the SQLite DB file and let the backend ────────
 # recreate it fresh (migrations + seed defaults) on next boot. ───────
 #
-# WHY: the production app.db was created by an early rust-sql build and
-# carries that engine's page layout / freelist state. After a large
-# engine upgrade the clean path is a fresh file written entirely by the
-# new engine: stop the service, back the old file up, delete it, scale
-# back up — the backend opens `sqlite:...?mode=rwc`, applies every
-# migration from scratch and re-seeds default reference data.
+# WHY: start over from an empty database — stop the service, back the
+# old file up, delete it, scale back up. The backend opens
+# `sqlite:...?mode=rwc`, applies every migration from scratch and
+# re-seeds default reference data.
 #
 # Trigger: workflow_dispatch ONLY (never on push — it is destructive to
 # the live data; the backup keeps a byte-copy in /opt/vexevn/backups).
@@ -22,7 +20,7 @@
 #     admin (first-user promotion, see AuthService::register)
 #   * re-run the data migration (trip-crawler scripts/migration) to
 #     repopulate brands/routes/schedules/fares/pictures
-#   * the Tantivy index + uploads volumes are untouched
+#   * the place index + uploads volumes are untouched
 
 name: DB reset
 
@@ -92,7 +90,7 @@ jobs:
               ts=$(date -u +%Y%m%dT%H%M%SZ)
               echo "== backing up app.db* -> $DEPLOY_DIR/backups/app.db.$ts.bak =="
               cp -a "$DB_VOLUME_DIR/app.db" "$DEPLOY_DIR/backups/app.db.$ts.bak" 2>/dev/null || true
-              for side in -wal -shm -rsqllock; do
+              for side in -wal -shm; do
                 cp -a "$DB_VOLUME_DIR/app.db$side" "$DEPLOY_DIR/backups/app.db$side.$ts.bak" 2>/dev/null || true
               done
               ls -la "$DEPLOY_DIR/backups" | tail -5
@@ -101,7 +99,7 @@ jobs:
 
             echo "== removing app.db* =="
             rm -f "$DB_VOLUME_DIR/app.db" "$DB_VOLUME_DIR/app.db-wal" \
-                  "$DB_VOLUME_DIR/app.db-shm" "$DB_VOLUME_DIR/app.db-rsqllock"
+                  "$DB_VOLUME_DIR/app.db-shm"
             ls -la "$DB_VOLUME_DIR" | sed -n '1,12p'
 
             echo "== starting datxevui_backend =="

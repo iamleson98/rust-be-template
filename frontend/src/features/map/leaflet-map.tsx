@@ -1,12 +1,11 @@
-'use client'
-
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { MapContainer, Marker, Popup, useMap, useMapEvents, ZoomControl } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { Search, Loader2, MapPin, Crosshair, X, Check } from 'lucide-react'
 import { toast } from 'sonner'
-import { placesReverse as sdkReverseGeocode, placesSearch as sdkPlaceSearch } from '@/api'
+import { usePlaceSearch } from '@/features/map/api'
+import { formatPlaceType } from '@/lib/place-type'
 import { useT } from '@/lib/i18n'
 import { BasemapLayer } from '@/features/map/basemap-layer'
 import {
@@ -14,6 +13,9 @@ import {
   type MyLocationErrorCode,
   type MyLocation,
 } from '@/features/map/use-my-location'
+import { reverseGeocode, type PickedPlace, type PlaceHit } from '@/features/map/geocode'
+
+export type { PickedPlace }
 
 // ── Fix leaflet's default marker icons (broken under bundlers) ──
 // We use custom divIcons instead, so this is just a safety net.
@@ -23,25 +25,6 @@ L.Icon.Default.mergeOptions({
   iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 })
-
-export type PickedPlace = {
-  name: string
-  lat: number
-  lon: number
-  type?: string
-  province?: string | null
-  district?: string | null
-}
-
-type PlaceHit = {
-  osmId: number
-  name: string
-  type: string
-  province?: string | null
-  district?: string | null
-  lat: number
-  lon: number
-}
 
 // Centered on Vietnam
 const VIETNAM_CENTER: [number, number] = [16.0, 106.0]
@@ -171,45 +154,7 @@ export function LeafletMap({
   )
 }
 
-/** i18n keys for humanising Tantivy place_type slugs in search results. */
-const PLACE_TYPE_KEYS: Record<string, string> = {
-  city: 'mapPage.ptCity',
-  town: 'mapPage.ptTown',
-  village: 'mapPage.ptVillage',
-  hamlet: 'mapPage.ptHamlet',
-  suburb: 'mapPage.ptSuburb',
-  quarter: 'mapPage.ptWard',
-  neighbourhood: 'mapPage.ptNeighbourhood',
-  ward: 'mapPage.ptWard',
-  district: 'mapPage.ptDistrict',
-  province: 'mapPage.ptProvince',
-  bus_station: 'mapPage.ptBusStation',
-  transit_stop: 'mapPage.ptTransitStop',
-  rail_station: 'mapPage.ptRailStation',
-  airport: 'mapPage.ptAirport',
-  road_primary: 'mapPage.ptRoadPrimary',
-  road_secondary: 'mapPage.ptRoadSecondary',
-  road_tertiary: 'mapPage.ptRoadTertiary',
-  road_residential: 'mapPage.ptRoadResidential',
-  road_motorway: 'mapPage.ptMotorway',
-  road_trunk: 'mapPage.ptTrunk',
-  amenity_school: 'mapPage.ptSchool',
-  amenity_hospital: 'mapPage.ptHospital',
-  amenity_university: 'mapPage.ptUniversity',
-  amenity_college: 'mapPage.ptCollege',
-  amenity_marketplace: 'mapPage.ptMarket',
-  amenity_townhall: 'mapPage.ptTownhall',
-}
-
-/** Humanise a Tantivy place_type slug for display in search results. */
-function formatPlaceType(type: string, t: ReturnType<typeof useT>): string {
-  const key = PLACE_TYPE_KEYS[type]
-  if (key) return t(key)
-  // Generic: strip prefix and replace _ with space
-  return type.replace(/^(road_|amenity_|tourism_|leisure_|shop_)/, '').replace(/_/g, ' ')
-}
-
-/** Search box that queries the Tantivy places index. */
+/** Search box over the place index. */
 function MapSearchBox({
   onSelect,
   placeholder,
@@ -219,33 +164,18 @@ function MapSearchBox({
 }) {
   const t = useT()
   const [q, setQ] = useState('')
-  const [hits, setHits] = useState<PlaceHit[]>([])
-  const [loading, setLoading] = useState(false)
   const [open, setOpen] = useState(false)
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
   const boxRef = useRef<HTMLDivElement>(null)
-
-  const run = useCallback(async (query: string) => {
-    if (query.trim().length < 2) {
-      setHits([])
-      return
-    }
-    setLoading(true)
-    try {
-      const { data } = await sdkPlaceSearch({ query: { q: query, limit: 6 } })
-      setHits(((data ?? {}) as { items?: PlaceHit[] }).items ?? [])
-    } catch {
-      setHits([])
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+  // Debounced, cached, and a newer query cancels an older one in flight.
+  const searchable = q.trim().length >= 2
+  const { data, isFetching: loading } = usePlaceSearch(q, { enabled: searchable, limit: 6 })
+  const hits = searchable
+    ? ((data?.items ?? []).filter((h) => h.lat != null && h.lon != null) as PlaceHit[])
+    : []
 
   const onInput = (v: string) => {
     setQ(v)
     setOpen(true)
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => run(v), 350)
   }
 
   useEffect(() => {
@@ -276,10 +206,7 @@ function MapSearchBox({
         )}
         {!loading && q && (
           <button
-            onClick={() => {
-              setQ('')
-              setHits([])
-            }}
+            onClick={() => setQ('')}
             className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
             aria-label={t('mapPage.clear')}
           >
@@ -290,7 +217,7 @@ function MapSearchBox({
       {open && hits.length > 0 && (
         <ul className="mt-1.5 max-h-72 overflow-y-auto rounded-xl bg-white p-1 shadow-float ring-1 ring-slate-900/10">
           {hits.map((h) => (
-            <li key={h.osmId}>
+            <li key={h.id ?? `${h.lat},${h.lon}`}>
               <button
                 type="button"
                 onClick={() => {
@@ -315,31 +242,6 @@ function MapSearchBox({
       )}
     </div>
   )
-}
-
-// ── Reverse geocode helper (Tantivy) ────────────────────────
-// Returns a PickedPlace with the NAME of the nearest known place
-// (for display) but keeps the EXACT lat/lon the user clicked (so
-// the marker doesn't jump to a nearby indexed place).
-async function reverseGeocode(lat: number, lon: number): Promise<PickedPlace> {
-  try {
-    const { data } = await sdkReverseGeocode({ query: { lat, lon, limit: 1 } })
-    const hits: PlaceHit[] = (data ?? []) as PlaceHit[]
-    const h = hits[0]
-    if (!h) return { name: `${lat.toFixed(3)}, ${lon.toFixed(3)}`, lat, lon }
-    return {
-      name: h.name,
-      // Keep the EXACT clicked coordinates — NOT h.lat/h.lon (which is
-      // the nearest indexed place, potentially hundreds of meters away).
-      lat,
-      lon,
-      type: h.type,
-      province: h.province,
-      district: h.district,
-    }
-  } catch {
-    return { name: `${lat.toFixed(3)}, ${lon.toFixed(3)}`, lat, lon }
-  }
 }
 
 // ── Full Map Picker (used inside a Dialog) ──────────────────
@@ -546,8 +448,6 @@ export function MapPicker({
     </div>
   )
 }
-
-export { reverseGeocode }
 
 /** Fix leaflet's tile rendering when the container mounts inside a
  *  dynamically-sized wrapper (an animating Dialog, a swapping layout).

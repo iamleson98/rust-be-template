@@ -1,5 +1,3 @@
-'use client'
-
 import { Button } from '@/components/ui/button'
 import { ChevronLeft, Loader2, Lock, ShieldCheck, TicketPercent } from 'lucide-react'
 import { validityText } from '@/features/campaigns/labels'

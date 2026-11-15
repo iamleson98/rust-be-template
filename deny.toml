@@ -4,8 +4,8 @@
 # Layers on top of the separate cargo-audit job: same RustSec advisory
 # DB, but also enforces LICENSE allow-listing (no copyleft surprises),
 # bans wildcard version deps, and denies any dependency source that is
-# not crates.io or an in-repo path (the rust-sql engine + its compat
-# crates are path patches — allowed by design).
+# not crates.io or an in-repo path (the vendored libsqlite3-sys under
+# vendor/ is a path patch — allowed by design).
 #
 # Fix recipes:
 #  - new advisory        → upgrade the flagged crate; only add an

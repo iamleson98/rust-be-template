@@ -1,5 +1,3 @@
-'use client'
-
 import { ArrowDownWideNarrow, Clock, Navigation2, Star, type LucideIcon } from 'lucide-react'
 import { useT } from '@/lib/i18n'
 import { VEHICLE_TYPES } from '@/lib/vehicle-types'

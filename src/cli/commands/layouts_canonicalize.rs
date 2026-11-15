@@ -277,8 +277,8 @@ pub async fn run(apply: bool, reset_trips: bool) -> anyhow::Result<()> {
 
 /// Delete a schedule's trip sessions and their seat inventories —
 /// the lazy seat path regenerates both from the NEW layout on next
-/// view. Row-at-a-time deletes: the engine's bulk paths are not
-/// trusted (see rust-sql issue #8) and this is a one-shot op.
+/// view. Row-at-a-time deletes keep each statement small; this is a
+/// one-shot op.
 async fn delete_trips_of(db: &DatabaseConnection, schedule_id: Uuid) -> anyhow::Result<usize> {
     let trips: Vec<trip_session::Model> = trip_session::Entity::find()
         .filter(trip_session::Column::ScheduleId.eq(schedule_id))

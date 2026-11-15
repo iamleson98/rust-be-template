@@ -1,5 +1,3 @@
-'use client'
-
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { ArrowLeftRight, CheckCircle2, Copy, Ticket } from 'lucide-react'
@@ -167,7 +165,10 @@ export function BookingSuccess({
             onClick={() => {
               forgetReturnLeg()
               onClose()
-              navigate({ to: '/search', search: buildSearchInput({ ...roundTrip, leg: 'return' }) })
+              navigate({
+                to: '/search',
+                search: buildSearchInput({ ...roundTrip, leg: 'return' }),
+              })
             }}
           >
             {t('bookingFlow.returnLegAction')}

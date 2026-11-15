@@ -71,8 +71,8 @@ function logWarning(): void {
     'Nếu bạn là lập trình viên, vui lòng liên hệ admin@datxevui.com để được cấp quyền dev.',
   ].join('\n')
 
-  console.log(banner, style)
-  console.log(message)
+  console.info(banner, style)
+  console.info(message)
 
   // Fire a GA4 event (if analytics is configured).
   if (typeof window !== 'undefined' && window.gtag) {
@@ -121,7 +121,7 @@ function startDevtoolsDetection(): void {
  */
 export function initConsoleProtection(): void {
   if (typeof window === 'undefined') return
-  if (import.meta.env.DEV) return // Skip in dev — developers need DevTools.
+  if (import.meta.env.MODE !== 'production') return // Skip in dev — developers need DevTools.
 
   // ── 1. Start DevTools detection ─────────────────────────────
   startDevtoolsDetection()

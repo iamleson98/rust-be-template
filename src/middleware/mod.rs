@@ -1,4 +1,5 @@
-//! HTTP middleware: rate limiting, auth extractors, request-id, timeout.
+//! HTTP middleware: rate limiting, anti-scraping, client IP, auth extractors,
+//! request-id, timeout.
 //!
 //! ## Auth architecture
 //!
@@ -35,7 +36,8 @@ pub mod anti_scraping;
 pub mod auth_extractor;
 pub mod client_ip;
 pub mod public_cache;
-pub mod rate_limit_headers;
+pub mod rate_limit;
+pub mod rejection_envelope;
 pub mod request_id;
 pub mod resource_guard;
 pub mod timeout;

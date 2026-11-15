@@ -34,7 +34,7 @@ pub enum AppError {
     BadRequest(String),
 
     #[error("store error: {0}")]
-    Store(#[from] crate::store::StoreError),
+    Store(crate::store::StoreError),
 
     #[error("cache error: {0}")]
     Cache(String),
@@ -115,7 +115,9 @@ impl AppError {
                 crate::store::StoreError::Validation(_) => StatusCode::BAD_REQUEST,
                 crate::store::StoreError::Forbidden(_) => StatusCode::FORBIDDEN,
                 crate::store::StoreError::Conflict(_) => StatusCode::CONFLICT,
-                crate::store::StoreError::Exhausted { .. } => StatusCode::SERVICE_UNAVAILABLE,
+                crate::store::StoreError::Exhausted { .. } | crate::store::StoreError::Busy(_) => {
+                    StatusCode::SERVICE_UNAVAILABLE
+                }
                 _ => StatusCode::INTERNAL_SERVER_ERROR,
             },
             AppError::Cache(_) | AppError::Storage(_) | AppError::Worker(_) => {
@@ -146,6 +148,7 @@ impl AppError {
             | AppError::Store(StoreError::Database(_) | StoreError::Exhausted { .. }) => {
                 "internal server error".to_string()
             }
+            AppError::Store(StoreError::Busy(_)) => "the service is busy, please retry".to_string(),
             AppError::UpstreamHttp(_) => "upstream service unavailable".to_string(),
             _ => self.to_string(),
         }
@@ -209,6 +212,17 @@ impl IntoResponse for AppError {
     }
 }
 
+impl From<crate::store::StoreError> for AppError {
+    /// A missing permission (`RbacChecker::require`) is a `forbidden`, not a
+    /// `store_error`; every other store failure keeps its own variant.
+    fn from(error: crate::store::StoreError) -> Self {
+        match error {
+            crate::store::StoreError::Forbidden(permission) => Self::Forbidden(permission),
+            other => Self::Store(other),
+        }
+    }
+}
+
 impl From<ValidationErrors> for AppError {
     fn from(errors: ValidationErrors) -> Self {
         Self::from_validation_errors(errors)
@@ -245,6 +259,24 @@ mod tests {
         ] {
             assert_eq!(err.public_message(), "internal server error", "{err:?}");
         }
+    }
+
+    #[test]
+    fn a_missing_permission_is_a_forbidden_with_the_reference_message() {
+        let err = AppError::from(StoreError::Forbidden("users.read".into()));
+        assert_eq!(err.status(), axum::http::StatusCode::FORBIDDEN);
+        assert_eq!(err.kind(), "forbidden");
+        assert_eq!(
+            err.public_message(),
+            "forbidden: missing permission: users.read"
+        );
+    }
+
+    #[test]
+    fn a_busy_database_is_a_retryable_503_with_a_generic_message() {
+        let err = AppError::Store(StoreError::Busy("database is locked".into()));
+        assert_eq!(err.status(), axum::http::StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(err.public_message(), "the service is busy, please retry");
     }
 
     #[test]

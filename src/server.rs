@@ -4,7 +4,6 @@
 use std::sync::Arc;
 
 use anyhow::Context;
-use sea_orm::{ConnectOptions, Database};
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 use crate::auth::jwt::JwtManager;
@@ -50,73 +49,45 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
     config.log_active();
 
     // ---- DB pool ------------------------------------------------------
-    // The engine is ALWAYS rust-sql (rustqlite) — sea-orm's sqlite
-    // dialect on the pure-Rust engine via the C-ABI compat layer
-    // (see `src/db/mod.rs` and the [patch.crates-io] in Cargo.toml).
-    // Any non-sqlite:// URL (e.g. a stale postgres:// one) fails fast
-    // with a clear message instead of limping into an unsupported
-    // backend at connect time.
-    if !config.database.url.starts_with("sqlite") {
-        anyhow::bail!(
-            "unsupported DATABASE_URL {:?} — this build links only the \
-             rust-sql (rustqlite) engine; use a sqlite://… URL",
-            &config.database.url[..config
-                .database
-                .url
-                .find(':')
-                .unwrap_or(config.database.url.len())]
-        );
-    }
-    let mut opts = ConnectOptions::new(&config.database.url);
-    opts.max_connections(config.database.max_connections)
-        .min_connections(config.database.min_connections)
-        .connect_timeout(config.database.connect_timeout())
-        .idle_timeout(config.database.idle_timeout())
-        .max_lifetime(config.database.max_lifetime())
-        .sqlx_logging(config.database.enable_sqlx_logs);
-    // Note: sqlx statement cache is configured via the connection string
-    // (e.g. `?statement-cache-capacity=100`) on sqlx 0.7+. sea-orm 1.1
-    // doesn't expose a builder method for it.
-    let db = Database::connect(opts).await.context("db connect")?;
-
-    // ── Engine-specific setup ────────────────────────────────────
-    // Apply performance pragmas (WAL mode, sync=NORMAL, busy_timeout,
-    // cache_size, foreign_keys=ON). The rustqlite engine follows
-    // SQLite's default of FK enforcement OFF — sea-orm migrations assume
-    // FK enforcement, so we must turn it on.
-    apply_sqlite_pragmas(&db, config.database.cache_kib).await?;
+    // The engine is ALWAYS the vendored SQLite (see `src/db/mod.rs`);
+    // `db::pool` rejects any non-sqlite:// URL (e.g. a stale postgres
+    // one) up front. Pragmas are per-connection in SQLite, so the pool
+    // applies them to every connection it opens.
+    let db = crate::db::pool::connect(
+        &config.database,
+        crate::db::pool::PoolShape::main(&config.database),
+    )
+    .await
+    .context("db connect")?;
     tracing::info!(
-        engine = crate::db::engine_version(),
-        "database engine: rust-sql (rustqlite) via the sqlx-sqlite C-ABI compat layer"
+        version = crate::db::sqlite_version(),
+        source_id = crate::db::sqlite_source_id(),
+        "database engine: SQLite (begin-concurrent)"
     );
 
     let db = Arc::new(db);
 
     // ── Readiness lane ───────────────────────────────────────────
     // A second, tiny pool for `/ready` so health checks never queue
-    // behind request traffic on the main pool. The rust-sql compat
-    // layer shares ONE engine per database file across all pooled
-    // connections, so these handles are cheap — but their ACQUIRE
+    // behind request traffic on the main pool. Their ACQUIRE
     // queues are separate, which is the point: an 8-connection main
     // pool fully occupied by long searches (or an admin VACUUM INTO
     // probe) used to starve `/ready` into 503s, and with swarm's
     // update_config.monitor that is one step from a rollback loop
     // (issue #75). Two connections: one active ping, one spare for
     // overlap during health-check intervals.
-    let mut health_opts = ConnectOptions::new(&config.database.url);
-    health_opts
-        .max_connections(2)
-        .min_connections(1)
-        .connect_timeout(config.database.connect_timeout())
-        .idle_timeout(config.database.idle_timeout())
-        .max_lifetime(config.database.max_lifetime())
-        .sqlx_logging(false);
     let health_db = Arc::new(
-        Database::connect(health_opts)
-            .await
-            .context("health db connect")?,
+        crate::db::pool::connect(
+            &config.database,
+            crate::db::pool::PoolShape {
+                max_connections: 2,
+                min_connections: 1,
+                sqlx_logging: false,
+            },
+        )
+        .await
+        .context("health db connect")?,
     );
-    apply_sqlite_pragmas(&health_db, config.database.cache_kib).await?;
 
     // Bootstrap is also used directly by integration tests and embedded
     // callers, so do not rely on the CLI wrapper to migrate first.
@@ -307,12 +278,11 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
     // `crate::presence::spawn_journal` for the batching design.
     crate::presence::spawn_journal(store.staff_presence_store());
 
-    // Memory sweeper — periodic forced mimalloc collect. The engine's
-    // allocator keeps freed pages resident (purge_delay=-1) and only
-    // drains at its own SQL write-burst boundaries; without this the
-    // service's transient peaks (HTTP/WS/tantivy/moka churn) ratchet
-    // RSS up to the historical watermark and keep it there (the
-    // 650 MB idle-RSS report, 2026-09). See src/memory.rs.
+    // Memory sweeper — periodic forced mimalloc collect. mimalloc returns
+    // freed pages to the OS lazily, so without this the service's
+    // transient peaks (HTTP/WS/moka churn) ratchet RSS up to the
+    // historical watermark and keep it there (the 650 MB idle-RSS
+    // report, 2026-09). See src/memory.rs.
     crate::memory::spawn_sweeper(config.memory.interval());
 
     // Call-session janitor — the server-side guarantee that call state
@@ -368,26 +338,6 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
     let user_service = Arc::new(UserService::new(store.clone()));
     let post_service = Arc::new(PostService::new(store.clone()));
 
-    // ---- Optional Tantivy place-search index ──────────────────────────
-    // Opened only when `search.index_dir` points at a built index. When
-    // absent, PlaceService falls back to SQL LIKE queries.
-    let place_searcher = match &config.search.index_dir {
-        Some(dir) if dir.exists() => match crate::osm::searcher::PlaceSearcher::open(dir) {
-            Ok(s) => {
-                tracing::info!(index_dir = %dir.display(), "place search index opened");
-                Some(Arc::new(s))
-            }
-            Err(e) => {
-                tracing::warn!(error = %e, index_dir = %dir.display(), "failed to open place search index; search will use SQL fallback");
-                None
-            }
-        },
-        _ => {
-            tracing::info!("no place search index configured; run `backend import-osm` to enable");
-            None
-        }
-    };
-
     // ---- New domain services (booking logic) -------------------------
     let admin_service = Arc::new(AdminService::new(store.clone()));
     let review_service = Arc::new(ReviewService::new(store.clone()));
@@ -416,7 +366,11 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
     };
     let public_service = Arc::new(PublicService::with_warmer(store.clone(), warmer));
     let routing_service = Arc::new(RoutingService::new(&config));
-    let place_service = Arc::new(PlaceService::with_searcher(store.clone(), place_searcher));
+    // The place index is built by `places-build`, never here: the engine
+    // is loaded from the live generation before serving (none yet answers
+    // `unavailable`) and swapped when a newer generation appears.
+    let place_service = Arc::new(PlaceService::new());
+    crate::places::live::start(config.places.dir.clone(), place_service.clone()).await;
     let price_alert_service = Arc::new(PriceAlertService::new(store.clone()));
     let notification_service = Arc::new(NotificationService::new(store.clone()));
 
@@ -484,9 +438,7 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
         }
 
         let registry = jobs::register_all(&jobs::JobDeps {
-            places: place_service.clone(),
             campaigns: store.campaign_store(),
-            config: config_arc.clone(),
         });
         let kinds = registry.kinds();
         let runner = WorkerRunner::new(
@@ -510,6 +462,11 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
     } else {
         tracing::info!("background jobs disabled (SCHEDULER_ENABLED=false)");
     }
+
+    // WAL checkpoints (PASSIVE every minute, TRUNCATE nightly). Spawned
+    // after the worker block so `shutdown_token()` is the runner's token
+    // when jobs are enabled.
+    crate::db::checkpoint::spawn(db.as_ref().clone(), crate::worker::shutdown_token());
 
     let state = AppState::new(
         config_arc,
@@ -624,60 +581,4 @@ fn init_tracing(directive: &str) {
         .with(fmt::layer().with_target(true))
         .with(filter)
         .try_init();
-}
-
-/// Apply SQLite performance pragmas to the connection pool.
-async fn apply_sqlite_pragmas(
-    db: &sea_orm::DatabaseConnection,
-    cache_kib: i64,
-) -> anyhow::Result<()> {
-    use sea_orm::ConnectionTrait;
-    // Where these actually land — verified against the rust-sql compat
-    // layer (rust-sql/compat/rustqlite-compat/src/lib.rs):
-    //
-    // All C-ABI connections opened on the SAME database file share ONE
-    // engine (`engines()` registry, `OpenTarget::File` keyed by canonical
-    // path, weak-upgrade-or-recreate) and therefore ONE pager. Every
-    // pragma below writes pager-level state, so running them through ONE
-    // pooled connection configures the ENGINE — the whole pool, plus any
-    // connection opened later, inherits the settings for as long as at
-    // least one pool connection keeps the engine alive (min_connections
-    // guarantees exactly that).
-    //
-    // * `foreign_keys=ON` + `busy_timeout=5000` — also applied by
-    //   sqlx-sqlite itself on every connection (SqliteConnectOptions
-    //   defaults); listed here so the intent is explicit and not
-    //   silently dependent on a sqlx default.
-    // * `journal_mode=WAL` — persisted in the database file header: the
-    //   first connection that sets it flips the file for everyone.
-    // * `synchronous=NORMAL` / `temp_store=MEMORY` — pager-level state
-    //   (see `set_synchronous` / `set_temp_store` in rust-sql api.rs):
-    //   engine-wide, reached via the shared pager.
-    // * `cache_size=-<cache_kib>` — RE-ADDED 2026-10 after the 2026-09
-    //   removal turned out to be based on a wrong model: there is no
-    //   per-connection page cache to win a lottery with. The engine
-    //   keeps ONE shared page cache per file (`Pager::cache_capacity`),
-    //   `PRAGMA cache_size` updates it live (api.rs "cache_size" arm),
-    //   and the engine default is SQLite's -2000 KiB. On the ~625 MB
-    //   production DB that left the shared cache permanently full at
-    //   2 MB (admin "database" cards: cache 100%) with a poor hit
-    //   rate. The default here is 64 MiB; tune via DATABASE_CACHE_KIB.
-    // * `mmap_size` — stays out: a silent no-op, the rustqlite engine
-    //   has no mmap support at all.
-    let pragmas = [
-        "PRAGMA journal_mode=WAL;".to_string(),
-        "PRAGMA synchronous=NORMAL;".to_string(),
-        "PRAGMA busy_timeout=5000;".to_string(),
-        "PRAGMA temp_store=MEMORY;".to_string(),
-        "PRAGMA foreign_keys=ON;".to_string(),
-        format!("PRAGMA cache_size=-{cache_kib};"),
-    ];
-    for stmt in &pragmas {
-        db.execute_unprepared(stmt).await?;
-    }
-    tracing::info!(
-        cache_kib,
-        "applied SQLite pragmas engine-wide (shared pager: WAL persisted; sync=NORMAL/temp_store/cache_size on the shared engine cache; FK + busy_timeout also come from sqlx per-connection defaults)"
-    );
-    Ok(())
 }

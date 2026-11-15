@@ -1,5 +1,3 @@
-'use client'
-
 import { useNavigate } from '@tanstack/react-router'
 import { AlertCircle, ChevronDown, Loader2, X } from 'lucide-react'
 import type { TripResult } from '@/api'

@@ -45,14 +45,13 @@ services:
     env_file:
       - .env
     environment:
-      # rust-sql (rustqlite) engine file on the app-data volume. Migrations auto-apply on boot
+      # SQLite file on the app-data volume. Migrations auto-apply on boot
       # (built-in `serve` behavior — no separate migration step).
       DATABASE_URL: ${DATABASE_URL:-sqlite:/app/data/app.db?mode=rwc}
-      # Tantivy place-search index — NESTED inside the osm-index volume
-      # so the importer's staging/old siblings share one filesystem
-      # (atomic renames; see Dockerfile header for the EXDEV story).
-      SEARCH_INDEX_DIR: ${SEARCH_INDEX_DIR:-/app/index/osm-index}
-      SEARCH_OSM_PBF_PATH: ${SEARCH_OSM_PBF_PATH:-/app/data/vietnam-latest.osm.pbf}
+      # Place-search generations (`places-build`) live on the osm-index
+      # volume, so every generation and the `current` symlink share one
+      # filesystem.
+      PLACES_DIR: ${PLACES_DIR:-/app/index/places}
       # Single-node production defaults: no Redis sidecar required.
       CACHE_BACKEND: ${CACHE_BACKEND:-moka}
       # ── Route media (RustFS object storage) ────────────────────
@@ -68,7 +67,7 @@ services:
       STORAGE_S3_FORCE_PATH_STYLE: "true"
       STORAGE_PUBLIC_BASE_URL: ${STORAGE_PUBLIC_BASE_URL:-}
     volumes:
-      - app-data:/app/data      # rust-sql DB file + OSM PBF downloads
+      - app-data:/app/data      # SQLite DB file
       - app-storage:/app/storage # local uploads (dev / fallback backend)
       - osm-index:/app/index     # Tantivy index (survives redeploys)
     healthcheck:

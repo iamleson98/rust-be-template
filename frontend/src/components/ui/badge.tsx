@@ -1,4 +1,4 @@
-import { type ComponentProps } from 'react'
+import type { ComponentProps } from 'react'
 import { Slot } from '@/components/ui/slot'
 import { cva, type VariantProps } from 'class-variance-authority'
 

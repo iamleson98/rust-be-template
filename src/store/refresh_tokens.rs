@@ -3,7 +3,10 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use sea_orm::sea_query::Expr;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect, Set};
+use sea_orm::{
+    ColumnTrait, ConnectionTrait, DatabaseBackend, DatabaseConnection, EntityTrait, QueryFilter,
+    Set, Statement, Value,
+};
 use store_macros::retry;
 use uuid::Uuid;
 
@@ -27,6 +30,15 @@ pub trait RefreshTokenStore: Send + Sync {
     /// concurrent refresh requests with the same token both used to pass
     /// the validation check and both issued fresh sessions.
     async fn try_revoke_refresh_token(&self, id: Uuid) -> StoreResult<Option<Uuid>>;
+
+    /// [`Self::try_revoke_refresh_token`], but only when the token belongs
+    /// to `owner`: a token of another user is left untouched and reported
+    /// as `None`, so nobody can end a session that is not theirs.
+    async fn try_revoke_owned_refresh_token(
+        &self,
+        id: Uuid,
+        owner: Uuid,
+    ) -> StoreResult<Option<Uuid>>;
 }
 
 #[derive(Clone)]
@@ -79,49 +91,54 @@ impl RefreshTokenStore for DbRefreshTokenStore {
     }
 
     async fn revoke_all_refresh_tokens_for_user(&self, user_id: Uuid) -> StoreResult<Vec<Uuid>> {
-        let token_ids = refresh_tokens::Entity::find()
-            .select_only()
-            .column(refresh_tokens::Column::Id)
-            .filter(refresh_tokens::Column::UserId.eq(user_id))
-            .filter(refresh_tokens::Column::Revoked.eq(false))
-            .into_tuple::<Uuid>()
-            .all(self.db.as_ref())
-            .await?;
-
-        refresh_tokens::Entity::update_many()
-            .col_expr(refresh_tokens::Column::Revoked, Expr::value(true))
-            .filter(refresh_tokens::Column::UserId.eq(user_id))
-            .filter(refresh_tokens::Column::Revoked.eq(false))
-            .exec(self.db.as_ref())
-            .await?;
-        Ok(token_ids)
+        let stmt = Statement::from_sql_and_values(
+            DatabaseBackend::Sqlite,
+            "UPDATE refresh_tokens SET revoked = 1 \
+             WHERE user_id = ? AND revoked = 0 RETURNING id",
+            [user_id.into()],
+        );
+        let rows = self.db.query_all(stmt).await?;
+        Ok(rows
+            .iter()
+            .map(|row| row.try_get_by_index::<Uuid>(0))
+            .collect::<Result<_, _>>()?)
     }
 
     async fn try_revoke_refresh_token(&self, id: Uuid) -> StoreResult<Option<Uuid>> {
-        // Atomic conditional UPDATE — only matches if the token is still
-        // unrevoked + unexpired. Returns the user_id of the matched row
-        // (single round trip; no TOCTOU window between check + revoke).
-        let now_iso = chrono::Utc::now();
-        let res = refresh_tokens::Entity::update_many()
-            .col_expr(refresh_tokens::Column::Revoked, Expr::value(true))
-            .filter(refresh_tokens::Column::Id.eq(id))
-            .filter(refresh_tokens::Column::Revoked.eq(false))
-            .filter(refresh_tokens::Column::ExpiresAt.gt(now_iso))
-            .exec(self.db.as_ref())
-            .await?;
-        // UPDATE in SeaORM doesn't support RETURNING uniformly on the rust-sql
-        // engine, so we fall back to a follow-up read for the
-        // user_id. The atomic UPDATE above is what closes the race — the
-        // read here is safe because if `rows_affected == 0` no one else can
-        // claim it; if `rows_affected == 1` we know the row is now `revoked=true`,
-        // so the user_id lookup is consistent.
-        if res.rows_affected == 0 {
-            return Ok(None);
+        self.claim(id, None).await
+    }
+
+    async fn try_revoke_owned_refresh_token(
+        &self,
+        id: Uuid,
+        owner: Uuid,
+    ) -> StoreResult<Option<Uuid>> {
+        self.claim(id, Some(owner)).await
+    }
+}
+
+impl DbRefreshTokenStore {
+    /// One conditional UPDATE that revokes a live token and hands back its
+    /// owner: only the first concurrent caller can claim it, and there is
+    /// no window between checking the token and revoking it.
+    async fn claim(&self, id: Uuid, owner: Option<Uuid>) -> StoreResult<Option<Uuid>> {
+        let mut sql = String::from(
+            "UPDATE refresh_tokens SET revoked = 1 \
+             WHERE id = ? AND revoked = 0 AND expires_at > ?",
+        );
+        let mut values: Vec<Value> = vec![id.into(), chrono::Utc::now().into()];
+        if let Some(owner) = owner {
+            sql.push_str(" AND user_id = ?");
+            values.push(owner.into());
         }
-        let model = refresh_tokens::Entity::find_by_id(id)
-            .one(self.db.as_ref())
-            .await?;
-        Ok(model.map(|m| m.user_id))
+        sql.push_str(" RETURNING user_id");
+        let stmt = Statement::from_sql_and_values(DatabaseBackend::Sqlite, sql, values);
+        Ok(self
+            .db
+            .query_one(stmt)
+            .await?
+            .map(|row| row.try_get_by_index::<Uuid>(0))
+            .transpose()?)
     }
 }
 
@@ -221,6 +238,18 @@ impl<S: RefreshTokenStore> RefreshTokenStore for CacheRefreshTokenStore<S> {
         }
         result
     }
+
+    async fn try_revoke_owned_refresh_token(
+        &self,
+        id: Uuid,
+        owner: Uuid,
+    ) -> StoreResult<Option<Uuid>> {
+        let result = self.inner.try_revoke_owned_refresh_token(id, owner).await;
+        if result.is_ok() {
+            let _ = self.cache.delete(&refresh_token_key(id)).await;
+        }
+        result
+    }
 }
 
 #[cfg(test)]
@@ -256,6 +285,14 @@ mod tests {
         }
 
         async fn try_revoke_refresh_token(&self, _id: Uuid) -> StoreResult<Option<Uuid>> {
+            unimplemented!()
+        }
+
+        async fn try_revoke_owned_refresh_token(
+            &self,
+            _id: Uuid,
+            _owner: Uuid,
+        ) -> StoreResult<Option<Uuid>> {
             unimplemented!()
         }
     }

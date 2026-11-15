@@ -87,7 +87,7 @@ yourdomain.com {
     header @health Cache-Control "no-cache, no-store, must-revalidate"
 
     # ── API rate limiting (bypassed for WS upgrades) ─────────────
-    # The Rust backend already has tower_governor rate limiting.
+    # The Rust backend already rate-limits per client IP (middleware/rate_limit.rs).
     # Caddy's rate limiting is a second layer for DDoS protection.
     # Uncomment to enable:
     # rate_limit {

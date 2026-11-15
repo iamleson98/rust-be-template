@@ -1,5 +1,3 @@
-'use client'
-
 /**
  * The days-of-week field of ScheduleFormDialog — per-day toggles plus
  * the Tất cả / Ngày thường / Cuối tuần / Bỏ chọn presets.

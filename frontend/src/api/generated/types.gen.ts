@@ -18,6 +18,11 @@ export type AdminAddressListResponse = {
 export type AdminAddressOut = {
     address?: string | null;
     brandId: string;
+    /**
+     * Slug of the city the point is in; `null` only on points older than
+     * the field that no city name matched.
+     */
+    cityId?: string | null;
     createdAt: string;
     district?: string | null;
     id: string;
@@ -25,6 +30,10 @@ export type AdminAddressOut = {
     lon: number;
     name: string;
     province?: string | null;
+    /**
+     * Schedule stops at this address (the list endpoint only).
+     */
+    stopCount?: number | null;
     updatedAt: string;
     ward?: string | null;
 };
@@ -773,6 +782,31 @@ export type BrandListResponse = {
 };
 
 /**
+ * Multipart body of `POST /api/uploads/brand-logo` (documentation only:
+ * the handler reads the parts itself).
+ */
+export type BrandLogoUploadForm = {
+    /**
+     * The logo: JPEG, PNG, WebP or SVG, ≤ 5 MiB.
+     */
+    file: Blob | File;
+};
+
+/**
+ * Response of `POST /api/uploads/brand-logo`.
+ */
+export type BrandLogoUploadResponse = {
+    /**
+     * Storage key: `brands/logos/{hash16}.{webp|svg}`.
+     */
+    key: string;
+    /**
+     * `/api/media/{key}` — the value to store as the brand's `logoUrl`.
+     */
+    url: string;
+};
+
+/**
  * Slim brand entry returned by `GET /api/brands`.
  */
 export type BrandOut = {
@@ -788,6 +822,29 @@ export type BrandOut = {
      */
     routeCount: number;
     slug: string;
+};
+
+/**
+ * A brand's public page in one read — `GET /api/brands/{slug}/profile`.
+ * Every figure is read, never estimated: a route with no schedule has no
+ * price, a brand with no review has no rating. Absent values are `null`
+ * (not omitted), as the brand page's client expects.
+ */
+export type BrandProfile = {
+    brand: ProfileBrand;
+    /**
+     * At most 60, by city then name.
+     */
+    locations: Array<ProfileLocation>;
+    /**
+     * Active routes by name.
+     */
+    routes: Array<ProfileRoute>;
+    /**
+     * Trips leaving in the next 3 days (today included), soonest first,
+     * at most 40.
+     */
+    trips: Array<ProfileTrip>;
 };
 
 /**
@@ -1351,7 +1408,7 @@ export type CronJobRunOut = {
  */
 export type DatabaseSizeResponse = {
     /**
-     * Engine identity (rust-sql build).
+     * Build identity of the linked SQLite (`sqlite3_sourceid()`).
      */
     engine: string;
     files: DbFilesOut;
@@ -1359,7 +1416,7 @@ export type DatabaseSizeResponse = {
     probe?: null | DbProbeOut;
     /**
      * Top-25 largest objects (tables + indexes) from `dbstat`; `None`
-     * when the engine build lacks the dbstat virtual table.
+     * when that query fails.
      */
     topTables?: Array<DbTableSizeOut> | null;
     /**
@@ -1370,25 +1427,19 @@ export type DatabaseSizeResponse = {
 
 export type DatabaseStats = {
     /**
-     * Current active connections (in use). `-1` if unavailable
-     * (e.g. SQLite which doesn't have a pool).
+     * Pool connections currently checked out (open minus idle).
      */
     activeConnections: number;
     /**
-     * Backend name — always `"sqlite (rust-sql engine)"` in this
-     * build (rustqlite via the sqlx-sqlite C-ABI compat layer).
+     * Backend name — always `"sqlite (begin-concurrent)"`.
      */
     backend: string;
     /**
-     * Engine-level resource usage: memory used, throughput, and
-     * performance capacity. Sourced from the rustqlite engine's
-     * built-in counters (`sqlite3::engine_stats()` — process-global
-     * atomics bumped on the hot path at ~1 ns each, the same trade
-     * SQLite's own `SQLITE_STATUS` counters make).
+     * The linked SQLite build and its heap usage.
      */
     engine: EngineStatsOut;
     /**
-     * Current idle connections (in pool, available). `-1` if unavailable.
+     * Pool connections open and idle (available).
      */
     idleConnections: number;
     /**
@@ -1437,9 +1488,8 @@ export type DbFilesOut = {
  */
 export type DbPragmasOut = {
     /**
-     * Configured engine-wide page-cache budget in KiB
-     * (DATABASE_CACHE_KIB; the rust-sql engine shares ONE pager per
-     * file across the pool, so this is a single budget, not per-conn).
+     * Configured page-cache budget in KiB PER pooled connection
+     * (DATABASE_CACHE_KIB).
      */
     cacheKib: number;
     /**
@@ -1586,228 +1636,35 @@ export type DiskInfo = {
     usagePercent: number;
 };
 
-export type EngineCacheOut = {
-    /**
-     * Hit rate, 0.0–100.0. High (> 95) = working set fits in memory.
-     */
-    hitRatePct: number;
-    /**
-     * Page-cache hits since open.
-     */
-    hits: number;
-    /**
-     * Page-cache misses (file/WAL reads) since open.
-     */
-    misses: number;
-};
-
-export type EngineConnectionsOut = {
-    /**
-     * Connections fully dropped since process start.
-     */
-    closed: number;
-    /**
-     * Live C-ABI connections right now (each sqlx pool connection
-     * = one).
-     */
-    live: number;
-    /**
-     * Total `sqlite3_open*` calls since process start.
-     */
-    opened: number;
-};
-
-export type EngineContentionOut = {
-    /**
-     * Waits that exhausted `busy_timeout` and returned SQLITE_BUSY.
-     */
-    busyTimeouts: number;
-    /**
-     * Times a writer had to WAIT for a foreign transaction's slot.
-     */
-    busyWaits: number;
-};
-
 /**
- * Per-database-file engine snapshot (usually one: the app DB).
+ * SQLite's own heap usage, process-wide (`SQLITE_STATUS_MEMORY_USED`:
+ * page caches, prepared statements, schema — not process RSS).
  */
-export type EngineFileOut = {
-    /**
-     * Cache capacity, MB.
-     */
-    cacheCapacityMb: number;
-    /**
-     * Cache capacity in pages.
-     */
-    cacheCapacityPages: number;
-    /**
-     * Cache hits since open.
-     */
-    cacheHits: number;
-    /**
-     * Cache memory in use, MB.
-     */
-    cacheMb: number;
-    /**
-     * Cache misses since open.
-     */
-    cacheMisses: number;
-    /**
-     * Pages currently held in the shared page cache.
-     */
-    cachePages: number;
-    /**
-     * Freelist pages (reclaimable space).
-     */
-    freelistPages: number;
-    /**
-     * Hit rate, 0.0–100.0.
-     */
-    hitRatePct: number;
-    /**
-     * Live C-ABI connections sharing this engine right now.
-     */
-    liveConnections: number;
-    /**
-     * Registry key — canonical file path (or shared-memory name).
-     */
-    name: string;
-    /**
-     * Pages in the database file.
-     */
-    pageCount: number;
-    /**
-     * Page size in bytes.
-     */
-    pageSizeBytes: number;
-    /**
-     * Database size in MB (`page_count × page_size`).
-     */
-    sizeMb: number;
-    /**
-     * Row mutations since open.
-     */
-    totalChanges: number;
-    /**
-     * True when a transaction owns the engine slot right now.
-     */
-    transactionActive: boolean;
-    /**
-     * Frames currently in the write-ahead log.
-     */
-    walFrames: number;
-};
-
 export type EngineMemoryOut = {
     /**
-     * Page-cache capacity in MB (the configured upper bound the
-     * caches may grow to).
+     * Bytes SQLite currently has allocated, in MB.
      */
-    cacheCapacityMb: number;
+    heapMb: number;
     /**
-     * Page-cache memory in use across all engine files (pages
-     * currently cached × page size), in MB.
+     * Highest value of `heap_mb` since process start.
      */
-    cacheMb: number;
-    /**
-     * On-disk database size across all files, in MB.
-     */
-    dbSizeMb: number;
-    /**
-     * Reclaimable freelist pages across all files.
-     */
-    freelistPages: number;
-    /**
-     * Cache utilization, 0.0–100.0 — `cache / capacity`.
-     */
-    utilizationPct: number;
-    /**
-     * Frames currently buffered in the write-ahead log.
-     */
-    walFrames: number;
+    heapPeakMb: number;
 };
 
 /**
- * Live resource usage of the rustqlite engine — the "database
- * engine" card group on the admin system page.
+ * The linked SQLite build — the "database engine" card group on the
+ * admin system page.
  */
 export type EngineStatsOut = {
-    /**
-     * Page-cache performance (hit rate — the primary "performance
-     * capacity" signal for a page-cache-driven engine).
-     */
-    cache: EngineCacheOut;
-    connections: EngineConnectionsOut;
-    /**
-     * Write-slot contention (how often writers waited for the
-     * engine-level transaction slot + how many timed out).
-     */
-    contention: EngineContentionOut;
-    /**
-     * One entry per registered engine (per database file). Usually
-     * exactly one — the app's `app.db`.
-     */
-    files: Array<EngineFileOut>;
-    /**
-     * Memory used by the engine's page caches (the engine's own
-     * memory footprint, distinct from process RSS).
-     */
     memory: EngineMemoryOut;
     /**
-     * Live throughput rates (per second, computed between successive
-     * scrapes of this endpoint) + lifetime totals.
+     * `sqlite3_libversion()`, e.g. `3.51.3`.
      */
-    throughput: EngineThroughputOut;
-    transactions: EngineTransactionsOut;
+    sqliteVersion: string;
     /**
-     * Engine build identity (`sqlite3_source_id()` — names rustqlite).
+     * Build identity (`sqlite3_sourceid()`: check-in timestamp + hash).
      */
     version: string;
-};
-
-export type EngineThroughputOut = {
-    /**
-     * Rows delivered to clients per second (between scrapes).
-     */
-    rowsPerSec: number;
-    /**
-     * Total rows returned since process start.
-     */
-    rowsReturned: number;
-    /**
-     * Total statements prepared since process start.
-     */
-    statementsPrepared: number;
-    /**
-     * Total statement steps since process start.
-     */
-    steps: number;
-    /**
-     * Statement steps per second (total statement progress).
-     */
-    stepsPerSec: number;
-    /**
-     * Row mutations since open (the engine's `total_changes`).
-     */
-    totalChanges: number;
-    /**
-     * Total writes executed since process start.
-     */
-    writesExecuted: number;
-    /**
-     * Write statements completed per second.
-     */
-    writesPerSec: number;
-};
-
-export type EngineTransactionsOut = {
-    /**
-     * True when a transaction owns the engine write slot right now.
-     */
-    active: boolean;
-    begun: number;
-    committed: number;
-    rolledBack: number;
 };
 
 /**
@@ -1912,9 +1769,14 @@ export type ListPostsResponse = {
     total?: number | null;
 };
 
+/**
+ * Body of `POST /api/auth/login` and `/api/auth/employee-login`: the
+ * email, or the phone number given at registration, and the password.
+ */
 export type LoginRequest = {
-    email: string;
+    email?: string | null;
     password: string;
+    phone?: string | null;
 };
 
 export type LogoutRequest = {
@@ -2365,81 +2227,50 @@ export type PayoutOut = {
 };
 
 /**
- * Response of `GET /api/places`.
+ * Which index answered.
+ */
+export type PlaceEngine = 'index' | 'unavailable';
+
+/**
+ * Response of `GET /api/places`: the most populous cities and towns.
  */
 export type PlaceListResponse = {
-    items: Array<PlaceOut>;
+    items: Array<PlaceSearchHit>;
 };
 
 /**
- * A place row from the database, as returned by `GET /api/places`.
+ * One place, as returned by search, the popular list and reverse geocoding.
  */
-export type PlaceOut = {
+export type PlaceSearchHit = {
+    district?: string | null;
+    /**
+     * OSM type letter + id: `n123` (node), `w45` (way), `r6` (relation).
+     */
     id: string;
     lat: number;
     lon: number;
     name: string;
-    population: number;
+    /**
+     * The name without tone marks, lower case (`ha noi`).
+     */
+    nameNoTones: string;
     province?: string | null;
     /**
-     * OSM place kind (city / town / village / suburb ...). Mirrors the
-     * DB column `place.type` (renamed because `type` is a Rust keyword).
+     * Relevance of a search hit; `0` for the popular list and reverse geocoding.
+     */
+    score: number;
+    /**
+     * Kind of place: `city`, `town`, `bus_station`, `airport`, `street`, ...
      */
     type: string;
-};
-
-/**
- * A search hit returned by `GET /api/places/search?q=`.
- *
- * When the Tantivy index is configured, fields like `osmId`, `ward`,
- * `district`, `city`, `score`, `distanceKm` are populated. When the
- * SQL LIKE fallback is used, only the DB-backed fields are set.
- */
-export type PlaceSearchHit = {
-    city?: string | null;
-    /**
-     * Distance from the `lat` / `lon` query param, in km. Set when
-     * the caller passes `lat` + `lon` (geo-bias).
-     */
-    distanceKm?: number | null;
-    district?: string | null;
-    houseNumber?: string | null;
-    /**
-     * DB row id (only set when the hit comes from the `place` table).
-     */
-    id?: string | null;
-    lat?: number | null;
-    lon?: number | null;
-    name: string;
-    /**
-     * OSM node/way id (only set for Tantivy hits).
-     */
-    osmId?: number | null;
-    /**
-     * OSM place kind (Tantivy hits only).
-     */
-    placeKind?: string | null;
-    province?: string | null;
-    /**
-     * Tantivy relevance score (0..1). Only set for Tantivy hits.
-     */
-    score?: number | null;
-    /**
-     * `place.type` (DB hits only — present on SQL LIKE fallback).
-     */
-    type?: string | null;
     ward?: string | null;
 };
 
 /**
- * Response of `GET /api/places/search?q=`.
+ * Response of `GET /api/places/search`.
  */
 export type PlaceSearchResponse = {
-    /**
-     * Which engine produced the results: `tantivy` (fulltext index) or
-     * `sql` (LIKE fallback). Omitted for the SQL fallback.
-     */
-    engine?: string | null;
+    engine: PlaceEngine;
     items: Array<PlaceSearchHit>;
 };
 
@@ -2574,6 +2405,101 @@ export type ProcessStats = {
 };
 
 /**
+ * The brand of a [`BrandProfile`].
+ */
+export type ProfileBrand = {
+    contactEmail?: string | null;
+    contactPhone?: string | null;
+    description?: string | null;
+    id: string;
+    logoUrl?: string | null;
+    name: string;
+    /**
+     * Mean of the approved reviews; `null` while there are none.
+     */
+    rating?: number | null;
+    /**
+     * Approved reviews.
+     */
+    reviewCount: number;
+    slug: string;
+};
+
+/**
+ * An office or stop of the brand.
+ */
+export type ProfileLocation = {
+    address?: string | null;
+    /**
+     * The city's display name.
+     */
+    city?: string | null;
+    id: string;
+    lat?: number | null;
+    lon?: number | null;
+    name: string;
+};
+
+/**
+ * An active route of the brand with its timetable.
+ */
+export type ProfileRoute = {
+    from: RouteEndpoint;
+    id: string;
+    name: string;
+    /**
+     * Lowest adult base price across its schedules; `null` while it has none.
+     */
+    priceFrom?: number | null;
+    schedules: Array<ProfileSchedule>;
+    to: RouteEndpoint;
+};
+
+/**
+ * One daily departure of a route.
+ */
+export type ProfileSchedule = {
+    /**
+     * The weekdays it runs, Monday first, as seven `1`/`0`; `null` when the
+     * schedule sets none (it runs every day).
+     */
+    daysOfWeek?: string | null;
+    /**
+     * `HH:MM`.
+     */
+    departureTime: string;
+    id: string;
+    priceAdult: number;
+    /**
+     * The vehicle type's label.
+     */
+    vehicleType?: string | null;
+};
+
+/**
+ * A trip about to leave.
+ */
+export type ProfileTrip = {
+    availableSeats: number;
+    /**
+     * `YYYY-MM-DD`, Vietnam.
+     */
+    date: string;
+    /**
+     * `HH:MM`.
+     */
+    departureTime: string;
+    priceAdult: number;
+    routeId: string;
+    totalSeats: number;
+    tripId: string;
+    /**
+     * The vehicle type's label.
+     */
+    vehicleType?: string | null;
+};
+
+/**
  * Response of `GET /api/campaigns`: running and upcoming campaigns.
  */
 export type PublicCampaignListResponse = {
@@ -2655,6 +2581,10 @@ export type RegisterDeviceResponse = {
 export type RegisterRequest = {
     email?: string | null;
     fullName: string;
+    /**
+     * The account's language, `vi` (default) or `en`.
+     */
+    locale?: string | null;
     password: string;
     phone?: string | null;
 };
@@ -2674,6 +2604,9 @@ export type RejectCouponRequest = {
  * Fire-and-forget: the response only acknowledges storage — the
  * Google Ads API upload happens asynchronously and never blocks the
  * user's flow.
+ *
+ * The beacon carries no revenue or currency: both are read from the booking
+ * (or its completed payment) in the database.
  */
 export type ReportConversionRequest = {
     /**
@@ -2681,26 +2614,16 @@ export type ReportConversionRequest = {
      */
     clickIds?: ClickIds;
     /**
-     * ISO-4217 currency code (`VND`).
-     */
-    currency?: string | null;
-    /**
      * Conversion event name — must match a key in the
      * `GOOGLE_ADS_CONVERSION_ACTIONS` map (`booking` | `purchase`).
      */
     event: string;
     /**
-     * Stable dedupe id — the booking code. Repeat beacons collapse.
-     * Optional: an id-less conversion can't be deduped (mirroring
-     * Google's own optional `orderId`) — the server mints a uuid so
-     * each fire is recorded distinctly.
+     * The booking code — required: the server verifies it against a
+     * real, uncancelled booking (a missing or unknown code is rejected)
+     * and it is the dedupe id, so repeat beacons collapse.
      */
-    transactionId?: string | null;
-    /**
-     * Revenue (decimal string, e.g. `"250000"` or `"250000.00"`) —
-     * kept verbatim so no float rounding reaches Google.
-     */
-    value?: string | null;
+    transactionId: string;
 };
 
 /**
@@ -2944,18 +2867,34 @@ export type RoutePictureOut = {
      */
     sortOrder: number;
     /**
-     * Public URL of the JPEG thumbnail (long edge ≤ 640px) — use this
+     * Public URL of the WebP thumbnail (long edge ≤ 640px) — use this
      * in lists/grids, `url` in the detail gallery.
      */
     thumbUrl: string;
     /**
-     * Public URL of the ORIGINAL image (content-addressed, immutable).
+     * Public URL of the full-size WebP (long edge ≤ 1920px;
+     * content-addressed, immutable).
      */
     url: string;
     /**
      * Original dimensions in pixels (for layout before load).
      */
     width: number;
+};
+
+/**
+ * Multipart body of `POST /api/admin/routes/{id}/pictures` (documentation
+ * only: the handler reads the parts itself).
+ */
+export type RoutePictureUploadForm = {
+    /**
+     * Accessible description, at most 255 characters.
+     */
+    alt_text?: string | null;
+    /**
+     * The picture: JPEG, PNG or WebP.
+     */
+    file: Blob | File;
 };
 
 /**
@@ -3131,6 +3070,11 @@ export type SettleCouponsResponse = {
      */
     settled: number;
 };
+
+/**
+ * Sort direction. Case-insensitive on input (`asc` / `desc`).
+ */
+export type SortOrder = 'asc' | 'desc';
 
 /**
  * One OFFLINE entry of the team roster — a staff member who was
@@ -3415,6 +3359,10 @@ export type TripDetail = {
 };
 
 export type TripEndpoint = {
+    /**
+     * The city's slug (`ha-noi`); absent for a city the app does not know.
+     */
+    cityId?: string | null;
     lat: number;
     lon: number;
     name?: string | null;
@@ -3541,6 +3489,10 @@ export type TripSchedulePoint = {
      * Optional `HH:MM` — when the vehicle reaches this stop.
      */
     arrivalTime?: string | null;
+    /**
+     * The city (slug) the stop is in, when its address names one.
+     */
+    cityId?: string | null;
     id: string;
     /**
      * `pickup` (first) / `middle` / `drop` (last) — derived from the
@@ -3734,15 +3686,22 @@ export type UpdateRoutePictureInput = {
 
 /**
  * Request body for `POST /api/admin/addresses` + `PUT /api/admin/addresses/{id}`.
+ *
+ * On an update a field left out keeps its value; `null` or a blank string
+ * clears an optional text field.
  */
 export type UpsertAddressRequest = {
     address?: string | null;
     brandId?: string | null;
+    /**
+     * Slug of one of our cities (`crate::cities`); required to create. The
+     * point's `province` follows from it.
+     */
+    cityId?: string | null;
     district?: string | null;
     lat?: number | null;
     lon?: number | null;
     name?: string | null;
-    province?: string | null;
     ward?: string | null;
 };
 
@@ -3753,8 +3712,16 @@ export type UpsertAddressRequest = {
 export type UpsertBrandRequest = {
     childFare?: null | ChildFarePolicy;
     contactEmail?: string | null;
+    /**
+     * A hotline as the brand writes it (`1900 6067`, `1800…`, `0…`, `+84…`):
+     * any text up to 32 characters, like the reference admin API.
+     */
     contactPhone?: string | null;
     description?: string | null;
+    /**
+     * An uploaded logo (`/api/media/brands/logos/…`) or an https URL;
+     * blank or `null` clears it. Checked by the service.
+     */
     logoUrl?: string | null;
     name?: string | null;
     slug?: string | null;
@@ -3768,6 +3735,10 @@ export type UpsertBrandRequest = {
  * without orphaning per-trip seat inventory).
  */
 export type UpsertBusLayoutRequest = {
+    /**
+     * Owning brand; on an update `null` makes the layout part of the
+     * shared catalog.
+     */
     brandId?: string | null;
     /**
      * Optional layout JSON blob (reserved for seat-map geometry).
@@ -3783,7 +3754,8 @@ export type UpsertBusLayoutRequest = {
     totalSeats?: number | null;
     /**
      * Legacy vehicle-class code (`limousine`, `sleeper`, …) — kept in
-     * sync with the `vehicle_type` catalog codes.
+     * sync with the `vehicle_type` catalog codes. `null` or a blank string
+     * clears it.
      */
     vehicleType?: string | null;
 };
@@ -3836,16 +3808,20 @@ export type UpsertSchedulePointItem = {
 
 /**
  * Request body for `POST /api/admin/schedules` + `PUT /api/admin/schedules/{id}`.
+ *
+ * On an update a field left out keeps its value; `null` (or a blank string)
+ * clears an optional one.
  */
 export type UpsertScheduleRequest = {
     amenities?: string | null;
     basePriceAdult?: number | null;
     /**
-     * Child price of a standard seat; `0` = the brand's discount applies.
+     * Child price of a standard seat; `0` or `null` = the brand's discount
+     * applies.
      */
     basePriceChild?: number | null;
     /**
-     * Bus layout id (string on the wire, `Uuid` in Rust).
+     * Bus layout id (string on the wire, `Uuid` in Rust); `null` unlinks it.
      */
     busLayoutId?: string | null;
     /**
@@ -3864,8 +3840,9 @@ export type UpsertScheduleRequest = {
     points?: Array<UpsertSchedulePointItem> | null;
     routeId?: string | null;
     /**
-     * Vehicle class from the admin-managed `vehicle_type` catalog.
-     * Validated in the service (404-style validation error when unknown).
+     * Vehicle class from the admin-managed `vehicle_type` catalog; `null`
+     * unlinks it. Validated in the service (404-style validation error
+     * when unknown).
      */
     vehicleTypeId?: string | null;
 };
@@ -4065,7 +4042,7 @@ export type AdminAddressesCreateData = {
 
 export type AdminAddressesCreateErrors = {
     /**
-     * Bad request — missing name/lat/lon/brandId
+     * Bad request — missing name/lat/lon/brandId, or a missing or unknown cityId
      */
     400: unknown;
     /**
@@ -4537,6 +4514,11 @@ export type AdminBusLayoutsListData = {
     path?: never;
     query?: {
         brandId?: string;
+        /**
+         * With `brandId`: the shared catalog (layouts without a brand) is
+         * listed too, next to the brand's own layouts.
+         */
+        includeShared?: boolean;
         /**
          * Page size (clamped to `[1, 200]` by the service). `None` = all
          * rows (legacy consumers).
@@ -5242,7 +5224,7 @@ export type AdminCronJobsUpdateData = {
     body: UpdateCronJobRequest;
     path: {
         /**
-         * Job type (e.g. `osm.import`)
+         * Job type (e.g. `coupons.expire`)
          */
         jobType: string;
     };
@@ -5282,7 +5264,7 @@ export type AdminCronJobsCancelData = {
     body?: never;
     path: {
         /**
-         * Job type (e.g. `osm.import`)
+         * Job type (e.g. `coupons.expire`)
          */
         jobType: string;
     };
@@ -5322,7 +5304,7 @@ export type AdminCronJobsTriggerData = {
     body?: never;
     path: {
         /**
-         * Job type (e.g. `osm.import`)
+         * Job type (e.g. `coupons.expire`)
          */
         jobType: string;
     };
@@ -5940,10 +5922,7 @@ export type ListPicturesResponses = {
 export type ListPicturesResponse = ListPicturesResponses[keyof ListPicturesResponses];
 
 export type UploadPictureData = {
-    /**
-     * multipart/form-data: `file` (image), optional `alt_text`
-     */
-    body: Array<number>;
+    body: RoutePictureUploadForm;
     path: {
         /**
          * Route ID
@@ -6503,9 +6482,13 @@ export type ReportConversionData = {
 
 export type ReportConversionErrors = {
     /**
-     * Invalid event / transaction id
+     * Unknown event or missing transaction id
      */
     400: unknown;
+    /**
+     * No such booking, or a purchase with no completed payment
+     */
+    404: unknown;
 };
 
 export type ReportConversionResponses = {
@@ -6530,9 +6513,13 @@ export type EmployeeLoginErrors = {
      */
     401: unknown;
     /**
-     * Not an employee
+     * Not an employee, or the account is not active
      */
     403: unknown;
+    /**
+     * Account locked after too many wrong passwords; see Retry-After
+     */
+    429: unknown;
 };
 
 export type EmployeeLoginResponses = {
@@ -6556,6 +6543,14 @@ export type AuthLoginErrors = {
      * Invalid credentials
      */
     401: unknown;
+    /**
+     * Account is not active
+     */
+    403: unknown;
+    /**
+     * Account locked after too many wrong passwords; see Retry-After
+     */
+    429: unknown;
 };
 
 export type AuthLoginResponses = {
@@ -6928,6 +6923,34 @@ export type BrandDetailResponses = {
 
 export type BrandDetailResponse = BrandDetailResponses[keyof BrandDetailResponses];
 
+export type BrandProfileData = {
+    body?: never;
+    path: {
+        /**
+         * Brand slug
+         */
+        slug: string;
+    };
+    query?: never;
+    url: '/api/brands/{slug}/profile';
+};
+
+export type BrandProfileErrors = {
+    /**
+     * Unknown or inactive brand
+     */
+    404: unknown;
+};
+
+export type BrandProfileResponses = {
+    /**
+     * Brand page
+     */
+    200: BrandProfile;
+};
+
+export type BrandProfileResponse = BrandProfileResponses[keyof BrandProfileResponses];
+
 export type CampaignsListData = {
     body?: never;
     path?: never;
@@ -6998,7 +7021,7 @@ export type ListChannelsData = {
     query?: {
         limit?: number;
         /**
-         * 0-based page offset on the `last_message_at DESC` ordering —
+         * 0-based page offset on the newest-activity-first ordering —
          * `offset=30` returns the next 30 less-recent channels. Powers
          * the admin workspace's infinite channel list.
          */
@@ -7353,7 +7376,7 @@ export type MediaServeData = {
     body?: never;
     path: {
         /**
-         * Storage key: routes/{routeId}/{hash16}.{ext}
+         * Storage key: routes/{routeId}/{hash16}.{ext}, routes/{routeId}/t{hash16}.{ext} or brands/logos/{hash16}.{ext}
          */
         key: string;
     };
@@ -7782,7 +7805,13 @@ export type PlacesListData = {
     body?: never;
     path?: never;
     query?: {
+        /**
+         * Default 50, 1..200.
+         */
         limit?: number | null;
+        /**
+         * Places to skip from the top of the list.
+         */
         offset?: number | null;
     };
     url: '/api/places';
@@ -7790,7 +7819,7 @@ export type PlacesListData = {
 
 export type PlacesListResponses = {
     /**
-     * Place list
+     * Popular places (empty until the first place index is built)
      */
     200: PlaceListResponse;
 };
@@ -7803,6 +7832,9 @@ export type PlacesReverseData = {
     query: {
         lat: number;
         lon: number;
+        /**
+         * Default 10, 1..50.
+         */
         limit?: number | null;
     };
     url: '/api/places/reverse';
@@ -7810,7 +7842,7 @@ export type PlacesReverseData = {
 
 export type PlacesReverseResponses = {
     /**
-     * Reverse geocode results
+     * Nearest places first (empty until the first place index is built, and for a point off the globe)
      */
     200: Array<PlaceSearchHit>;
 };
@@ -7821,15 +7853,33 @@ export type PlacesSearchData = {
     body?: never;
     path?: never;
     query: {
+        /**
+         * The text to look for; blank lists the popular places.
+         */
         q: string;
+        /**
+         * Default 10, 1..50.
+         */
         limit?: number | null;
+        /**
+         * Favour places near this point; `lat` and `lon` go together.
+         */
+        lat?: number | null;
+        lon?: number | null;
     };
     url: '/api/places/search';
 };
 
+export type PlacesSearchErrors = {
+    /**
+     * `lat` without `lon` (or the reverse), or a point outside the globe
+     */
+    400: unknown;
+};
+
 export type PlacesSearchResponses = {
     /**
-     * Search results
+     * Search results; `engine` is `unavailable` (no items) until the first place index is built
      */
     200: PlaceSearchResponse;
 };
@@ -8001,7 +8051,7 @@ export type PriceAlertsListData = {
         /**
          * Sort direction: `asc` or `desc`.
          */
-        order?: unknown;
+        order?: SortOrder;
         /**
          * Guest lookup by phone (public). Omit for the authenticated-user
          * list.
@@ -8374,6 +8424,9 @@ export type RoutesData = {
     body?: never;
     path?: never;
     query?: {
+        /**
+         * Only this brand's routes (a UUID).
+         */
         brand_id?: string | null;
         limit?: number | null;
     };
@@ -8582,6 +8635,17 @@ export type SearchTripsGeoData = {
         vehicleTypes?: string | null;
         maxDistanceKm?: number | null;
         /**
+         * The city the pickup place is in, as the place search names it
+         * (e.g. `Hà Nội`). With `toCity`, every trip between the two cities
+         * is found too, however far its stops are; trips whose stops have no
+         * coordinates to measure come last, without a pickup or drop-off.
+         */
+        fromCity?: string | null;
+        /**
+         * The city the drop-off place is in; see `fromCity`.
+         */
+        toCity?: string | null;
+        /**
          * Only trips boarding at or after this time of day (`HH:MM`).
          */
         departAfter?: string | null;
@@ -8674,6 +8738,37 @@ export type TripDetailResponses = {
 };
 
 export type TripDetailResponse = TripDetailResponses[keyof TripDetailResponses];
+
+export type UploadBrandLogoData = {
+    body: BrandLogoUploadForm;
+    path?: never;
+    query?: never;
+    url: '/api/uploads/brand-logo';
+};
+
+export type UploadBrandLogoErrors = {
+    /**
+     * Missing file, unsupported format, corrupt image, unsafe SVG or over 5 MiB
+     */
+    400: unknown;
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+};
+
+export type UploadBrandLogoResponses = {
+    /**
+     * Stored logo
+     */
+    201: BrandLogoUploadResponse;
+};
+
+export type UploadBrandLogoResponse = UploadBrandLogoResponses[keyof UploadBrandLogoResponses];
 
 export type ListUsersData = {
     body?: never;
@@ -8888,6 +8983,13 @@ export type SitemapData = {
     path?: never;
     query?: never;
     url: '/sitemap.xml';
+};
+
+export type SitemapErrors = {
+    /**
+     * The catalogue could not be read
+     */
+    503: unknown;
 };
 
 export type SitemapResponses = {

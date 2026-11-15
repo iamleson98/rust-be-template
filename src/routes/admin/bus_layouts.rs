@@ -28,7 +28,8 @@ use crate::rbac::model::consts as rbac;
 use crate::state::AppState;
 
 /// `GET /api/admin/bus-layouts` — list bus layouts, with optional brand
-/// filter and offset pagination.
+/// filter and offset pagination. `includeShared=true` adds the shared
+/// catalog (layouts without a brand) to a brand's own layouts.
 #[utoipa::path(
     get,
     path = "/api/admin/bus-layouts",
@@ -52,6 +53,7 @@ pub async fn list(
         st.admin
             .list_bus_layouts(
                 q.brand_id.map(|id| id.to_string()).as_deref(),
+                q.include_shared.unwrap_or(false),
                 q.limit,
                 q.offset.unwrap_or(0),
             )

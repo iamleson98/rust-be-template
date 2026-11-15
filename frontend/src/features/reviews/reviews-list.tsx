@@ -1,5 +1,3 @@
-'use client'
-
 import { useQuery } from '@tanstack/react-query'
 import { reviewsListOptions, reviewsStatsOptions } from '@/api'
 import { memo, useState } from 'react'

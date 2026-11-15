@@ -1,5 +1,3 @@
-'use client'
-
 // Extracted from the original 'cancel-dialog.tsx'.
 
 import type { UseFormReturn } from 'react-hook-form'

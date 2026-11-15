@@ -37,7 +37,7 @@ use uuid::Uuid;
 #[async_trait]
 pub trait Job: Send + Sync + 'static {
     /// Stable identity on the queue, in run history and on the admin
-    /// page (`<domain>.<verb>`, e.g. `osm.import`). Never rename a kind
+    /// page (`<domain>.<verb>`, e.g. `coupons.expire`). Never rename a kind
     /// that may still have rows queued.
     const KIND: &'static str;
 

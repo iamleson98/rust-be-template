@@ -1,5 +1,3 @@
-'use client'
-
 import type { ReactNode } from 'react'
 import { Star, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'

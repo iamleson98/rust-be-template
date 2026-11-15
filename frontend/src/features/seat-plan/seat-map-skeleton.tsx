@@ -1,5 +1,3 @@
-'use client'
-
 import { memo } from 'react'
 import { Shimmer } from '@/components/ui/shimmer'
 

@@ -1,5 +1,3 @@
-'use client'
-
 import { type ComponentProps, type ReactElement, isValidElement } from 'react'
 import { PreviewCard as PreviewCardPrimitive } from '@base-ui/react/preview-card'
 
@@ -74,7 +72,12 @@ function HoverCardContent({
   }) {
   return (
     <PreviewCardPrimitive.Portal data-slot="hover-card-portal">
-      <PreviewCardPrimitive.Positioner side={side} align={align} sideOffset={sideOffset}>
+      <PreviewCardPrimitive.Positioner
+        side={side}
+        align={align}
+        sideOffset={sideOffset}
+        className="isolate z-[100]"
+      >
         <PreviewCardPrimitive.Popup
           data-slot="hover-card-content"
           render={(componentProps, state) => (

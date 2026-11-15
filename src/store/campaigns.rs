@@ -20,11 +20,12 @@ use sea_orm::sea_query::Expr;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, Condition, ConnectionTrait, DatabaseConnection, DbErr,
     EntityTrait, JoinType, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, RelationTrait,
-    Set, SqlErr, TransactionTrait,
+    Set, SqlErr,
 };
 use store_macros::retry;
 use uuid::Uuid;
 
+use crate::db::write::with_write;
 use crate::entity::{
     booking, coupon, discount_campaign, discount_campaign_brand as campaign_brand, discount_tier,
 };
@@ -193,18 +194,7 @@ pub trait CampaignStore: Send + Sync {
     /// campaign still runs. The released coupon, if there was one.
     async fn release_coupon(&self, user_id: Uuid, now: &str) -> StoreResult<Option<coupon::Model>>;
 
-    /// Put `coupon_id` on a booking. `false` when it is no longer the
-    /// held, valid coupon of `user_id`.
-    async fn reserve_coupon(
-        &self,
-        coupon_id: Uuid,
-        user_id: Uuid,
-        booking_id: Uuid,
-        brand_id: Option<Uuid>,
-        now: &str,
-    ) -> StoreResult<bool>;
-
-    /// Undo `reserve_coupon` for a booking that was never placed.
+    /// Undo a coupon reservation for a booking that was never placed.
     async fn unreserve_coupon(&self, booking_id: Uuid, now: &str) -> StoreResult<()>;
 
     async fn find_coupon(&self, id: Uuid) -> StoreResult<Option<coupon::Model>>;
@@ -297,6 +287,36 @@ async fn expire_held<C: ConnectionTrait>(
         q = q.filter(coupon::Column::ActiveHolder.eq(user_id));
     }
     Ok(q.exec(conn).await?.rows_affected)
+}
+
+/// Inside the transaction that holds the seats of `booking_id`: put
+/// `coupon_id` on it. `false` when it is no longer the held, valid coupon
+/// of `user_id` (used on another booking, expired, given up).
+pub(crate) async fn reserve_booking_coupon<C: ConnectionTrait>(
+    conn: &C,
+    coupon_id: Uuid,
+    user_id: Uuid,
+    booking_id: Uuid,
+    brand_id: Option<Uuid>,
+    now: &str,
+) -> Result<bool, DbErr> {
+    let reserved = coupon::Entity::update_many()
+        .col_expr(coupon::Column::Status, Expr::value(RESERVED))
+        .col_expr(coupon::Column::BookingId, Expr::value(Some(booking_id)))
+        .col_expr(coupon::Column::BrandId, Expr::value(brand_id))
+        .col_expr(
+            coupon::Column::ReservedAt,
+            Expr::value(Some(now.to_string())),
+        )
+        .col_expr(coupon::Column::UpdatedAt, Expr::value(now))
+        .filter(coupon::Column::Id.eq(coupon_id))
+        .filter(coupon::Column::ActiveHolder.eq(user_id))
+        .filter(coupon::Column::Status.eq(HELD))
+        .filter(still_valid(now))
+        .exec(conn)
+        .await?
+        .rows_affected;
+    Ok(reserved == 1)
 }
 
 /// Inside the transaction that cancels or expires `booking_id`: its
@@ -417,168 +437,161 @@ impl CampaignStore for DbCampaignStore {
         brand_ids: Vec<Uuid>,
         tiers: Vec<discount_tier::ActiveModel>,
     ) -> StoreResult<()> {
-        self.db
-            .transaction::<_, (), StoreError>(|txn| {
-                Box::pin(async move {
-                    let campaign_id = *campaign.id.try_as_ref().ok_or_else(|| {
-                        StoreError::Validation("a new campaign needs its id".into())
-                    })?;
-                    discount_campaign::Entity::insert(campaign)
+        with_write(&self.db, |txn| {
+            let (campaign, brand_ids, tiers) = (campaign.clone(), brand_ids.clone(), tiers.clone());
+            Box::pin(async move {
+                let campaign_id = *campaign
+                    .id
+                    .try_as_ref()
+                    .ok_or_else(|| StoreError::Validation("a new campaign needs its id".into()))?;
+                discount_campaign::Entity::insert(campaign)
+                    .exec_without_returning(txn)
+                    .await?;
+                insert_brands(txn, campaign_id, &brand_ids).await?;
+                if !tiers.is_empty() {
+                    discount_tier::Entity::insert_many(tiers)
                         .exec_without_returning(txn)
                         .await?;
-                    insert_brands(txn, campaign_id, &brand_ids).await?;
-                    if !tiers.is_empty() {
-                        discount_tier::Entity::insert_many(tiers)
-                            .exec_without_returning(txn)
-                            .await?;
-                    }
-                    Ok(())
-                })
+                }
+                Ok(())
             })
-            .await
-            .map_err(StoreError::from)
+        })
+        .await
     }
 
     async fn update_campaign(&self, id: Uuid, edit: CampaignEdit) -> StoreResult<()> {
-        self.db
-            .transaction::<_, (), StoreError>(|txn| {
-                Box::pin(async move {
-                    let CampaignEdit {
-                        campaign,
-                        brand_ids,
-                        tiers,
-                        delete_tiers,
-                        coupons_valid_until,
-                    } = edit;
-                    campaign.update(txn).await?;
-                    if let Some(valid_until) = coupons_valid_until {
-                        coupon::Entity::update_many()
-                            .col_expr(coupon::Column::ValidUntil, Expr::value(Some(valid_until)))
-                            .filter(coupon::Column::CampaignId.eq(id))
-                            .filter(coupon::Column::Status.is_in([HELD, RESERVED]))
-                            .filter(coupon::Column::ValidUntil.is_not_null())
-                            .exec(txn)
-                            .await?;
-                    }
-                    if let Some(brand_ids) = brand_ids {
-                        campaign_brand::Entity::delete_many()
-                            .filter(campaign_brand::Column::CampaignId.eq(id))
-                            .exec(txn)
-                            .await?;
-                        insert_brands(txn, id, &brand_ids).await?;
-                    }
-                    for tier_id in delete_tiers {
-                        // Given-back and expired coupons still name their
-                        // tier (the history the payouts show): it stays.
-                        let referenced = coupon::Entity::find()
-                            .filter(coupon::Column::TierId.eq(tier_id))
-                            .count(txn)
-                            .await?
-                            > 0;
-                        if referenced {
-                            return Err(StoreError::Conflict(
-                                "a tier that coupons were claimed from cannot be removed".into(),
-                            ));
-                        }
-                        let gone = discount_tier::Entity::delete_many()
-                            .filter(discount_tier::Column::Id.eq(tier_id))
-                            .filter(discount_tier::Column::CampaignId.eq(id))
-                            .filter(discount_tier::Column::ClaimedSlots.eq(0))
-                            .exec(txn)
-                            .await?
-                            .rows_affected;
-                        if gone == 0 {
-                            return Err(StoreError::Conflict(
-                                "a tier with claimed coupons cannot be removed".into(),
-                            ));
-                        }
-                    }
-                    let now = super::now_iso();
-                    for tier in tiers {
-                        match tier.id {
-                            Some(tier_id) => {
-                                // Slots may shrink only down to what is
-                                // claimed; a claimed tier keeps its amount.
-                                let changed = discount_tier::Entity::update_many()
-                                    .col_expr(
-                                        discount_tier::Column::Amount,
-                                        Expr::value(tier.amount),
-                                    )
-                                    .col_expr(
-                                        discount_tier::Column::TotalSlots,
-                                        Expr::value(tier.total_slots),
-                                    )
-                                    .col_expr(
-                                        discount_tier::Column::Position,
-                                        Expr::value(tier.position),
-                                    )
-                                    .filter(discount_tier::Column::Id.eq(tier_id))
-                                    .filter(discount_tier::Column::CampaignId.eq(id))
-                                    .filter(
-                                        discount_tier::Column::ClaimedSlots.lte(tier.total_slots),
-                                    )
-                                    .filter(
-                                        Condition::any()
-                                            .add(discount_tier::Column::ClaimedSlots.eq(0))
-                                            .add(discount_tier::Column::Amount.eq(tier.amount)),
-                                    )
-                                    .exec(txn)
-                                    .await?
-                                    .rows_affected;
-                                if changed == 0 {
-                                    return Err(StoreError::Conflict(
-                                        "coupons were claimed meanwhile: a tier cannot drop below \
-                                         its claimed slots or change its amount"
-                                            .into(),
-                                    ));
-                                }
-                            }
-                            None => {
-                                discount_tier::Entity::insert(discount_tier::ActiveModel {
-                                    id: Set(Uuid::new_v4()),
-                                    campaign_id: Set(id),
-                                    amount: Set(tier.amount),
-                                    total_slots: Set(tier.total_slots),
-                                    claimed_slots: Set(0),
-                                    position: Set(tier.position),
-                                    created_at: Set(now.clone()),
-                                })
-                                .exec_without_returning(txn)
-                                .await?;
-                            }
-                        }
-                    }
-                    Ok(())
-                })
-            })
-            .await
-            .map_err(|e| match StoreError::from(e) {
-                StoreError::Database(msg) if msg.to_lowercase().contains("unique") => {
-                    StoreError::Conflict("two tiers cannot have the same amount".into())
+        with_write(&self.db, |txn| {
+            let edit = edit.clone();
+            Box::pin(async move {
+                let CampaignEdit {
+                    campaign,
+                    brand_ids,
+                    tiers,
+                    delete_tiers,
+                    coupons_valid_until,
+                } = edit;
+                campaign.update(txn).await?;
+                if let Some(valid_until) = coupons_valid_until {
+                    coupon::Entity::update_many()
+                        .col_expr(coupon::Column::ValidUntil, Expr::value(Some(valid_until)))
+                        .filter(coupon::Column::CampaignId.eq(id))
+                        .filter(coupon::Column::Status.is_in([HELD, RESERVED]))
+                        .filter(coupon::Column::ValidUntil.is_not_null())
+                        .exec(txn)
+                        .await?;
                 }
-                other => other,
+                if let Some(brand_ids) = brand_ids {
+                    campaign_brand::Entity::delete_many()
+                        .filter(campaign_brand::Column::CampaignId.eq(id))
+                        .exec(txn)
+                        .await?;
+                    insert_brands(txn, id, &brand_ids).await?;
+                }
+                for tier_id in delete_tiers {
+                    // Given-back and expired coupons still name their
+                    // tier (the history the payouts show): it stays.
+                    let referenced = coupon::Entity::find()
+                        .filter(coupon::Column::TierId.eq(tier_id))
+                        .count(txn)
+                        .await?
+                        > 0;
+                    if referenced {
+                        return Err(StoreError::Conflict(
+                            "a tier that coupons were claimed from cannot be removed".into(),
+                        ));
+                    }
+                    let gone = discount_tier::Entity::delete_many()
+                        .filter(discount_tier::Column::Id.eq(tier_id))
+                        .filter(discount_tier::Column::CampaignId.eq(id))
+                        .filter(discount_tier::Column::ClaimedSlots.eq(0))
+                        .exec(txn)
+                        .await?
+                        .rows_affected;
+                    if gone == 0 {
+                        return Err(StoreError::Conflict(
+                            "a tier with claimed coupons cannot be removed".into(),
+                        ));
+                    }
+                }
+                let now = super::now_iso();
+                for tier in tiers {
+                    match tier.id {
+                        Some(tier_id) => {
+                            // Slots may shrink only down to what is
+                            // claimed; a claimed tier keeps its amount.
+                            let changed = discount_tier::Entity::update_many()
+                                .col_expr(discount_tier::Column::Amount, Expr::value(tier.amount))
+                                .col_expr(
+                                    discount_tier::Column::TotalSlots,
+                                    Expr::value(tier.total_slots),
+                                )
+                                .col_expr(
+                                    discount_tier::Column::Position,
+                                    Expr::value(tier.position),
+                                )
+                                .filter(discount_tier::Column::Id.eq(tier_id))
+                                .filter(discount_tier::Column::CampaignId.eq(id))
+                                .filter(discount_tier::Column::ClaimedSlots.lte(tier.total_slots))
+                                .filter(
+                                    Condition::any()
+                                        .add(discount_tier::Column::ClaimedSlots.eq(0))
+                                        .add(discount_tier::Column::Amount.eq(tier.amount)),
+                                )
+                                .exec(txn)
+                                .await?
+                                .rows_affected;
+                            if changed == 0 {
+                                return Err(StoreError::Conflict(
+                                    "coupons were claimed meanwhile: a tier cannot drop below \
+                                         its claimed slots or change its amount"
+                                        .into(),
+                                ));
+                            }
+                        }
+                        None => {
+                            discount_tier::Entity::insert(discount_tier::ActiveModel {
+                                id: Set(Uuid::new_v4()),
+                                campaign_id: Set(id),
+                                amount: Set(tier.amount),
+                                total_slots: Set(tier.total_slots),
+                                claimed_slots: Set(0),
+                                position: Set(tier.position),
+                                created_at: Set(now.clone()),
+                            })
+                            .exec_without_returning(txn)
+                            .await?;
+                        }
+                    }
+                }
+                Ok(())
             })
+        })
+        .await
+        .map_err(|e| match e {
+            e if e.is_record_exists() => {
+                StoreError::Conflict("two tiers cannot have the same amount".into())
+            }
+            other => other,
+        })
     }
 
     async fn delete_campaign(&self, id: Uuid) -> StoreResult<bool> {
-        self.db
-            .transaction::<_, bool, StoreError>(|txn| {
-                Box::pin(async move {
-                    let claimed = coupon::Entity::find()
-                        .filter(coupon::Column::CampaignId.eq(id))
-                        .count(txn)
-                        .await?;
-                    if claimed > 0 {
-                        return Ok(false);
-                    }
-                    discount_campaign::Entity::delete_by_id(id)
-                        .exec(txn)
-                        .await?;
-                    Ok(true)
-                })
+        with_write(&self.db, |txn| {
+            Box::pin(async move {
+                let claimed = coupon::Entity::find()
+                    .filter(coupon::Column::CampaignId.eq(id))
+                    .count(txn)
+                    .await?;
+                if claimed > 0 {
+                    return Ok(false);
+                }
+                discount_campaign::Entity::delete_by_id(id)
+                    .exec(txn)
+                    .await?;
+                Ok(true)
             })
-            .await
-            .map_err(StoreError::from)
+        })
+        .await
     }
 
     async fn find_campaign(&self, id: Uuid) -> StoreResult<Option<CampaignBundle>> {
@@ -637,111 +650,111 @@ impl CampaignStore for DbCampaignStore {
     }
 
     async fn claim(&self, claim: NewClaim) -> StoreResult<ClaimOutcome> {
-        self.db
-            .transaction::<_, ClaimOutcome, StoreError>(|txn| {
-                Box::pin(async move {
-                    // Writing first takes the write lock for the whole claim.
-                    expire_held(txn, Some(claim.user_id), &claim.now).await?;
+        with_write(&self.db, |txn| {
+            let claim = claim.clone();
+            Box::pin(async move {
+                // A lapsed coupon of this account must not count as held.
+                expire_held(txn, Some(claim.user_id), &claim.now).await?;
 
-                    let Some(campaign) = discount_campaign::Entity::find_by_id(claim.campaign_id)
-                        .one(txn)
-                        .await?
-                    else {
-                        return Ok(ClaimOutcome::NotRunning);
-                    };
-                    let running = !campaign.paused
-                        && campaign.starts_at.as_str() <= claim.now.as_str()
-                        && claim.now.as_str() < campaign.ends_at.as_str();
-                    if !running {
-                        return Ok(ClaimOutcome::NotRunning);
-                    }
-                    if let Some(held) = coupon::Entity::find()
-                        .filter(coupon::Column::ActiveHolder.eq(claim.user_id))
-                        .one(txn)
-                        .await?
-                    {
-                        return Ok(ClaimOutcome::AlreadyHolding(held));
-                    }
-                    let before = coupon::Entity::find()
-                        .filter(coupon::Column::CampaignId.eq(claim.campaign_id))
-                        .filter(coupon::Column::UserId.eq(claim.user_id))
-                        .count(txn)
-                        .await?;
-                    if before > 0 {
-                        return Ok(ClaimOutcome::AlreadyClaimedCampaign);
-                    }
+                let Some(campaign) = discount_campaign::Entity::find_by_id(claim.campaign_id)
+                    .one(txn)
+                    .await?
+                else {
+                    return Ok(ClaimOutcome::NotRunning);
+                };
+                let running = !campaign.paused
+                    && campaign.starts_at.as_str() <= claim.now.as_str()
+                    && claim.now.as_str() < campaign.ends_at.as_str();
+                if !running {
+                    return Ok(ClaimOutcome::NotRunning);
+                }
+                if let Some(held) = coupon::Entity::find()
+                    .filter(coupon::Column::ActiveHolder.eq(claim.user_id))
+                    .one(txn)
+                    .await?
+                {
+                    return Ok(ClaimOutcome::AlreadyHolding(held));
+                }
+                let before = coupon::Entity::find()
+                    .filter(coupon::Column::CampaignId.eq(claim.campaign_id))
+                    .filter(coupon::Column::UserId.eq(claim.user_id))
+                    .count(txn)
+                    .await?;
+                if before > 0 {
+                    return Ok(ClaimOutcome::AlreadyClaimedCampaign);
+                }
 
-                    let Some(tier) = discount_tier::Entity::find_by_id(claim.tier_id)
-                        .filter(discount_tier::Column::CampaignId.eq(claim.campaign_id))
-                        .one(txn)
-                        .await?
-                    else {
-                        return Ok(ClaimOutcome::NotRunning);
-                    };
-                    // The slot: one atomic check-and-take.
-                    let taken = discount_tier::Entity::update_many()
-                        .col_expr(
-                            discount_tier::Column::ClaimedSlots,
-                            Expr::col(discount_tier::Column::ClaimedSlots).add(1),
-                        )
-                        .filter(discount_tier::Column::Id.eq(tier.id))
-                        .filter(
-                            Expr::col(discount_tier::Column::ClaimedSlots)
-                                .lt(Expr::col(discount_tier::Column::TotalSlots)),
-                        )
-                        .exec(txn)
-                        .await?
-                        .rows_affected;
-                    if taken == 0 {
-                        return Ok(ClaimOutcome::SoldOut);
-                    }
+                let Some(tier) = discount_tier::Entity::find_by_id(claim.tier_id)
+                    .filter(discount_tier::Column::CampaignId.eq(claim.campaign_id))
+                    .one(txn)
+                    .await?
+                else {
+                    return Ok(ClaimOutcome::NotRunning);
+                };
+                // The slot: one atomic check-and-take.
+                let taken = discount_tier::Entity::update_many()
+                    .col_expr(
+                        discount_tier::Column::ClaimedSlots,
+                        Expr::col(discount_tier::Column::ClaimedSlots).add(1),
+                    )
+                    .filter(discount_tier::Column::Id.eq(tier.id))
+                    .filter(
+                        Expr::col(discount_tier::Column::ClaimedSlots)
+                            .lt(Expr::col(discount_tier::Column::TotalSlots)),
+                    )
+                    .exec(txn)
+                    .await?
+                    .rows_affected;
+                if taken == 0 {
+                    return Ok(ClaimOutcome::SoldOut);
+                }
 
-                    let id = Uuid::new_v4();
-                    let valid_until = (campaign.coupon_validity == coupon_validity::CAMPAIGN)
-                        .then(|| campaign.ends_at.clone());
-                    let inserted = coupon::Entity::insert(coupon::ActiveModel {
-                        id: Set(id),
-                        code: Set(claim.code),
-                        campaign_id: Set(campaign.id),
-                        tier_id: Set(tier.id),
-                        user_id: Set(Some(claim.user_id)),
-                        amount: Set(tier.amount),
-                        status: Set(HELD.into()),
-                        active_holder: Set(Some(claim.user_id)),
-                        valid_until: Set(valid_until),
-                        booking_id: Set(None),
-                        brand_id: Set(None),
-                        claim_ip: Set(claim.claim_ip),
-                        claimed_at: Set(claim.now.clone()),
-                        reserved_at: Set(None),
-                        redeemed_at: Set(None),
-                        settled_at: Set(None),
-                        settled_by: Set(None),
-                        settlement_note: Set(None),
-                        updated_at: Set(claim.now),
-                    })
-                    .exec_without_returning(txn)
-                    .await;
-                    match inserted {
-                        Ok(_) => {}
-                        // A racing claim of the same account (or a code
-                        // collision): roll the slot back, the caller retries.
-                        Err(e) if is_unique_violation(&e) => {
-                            return Err(StoreError::Conflict("coupon claim raced".into()))
-                        }
-                        Err(e) => return Err(e.into()),
-                    }
-                    let coupon = coupon::Entity::find_by_id(id)
-                        .one(txn)
-                        .await?
-                        .ok_or_else(|| StoreError::NotFound("claimed coupon".into()))?;
-                    // Exact: this transaction holds the write lock.
-                    let remaining = tier.total_slots - tier.claimed_slots - 1;
-                    Ok(ClaimOutcome::Claimed { coupon, remaining })
+                let id = Uuid::new_v4();
+                let valid_until = (campaign.coupon_validity == coupon_validity::CAMPAIGN)
+                    .then(|| campaign.ends_at.clone());
+                let inserted = coupon::Entity::insert(coupon::ActiveModel {
+                    id: Set(id),
+                    code: Set(claim.code),
+                    campaign_id: Set(campaign.id),
+                    tier_id: Set(tier.id),
+                    user_id: Set(Some(claim.user_id)),
+                    amount: Set(tier.amount),
+                    status: Set(HELD.into()),
+                    active_holder: Set(Some(claim.user_id)),
+                    valid_until: Set(valid_until),
+                    booking_id: Set(None),
+                    brand_id: Set(None),
+                    claim_ip: Set(claim.claim_ip),
+                    claimed_at: Set(claim.now.clone()),
+                    reserved_at: Set(None),
+                    redeemed_at: Set(None),
+                    settled_at: Set(None),
+                    settled_by: Set(None),
+                    settlement_note: Set(None),
+                    updated_at: Set(claim.now),
                 })
+                .exec_without_returning(txn)
+                .await;
+                match inserted {
+                    Ok(_) => {}
+                    // A racing claim of the same account (or a code
+                    // collision): roll the slot back, the caller retries.
+                    Err(e) if is_unique_violation(&e) => {
+                        return Err(StoreError::Conflict("coupon claim raced".into()))
+                    }
+                    Err(e) => return Err(e.into()),
+                }
+                let coupon = coupon::Entity::find_by_id(id)
+                    .one(txn)
+                    .await?
+                    .ok_or_else(|| StoreError::NotFound("claimed coupon".into()))?;
+                // Exact: a commit that lost a race to another claim of
+                // this tier fails and re-runs the whole body.
+                let remaining = tier.total_slots - tier.claimed_slots - 1;
+                Ok(ClaimOutcome::Claimed { coupon, remaining })
             })
-            .await
-            .map_err(StoreError::from)
+        })
+        .await
     }
 
     async fn active_coupon(&self, user_id: Uuid, now: &str) -> StoreResult<Option<coupon::Model>> {
@@ -764,78 +777,50 @@ impl CampaignStore for DbCampaignStore {
 
     async fn release_coupon(&self, user_id: Uuid, now: &str) -> StoreResult<Option<coupon::Model>> {
         let now = now.to_string();
-        self.db
-            .transaction::<_, Option<coupon::Model>, StoreError>(|txn| {
-                Box::pin(async move {
-                    let Some(held) = coupon::Entity::find()
-                        .filter(coupon::Column::ActiveHolder.eq(user_id))
-                        .filter(coupon::Column::Status.eq(HELD))
-                        .one(txn)
-                        .await?
-                    else {
-                        return Ok(None);
-                    };
-                    let released = coupon::Entity::update_many()
-                        .col_expr(coupon::Column::Status, Expr::value(RELEASED))
-                        .col_expr(coupon::Column::ActiveHolder, Expr::value(None::<Uuid>))
-                        .col_expr(coupon::Column::UpdatedAt, Expr::value(now.clone()))
-                        .filter(coupon::Column::Id.eq(held.id))
-                        .filter(coupon::Column::Status.eq(HELD))
+        with_write(&self.db, |txn| {
+            let now = now.clone();
+            Box::pin(async move {
+                let Some(held) = coupon::Entity::find()
+                    .filter(coupon::Column::ActiveHolder.eq(user_id))
+                    .filter(coupon::Column::Status.eq(HELD))
+                    .one(txn)
+                    .await?
+                else {
+                    return Ok(None);
+                };
+                let released = coupon::Entity::update_many()
+                    .col_expr(coupon::Column::Status, Expr::value(RELEASED))
+                    .col_expr(coupon::Column::ActiveHolder, Expr::value(None::<Uuid>))
+                    .col_expr(coupon::Column::UpdatedAt, Expr::value(now.clone()))
+                    .filter(coupon::Column::Id.eq(held.id))
+                    .filter(coupon::Column::Status.eq(HELD))
+                    .exec(txn)
+                    .await?
+                    .rows_affected;
+                if released == 0 {
+                    return Ok(None);
+                }
+                // While the campaign runs, someone else can have the slot.
+                let running = discount_campaign::Entity::find_by_id(held.campaign_id)
+                    .filter(discount_campaign::Column::EndsAt.gt(now.as_str()))
+                    .count(txn)
+                    .await?
+                    > 0;
+                if running {
+                    discount_tier::Entity::update_many()
+                        .col_expr(
+                            discount_tier::Column::ClaimedSlots,
+                            Expr::col(discount_tier::Column::ClaimedSlots).sub(1),
+                        )
+                        .filter(discount_tier::Column::Id.eq(held.tier_id))
+                        .filter(discount_tier::Column::ClaimedSlots.gt(0))
                         .exec(txn)
-                        .await?
-                        .rows_affected;
-                    if released == 0 {
-                        return Ok(None);
-                    }
-                    // While the campaign runs, someone else can have the slot.
-                    let running = discount_campaign::Entity::find_by_id(held.campaign_id)
-                        .filter(discount_campaign::Column::EndsAt.gt(now.as_str()))
-                        .count(txn)
-                        .await?
-                        > 0;
-                    if running {
-                        discount_tier::Entity::update_many()
-                            .col_expr(
-                                discount_tier::Column::ClaimedSlots,
-                                Expr::col(discount_tier::Column::ClaimedSlots).sub(1),
-                            )
-                            .filter(discount_tier::Column::Id.eq(held.tier_id))
-                            .filter(discount_tier::Column::ClaimedSlots.gt(0))
-                            .exec(txn)
-                            .await?;
-                    }
-                    Ok(Some(held))
-                })
+                        .await?;
+                }
+                Ok(Some(held))
             })
-            .await
-            .map_err(StoreError::from)
-    }
-
-    async fn reserve_coupon(
-        &self,
-        coupon_id: Uuid,
-        user_id: Uuid,
-        booking_id: Uuid,
-        brand_id: Option<Uuid>,
-        now: &str,
-    ) -> StoreResult<bool> {
-        let reserved = coupon::Entity::update_many()
-            .col_expr(coupon::Column::Status, Expr::value(RESERVED))
-            .col_expr(coupon::Column::BookingId, Expr::value(Some(booking_id)))
-            .col_expr(coupon::Column::BrandId, Expr::value(brand_id))
-            .col_expr(
-                coupon::Column::ReservedAt,
-                Expr::value(Some(now.to_string())),
-            )
-            .col_expr(coupon::Column::UpdatedAt, Expr::value(now))
-            .filter(coupon::Column::Id.eq(coupon_id))
-            .filter(coupon::Column::ActiveHolder.eq(user_id))
-            .filter(coupon::Column::Status.eq(HELD))
-            .filter(still_valid(now))
-            .exec(self.db.as_ref())
-            .await?
-            .rows_affected;
-        Ok(reserved == 1)
+        })
+        .await
     }
 
     async fn unreserve_coupon(&self, booking_id: Uuid, now: &str) -> StoreResult<()> {

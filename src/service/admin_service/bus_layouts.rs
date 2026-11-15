@@ -11,11 +11,12 @@
 //! transaction directly): the store methods would check out a SECOND
 //! pooled connection and deadlock on SQLite's table lock.
 
-use sea_orm::{EntityTrait, Set, TransactionTrait};
+use sea_orm::{EntityTrait, Set};
 use uuid::Uuid;
 
 use super::validate::valid_vehicle_type_code;
 use super::{now_iso, optional_trimmed, AdminService};
+use crate::db::write::with_write;
 use crate::dto::admin::{
     AdminBusLayoutListResponse, AdminBusLayoutOut, AdminMutationResponse, SeatGridSpec,
     UpsertBusLayoutRequest,
@@ -33,12 +34,14 @@ fn internal(e: impl ToString) -> AppError {
 }
 
 impl AdminService {
-    /// List bus layouts with an optional brand filter and offset
-    /// pagination (`limit=None` returns every matching row — the
-    /// schedule form's seat-map picker relies on that).
+    /// List bus layouts with an optional brand filter (plus the shared
+    /// catalog when `include_shared`) and offset pagination (`limit=None`
+    /// returns every matching row — the schedule form's seat-map picker
+    /// relies on that).
     pub async fn list_bus_layouts(
         &self,
         brand_id: Option<&str>,
+        include_shared: bool,
         limit: Option<u64>,
         offset: u64,
     ) -> AppResult<AdminBusLayoutListResponse> {
@@ -46,7 +49,7 @@ impl AdminService {
         let page = self
             .store
             .schedule_store()
-            .list_bus_layouts_page(brand_id, limit, offset)
+            .list_bus_layouts_page(brand_id, include_shared, limit, offset)
             .await
             .map_err(internal)?;
         let class_counts = self
@@ -162,7 +165,7 @@ impl AdminService {
         };
         let layout = bus_layout::ActiveModel {
             id: Set(id),
-            brand_id: Set(body.brand_id),
+            brand_id: Set(body.brand_id.flatten()),
             name: Set(Some(name)),
             vehicle_type: Set(vehicle_type),
             total_seats: Set(Some(total_seats)),
@@ -173,16 +176,16 @@ impl AdminService {
 
         // Layout + seats must land together — a layout whose seat rows
         // are missing would silently sell nothing.
-        let txn = self.store.db().begin().await.map_err(internal)?;
-        bus_layout::Entity::insert(layout)
-            .exec(&txn)
-            .await
-            .map_err(|e| AppError::Internal(format!("insert bus layout: {e}")))?;
-        seat::Entity::insert_many(seats)
-            .exec(&txn)
-            .await
-            .map_err(|e| AppError::Internal(format!("insert seats: {e}")))?;
-        txn.commit().await.map_err(internal)?;
+        with_write(self.store.db(), |tx| {
+            let (layout, seats) = (layout.clone(), seats.clone());
+            Box::pin(async move {
+                bus_layout::Entity::insert(layout).exec(tx).await?;
+                seat::Entity::insert_many(seats).exec(tx).await?;
+                Ok(())
+            })
+        })
+        .await
+        .map_err(|e| AppError::Internal(format!("insert bus layout with its seats: {e}")))?;
         Ok(AdminMutationResponse { id })
     }
 
@@ -204,7 +207,7 @@ impl AdminService {
             active.name = Set(Some(name));
         }
         if let Some(brand_id) = body.brand_id {
-            active.brand_id = Set(Some(brand_id));
+            active.brand_id = Set(brand_id);
         }
         if let Some(ref vt) = body.vehicle_type {
             // Patch semantics: `""` clears, non-empty sets a validated

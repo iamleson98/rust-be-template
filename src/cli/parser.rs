@@ -55,7 +55,7 @@ pub enum Command {
     },
 
     /// Print the database backend/engine this build links (always the
-    /// rust-sql engine — rustqlite via the sqlx-sqlite C-ABI compat).
+    /// vendored SQLite from the `begin-concurrent` branch).
     DbBackend,
 
     /// Backfill-upload stored ad conversions to the Google Ads API
@@ -92,20 +92,28 @@ pub enum Command {
         reset_trips: bool,
     },
 
-    /// Build the Tantivy place-search index from an OSM PBF file.
-    /// Usage: `import-osm <path-to-vietnam.osm.pbf> [--index-dir <dir>]`
-    ImportOsm {
-        /// Path to the `.osm.pbf` file (e.g. `vietnam-latest.osm.pbf`).
-        pbf_path: PathBuf,
-        /// Output index directory (default: `SEARCH__INDEX_DIR` or `./place-index`).
-        #[arg(long, env = "SEARCH__INDEX_DIR")]
-        index_dir: Option<PathBuf>,
-        /// Max heap bytes for the indexer (default: 1 GiB).
-        #[arg(long, default_value_t = 1_073_741_824u64)]
-        heap_bytes: u64,
-        /// Number of indexer threads (default: all CPUs).
+    /// Build a fresh place-index generation from the Geofabrik Vietnam
+    /// extract and publish it under `PLACES_DIR` (skips the work when the
+    /// extract is unchanged, unless `--force`).
+    PlacesBuild {
+        /// Rebuild even when the extract's MD5 matches the live generation.
         #[arg(long)]
-        threads: Option<usize>,
+        force: bool,
+    },
+
+    /// Import a Cloudflare D1 export (a staging SQLite file made from
+    /// `wrangler d1 export`) into a freshly migrated app database.
+    /// Usage: `import-d1 --stage <stage.db> --out <app.db> --report <report.json>`
+    ImportD1 {
+        /// The staging database built from the D1 export.
+        #[arg(long)]
+        stage: PathBuf,
+        /// The app database to create (migrated first, then filled).
+        #[arg(long)]
+        out: PathBuf,
+        /// Where to write the JSON import report.
+        #[arg(long)]
+        report: PathBuf,
     },
 }
 

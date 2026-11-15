@@ -1,5 +1,3 @@
-'use client'
-
 import { Button } from '@/components/ui/button'
 import { Users, Copy, Sparkles, ChevronRight } from 'lucide-react'
 import { useGuest } from '@/stores/guest'

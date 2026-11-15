@@ -17,11 +17,11 @@
 //! - Performance regressions (use criterion benchmarks).
 //! - Frontend issues (use Playwright/e2e).
 //!
-//! NOTE: Routes under `/api/*` are rate-limited via `tower_governor`,
-//! which requires a client IP from `ConnectInfo<SocketAddr>`. The
-//! `oneshot` test harness doesn't provide connect info, so we only
-//! test routes that bypass the rate limiter (health, ready, SEO, SW).
-//! For rate-limited routes, use the inline unit tests in `src/`.
+//! NOTE: Routes under `/api/*` are rate-limited per client IP
+//! (`middleware::rate_limit`). The `oneshot` test harness provides no
+//! `ConnectInfo<SocketAddr>`, and a request with no known peer is not
+//! limited, so these tests never hit a 429. The limiter itself is covered
+//! by `tests/wp8_edge.rs` and the unit tests in `src/middleware/`.
 
 /// Search options from the positional arguments the search took before
 /// the filters moved to the server.
@@ -79,15 +79,6 @@ fn geo_opts(
     .expect("valid search options")
 }
 
-// Link anchor: rustc only places an rlib on a TEST binary's link line
-// when the test's own code references the crate. The rustqlite engine
-// (`sqlite3` crate — the sqlite3_* C ABI) is otherwise dropped and
-// sqlx-sqlite's FFI references go unresolved. Referencing the compat crate's
-// Rust-visible `engine_version` pulls the engine + compat rlibs onto
-// THIS binary's link line.
-#[used]
-static ENGINE_LINK: fn() -> &'static str = sqlite3::engine_version;
-
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use std::sync::Arc;
@@ -124,7 +115,6 @@ async fn boot_test_state() -> anyhow::Result<backend::state::AppState> {
         std::env::set_var("WORKER_BACKEND", "db");
         // No background job runner / scheduler in the one-shot test harness.
         std::env::set_var("SCHEDULER_ENABLED", "false");
-        std::env::set_var("SEARCH_INDEX_DIR", "");
         std::env::set_var("AUDIO_CALL_ENABLED", "false");
         std::env::set_var("NULLCLAW_ENABLED", "false");
         // Don't hit real payment gateways during tests.
@@ -424,7 +414,6 @@ async fn boot_state() -> anyhow::Result<backend::state::AppState> {
         std::env::set_var("CACHE_BACKEND", "moka");
         std::env::set_var("WORKER_BACKEND", "db");
         std::env::set_var("SCHEDULER_ENABLED", "false");
-        std::env::set_var("SEARCH_INDEX_DIR", "");
         std::env::set_var("AUDIO_CALL_ENABLED", "false");
         std::env::set_var("NULLCLAW_ENABLED", "false");
         std::env::set_var("VNPAY_ENABLED", "false");
@@ -479,7 +468,7 @@ async fn search_generates_trips_on_demand() -> anyhow::Result<()> {
             effective_to: None,
             days_of_week: Some("1111111".into()),
             bus_layout_id: None,
-            vehicle_type_id: Some(vt_id),
+            vehicle_type_id: Some(Some(vt_id)),
             base_price_adult: Some(350_000),
             base_price_child: None,
             class_fares: None,
@@ -577,7 +566,7 @@ async fn recommendations_self_heal_with_generated_trips() -> anyhow::Result<()> 
             effective_to: None,
             days_of_week: None, // no mask → daily
             bus_layout_id: None,
-            vehicle_type_id: Some(vt_id),
+            vehicle_type_id: Some(Some(vt_id)),
             base_price_adult: Some(120_000),
             base_price_child: None,
             class_fares: None,
@@ -685,7 +674,7 @@ async fn media_proxy_serves_upload_with_etag_and_304() -> anyhow::Result<()> {
             .headers()
             .get("content-type")
             .and_then(|v| v.to_str().ok()),
-        Some("image/png")
+        Some("image/webp")
     );
     let cache_control = response
         .headers()
@@ -786,7 +775,7 @@ async fn search_matches_routes_by_city_slugs_not_just_name() -> anyhow::Result<(
             effective_to: None,
             days_of_week: Some("1111111".into()),
             bus_layout_id: None,
-            vehicle_type_id: Some(vt_id),
+            vehicle_type_id: Some(Some(vt_id)),
             base_price_adult: Some(400_000),
             base_price_child: None,
             class_fares: None,
@@ -841,7 +830,7 @@ async fn search_matches_routes_by_city_slugs_not_just_name() -> anyhow::Result<(
             effective_to: None,
             days_of_week: Some("1111111".into()),
             bus_layout_id: None,
-            vehicle_type_id: Some(vt_id),
+            vehicle_type_id: Some(Some(vt_id)),
             base_price_adult: Some(180_000),
             base_price_child: None,
             class_fares: None,
@@ -965,7 +954,7 @@ async fn search_sorts_by_price_and_rating() -> anyhow::Result<()> {
                 effective_to: None,
                 days_of_week: Some("1111111".into()),
                 bus_layout_id: None,
-                vehicle_type_id: Some(vt_id),
+                vehicle_type_id: Some(Some(vt_id)),
                 base_price_adult: Some(price),
                 base_price_child: None,
                 class_fares: None,
@@ -983,7 +972,7 @@ async fn search_sorts_by_price_and_rating() -> anyhow::Result<()> {
             effective_to: None,
             days_of_week: Some("1111111".into()),
             bus_layout_id: None,
-            vehicle_type_id: Some(vt_id),
+            vehicle_type_id: Some(Some(vt_id)),
             base_price_adult: Some(300_000),
             base_price_child: None,
             class_fares: None,
@@ -1116,7 +1105,7 @@ async fn search_paginates_with_offset_and_has_more() -> anyhow::Result<()> {
                 effective_to: None,
                 days_of_week: Some("1111111".into()),
                 bus_layout_id: None,
-                vehicle_type_id: Some(vt_id),
+                vehicle_type_id: Some(Some(vt_id)),
                 base_price_adult: Some(300_000),
                 base_price_child: None,
                 class_fares: None,
@@ -1317,7 +1306,7 @@ async fn geo_search_ranks_by_proximity_and_paginates() -> anyhow::Result<()> {
                 effective_to: None,
                 days_of_week: Some("1111111".into()),
                 bus_layout_id: None,
-                vehicle_type_id: Some(vt_id),
+                vehicle_type_id: Some(Some(vt_id)),
                 base_price_adult: Some(250_000),
                 base_price_child: None,
                 class_fares: None,
@@ -1335,6 +1324,7 @@ async fn geo_search_ranks_by_proximity_and_paginates() -> anyhow::Result<()> {
             (to_lat, to_lon),
             50.0,
             &geo_opts(&date, 10, 0, 1, vec![], None),
+            None,
         )
         .await?;
     assert_eq!(ranked.items.len(), 3, "both routes' trips must match");
@@ -1355,6 +1345,7 @@ async fn geo_search_ranks_by_proximity_and_paginates() -> anyhow::Result<()> {
             (to_lat, to_lon),
             50.0,
             &geo_opts(&date, 2, 0, 1, vec![], None),
+            None,
         )
         .await?;
     assert_eq!(page1.items.len(), 2);
@@ -1369,6 +1360,7 @@ async fn geo_search_ranks_by_proximity_and_paginates() -> anyhow::Result<()> {
             (to_lat, to_lon),
             50.0,
             &geo_opts(&date, 2, 2, 1, vec![], None),
+            None,
         )
         .await?;
     assert_eq!(page2.items.len(), 1);
@@ -1475,7 +1467,7 @@ async fn seed_many_schedules(
                 effective_to: None,
                 days_of_week: Some("1111111".into()),
                 bus_layout_id: None,
-                vehicle_type_id: Some(vt_id),
+                vehicle_type_id: Some(Some(vt_id)),
                 base_price_adult: Some(350_000),
                 base_price_child: None,
                 class_fares: None,
@@ -1683,7 +1675,7 @@ async fn search_today_excludes_already_departed_trips() -> anyhow::Result<()> {
                 effective_to: None,
                 days_of_week: Some("1111111".into()),
                 bus_layout_id: None,
-                vehicle_type_id: Some(vt_id),
+                vehicle_type_id: Some(Some(vt_id)),
                 base_price_adult: Some(350_000),
                 base_price_child: None,
                 class_fares: None,

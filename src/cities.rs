@@ -229,6 +229,13 @@ pub static CITIES: Lazy<&[City]> = Lazy::new(|| {
             lon: 106.33,
         },
         City {
+            slug: "hung-yen",
+            name: "Hưng Yên",
+            region: Region::North,
+            lat: 20.65,
+            lon: 106.05,
+        },
+        City {
             slug: "phu-tho",
             name: "Phú Thọ",
             region: Region::North,
@@ -706,8 +713,8 @@ mod tests {
 
     #[test]
     fn has_all_cities_in_sync_with_frontend() {
-        // The frontend's `vietnamese-cities.ts` currently has 62 entries
-        // (5 centrally-governed municipalities + 57 provinces). The exact
+        // The frontend's `vietnamese-cities.ts` has 63 entries
+        // (5 centrally-governed municipalities + 58 provinces). The exact
         // count is not important — what matters is that this test will
         // fail loudly if someone adds a city on one side but not the other.
         //
@@ -716,10 +723,29 @@ mod tests {
         // `frontend/src/lib/vietnamese-cities.ts`.
         assert_eq!(
             CITIES.len(),
-            62,
-            "expected 62 Vietnamese cities — if you added/removed one, \
+            63,
+            "expected 63 Vietnamese cities — if you added/removed one, \
              update this count and the frontend's VIETNAMESE_CITIES list"
         );
+    }
+
+    /// `data/cities.json` is the list the place extractor maps provinces
+    /// onto; it must name exactly the cities this module serves.
+    #[test]
+    fn shared_city_list_matches_the_catalog() {
+        #[derive(serde::Deserialize)]
+        struct Entry {
+            id: String,
+            name: String,
+        }
+        let shared: Vec<Entry> =
+            serde_json::from_str(include_str!("../data/cities.json")).expect("valid JSON");
+        let from_json: Vec<(&str, &str)> = shared
+            .iter()
+            .map(|e| (e.id.as_str(), e.name.as_str()))
+            .collect();
+        let from_catalog: Vec<(&str, &str)> = CITIES.iter().map(|c| (c.slug, c.name)).collect();
+        assert_eq!(from_json, from_catalog);
     }
 
     // ── match_city_slugs — the search-entry resolver ──────────────

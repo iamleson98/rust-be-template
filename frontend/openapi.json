@@ -15,7 +15,7 @@
         "tags": [
           "admin"
         ],
-        "summary": "`GET /api/admin/addresses?brandId=&q=&limit=&offset=` — list a\nbrand's addresses. `q`/`limit`/`offset` feed the searchable,\ninfinite-scroll schedule point picker; omitting `limit` returns all.",
+        "summary": "`GET /api/admin/addresses?brandId=&q=&limit=&offset=` — list a\nbrand's addresses, each with how many schedule stops use it\n(`stopCount`). `q` matches the name or the street; `q`/`limit`/`offset`\nfeed the searchable, infinite-scroll schedule point picker; omitting\n`limit` returns all.",
         "operationId": "list",
         "parameters": [
           {
@@ -85,7 +85,7 @@
         "tags": [
           "admin"
         ],
-        "summary": "`POST /api/admin/addresses` — create an address.",
+        "summary": "`POST /api/admin/addresses` — create an address in one of our cities.",
         "operationId": "create",
         "requestBody": {
           "content": {
@@ -109,7 +109,7 @@
             }
           },
           "400": {
-            "description": "Bad request — missing name/lat/lon/brandId"
+            "description": "Bad request — missing name/lat/lon/brandId, or a missing or unknown cityId"
           },
           "401": {
             "description": "Unauthorized"
@@ -128,7 +128,7 @@
         "tags": [
           "admin"
         ],
-        "summary": "`PUT /api/admin/addresses/{id}` — update an address.",
+        "summary": "`PUT /api/admin/addresses/{id}` — update an address; fields left out\nkeep their values and a blank (or `null`) detail is cleared.",
         "operationId": "update",
         "parameters": [
           {
@@ -181,7 +181,7 @@
         "tags": [
           "admin"
         ],
-        "summary": "`DELETE /api/admin/addresses/{id}` — delete an address.",
+        "summary": "`DELETE /api/admin/addresses/{id}` — delete an address no schedule\nstops at (deleting it would silently drop those stops).",
         "operationId": "delete",
         "parameters": [
           {
@@ -804,7 +804,7 @@
         "tags": [
           "admin"
         ],
-        "summary": "`GET /api/admin/bus-layouts` — list bus layouts, with optional brand\nfilter and offset pagination.",
+        "summary": "`GET /api/admin/bus-layouts` — list bus layouts, with optional brand\nfilter and offset pagination. `includeShared=true` adds the shared\ncatalog (layouts without a brand) to a brand's own layouts.",
         "operationId": "list",
         "parameters": [
           {
@@ -814,6 +814,15 @@
             "schema": {
               "type": "string",
               "format": "uuid"
+            }
+          },
+          {
+            "name": "includeShared",
+            "in": "query",
+            "description": "With `brandId`: the shared catalog (layouts without a brand) is\nlisted too, next to the brand's own layouts.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
             }
           },
           {
@@ -1688,7 +1697,7 @@
           {
             "name": "jobType",
             "in": "path",
-            "description": "Job type (e.g. `osm.import`)",
+            "description": "Job type (e.g. `coupons.expire`)",
             "required": true,
             "schema": {
               "type": "string"
@@ -1742,7 +1751,7 @@
           {
             "name": "jobType",
             "in": "path",
-            "description": "Job type (e.g. `osm.import`)",
+            "description": "Job type (e.g. `coupons.expire`)",
             "required": true,
             "schema": {
               "type": "string"
@@ -1786,7 +1795,7 @@
           {
             "name": "jobType",
             "in": "path",
-            "description": "Job type (e.g. `osm.import`)",
+            "description": "Job type (e.g. `coupons.expire`)",
             "required": true,
             "schema": {
               "type": "string"
@@ -2581,7 +2590,7 @@
           "admin"
         ],
         "summary": "`POST /api/admin/routes/{id}/pictures` — upload one picture.",
-        "description": "Multipart fields:\n  * `file` (required) — JPEG / PNG / WebP, ≤ 10 MiB. Validated by\n    magic bytes AND fully decoded server-side (rejects polyglot /\n    corrupt files); the client-declared Content-Type is ignored.\n  * `alt_text` (optional) — accessible description, ≤ 255 chars.\n\nIdempotent on content: re-uploading the exact same bytes for the\nsame route returns the existing row with `deduped: true`.",
+        "description": "Multipart fields:\n  * `file` (required) — JPEG / PNG / WebP, ≤ 10 MiB. Validated by\n    magic bytes AND fully decoded server-side (rejects polyglot /\n    corrupt files); the client-declared Content-Type is ignored.\n    Stored as WebP (long edge ≤ 1920 px) plus a 640 px WebP\n    thumbnail; the original and its EXIF are never kept.\n  * `alt_text` (optional) — accessible description, ≤ 255 chars.\n\nAt most 10 pictures per route. Idempotent on content: re-uploading\nan image that encodes to the same WebP for the same route returns\nthe existing row with `deduped: true`.",
         "operationId": "upload_picture",
         "parameters": [
           {
@@ -2596,16 +2605,10 @@
           }
         ],
         "requestBody": {
-          "description": "multipart/form-data: `file` (image), optional `alt_text`",
           "content": {
             "multipart/form-data": {
               "schema": {
-                "type": "array",
-                "items": {
-                  "type": "integer",
-                  "format": "int32",
-                  "minimum": 0
-                }
+                "$ref": "#/components/schemas/RoutePictureUploadForm"
               }
             }
           },
@@ -3016,7 +3019,7 @@
         "tags": [
           "crate::routes::system"
         ],
-        "summary": "`POST /api/admin/system/database/vacuum` — guarded in-place\ncompaction. Rebuilds the file (drops freelist + fragmentation\nslack); expect IO ≈ one full-DB read + write for the duration.\nRuns on the shared single-writer engine: concurrent writers queue on\nthe engine's own write lock — run it in a quiet window.",
+        "summary": "`POST /api/admin/system/database/vacuum` — guarded in-place\ncompaction. Rebuilds the file (drops freelist + fragmentation\nslack); expect IO ≈ one full-DB read + write for the duration.\nVACUUM holds SQLite's write lock for its duration: concurrent writers\nwait up to `busy_timeout` and then fail with SQLITE_BUSY — run it in\na quiet window.",
         "operationId": "database_vacuum",
         "responses": {
           "200": {
@@ -3311,7 +3314,7 @@
           "ads"
         ],
         "summary": "`POST /api/ads/conversions` — record a conversion (beacon).",
-        "description": "Fire-and-forget semantics: `200` means the row is durable (or a\ndeduped repeat — also fine). The Google Ads API upload happens in\nthe background and is retried by a later sweep; its outcome is\nobservable in the `ad_conversion` table's `status` column, never in\nthis response.",
+        "description": "Fire-and-forget semantics: `200` means the row is durable (or a\ndeduped repeat — also fine). The Google Ads API upload happens in\nthe background and is retried by a later sweep; its outcome is\nobservable in the `ad_conversion` table's `status` column, never in\nthis response.\n\nThe beacon is trusted for nothing but the click ids: the event must\nbe `booking` or `purchase`, `transactionId` a real booking's code, and\nvalue and currency come from the database.",
         "operationId": "report_conversion",
         "requestBody": {
           "content": {
@@ -3335,7 +3338,10 @@
             }
           },
           "400": {
-            "description": "Invalid event / transaction id"
+            "description": "Unknown event or missing transaction id"
+          },
+          "404": {
+            "description": "No such booking, or a purchase with no completed payment"
           }
         }
       }
@@ -3372,7 +3378,10 @@
             "description": "Invalid credentials"
           },
           "403": {
-            "description": "Not an employee"
+            "description": "Not an employee, or the account is not active"
+          },
+          "429": {
+            "description": "Account locked after too many wrong passwords; see Retry-After"
           }
         }
       }
@@ -3407,6 +3416,12 @@
           },
           "401": {
             "description": "Invalid credentials"
+          },
+          "403": {
+            "description": "Account is not active"
+          },
+          "429": {
+            "description": "Account locked after too many wrong passwords; see Retry-After"
           }
         }
       }
@@ -3986,6 +4001,41 @@
         }
       }
     },
+    "/api/brands/{slug}/profile": {
+      "get": {
+        "tags": [
+          "public"
+        ],
+        "summary": "`GET /api/brands/{slug}/profile` — everything a brand's page shows in\none read: the brand, its locations (at most 60), its active routes\nwith timetables and the trips leaving in the next 3 days (at most 40).",
+        "operationId": "brand_profile",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "description": "Brand slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Brand page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrandProfile"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or inactive brand"
+          }
+        }
+      }
+    },
     "/api/campaigns": {
       "get": {
         "tags": [
@@ -4071,7 +4121,7 @@
           "chat"
         ],
         "summary": "`GET /api/chat/channels` — list chat channels for the authenticated user.",
-        "description": "For **customers**: returns only their own channels (the ones they started).\nFor **employees**: returns the entire open-channel support queue (optionally\nfiltered by the employee's brand) so support staff see all inbound chats.\n\nEach channel includes the customer's `user` row (`id`, `fullName`,\n`email`, `phone`, `avatarUrl`) so the admin's channel list can\ndisplay \"who\" without a second round-trip per channel.\n\n**Pagination**: `limit` (default 50, max 200) + `offset` (default\n0) page through the `last_message_at DESC` ordering — the initial\npage returns the most recently active channels; scrolling the\nadmin channel list down fetches subsequent pages. The list is\nordered most-recent-first, so a full page means \"there may be more\".",
+        "description": "For **customers**: returns only their own channels (the ones they started).\nFor **employees**: returns the entire open-channel support queue (optionally\nfiltered by the employee's brand) so support staff see all inbound chats.\n\nEach channel includes the customer's `user` row (`id`, `fullName`,\n`email`, `phone`, `avatarUrl`) so the admin's channel list can\ndisplay \"who\" without a second round-trip per channel.\n\n**Pagination**: `limit` (default 50, max 200) + `offset` (default\n0) page through the newest-activity-first ordering — the initial\npage returns the most recently active channels; scrolling the\nadmin channel list down fetches subsequent pages. The list is\nordered most-recent-first, so a full page means \"there may be more\".",
         "operationId": "list_channels",
         "parameters": [
           {
@@ -4087,7 +4137,7 @@
           {
             "name": "offset",
             "in": "query",
-            "description": "0-based page offset on the `last_message_at DESC` ordering —\n`offset=30` returns the next 30 less-recent channels. Powers\nthe admin workspace's infinite channel list.",
+            "description": "0-based page offset on the newest-activity-first ordering —\n`offset=30` returns the next 30 less-recent channels. Powers\nthe admin workspace's infinite channel list.",
             "required": false,
             "schema": {
               "type": "integer",
@@ -4520,7 +4570,7 @@
           {
             "name": "key",
             "in": "path",
-            "description": "Storage key: routes/{routeId}/{hash16}.{ext}",
+            "description": "Storage key: routes/{routeId}/{hash16}.{ext}, routes/{routeId}/t{hash16}.{ext} or brands/logos/{hash16}.{ext}",
             "required": true,
             "schema": {
               "type": "string"
@@ -5086,12 +5136,13 @@
         "tags": [
           "places"
         ],
-        "summary": "`GET /api/places` — list places.",
+        "summary": "`GET /api/places` — the most populous cities and towns.",
         "operationId": "list",
         "parameters": [
           {
             "name": "limit",
             "in": "query",
+            "description": "Default 50, 1..200.",
             "required": false,
             "schema": {
               "type": [
@@ -5105,6 +5156,7 @@
           {
             "name": "offset",
             "in": "query",
+            "description": "Places to skip from the top of the list.",
             "required": false,
             "schema": {
               "type": [
@@ -5118,7 +5170,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Place list",
+            "description": "Popular places (empty until the first place index is built)",
             "content": {
               "application/json": {
                 "schema": {
@@ -5135,7 +5187,8 @@
         "tags": [
           "places"
         ],
-        "summary": "`GET /api/places/reverse` — reverse geocode coordinates.",
+        "summary": "`GET /api/places/reverse` — the places nearest to a point, nearest first.",
+        "description": "A point off the globe has no places near it: an empty list, like the Worker.",
         "operationId": "reverse",
         "parameters": [
           {
@@ -5159,6 +5212,7 @@
           {
             "name": "limit",
             "in": "query",
+            "description": "Default 10, 1..50.",
             "required": false,
             "schema": {
               "type": [
@@ -5172,7 +5226,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Reverse geocode results",
+            "description": "Nearest places first (empty until the first place index is built, and for a point off the globe)",
             "content": {
               "application/json": {
                 "schema": {
@@ -5192,12 +5246,13 @@
         "tags": [
           "places"
         ],
-        "summary": "`GET /api/places/search` — search places by query.",
+        "summary": "`GET /api/places/search` — place autocomplete.",
         "operationId": "search",
         "parameters": [
           {
             "name": "q",
             "in": "query",
+            "description": "The text to look for; blank lists the popular places.",
             "required": true,
             "schema": {
               "type": "string"
@@ -5206,6 +5261,7 @@
           {
             "name": "limit",
             "in": "query",
+            "description": "Default 10, 1..50.",
             "required": false,
             "schema": {
               "type": [
@@ -5215,11 +5271,36 @@
               "format": "int64",
               "minimum": 0
             }
+          },
+          {
+            "name": "lat",
+            "in": "query",
+            "description": "Favour places near this point; `lat` and `lon` go together.",
+            "required": false,
+            "schema": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "double"
+            }
+          },
+          {
+            "name": "lon",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "double"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "Search results",
+            "description": "Search results; `engine` is `unavailable` (no items) until the first place index is built",
             "content": {
               "application/json": {
                 "schema": {
@@ -5227,6 +5308,9 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "`lat` without `lon` (or the reverse), or a point outside the globe"
           }
         }
       }
@@ -6055,6 +6139,7 @@
           {
             "name": "brand_id",
             "in": "query",
+            "description": "Only this brand's routes (a UUID).",
             "required": false,
             "schema": {
               "type": [
@@ -6624,6 +6709,30 @@
             }
           },
           {
+            "name": "fromCity",
+            "in": "query",
+            "description": "The city the pickup place is in, as the place search names it\n(e.g. `Hà Nội`). With `toCity`, every trip between the two cities\nis found too, however far its stops are; trips whose stops have no\ncoordinates to measure come last, without a pickup or drop-off.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "toCity",
+            "in": "query",
+            "description": "The city the drop-off place is in; see `fromCity`.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
             "name": "departAfter",
             "in": "query",
             "description": "Only trips boarding at or after this time of day (`HH:MM`).",
@@ -6802,6 +6911,47 @@
           },
           "404": {
             "description": "Not found"
+          }
+        }
+      }
+    },
+    "/api/uploads/brand-logo": {
+      "post": {
+        "tags": [
+          "uploads"
+        ],
+        "summary": "`POST /api/uploads/brand-logo` — upload one brand logo.",
+        "description": "Multipart field `file` (required): JPEG / PNG / WebP (stored as WebP\nscaled to 512 px, metadata dropped) or SVG (stored as uploaded after\na safety check), ≤ 5 MiB. The format is read from the content, never\nfrom the declared Content-Type. Content-addressed: the same logo\nuploaded twice yields the same key.",
+        "operationId": "upload_brand_logo",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/BrandLogoUploadForm"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Stored logo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrandLogoUploadResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing file, unsupported format, corrupt image, unsafe SVG or over 5 MiB"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
           }
         }
       }
@@ -7061,7 +7211,7 @@
         "tags": [
           "seo"
         ],
-        "summary": "`GET /robots.txt` — dynamic robots.txt that points to the sitemap.",
+        "summary": "`GET /robots.txt` — one rule group for every crawler; the sitemap pointer\nfollows the configured public origin.",
         "operationId": "robots",
         "responses": {
           "200": {
@@ -7078,7 +7228,7 @@
         "tags": [
           "seo"
         ],
-        "summary": "`GET /sitemap.xml` — list the public routes for SEO crawlers.",
+        "summary": "`GET /sitemap.xml` — the indexable pages: the static ones, one per active\nbrand, and one search page per city pair some active route serves (\"vé xe\nHà Nội đi Đà Nẵng\"). Never lists `/login` or a page that is not indexed.",
         "operationId": "sitemap",
         "responses": {
           "200": {
@@ -7086,6 +7236,9 @@
             "content": {
               "application/xml": {}
             }
+          },
+          "503": {
+            "description": "The catalogue could not be read"
           }
         }
       }
@@ -7137,6 +7290,13 @@
             "type": "string",
             "format": "uuid"
           },
+          "cityId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Slug of the city the point is in; `null` only on points older than\nthe field that no city name matched."
+          },
           "createdAt": {
             "type": "string"
           },
@@ -7166,6 +7326,14 @@
               "string",
               "null"
             ]
+          },
+          "stopCount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Schedule stops at this address (the list endpoint only)."
           },
           "updatedAt": {
             "type": "string"
@@ -9268,6 +9436,38 @@
           }
         }
       },
+      "BrandLogoUploadForm": {
+        "type": "object",
+        "description": "Multipart body of `POST /api/uploads/brand-logo` (documentation only:\nthe handler reads the parts itself).",
+        "required": [
+          "file"
+        ],
+        "properties": {
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "description": "The logo: JPEG, PNG, WebP or SVG, ≤ 5 MiB."
+          }
+        }
+      },
+      "BrandLogoUploadResponse": {
+        "type": "object",
+        "description": "Response of `POST /api/uploads/brand-logo`.",
+        "required": [
+          "key",
+          "url"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Storage key: `brands/logos/{hash16}.{webp|svg}`."
+          },
+          "url": {
+            "type": "string",
+            "description": "`/api/media/{key}` — the value to store as the brand's `logoUrl`."
+          }
+        }
+      },
       "BrandOut": {
         "type": "object",
         "description": "Slim brand entry returned by `GET /api/brands`.",
@@ -9306,6 +9506,42 @@
           },
           "slug": {
             "type": "string"
+          }
+        }
+      },
+      "BrandProfile": {
+        "type": "object",
+        "description": "A brand's public page in one read — `GET /api/brands/{slug}/profile`.\nEvery figure is read, never estimated: a route with no schedule has no\nprice, a brand with no review has no rating. Absent values are `null`\n(not omitted), as the brand page's client expects.",
+        "required": [
+          "brand",
+          "locations",
+          "routes",
+          "trips"
+        ],
+        "properties": {
+          "brand": {
+            "$ref": "#/components/schemas/ProfileBrand"
+          },
+          "locations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProfileLocation"
+            },
+            "description": "At most 60, by city then name."
+          },
+          "routes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProfileRoute"
+            },
+            "description": "Active routes by name."
+          },
+          "trips": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProfileTrip"
+            },
+            "description": "Trips leaving in the next 3 days (today included), soonest first,\nat most 40."
           }
         }
       },
@@ -10505,7 +10741,7 @@
         "properties": {
           "engine": {
             "type": "string",
-            "description": "Engine identity (rust-sql build)."
+            "description": "Build identity of the linked SQLite (`sqlite3_sourceid()`)."
           },
           "files": {
             "$ref": "#/components/schemas/DbFilesOut"
@@ -10532,7 +10768,7 @@
             "items": {
               "$ref": "#/components/schemas/DbTableSizeOut"
             },
-            "description": "Top-25 largest objects (tables + indexes) from `dbstat`; `None`\nwhen the engine build lacks the dbstat virtual table."
+            "description": "Top-25 largest objects (tables + indexes) from `dbstat`; `None`\nwhen that query fails."
           },
           "urlMasked": {
             "type": "string",
@@ -10556,20 +10792,22 @@
           "activeConnections": {
             "type": "integer",
             "format": "int32",
-            "description": "Current active connections (in use). `-1` if unavailable\n(e.g. SQLite which doesn't have a pool)."
+            "description": "Pool connections currently checked out (open minus idle).",
+            "minimum": 0
           },
           "backend": {
             "type": "string",
-            "description": "Backend name — always `\"sqlite (rust-sql engine)\"` in this\nbuild (rustqlite via the sqlx-sqlite C-ABI compat layer)."
+            "description": "Backend name — always `\"sqlite (begin-concurrent)\"`."
           },
           "engine": {
             "$ref": "#/components/schemas/EngineStatsOut",
-            "description": "Engine-level resource usage: memory used, throughput, and\nperformance capacity. Sourced from the rustqlite engine's\nbuilt-in counters (`sqlite3::engine_stats()` — process-global\natomics bumped on the hot path at ~1 ns each, the same trade\nSQLite's own `SQLITE_STATUS` counters make)."
+            "description": "The linked SQLite build and its heap usage."
           },
           "idleConnections": {
             "type": "integer",
             "format": "int32",
-            "description": "Current idle connections (in pool, available). `-1` if unavailable."
+            "description": "Pool connections open and idle (available).",
+            "minimum": 0
           },
           "maxConnections": {
             "type": "integer",
@@ -10642,7 +10880,7 @@
           "cacheKib": {
             "type": "integer",
             "format": "int64",
-            "description": "Configured engine-wide page-cache budget in KiB\n(DATABASE_CACHE_KIB; the rust-sql engine shares ONE pager per\nfile across the pool, so this is a single budget, not per-conn)."
+            "description": "Configured page-cache budget in KiB PER pooled connection\n(DATABASE_CACHE_KIB)."
           },
           "freelistPages": {
             "type": "integer",
@@ -10837,375 +11075,45 @@
           }
         }
       },
-      "EngineCacheOut": {
-        "type": "object",
-        "required": [
-          "hits",
-          "misses",
-          "hitRatePct"
-        ],
-        "properties": {
-          "hitRatePct": {
-            "type": "number",
-            "format": "double",
-            "description": "Hit rate, 0.0–100.0. High (> 95) = working set fits in memory."
-          },
-          "hits": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Page-cache hits since open.",
-            "minimum": 0
-          },
-          "misses": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Page-cache misses (file/WAL reads) since open.",
-            "minimum": 0
-          }
-        }
-      },
-      "EngineConnectionsOut": {
-        "type": "object",
-        "required": [
-          "opened",
-          "closed",
-          "live"
-        ],
-        "properties": {
-          "closed": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Connections fully dropped since process start.",
-            "minimum": 0
-          },
-          "live": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Live C-ABI connections right now (each sqlx pool connection\n= one).",
-            "minimum": 0
-          },
-          "opened": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Total `sqlite3_open*` calls since process start.",
-            "minimum": 0
-          }
-        }
-      },
-      "EngineContentionOut": {
-        "type": "object",
-        "required": [
-          "busyWaits",
-          "busyTimeouts"
-        ],
-        "properties": {
-          "busyTimeouts": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Waits that exhausted `busy_timeout` and returned SQLITE_BUSY.",
-            "minimum": 0
-          },
-          "busyWaits": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Times a writer had to WAIT for a foreign transaction's slot.",
-            "minimum": 0
-          }
-        }
-      },
-      "EngineFileOut": {
-        "type": "object",
-        "description": "Per-database-file engine snapshot (usually one: the app DB).",
-        "required": [
-          "name",
-          "pageSizeBytes",
-          "pageCount",
-          "sizeMb",
-          "freelistPages",
-          "cachePages",
-          "cacheCapacityPages",
-          "cacheMb",
-          "cacheCapacityMb",
-          "cacheHits",
-          "cacheMisses",
-          "hitRatePct",
-          "walFrames",
-          "totalChanges",
-          "liveConnections",
-          "transactionActive"
-        ],
-        "properties": {
-          "cacheCapacityMb": {
-            "type": "number",
-            "format": "double",
-            "description": "Cache capacity, MB."
-          },
-          "cacheCapacityPages": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Cache capacity in pages.",
-            "minimum": 0
-          },
-          "cacheHits": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Cache hits since open.",
-            "minimum": 0
-          },
-          "cacheMb": {
-            "type": "number",
-            "format": "double",
-            "description": "Cache memory in use, MB."
-          },
-          "cacheMisses": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Cache misses since open.",
-            "minimum": 0
-          },
-          "cachePages": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Pages currently held in the shared page cache.",
-            "minimum": 0
-          },
-          "freelistPages": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Freelist pages (reclaimable space).",
-            "minimum": 0
-          },
-          "hitRatePct": {
-            "type": "number",
-            "format": "double",
-            "description": "Hit rate, 0.0–100.0."
-          },
-          "liveConnections": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Live C-ABI connections sharing this engine right now.",
-            "minimum": 0
-          },
-          "name": {
-            "type": "string",
-            "description": "Registry key — canonical file path (or shared-memory name)."
-          },
-          "pageCount": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Pages in the database file.",
-            "minimum": 0
-          },
-          "pageSizeBytes": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Page size in bytes.",
-            "minimum": 0
-          },
-          "sizeMb": {
-            "type": "number",
-            "format": "double",
-            "description": "Database size in MB (`page_count × page_size`)."
-          },
-          "totalChanges": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Row mutations since open.",
-            "minimum": 0
-          },
-          "transactionActive": {
-            "type": "boolean",
-            "description": "True when a transaction owns the engine slot right now."
-          },
-          "walFrames": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Frames currently in the write-ahead log.",
-            "minimum": 0
-          }
-        }
-      },
       "EngineMemoryOut": {
         "type": "object",
+        "description": "SQLite's own heap usage, process-wide (`SQLITE_STATUS_MEMORY_USED`:\npage caches, prepared statements, schema — not process RSS).",
         "required": [
-          "cacheMb",
-          "cacheCapacityMb",
-          "utilizationPct",
-          "walFrames",
-          "dbSizeMb",
-          "freelistPages"
+          "heapMb",
+          "heapPeakMb"
         ],
         "properties": {
-          "cacheCapacityMb": {
+          "heapMb": {
             "type": "number",
             "format": "double",
-            "description": "Page-cache capacity in MB (the configured upper bound the\ncaches may grow to)."
+            "description": "Bytes SQLite currently has allocated, in MB."
           },
-          "cacheMb": {
+          "heapPeakMb": {
             "type": "number",
             "format": "double",
-            "description": "Page-cache memory in use across all engine files (pages\ncurrently cached × page size), in MB."
-          },
-          "dbSizeMb": {
-            "type": "number",
-            "format": "double",
-            "description": "On-disk database size across all files, in MB."
-          },
-          "freelistPages": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Reclaimable freelist pages across all files.",
-            "minimum": 0
-          },
-          "utilizationPct": {
-            "type": "number",
-            "format": "double",
-            "description": "Cache utilization, 0.0–100.0 — `cache / capacity`."
-          },
-          "walFrames": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Frames currently buffered in the write-ahead log.",
-            "minimum": 0
+            "description": "Highest value of `heap_mb` since process start."
           }
         }
       },
       "EngineStatsOut": {
         "type": "object",
-        "description": "Live resource usage of the rustqlite engine — the \"database\nengine\" card group on the admin system page.",
+        "description": "The linked SQLite build — the \"database engine\" card group on the\nadmin system page.",
         "required": [
           "version",
-          "connections",
-          "memory",
-          "throughput",
-          "cache",
-          "transactions",
-          "contention",
-          "files"
+          "sqliteVersion",
+          "memory"
         ],
         "properties": {
-          "cache": {
-            "$ref": "#/components/schemas/EngineCacheOut",
-            "description": "Page-cache performance (hit rate — the primary \"performance\ncapacity\" signal for a page-cache-driven engine)."
-          },
-          "connections": {
-            "$ref": "#/components/schemas/EngineConnectionsOut"
-          },
-          "contention": {
-            "$ref": "#/components/schemas/EngineContentionOut",
-            "description": "Write-slot contention (how often writers waited for the\nengine-level transaction slot + how many timed out)."
-          },
-          "files": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/EngineFileOut"
-            },
-            "description": "One entry per registered engine (per database file). Usually\nexactly one — the app's `app.db`."
-          },
           "memory": {
-            "$ref": "#/components/schemas/EngineMemoryOut",
-            "description": "Memory used by the engine's page caches (the engine's own\nmemory footprint, distinct from process RSS)."
+            "$ref": "#/components/schemas/EngineMemoryOut"
           },
-          "throughput": {
-            "$ref": "#/components/schemas/EngineThroughputOut",
-            "description": "Live throughput rates (per second, computed between successive\nscrapes of this endpoint) + lifetime totals."
-          },
-          "transactions": {
-            "$ref": "#/components/schemas/EngineTransactionsOut"
+          "sqliteVersion": {
+            "type": "string",
+            "description": "`sqlite3_libversion()`, e.g. `3.51.3`."
           },
           "version": {
             "type": "string",
-            "description": "Engine build identity (`sqlite3_source_id()` — names rustqlite)."
-          }
-        }
-      },
-      "EngineThroughputOut": {
-        "type": "object",
-        "required": [
-          "rowsPerSec",
-          "writesPerSec",
-          "stepsPerSec",
-          "rowsReturned",
-          "writesExecuted",
-          "statementsPrepared",
-          "steps",
-          "totalChanges"
-        ],
-        "properties": {
-          "rowsPerSec": {
-            "type": "number",
-            "format": "double",
-            "description": "Rows delivered to clients per second (between scrapes)."
-          },
-          "rowsReturned": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Total rows returned since process start.",
-            "minimum": 0
-          },
-          "statementsPrepared": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Total statements prepared since process start.",
-            "minimum": 0
-          },
-          "steps": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Total statement steps since process start.",
-            "minimum": 0
-          },
-          "stepsPerSec": {
-            "type": "number",
-            "format": "double",
-            "description": "Statement steps per second (total statement progress)."
-          },
-          "totalChanges": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Row mutations since open (the engine's `total_changes`).",
-            "minimum": 0
-          },
-          "writesExecuted": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Total writes executed since process start.",
-            "minimum": 0
-          },
-          "writesPerSec": {
-            "type": "number",
-            "format": "double",
-            "description": "Write statements completed per second."
-          }
-        }
-      },
-      "EngineTransactionsOut": {
-        "type": "object",
-        "required": [
-          "begun",
-          "committed",
-          "rolledBack",
-          "active"
-        ],
-        "properties": {
-          "active": {
-            "type": "boolean",
-            "description": "True when a transaction owns the engine write slot right now."
-          },
-          "begun": {
-            "type": "integer",
-            "format": "int64",
-            "minimum": 0
-          },
-          "committed": {
-            "type": "integer",
-            "format": "int64",
-            "minimum": 0
-          },
-          "rolledBack": {
-            "type": "integer",
-            "format": "int64",
-            "minimum": 0
+            "description": "Build identity (`sqlite3_sourceid()`: check-in timestamp + hash)."
           }
         }
       },
@@ -11416,16 +11324,25 @@
       },
       "LoginRequest": {
         "type": "object",
+        "description": "Body of `POST /api/auth/login` and `/api/auth/employee-login`: the\nemail, or the phone number given at registration, and the password.",
         "required": [
-          "email",
           "password"
         ],
         "properties": {
           "email": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "password": {
             "type": "string"
+          },
+          "phone": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -12316,9 +12233,17 @@
           }
         }
       },
+      "PlaceEngine": {
+        "type": "string",
+        "description": "Which index answered.",
+        "enum": [
+          "index",
+          "unavailable"
+        ]
+      },
       "PlaceListResponse": {
         "type": "object",
-        "description": "Response of `GET /api/places`.",
+        "description": "Response of `GET /api/places`: the most populous cities and towns.",
         "required": [
           "items"
         ],
@@ -12326,126 +12251,48 @@
           "items": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/PlaceOut"
+              "$ref": "#/components/schemas/PlaceSearchHit"
             }
-          }
-        }
-      },
-      "PlaceOut": {
-        "type": "object",
-        "description": "A place row from the database, as returned by `GET /api/places`.",
-        "required": [
-          "id",
-          "name",
-          "type",
-          "lat",
-          "lon",
-          "population"
-        ],
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "lat": {
-            "type": "number",
-            "format": "double"
-          },
-          "lon": {
-            "type": "number",
-            "format": "double"
-          },
-          "name": {
-            "type": "string"
-          },
-          "population": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "province": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "type": {
-            "type": "string",
-            "description": "OSM place kind (city / town / village / suburb ...). Mirrors the\nDB column `place.type` (renamed because `type` is a Rust keyword)."
           }
         }
       },
       "PlaceSearchHit": {
         "type": "object",
-        "description": "A search hit returned by `GET /api/places/search?q=`.\n\nWhen the Tantivy index is configured, fields like `osmId`, `ward`,\n`district`, `city`, `score`, `distanceKm` are populated. When the\nSQL LIKE fallback is used, only the DB-backed fields are set.",
+        "description": "One place, as returned by search, the popular list and reverse geocoding.",
         "required": [
-          "name"
+          "id",
+          "name",
+          "nameNoTones",
+          "type",
+          "lat",
+          "lon",
+          "score"
         ],
         "properties": {
-          "city": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "distanceKm": {
-            "type": [
-              "number",
-              "null"
-            ],
-            "format": "double",
-            "description": "Distance from the `lat` / `lon` query param, in km. Set when\nthe caller passes `lat` + `lon` (geo-bias)."
-          },
           "district": {
             "type": [
               "string",
               "null"
             ]
           },
-          "houseNumber": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
           "id": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "uuid",
-            "description": "DB row id (only set when the hit comes from the `place` table)."
+            "type": "string",
+            "description": "OSM type letter + id: `n123` (node), `w45` (way), `r6` (relation)."
           },
           "lat": {
-            "type": [
-              "number",
-              "null"
-            ],
+            "type": "number",
             "format": "double"
           },
           "lon": {
-            "type": [
-              "number",
-              "null"
-            ],
+            "type": "number",
             "format": "double"
           },
           "name": {
             "type": "string"
           },
-          "osmId": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64",
-            "description": "OSM node/way id (only set for Tantivy hits)."
-          },
-          "placeKind": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "OSM place kind (Tantivy hits only)."
+          "nameNoTones": {
+            "type": "string",
+            "description": "The name without tone marks, lower case (`ha noi`)."
           },
           "province": {
             "type": [
@@ -12454,19 +12301,13 @@
             ]
           },
           "score": {
-            "type": [
-              "number",
-              "null"
-            ],
-            "format": "float",
-            "description": "Tantivy relevance score (0..1). Only set for Tantivy hits."
+            "type": "number",
+            "format": "double",
+            "description": "Relevance of a search hit; `0` for the popular list and reverse geocoding."
           },
           "type": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "`place.type` (DB hits only — present on SQL LIKE fallback)."
+            "type": "string",
+            "description": "Kind of place: `city`, `town`, `bus_station`, `airport`, `street`, ..."
           },
           "ward": {
             "type": [
@@ -12478,17 +12319,14 @@
       },
       "PlaceSearchResponse": {
         "type": "object",
-        "description": "Response of `GET /api/places/search?q=`.",
+        "description": "Response of `GET /api/places/search`.",
         "required": [
-          "items"
+          "items",
+          "engine"
         ],
         "properties": {
           "engine": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Which engine produced the results: `tantivy` (fulltext index) or\n`sql` (LIKE fallback). Omitted for the SQL fallback."
+            "$ref": "#/components/schemas/PlaceEngine"
           },
           "items": {
             "type": "array",
@@ -12764,6 +12602,237 @@
           }
         }
       },
+      "ProfileBrand": {
+        "type": "object",
+        "description": "The brand of a [`BrandProfile`].",
+        "required": [
+          "id",
+          "slug",
+          "name",
+          "reviewCount"
+        ],
+        "properties": {
+          "contactEmail": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "contactPhone": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "logoUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "rating": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "Mean of the approved reviews; `null` while there are none."
+          },
+          "reviewCount": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Approved reviews.",
+            "minimum": 0
+          },
+          "slug": {
+            "type": "string"
+          }
+        }
+      },
+      "ProfileLocation": {
+        "type": "object",
+        "description": "An office or stop of the brand.",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "address": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "city": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The city's display name."
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "lat": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "lon": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "ProfileRoute": {
+        "type": "object",
+        "description": "An active route of the brand with its timetable.",
+        "required": [
+          "id",
+          "name",
+          "from",
+          "to",
+          "schedules"
+        ],
+        "properties": {
+          "from": {
+            "$ref": "#/components/schemas/RouteEndpoint"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "priceFrom": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Lowest adult base price across its schedules; `null` while it has none."
+          },
+          "schedules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProfileSchedule"
+            }
+          },
+          "to": {
+            "$ref": "#/components/schemas/RouteEndpoint"
+          }
+        }
+      },
+      "ProfileSchedule": {
+        "type": "object",
+        "description": "One daily departure of a route.",
+        "required": [
+          "id",
+          "departureTime",
+          "priceAdult"
+        ],
+        "properties": {
+          "daysOfWeek": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The weekdays it runs, Monday first, as seven `1`/`0`; `null` when the\nschedule sets none (it runs every day)."
+          },
+          "departureTime": {
+            "type": "string",
+            "description": "`HH:MM`."
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "priceAdult": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "vehicleType": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The vehicle type's label."
+          }
+        }
+      },
+      "ProfileTrip": {
+        "type": "object",
+        "description": "A trip about to leave.",
+        "required": [
+          "tripId",
+          "routeId",
+          "date",
+          "departureTime",
+          "availableSeats",
+          "totalSeats",
+          "priceAdult"
+        ],
+        "properties": {
+          "availableSeats": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "date": {
+            "type": "string",
+            "description": "`YYYY-MM-DD`, Vietnam."
+          },
+          "departureTime": {
+            "type": "string",
+            "description": "`HH:MM`."
+          },
+          "priceAdult": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "routeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "totalSeats": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "tripId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "vehicleType": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The vehicle type's label."
+          }
+        }
+      },
       "PublicCampaignListResponse": {
         "type": "object",
         "description": "Response of `GET /api/campaigns`: running and upcoming campaigns.",
@@ -12904,6 +12973,13 @@
           "fullName": {
             "type": "string"
           },
+          "locale": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The account's language, `vi` (default) or `en`."
+          },
           "password": {
             "type": "string"
           },
@@ -12929,39 +13005,23 @@
       },
       "ReportConversionRequest": {
         "type": "object",
-        "description": "Request body for `POST /api/ads/conversions`.\n\nThe browser beacons this at the money moment (booking confirmed /\npayment completed) alongside the click ids it captured on landing.\nFire-and-forget: the response only acknowledges storage — the\nGoogle Ads API upload happens asynchronously and never blocks the\nuser's flow.",
+        "description": "Request body for `POST /api/ads/conversions`.\n\nThe browser beacons this at the money moment (booking confirmed /\npayment completed) alongside the click ids it captured on landing.\nFire-and-forget: the response only acknowledges storage — the\nGoogle Ads API upload happens asynchronously and never blocks the\nuser's flow.\n\nThe beacon carries no revenue or currency: both are read from the booking\n(or its completed payment) in the database.",
         "required": [
-          "event"
+          "event",
+          "transactionId"
         ],
         "properties": {
           "clickIds": {
             "$ref": "#/components/schemas/ClickIds",
             "description": "The landing click ids (attribution join key)."
           },
-          "currency": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "ISO-4217 currency code (`VND`)."
-          },
           "event": {
             "type": "string",
             "description": "Conversion event name — must match a key in the\n`GOOGLE_ADS_CONVERSION_ACTIONS` map (`booking` | `purchase`)."
           },
           "transactionId": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Stable dedupe id — the booking code. Repeat beacons collapse.\nOptional: an id-less conversion can't be deduped (mirroring\nGoogle's own optional `orderId`) — the server mints a uuid so\neach fire is recorded distinctly."
-          },
-          "value": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Revenue (decimal string, e.g. `\"250000\"` or `\"250000.00\"`) —\nkept verbatim so no float rounding reaches Google."
+            "type": "string",
+            "description": "The booking code — required: the server verifies it against a\nreal, uncancelled booking (a missing or unknown code is rejected)\nand it is the dedupe id, so repeat beacons collapse."
           }
         }
       },
@@ -13497,16 +13557,37 @@
           },
           "thumbUrl": {
             "type": "string",
-            "description": "Public URL of the JPEG thumbnail (long edge ≤ 640px) — use this\nin lists/grids, `url` in the detail gallery."
+            "description": "Public URL of the WebP thumbnail (long edge ≤ 640px) — use this\nin lists/grids, `url` in the detail gallery."
           },
           "url": {
             "type": "string",
-            "description": "Public URL of the ORIGINAL image (content-addressed, immutable)."
+            "description": "Public URL of the full-size WebP (long edge ≤ 1920px;\ncontent-addressed, immutable)."
           },
           "width": {
             "type": "integer",
             "format": "int64",
             "description": "Original dimensions in pixels (for layout before load)."
+          }
+        }
+      },
+      "RoutePictureUploadForm": {
+        "type": "object",
+        "description": "Multipart body of `POST /api/admin/routes/{id}/pictures` (documentation\nonly: the handler reads the parts itself).",
+        "required": [
+          "file"
+        ],
+        "properties": {
+          "alt_text": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Accessible description, at most 255 characters."
+          },
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "description": "The picture: JPEG, PNG or WebP."
           }
         }
       },
@@ -13828,6 +13909,14 @@
             "minimum": 0
           }
         }
+      },
+      "SortOrder": {
+        "type": "string",
+        "description": "Sort direction. Case-insensitive on input (`asc` / `desc`).",
+        "enum": [
+          "asc",
+          "desc"
+        ]
       },
       "StaffPresenceOfflineOut": {
         "type": "object",
@@ -14439,6 +14528,13 @@
           "lon"
         ],
         "properties": {
+          "cityId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The city's slug (`ha-noi`); absent for a city the app does not know."
+          },
           "lat": {
             "type": "number",
             "format": "double"
@@ -14816,6 +14912,13 @@
               "null"
             ],
             "description": "Optional `HH:MM` — when the vehicle reaches this stop."
+          },
+          "cityId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The city (slug) the stop is in, when its address names one."
           },
           "id": {
             "type": "string",
@@ -15269,7 +15372,7 @@
       },
       "UpsertAddressRequest": {
         "type": "object",
-        "description": "Request body for `POST /api/admin/addresses` + `PUT /api/admin/addresses/{id}`.",
+        "description": "Request body for `POST /api/admin/addresses` + `PUT /api/admin/addresses/{id}`.\n\nOn an update a field left out keeps its value; `null` or a blank string\nclears an optional text field.",
         "properties": {
           "address": {
             "type": [
@@ -15283,6 +15386,13 @@
               "null"
             ],
             "format": "uuid"
+          },
+          "cityId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Slug of one of our cities (`crate::cities`); required to create. The\npoint's `province` follows from it."
           },
           "district": {
             "type": [
@@ -15305,12 +15415,6 @@
             "format": "double"
           },
           "name": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "province": {
             "type": [
               "string",
               "null"
@@ -15349,7 +15453,8 @@
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "A hotline as the brand writes it (`1900 6067`, `1800…`, `0…`, `+84…`):\nany text up to 32 characters, like the reference admin API."
           },
           "description": {
             "type": [
@@ -15361,7 +15466,8 @@
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "An uploaded logo (`/api/media/brands/logos/…`) or an https URL;\nblank or `null` clears it. Checked by the service."
           },
           "name": {
             "type": [
@@ -15392,7 +15498,8 @@
               "string",
               "null"
             ],
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Owning brand; on an update `null` makes the layout part of the\nshared catalog."
           },
           "layoutData": {
             "type": [
@@ -15442,7 +15549,7 @@
               "string",
               "null"
             ],
-            "description": "Legacy vehicle-class code (`limousine`, `sleeper`, …) — kept in\nsync with the `vehicle_type` catalog codes."
+            "description": "Legacy vehicle-class code (`limousine`, `sleeper`, …) — kept in\nsync with the `vehicle_type` catalog codes. `null` or a blank string\nclears it."
           }
         }
       },
@@ -15558,7 +15665,7 @@
       },
       "UpsertScheduleRequest": {
         "type": "object",
-        "description": "Request body for `POST /api/admin/schedules` + `PUT /api/admin/schedules/{id}`.",
+        "description": "Request body for `POST /api/admin/schedules` + `PUT /api/admin/schedules/{id}`.\n\nOn an update a field left out keeps its value; `null` (or a blank string)\nclears an optional one.",
         "properties": {
           "amenities": {
             "type": [
@@ -15579,7 +15686,7 @@
               "null"
             ],
             "format": "int64",
-            "description": "Child price of a standard seat; `0` = the brand's discount applies."
+            "description": "Child price of a standard seat; `0` or `null` = the brand's discount\napplies."
           },
           "busLayoutId": {
             "type": [
@@ -15587,7 +15694,7 @@
               "null"
             ],
             "format": "uuid",
-            "description": "Bus layout id (string on the wire, `Uuid` in Rust)."
+            "description": "Bus layout id (string on the wire, `Uuid` in Rust); `null` unlinks it."
           },
           "classFares": {
             "type": [
@@ -15646,7 +15753,7 @@
               "null"
             ],
             "format": "uuid",
-            "description": "Vehicle class from the admin-managed `vehicle_type` catalog.\nValidated in the service (404-style validation error when unknown)."
+            "description": "Vehicle class from the admin-managed `vehicle_type` catalog; `null`\nunlinks it. Validated in the service (404-style validation error\nwhen unknown)."
           }
         }
       },
@@ -15991,6 +16098,10 @@
     {
       "name": "ads",
       "description": "Server-side Google Ads conversion recording"
+    },
+    {
+      "name": "uploads",
+      "description": "Image uploads (brand logos)"
     }
   ]
 }
