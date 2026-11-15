@@ -181,7 +181,6 @@ time = "0.3"
 
 # CLI
 clap = { version = "4", features = ["derive", "env"] }
-tempfile = "3.27.0"
 
 [features]
 default = []
@@ -197,6 +196,7 @@ default = []
 ignored = ["md-5"]
 
 [dev-dependencies]
+tempfile = "3.27.0"
 tokio-test = "0.4"
 # WebSocket client for socket-level tests (same version axum links).
 tokio-tungstenite = "0.29"
