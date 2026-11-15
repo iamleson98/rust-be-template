@@ -115,7 +115,9 @@ impl AppError {
                 crate::store::StoreError::Validation(_) => StatusCode::BAD_REQUEST,
                 crate::store::StoreError::Forbidden(_) => StatusCode::FORBIDDEN,
                 crate::store::StoreError::Conflict(_) => StatusCode::CONFLICT,
-                crate::store::StoreError::Exhausted { .. } => StatusCode::SERVICE_UNAVAILABLE,
+                crate::store::StoreError::Exhausted { .. } | crate::store::StoreError::Busy(_) => {
+                    StatusCode::SERVICE_UNAVAILABLE
+                }
                 _ => StatusCode::INTERNAL_SERVER_ERROR,
             },
             AppError::Cache(_) | AppError::Storage(_) | AppError::Worker(_) => {
@@ -146,6 +148,7 @@ impl AppError {
             | AppError::Store(StoreError::Database(_) | StoreError::Exhausted { .. }) => {
                 "internal server error".to_string()
             }
+            AppError::Store(StoreError::Busy(_)) => "the service is busy, please retry".to_string(),
             AppError::UpstreamHttp(_) => "upstream service unavailable".to_string(),
             _ => self.to_string(),
         }
@@ -245,6 +248,13 @@ mod tests {
         ] {
             assert_eq!(err.public_message(), "internal server error", "{err:?}");
         }
+    }
+
+    #[test]
+    fn a_busy_database_is_a_retryable_503_with_a_generic_message() {
+        let err = AppError::Store(StoreError::Busy("database is locked".into()));
+        assert_eq!(err.status(), axum::http::StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(err.public_message(), "the service is busy, please retry");
     }
 
     #[test]

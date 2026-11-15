@@ -553,7 +553,7 @@ impl CampaignStore for DbCampaignStore {
             })
             .await
             .map_err(|e| match StoreError::from(e) {
-                StoreError::Database(msg) if msg.to_lowercase().contains("unique") => {
+                e if e.is_record_exists() => {
                     StoreError::Conflict("two tiers cannot have the same amount".into())
                 }
                 other => other,
