@@ -30,8 +30,7 @@ use crate::middleware::MaybeAuthUser;
 ///
 /// The beacon is trusted for nothing but the click ids: the event must
 /// be `booking` or `purchase`, `transactionId` a real booking's code, and
-/// value and currency come from the database (see
-/// [`AdsHub::report`](crate::ads::AdsHub::report)).
+/// value and currency come from the database.
 #[utoipa::path(
     post,
     path = "/api/ads/conversions",
