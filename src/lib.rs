@@ -13,7 +13,8 @@
 //! - `ws`: in-process WebSocket chat hub (extensible to Redis fan-out)
 //! - `audio_call`: WebRTC signaling relay (`/ws-call`)
 //! - `geo`: country of an IP address (the Vietnam-only call gate)
-//! - `osm`: Tantivy place-search index (Vietnamese-aware, OSM PBF ingestion)
+//! - `osm`: OSM extract download
+//! - `places`: in-process place search (index generations, engine)
 //! - `nullclaw`: pluggable AI customer-support assistant
 //! - `rbac`: cached role + permission checker
 //! - `auth`: password, JWT, refresh, cookies, SessionUser

@@ -534,7 +534,7 @@ mod tests {
     use crate::worker::Job;
     use validator::Validate;
 
-    const OSM: &str = jobs::osm_import::OsmImport::KIND;
+    const JOB: &str = jobs::coupon_expiry::CouponExpiry::KIND;
 
     fn test_config() -> Arc<Config> {
         Arc::new(Config {
@@ -614,7 +614,7 @@ mod tests {
     async fn trigger_needs_a_queue_and_a_catalog_job() {
         let (svc, _, _) = service(false).await;
         assert!(matches!(
-            svc.trigger(OSM).await.unwrap_err(),
+            svc.trigger(JOB).await.unwrap_err(),
             AppError::ServiceUnavailable(_)
         ));
         let (svc, _, _) = service(true).await;
@@ -627,17 +627,17 @@ mod tests {
     #[tokio::test]
     async fn a_job_cannot_be_queued_twice_at_once() {
         let (svc, store, queue) = service(true).await;
-        let run = svc.trigger(OSM).await.unwrap();
+        let run = svc.trigger(JOB).await.unwrap();
         assert_eq!(run.status, status::QUEUED);
         let job = queue.as_ref().unwrap().get(run.id).await.unwrap().unwrap();
-        assert_eq!(job.kind, OSM, "the queue job shares the run's id");
+        assert_eq!(job.kind, JOB, "the queue job shares the run's id");
 
         assert!(matches!(
-            svc.trigger(OSM).await.unwrap_err(),
+            svc.trigger(JOB).await.unwrap_err(),
             AppError::Conflict(_)
         ));
         assert_eq!(
-            store.count_runs(OSM).await.unwrap(),
+            store.count_runs(JOB).await.unwrap(),
             1,
             "the refused run leaves no row"
         );
@@ -646,41 +646,41 @@ mod tests {
     #[tokio::test]
     async fn cancelling_a_queued_run_removes_it() {
         let (svc, store, queue) = service(true).await;
-        let run = svc.trigger(OSM).await.unwrap();
-        let cancelled = svc.cancel(OSM).await.unwrap();
+        let run = svc.trigger(JOB).await.unwrap();
+        let cancelled = svc.cancel(JOB).await.unwrap();
         assert_eq!(cancelled.status, status::CANCELLED);
         assert!(queue.unwrap().get(run.id).await.unwrap().is_none());
         assert!(matches!(
-            svc.cancel(OSM).await.unwrap_err(),
+            svc.cancel(JOB).await.unwrap_err(),
             AppError::NotFound(_)
         ));
         // The job can be queued again.
-        svc.trigger(OSM).await.unwrap();
-        assert_eq!(store.count_runs(OSM).await.unwrap(), 2);
+        svc.trigger(JOB).await.unwrap();
+        assert_eq!(store.count_runs(JOB).await.unwrap(), 2);
     }
 
     #[tokio::test]
     async fn the_tick_fires_a_due_slot_once_and_advances_it() {
         let (svc, store, _) = service(true).await;
-        insert_schedule(&store, OSM, Some("2020-01-01T00:00:00Z".into())).await;
+        insert_schedule(&store, JOB, Some("2020-01-01T00:00:00Z".into())).await;
 
         svc.tick_once().await;
-        assert_eq!(store.count_runs(OSM).await.unwrap(), 1);
-        let schedule = store.find_schedule(OSM).await.unwrap().unwrap();
+        assert_eq!(store.count_runs(JOB).await.unwrap(), 1);
+        let schedule = store.find_schedule(JOB).await.unwrap().unwrap();
         assert!(parse_iso(schedule.next_run_at.as_deref().unwrap()).unwrap() > Utc::now());
 
         // Nothing is due any more, and a second instance's tick finds the
         // slot already moved.
         svc.tick_once().await;
-        assert_eq!(store.count_runs(OSM).await.unwrap(), 1);
+        assert_eq!(store.count_runs(JOB).await.unwrap(), 1);
     }
 
     #[tokio::test]
     async fn run_history_follows_the_runner_events() {
         let (svc, store, _) = service(true).await;
-        let run = svc.trigger(OSM).await.unwrap();
+        let run = svc.trigger(JOB).await.unwrap();
 
-        svc.started(run.id, OSM, 1).await;
+        svc.started(run.id, JOB, 1).await;
         svc.progressed(run.id, &serde_json::json!({ "phase": "indexing" }))
             .await;
         let row = store.find_run(run.id).await.unwrap().unwrap();
@@ -691,12 +691,12 @@ mod tests {
             error: "boom".into(),
             retry_at: "later".into(),
         };
-        svc.finished(run.id, OSM, &retry).await;
+        svc.finished(run.id, JOB, &retry).await;
         let row = store.find_run(run.id).await.unwrap().unwrap();
         assert_eq!(row.status, status::QUEUED);
         assert!(row.error.as_deref().unwrap().contains("boom"));
 
-        svc.finished(run.id, OSM, &RunOutcome::Succeeded).await;
+        svc.finished(run.id, JOB, &RunOutcome::Succeeded).await;
         let row = store.find_run(run.id).await.unwrap().unwrap();
         assert_eq!(row.status, status::SUCCEEDED);
         assert!(row.error.is_none() && row.finished_at.is_some());
@@ -712,7 +712,7 @@ mod tests {
         let orphan = store
             .insert_run(job_run::ActiveModel {
                 id: Set(Uuid::new_v4()),
-                job_type: Set(OSM.into()),
+                job_type: Set(JOB.into()),
                 status: Set(status::QUEUED.into()),
                 detail: Set(None),
                 error: Set(None),
@@ -722,7 +722,7 @@ mod tests {
             })
             .await
             .unwrap();
-        let live = svc.trigger(OSM).await.unwrap();
+        let live = svc.trigger(JOB).await.unwrap();
         svc.tick_once().await;
         assert_eq!(
             store.find_run(orphan.id).await.unwrap().unwrap().status,
@@ -737,10 +737,10 @@ mod tests {
     #[tokio::test]
     async fn update_schedule_validates_and_rearms() {
         let (svc, store, _) = service(false).await;
-        insert_schedule(&store, OSM, None).await;
+        insert_schedule(&store, JOB, None).await;
         let out = svc
             .update_schedule(
-                OSM,
+                JOB,
                 &UpdateCronJobRequest {
                     enabled: Some(false),
                     interval_days: Some(7),
@@ -766,7 +766,7 @@ mod tests {
     #[tokio::test]
     async fn list_schedules_reports_whether_jobs_run_here() {
         let (svc, store, _) = service(false).await;
-        insert_schedule(&store, OSM, None).await;
+        insert_schedule(&store, JOB, None).await;
         let out = svc.list_schedules().await.unwrap();
         assert!(!out.scheduler_enabled);
         assert_eq!(out.items.len(), 1);

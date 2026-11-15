@@ -1,91 +1,77 @@
-//! DTOs for the place service (`/api/places`, `/api/places/search`,
+//! DTOs of the place endpoints (`/api/places`, `/api/places/search`,
 //! `/api/places/reverse`).
 //!
-//! All DTOs use `#[serde(rename_all = "camelCase")]` so Rust field names
-//! stay snake_case (Rust convention) while the JSON wire shape is
-//! camelCase (JSON/TypeScript convention).
+//! The wire shape is camelCase and matches what the Worker's place routes
+//! returned: `{ id, name, nameNoTones, type, province, district, ward, lat,
+//! lon, score }` per hit.
 
 use serde::Serialize;
 use utoipa::ToSchema;
-use uuid::Uuid;
 
-/// A place row from the database, as returned by `GET /api/places`.
-#[derive(Debug, Serialize, ToSchema)]
+use crate::places::PlaceHit;
+
+/// One place, as returned by search, the popular list and reverse geocoding.
+#[derive(Debug, Clone, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct PlaceOut {
-    pub id: Uuid,
+pub struct PlaceSearchHit {
+    /// OSM type letter + id: `n123` (node), `w45` (way), `r6` (relation).
+    pub id: String,
     pub name: String,
-    /// OSM place kind (city / town / village / suburb ...). Mirrors the
-    /// DB column `place.type` (renamed because `type` is a Rust keyword).
+    /// The name without tone marks, lower case (`ha noi`).
+    pub name_no_tones: String,
+    /// Kind of place: `city`, `town`, `bus_station`, `airport`, `street`, ...
     #[serde(rename = "type")]
     pub kind: String,
     pub province: Option<String>,
+    pub district: Option<String>,
+    pub ward: Option<String>,
     pub lat: f64,
     pub lon: f64,
-    pub population: i64,
+    /// Relevance of a search hit; `0` for the popular list and reverse geocoding.
+    pub score: f64,
 }
 
-/// A search hit returned by `GET /api/places/search?q=`.
-///
-/// When the Tantivy index is configured, fields like `osmId`, `ward`,
-/// `district`, `city`, `score`, `distanceKm` are populated. When the
-/// SQL LIKE fallback is used, only the DB-backed fields are set.
-#[derive(Debug, Serialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct PlaceSearchHit {
-    /// DB row id (only set when the hit comes from the `place` table).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub id: Option<Uuid>,
-    /// OSM node/way id (only set for Tantivy hits).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub osm_id: Option<i64>,
-    pub name: String,
-    /// OSM place kind (Tantivy hits only).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub place_kind: Option<String>,
-    /// `place.type` (DB hits only — present on SQL LIKE fallback).
-    #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
-    pub kind: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub house_number: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub ward: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub district: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub city: Option<String>,
-    pub province: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub lat: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub lon: Option<f64>,
-    /// Tantivy relevance score (0..1). Only set for Tantivy hits.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub score: Option<f32>,
-    /// Distance from the `lat` / `lon` query param, in km. Set when
-    /// the caller passes `lat` + `lon` (geo-bias).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub distance_km: Option<f64>,
+impl From<PlaceHit> for PlaceSearchHit {
+    fn from(hit: PlaceHit) -> Self {
+        Self {
+            id: hit.id,
+            name: hit.name,
+            name_no_tones: hit.name_no_tones,
+            kind: hit.kind,
+            province: hit.province,
+            district: hit.district,
+            ward: hit.ward,
+            lat: hit.lat,
+            lon: hit.lon,
+            score: hit.score,
+        }
+    }
 }
 
-/// Response of `GET /api/places`.
-#[derive(Debug, Serialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct PlaceListResponse {
-    pub items: Vec<PlaceOut>,
+/// Which index answered.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, ToSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum PlaceEngine {
+    /// The place index served the request.
+    Index,
+    /// No place index has been built yet: the items are empty.
+    Unavailable,
 }
 
-/// Response of `GET /api/places/search?q=`.
+/// Response of `GET /api/places/search`.
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct PlaceSearchResponse {
     pub items: Vec<PlaceSearchHit>,
-    /// Which engine produced the results: `tantivy` (fulltext index) or
-    /// `sql` (LIKE fallback). Omitted for the SQL fallback.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub engine: Option<String>,
+    pub engine: PlaceEngine,
 }
 
-/// Response of `GET /api/places/reverse?lat=&lon=`. A list of the nearest
-/// places to the query point, sorted by distance ascending.
+/// Response of `GET /api/places`: the most populous cities and towns.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PlaceListResponse {
+    pub items: Vec<PlaceSearchHit>,
+}
+
+/// Response of `GET /api/places/reverse`: the nearest places, nearest first.
 pub type PlaceReverseResponse = Vec<PlaceSearchHit>;

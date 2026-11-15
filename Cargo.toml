@@ -123,19 +123,14 @@ tokio-util = { version = "0.7", features = ["io"] }
 # HTTP client (for Valhalla routing proxy)
 reqwest = { version = "0.12", features = ["json", "rustls-tls", "stream", "http2"], default-features = false }
 
-# Search / OSM place index (Tantivy fulltext + geo + OSM PBF ingestion)
-tantivy = "0.22"
-# In-process place engine (fst term index, atomically swapped generations).
+# In-process place engine (fst term index, atomically swapped generations);
+# `place-extract` supplies the place records and the OSM extractor.
+place-extract = { path = "tools/place-extract" }
 fst = { version = "0.4", features = ["levenshtein"] }
 unicode-normalization = "0.1"
 md-5 = "0.10"
 indexmap = "2"
 arc-swap = "1"
-osmpbf = "0.3"
-geo = "0.29"
-rstar = "0.12"
-deunicode = "1"
-regex = "1"
 num_cpus = "1"
 
 # High-concurrency maps for WS hubs
@@ -202,19 +197,13 @@ default = []
 #
 # Dependencies added ahead of the work package that uses them (remove
 # each name from this list when its package lands):
-# `pbkdf2` — WP6 (auth), `webp` — WP5 (media), `fst`,
-# `unicode-normalization`, `md-5`, `indexmap`, `arc-swap` — WP2 (places).
+# `pbkdf2` — WP6 (auth), `webp` — WP5 (media).
 # Until then cargo's own `unused_dependencies` lint warns about them too.
 [package.metadata.cargo-machete]
 ignored = [
   "sea-query",
   "pbkdf2",
   "webp",
-  "fst",
-  "unicode-normalization",
-  "md-5",
-  "indexmap",
-  "arc-swap",
 ]
 
 [dev-dependencies]

@@ -281,7 +281,7 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
     // Memory sweeper — periodic forced mimalloc collect. The engine's
     // allocator keeps freed pages resident (purge_delay=-1) and only
     // drains at its own SQL write-burst boundaries; without this the
-    // service's transient peaks (HTTP/WS/tantivy/moka churn) ratchet
+    // service's transient peaks (HTTP/WS/moka churn) ratchet
     // RSS up to the historical watermark and keep it there (the
     // 650 MB idle-RSS report, 2026-09). See src/memory.rs.
     crate::memory::spawn_sweeper(config.memory.interval());
@@ -339,26 +339,6 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
     let user_service = Arc::new(UserService::new(store.clone()));
     let post_service = Arc::new(PostService::new(store.clone()));
 
-    // ---- Optional Tantivy place-search index ──────────────────────────
-    // Opened only when `search.index_dir` points at a built index. When
-    // absent, PlaceService falls back to SQL LIKE queries.
-    let place_searcher = match &config.search.index_dir {
-        Some(dir) if dir.exists() => match crate::osm::searcher::PlaceSearcher::open(dir) {
-            Ok(s) => {
-                tracing::info!(index_dir = %dir.display(), "place search index opened");
-                Some(Arc::new(s))
-            }
-            Err(e) => {
-                tracing::warn!(error = %e, index_dir = %dir.display(), "failed to open place search index; search will use SQL fallback");
-                None
-            }
-        },
-        _ => {
-            tracing::info!("no place search index configured; run `backend import-osm` to enable");
-            None
-        }
-    };
-
     // ---- New domain services (booking logic) -------------------------
     let admin_service = Arc::new(AdminService::new(store.clone()));
     let review_service = Arc::new(ReviewService::new(store.clone()));
@@ -387,7 +367,11 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
     };
     let public_service = Arc::new(PublicService::with_warmer(store.clone(), warmer));
     let routing_service = Arc::new(RoutingService::new(&config));
-    let place_service = Arc::new(PlaceService::with_searcher(store.clone(), place_searcher));
+    // The place index is built by `places-build`, never here: the engine
+    // is loaded from the live generation before serving (none yet answers
+    // `unavailable`) and swapped when a newer generation appears.
+    let place_service = Arc::new(PlaceService::new());
+    crate::places::live::start(config.places.dir.clone(), place_service.clone()).await;
     let price_alert_service = Arc::new(PriceAlertService::new(store.clone()));
     let notification_service = Arc::new(NotificationService::new(store.clone()));
 
@@ -455,9 +439,7 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
         }
 
         let registry = jobs::register_all(&jobs::JobDeps {
-            places: place_service.clone(),
             campaigns: store.campaign_store(),
-            config: config_arc.clone(),
         });
         let kinds = registry.kinds();
         let runner = WorkerRunner::new(
