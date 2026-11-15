@@ -92,6 +92,30 @@ pub enum Command {
         reset_trips: bool,
     },
 
+    /// Build a fresh place-index generation from the Geofabrik Vietnam
+    /// extract and publish it under `PLACES_DIR` (skips the work when the
+    /// extract is unchanged, unless `--force`).
+    PlacesBuild {
+        /// Rebuild even when the extract's MD5 matches the live generation.
+        #[arg(long)]
+        force: bool,
+    },
+
+    /// Import a Cloudflare D1 export (a staging SQLite file made from
+    /// `wrangler d1 export`) into a freshly migrated app database.
+    /// Usage: `import-d1 --stage <stage.db> --out <app.db> --report <report.json>`
+    ImportD1 {
+        /// The staging database built from the D1 export.
+        #[arg(long)]
+        stage: PathBuf,
+        /// The app database to create (migrated first, then filled).
+        #[arg(long)]
+        out: PathBuf,
+        /// Where to write the JSON import report.
+        #[arg(long)]
+        report: PathBuf,
+    },
+
     /// Build the Tantivy place-search index from an OSM PBF file.
     /// Usage: `import-osm <path-to-vietnam.osm.pbf> [--index-dir <dir>]`
     ImportOsm {

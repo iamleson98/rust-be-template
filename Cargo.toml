@@ -204,6 +204,7 @@ default = []
 # each name from this list when its package lands):
 # `pbkdf2` — WP6 (auth), `webp` — WP5 (media), `fst`,
 # `unicode-normalization`, `md-5`, `indexmap`, `arc-swap` — WP2 (places).
+# Until then cargo's own `unused_dependencies` lint warns about them too.
 [package.metadata.cargo-machete]
 ignored = [
   "sea-query",
