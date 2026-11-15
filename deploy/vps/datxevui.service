@@ -1,0 +1,76 @@
+[Unit]
+Description=datxevui (Rust API, SPA host and WebSocket hub)
+Documentation=https://github.com/iamleson98/rust-be-template/tree/HEAD/deploy/vps
+Wants=network-online.target
+After=network-online.target
+# A crash loop stops after 10 starts in 5 minutes instead of hammering the
+# database; `systemctl reset-failed datxevui` re-arms it.
+StartLimitIntervalSec=300
+StartLimitBurst=10
+
+[Service]
+Type=simple
+User=datxevui
+Group=datxevui
+# /opt/datxevui/current is a symlink to the active release; datxevui-update
+# flips it and restarts this unit. `serve` applies pending migrations first.
+ExecStart=/opt/datxevui/current/datxevui serve
+
+# Defaults that describe this box. /etc/datxevui/env is read afterwards and
+# wins on a clash, so it only needs secrets and per-site values.
+Environment=SERVER_HOST=127.0.0.1
+Environment=SERVER_PORT=8080
+Environment=DATABASE_URL=sqlite:///var/lib/datxevui/app.db?mode=rwc
+Environment=STATIC_FILES_DIR=/opt/datxevui/current/dist
+Environment=LEGACY_NEXT_DIR=/var/lib/datxevui/legacy-next
+Environment=STORAGE_BACKEND=local
+Environment=STORAGE_LOCAL_ROOT=/var/lib/datxevui/uploads
+Environment=PLACES_DIR=/var/lib/datxevui/places
+Environment=CLIENT_IP_SOURCE=cf-connecting-ip
+Environment=RUST_LOG=info,tower_http=warn
+EnvironmentFile=/etc/datxevui/env
+
+Restart=always
+RestartSec=3
+# Long enough for WebSocket clients to be told to reconnect.
+TimeoutStopSec=30
+LimitNOFILE=16384
+LimitCORE=0
+# tokio's blocking pool alone may use 512 threads.
+TasksMax=1024
+
+# Memory (2 GB box shared with the k3s agent, the 256Mi quiz pod and
+# cloudflared; see README.md). Past MemoryHigh the kernel reclaims and
+# throttles the process; MemoryMax is the hard stop. The weekly place-index
+# build runs in its own capped unit, so it is not charged here.
+MemoryHigh=900M
+MemoryMax=1300M
+
+# Hardening: the process reads its release and writes only its state directory.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictSUIDSGID=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+LockPersonality=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+UMask=0077
+# app.db, uploads/, places/ and backups/ live here (writable despite
+# ProtectSystem=strict). Mode 0755 so datxevui-update can publish files that
+# stay read-only for the service (legacy-next/).
+StateDirectory=datxevui
+StateDirectoryMode=0755
+
+[Install]
+WantedBy=multi-user.target
