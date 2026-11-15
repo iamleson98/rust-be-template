@@ -73,11 +73,9 @@ pub trait ReviewStore: Send + Sync {
     /// into memory just to extract the distinct tag set.
     ///
     /// Note: tags are stored as a comma-separated `Option<String>` column.
-    /// On Postgres this would be `regexp_split_to_table`; with the rust-sql
-    /// engine we
-    /// fetch only the `tags` column (much smaller than full rows) and
-    /// split client-side. Either way, the result is at most a few dozen
-    /// unique tag strings — never the full table.
+    /// We fetch only the `tags` column (much smaller than full rows) and
+    /// split client-side. The result is at most a few dozen unique tag
+    /// strings — never the full table.
     async fn list_distinct_tags(&self, status: Option<&str>) -> StoreResult<Vec<String>>;
     async fn list_reviews_by_brand(
         &self,

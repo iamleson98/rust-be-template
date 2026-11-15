@@ -19,10 +19,10 @@ use crate::entity::{seat, seat_inventory, trip_session};
 
 use super::error::{StoreError, StoreResult};
 use super::retry::RetryPolicy;
-/// Parse a uuid string for a query filter BIND. The rust-sql engine
-/// (sqlite dialect) stores Uuid columns as 16-byte BLOBs — binding a
-/// TEXT value never matches, so every uuid filter must bind the parsed
-/// `Uuid` (a BLOB parameter that does).
+/// Parse a uuid string for a query filter BIND. SQLite stores Uuid
+/// columns as 16-byte BLOBs — binding a TEXT value never matches, so
+/// every uuid filter must bind the parsed `Uuid` (a BLOB parameter that
+/// does).
 fn parse_uuid(s: &str) -> StoreResult<uuid::Uuid> {
     uuid::Uuid::parse_str(s).map_err(|_| StoreError::Validation(format!("invalid uuid: {s}")))
 }
@@ -334,8 +334,7 @@ impl TripStore for DbTripStore {
     ) -> StoreResult<trip_session::Model> {
         // Materialize the returned Model from the ActiveModel BEFORE the
         // insert — the generator sets every field, so no RETURNING
-        // round-trip is needed (the rust-sql engine's RETURNING support
-        // is untested).
+        // round-trip is needed.
         let inserted: trip_session::Model = model
             .clone()
             .try_into()

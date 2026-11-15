@@ -17,11 +17,9 @@ pub struct Migration;
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        // NOTE: no inline `.index(...)` inside create_table — the
-        // rust-sql engine's parser rejects inline INDEX table
-        // constraints (they're a SQLite legacy extension; standard
-        // SQL wants separate CREATE INDEX statements, which also keeps
-        // the statement Postgres-compatible).
+        // NOTE: no inline `.index(...)` inside create_table — SQLite has
+        // no inline INDEX table constraint (a MySQL extension); indexes
+        // are separate CREATE INDEX statements.
         manager
             .create_table(
                 Table::create()

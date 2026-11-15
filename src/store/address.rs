@@ -131,8 +131,8 @@ impl AddressStore for DbAddressStore {
         // Parse to Uuid — see `parse_uuid` (a TEXT parameter never
         // matches the BLOB-stored uuid column on SQLite).
         let brand_uuid = super::parse_uuid(brand_id)?;
-        // LOWER(name) LIKE — portable case-insensitive contains across
-        // the rust-sql engine (same trick as the route store).
+        // LOWER(name) LIKE — case-insensitive contains (same approach as
+        // the route store).
         let needle = q
             .map(str::trim)
             .filter(|s| !s.is_empty())

@@ -72,10 +72,9 @@ pub(crate) const FANOUT_CHUNK: usize = 500;
 /// [`StoreError::Validation`].
 ///
 /// Why this exists: several store methods accept ids as `&str` (the
-/// wire-facing convention). The rust-sql engine (sqlite dialect) stores
-/// `Uuid` columns as 16-byte BLOBs, so filtering with `.eq(some_string)`
-/// (a TEXT parameter) NEVER matches — BLOB ≠ TEXT in the engine's
-/// comparison rules. Binding the parsed [`uuid::Uuid`] (a BLOB parameter)
+/// wire-facing convention). SQLite stores `Uuid` columns as 16-byte
+/// BLOBs, so filtering with `.eq(some_string)` (a TEXT parameter) NEVER
+/// matches — BLOB ≠ TEXT in SQLite's comparison rules. Binding the parsed [`uuid::Uuid`] (a BLOB parameter)
 /// matches correctly. Every `&str`-id filter must go through this.
 pub(crate) fn parse_uuid(s: &str) -> StoreResult<uuid::Uuid> {
     uuid::Uuid::parse_str(s).map_err(|_| StoreError::Validation(format!("invalid UUID: {s:?}")))

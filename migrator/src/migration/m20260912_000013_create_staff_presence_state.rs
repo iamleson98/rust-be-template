@@ -23,7 +23,7 @@
 //!     roster renders without a JOIN (they are display-cached; the
 //!     auth tables remain the source of truth).
 //!   * Timestamps are RFC3339 TEXT, matching every other table in
-//!     the schema (the rust-sql engine stores TEXT datetimes).
+//!     the schema.
 
 use sea_orm_migration::{prelude::*, schema::*};
 

@@ -371,7 +371,7 @@ impl ChatStore for DbChatStore {
         // message per channel. The outer query averages the difference.
         //
         // NOTE: `created_at` is stored as TEXT (ISO 8601 RFC 3339).
-        // The rust-sql engine's `julianday()` converts to a float
+        // SQLite's `julianday()` converts to a float
         // (days) — multiply by 86400.0 for seconds.
         let backend = self.db.as_ref().get_database_backend();
         let sql = r#"SELECT

@@ -240,16 +240,13 @@ impl RouteStore for DbRouteStore {
             base = base.filter(route::Column::EndLocationId.eq(end));
         }
         if let Some(q) = q.map(str::trim).filter(|s| !s.is_empty()) {
-            // NOTE: the wildcards are pre-baked into the bound parameter.
-            // Do NOT rebuild this as `'%' || ? || '%'` — the rustqlite
-            // engine parses LIKE tighter than `||`, so that form becomes
-            // `(name LIKE '%') || ? || '%'` (always a truthy string) and
-            // the filter silently matches EVERY row.
+            // NOTE: the wildcards are pre-baked into the bound parameter,
+            // so the SQL stays a plain `LOWER(col) LIKE ?`.
             let needle = format!("%{}%", q.to_lowercase());
             // Search the route name, both city slugs and the owning
-            // brand's name (subquery keeps it one round-trip). LIKE with
-            // a LOWER()-ed column keeps matches case-insensitive on the engine —
-            // the same trick `apply_q` in the vehicle-type store uses.
+            // brand's name (subquery keeps it one round-trip). LIKE on a
+            // LOWER()-ed column — the same approach `apply_q` in the
+            // vehicle-type store uses.
             base = base.filter(
                 sea_orm::Condition::any()
                     .add(Expr::cust_with_values(
@@ -296,15 +293,11 @@ impl RouteStore for DbRouteStore {
         // Two independent match strategies, OR'd together:
         //
         // 1. Name path — SQL-side ILIKE filter: both from and to must
-        //    appear in the route name (case-insensitive). On SQLite,
-        //    LIKE is case-insensitive for ASCII by default; on Postgres
-        //    ILIKE would be; LOWER() is the engine-compatible form.
+        //    appear in the route name (case-insensitive). SQLite's LIKE
+        //    is case-insensitive for ASCII only; LOWER() makes the
+        //    comparison explicit rather than relying on that default.
         //
-        //    NOTE: wildcards are pre-baked into the bound parameters. The
-        //    previous `'%' || ? || '%'` form parsed as `(name LIKE '%') || ?
-        //    || '%'` on the rustqlite engine (LIKE binds tighter than `||`
-        //    there), which is always truthy — the from/to filter silently
-        //    matched every route.
+        //    NOTE: wildcards are pre-baked into the bound parameters.
         //
         // 2. Slug path — structured endpoint match: the route's
         //    `start_location_id` / `end_location_id` (city slugs set by
