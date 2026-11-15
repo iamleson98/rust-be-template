@@ -114,7 +114,11 @@ async fn refresh(plan: &Plan, force: bool) -> Result<Outcome> {
     };
     let client = download::client()?;
     let published = published_md5(&client, &plan.pbf_url).await?;
-    if !force && current.as_ref().is_some_and(|c| c.source_md5 == published) {
+    if !force
+        && current
+            .as_ref()
+            .is_some_and(|c| is_up_to_date(c, &published, &plan.profile))
+    {
         return Ok(Outcome::Unchanged);
     }
 
@@ -167,6 +171,12 @@ async fn refresh(plan: &Plan, force: bool) -> Result<Outcome> {
     })
     .await??;
     Ok(Outcome::Published(manifest))
+}
+
+/// The live generation already answers for this extract and this profile: a
+/// changed `PLACES_PROFILE` rebuilds even when Geofabrik's file did not move.
+fn is_up_to_date(live: &Manifest, published_md5: &str, profile: &str) -> bool {
+    live.source_md5 == published_md5 && live.profile.eq_ignore_ascii_case(profile)
 }
 
 /// Refuses an index that is too small, shrank too much, or answers the smoke
@@ -319,6 +329,15 @@ mod tests {
             source_md5: "m".into(),
             profile: "all".into(),
         }
+    }
+
+    #[test]
+    fn a_changed_profile_rebuilds_even_with_the_same_extract() {
+        let live = manifest(10);
+        assert!(is_up_to_date(&live, "m", "all"));
+        assert!(is_up_to_date(&live, "m", "ALL"));
+        assert!(!is_up_to_date(&live, "m", "travel"), "profile changed");
+        assert!(!is_up_to_date(&live, "other", "all"), "extract changed");
     }
 
     #[test]
