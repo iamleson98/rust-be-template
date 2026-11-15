@@ -145,7 +145,10 @@ async fn boot() -> Server {
     });
     let srv = Server {
         st,
-        http: reqwest::Client::new(),
+        http: reqwest::Client::builder()
+            .user_agent(BROWSER_UA)
+            .build()
+            .unwrap(),
         addr,
     };
     // The first account of a server is its admin: make that one up front.
@@ -282,12 +285,17 @@ impl Server {
 
     /// A socket on `path` (`/ws` or `/ws-call`), signed in by token.
     async fn socket(&self, who: &Person, path: &str) -> Socket {
+        self.socket_as(who, path, BROWSER_UA).await
+    }
+
+    /// Like [`Server::socket`], from a client sending `user_agent`.
+    async fn socket_as(&self, who: &Person, path: &str, user_agent: &str) -> Socket {
         let mut request = format!("ws://{}{path}?token={}", self.addr, who.token)
             .into_client_request()
             .unwrap();
         request
             .headers_mut()
-            .insert("User-Agent", BROWSER_UA.parse().unwrap());
+            .insert("User-Agent", user_agent.parse().unwrap());
         let (stream, _) = tokio_tungstenite::connect_async(request)
             .await
             .expect("ws connect");
@@ -548,6 +556,62 @@ async fn the_chat_socket_greets_answers_pings_and_pings_back() {
     // never more than 50 s apart).
     tokio::time::sleep(Duration::from_millis(2600)).await;
     assert!(socket.pings() >= 1, "no server ping within the heartbeat");
+}
+
+/// The anti-scraping rules leave the socket hubs alone: a native client's
+/// WebSocket stack announces itself however it likes.
+#[tokio::test]
+async fn the_sockets_accept_a_native_clients_user_agent() {
+    let (_one, srv) = begin().await;
+    let customer = srv.person("user").await;
+
+    for user_agent in ["okhttp/4.12.0", "Dart/3.4 (dart:io)"] {
+        let chat = srv.socket_as(&customer, "/ws", user_agent).await;
+        chat.wait_type("hello").await;
+    }
+    srv.socket_as(&customer, "/ws-call", "okhttp/4.12.0").await;
+
+    // The same client is still refused on the HTTP API.
+    let refused = srv
+        .http
+        .get(format!("http://{}/api/chat/channels", srv.addr))
+        .bearer_auth(&customer.token)
+        .header("User-Agent", "okhttp/4.12.0")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(refused.status(), 403);
+}
+
+/// Two messages landing at once must both be counted: the counter moves in
+/// one UPDATE, not read-then-write.
+#[tokio::test]
+async fn simultaneous_messages_all_count_as_unread() {
+    let (_one, srv) = begin().await;
+    let customer = srv.person("user").await;
+    let brand_id = srv.brand().await;
+    let channel = srv.channel(&customer, Some(brand_id)).await;
+    let channel_id = channel["id"].as_str().unwrap().to_string();
+
+    const MESSAGES: usize = 24;
+    let bumps = (0..MESSAGES).map(|i| {
+        let chats = srv.st.chats.clone();
+        let channel_id = channel_id.clone();
+        let side = if i % 2 == 0 { "employee" } else { "user" };
+        async move { chats.increment_unread(&channel_id, side).await }
+    });
+    for result in futures::future::join_all(bumps).await {
+        result.expect("increment");
+    }
+
+    let row =
+        backend::entity::chat_channel::Entity::find_by_id(Uuid::parse_str(&channel_id).unwrap())
+            .one(srv.st.db.as_ref())
+            .await
+            .unwrap()
+            .unwrap();
+    assert_eq!(row.unread_employee, (MESSAGES / 2) as i64);
+    assert_eq!(row.unread_user, (MESSAGES / 2) as i64);
 }
 
 /// The web app and the mobile console both read the typer's `name`.

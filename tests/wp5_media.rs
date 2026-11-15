@@ -124,6 +124,30 @@ async fn post(app: &Router, uri: &str, token: Option<&str>, body: Vec<u8>) -> Re
         .unwrap()
 }
 
+async fn send_json(
+    app: &Router,
+    method: &str,
+    uri: &str,
+    token: &str,
+    body: serde_json::Value,
+) -> Response {
+    app.clone()
+        .oneshot(
+            Request::builder()
+                .method(method)
+                .uri(uri)
+                .header(header::USER_AGENT, UA)
+                .header(header::ORIGIN, ORIGIN)
+                .header("x-forwarded-for", CLIENT_IP)
+                .header(header::CONTENT_TYPE, "application/json")
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap()
+}
+
 async fn get(app: &Router, uri: &str) -> Response {
     app.clone()
         .oneshot(
@@ -214,6 +238,14 @@ fn is_logo_key(key: &str, ext: &str) -> bool {
 fn assert_upload_headers(resp: &Response, content_type: &str) {
     assert_eq!(header_of(resp, "content-type"), content_type);
     assert_eq!(header_of(resp, "content-security-policy"), CSP);
+    assert_eq!(
+        resp.headers()
+            .get_all("content-security-policy")
+            .iter()
+            .count(),
+        1,
+        "the global security floor must not add a second policy"
+    );
     assert_eq!(header_of(resp, "x-content-type-options"), "nosniff");
     assert_eq!(
         header_of(resp, "cache-control"),
@@ -238,6 +270,111 @@ async fn brand_logo_upload_needs_a_staff_member() -> anyhow::Result<()> {
     assert_eq!(plain.status(), StatusCode::FORBIDDEN);
     let admin = post(&app, "/api/uploads/brand-logo", Some(&admin), body).await;
     assert_eq!(admin.status(), StatusCode::CREATED);
+    Ok(())
+}
+
+#[tokio::test]
+async fn a_brand_logo_is_one_of_our_uploads_or_an_https_url() -> anyhow::Result<()> {
+    let (app, st) = boot().await?;
+    let admin = sign_in(&st, "admin").await?;
+    let created = send_json(
+        &app,
+        "POST",
+        "/api/admin/brands",
+        &admin,
+        serde_json::json!({ "name": "Sao Việt" }),
+    )
+    .await;
+    assert_eq!(created.status(), StatusCode::OK);
+    let brand_id = json_of(created).await["id"].as_str().unwrap().to_string();
+    let uri = format!("/api/admin/brands/{brand_id}");
+    let logo_of = |app: Router, admin: String| async move {
+        let list = send_json(
+            &app,
+            "GET",
+            "/api/admin/brands",
+            &admin,
+            serde_json::json!({}),
+        )
+        .await;
+        let list = json_of(list).await;
+        list["items"][0]["logoUrl"].clone()
+    };
+
+    let upload = post(
+        &app,
+        "/api/uploads/brand-logo",
+        Some(&admin),
+        multipart(&[("file", Some("logo.png"), &png(40, 40))]),
+    )
+    .await;
+    let own = json_of(upload).await["url"].as_str().unwrap().to_string();
+    for good in [own.as_str(), "https://cdn.example.com/sao-viet.png"] {
+        let resp = send_json(
+            &app,
+            "PUT",
+            &uri,
+            &admin,
+            serde_json::json!({ "logoUrl": good }),
+        )
+        .await;
+        assert_eq!(resp.status(), StatusCode::OK, "{good}");
+        assert_eq!(logo_of(app.clone(), admin.clone()).await, good);
+    }
+
+    for bad in [
+        "http://cdn.example.com/sao-viet.png",
+        "javascript:alert(1)",
+        "/api/media/routes/0123456789abcdef.webp",
+        "/api/media/brands/logos/not-a-hash.webp",
+        "//cdn.example.com/x.png",
+    ] {
+        let resp = send_json(
+            &app,
+            "PUT",
+            &uri,
+            &admin,
+            serde_json::json!({ "logoUrl": bad }),
+        )
+        .await;
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST, "{bad}");
+    }
+    assert_eq!(
+        logo_of(app.clone(), admin.clone()).await,
+        "https://cdn.example.com/sao-viet.png",
+        "a refused value changes nothing"
+    );
+
+    for blank in [serde_json::json!(null), serde_json::json!("  ")] {
+        let resp = send_json(
+            &app,
+            "PUT",
+            &uri,
+            &admin,
+            serde_json::json!({ "logoUrl": blank }),
+        )
+        .await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert!(logo_of(app.clone(), admin.clone()).await.is_null());
+        send_json(
+            &app,
+            "PUT",
+            &uri,
+            &admin,
+            serde_json::json!({ "logoUrl": "https://cdn.example.com/again.png" }),
+        )
+        .await;
+    }
+
+    let refused = send_json(
+        &app,
+        "POST",
+        "/api/admin/brands",
+        &admin,
+        serde_json::json!({ "name": "Nhà xe B", "logoUrl": "ftp://x/y.png" }),
+    )
+    .await;
+    assert_eq!(refused.status(), StatusCode::BAD_REQUEST);
     Ok(())
 }
 
