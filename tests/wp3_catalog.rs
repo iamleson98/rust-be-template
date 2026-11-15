@@ -554,6 +554,7 @@ async fn the_trip_detail_names_the_cities_and_labels_unknown_amenities_by_key() 
         name: Some(name.into()),
         lat: Some(lat),
         lon: Some(lon),
+        city_id: Some("ha-noi".into()),
         ..Default::default()
     };
     let start = st
@@ -566,12 +567,12 @@ async fn the_trip_detail_names_the_cities_and_labels_unknown_amenities_by_key() 
         .create_address(&address("Bến xe Niệm Nghĩa", 20.84, 106.687))
         .await?
         .id;
-    // Only the first stop's address says which city it is in.
+    // A point older than the `cityId` field has no city.
     st.db
         .execute(Statement::from_sql_and_values(
             st.db.get_database_backend(),
-            "UPDATE address SET city_id = ? WHERE id = ?",
-            ["ha-noi".into(), start.into()],
+            "UPDATE address SET city_id = NULL WHERE id = ?",
+            [end.into()],
         ))
         .await?;
     let point = |address_id| UpsertSchedulePointItem {
@@ -741,6 +742,7 @@ async fn a_brand_page_is_answered_in_one_read_for_active_brands_only() -> anyhow
             name: Some("Không phải".into()),
             lat: Some(1.0),
             lon: Some(1.0),
+            city_id: Some("ha-noi".into()),
             ..Default::default()
         })
         .await?;
@@ -792,7 +794,7 @@ async fn a_brand_page_is_answered_in_one_read_for_active_brands_only() -> anyhow
         .collect();
     assert_eq!(
         location_names,
-        [("Văn phòng A", "Hà Nội"), ("Văn phòng B", "Huế")]
+        [("Văn phòng A", "Hà Nội"), ("Văn phòng B", "Thừa Thiên Huế")]
     );
 
     let routes = page["routes"].as_array().unwrap();
