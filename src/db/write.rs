@@ -57,8 +57,20 @@ use crate::store::{StoreError, StoreResult};
 /// Attempts per [`with_write`] call, the last one being `BEGIN IMMEDIATE`.
 pub const MAX_ATTEMPTS: usize = 6;
 
-/// Bounds of the random pause before a retry, in milliseconds.
-const BACKOFF_MS: std::ops::RangeInclusive<u64> = 1..=20;
+/// Upper bound of the random pause before the first retry, in
+/// milliseconds; it doubles with every further retry (see [`backoff`]).
+const BACKOFF_BASE_MS: u64 = 10;
+
+/// Doublings stop here: the longest pause is `10 ms << 4` = 160 ms.
+const BACKOFF_MAX_DOUBLINGS: usize = 4;
+
+/// Random pause before retry number `retry` (1 for the first retry): up
+/// to 10 ms, doubling each time, so writers that keep colliding spread out
+/// further apart the longer the collision lasts.
+fn backoff(retry: usize) -> Duration {
+    let cap_ms = BACKOFF_BASE_MS << (retry - 1).min(BACKOFF_MAX_DOUBLINGS);
+    Duration::from_millis(rand::thread_rng().gen_range(1..=cap_ms))
+}
 
 /// How a write transaction starts.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -297,8 +309,7 @@ where
                     });
                 }
                 RETRIES.fetch_add(1, Ordering::Relaxed);
-                let pause = rand::thread_rng().gen_range(BACKOFF_MS);
-                tokio::time::sleep(Duration::from_millis(pause)).await;
+                tokio::time::sleep(backoff(attempt)).await;
                 attempt += 1;
             }
             outcome => return outcome,
@@ -584,15 +595,20 @@ mod tests {
     async fn sixteen_tasks_of_fifty_increments_lose_no_update() {
         let dir = tempfile::tempdir().expect("tempdir");
         let db = Arc::new(wal_db(&dir, Duration::from_secs(5), 8).await);
-        let retries_before = write_stats().retries;
+        // Body runs, counted inside the body itself: every run beyond one
+        // per increment is a re-run after a conflict.
+        let body_runs = Arc::new(AtomicUsize::new(0));
 
         let mut tasks = Vec::new();
         for _ in 0..16 {
-            let db = db.clone();
+            let (db, body_runs) = (db.clone(), body_runs.clone());
             tasks.push(tokio::spawn(async move {
                 for _ in 0..50 {
-                    with_write(&db, |tx| {
+                    let body_runs = body_runs.clone();
+                    with_write(&db, move |tx| {
+                        let body_runs = body_runs.clone();
                         Box::pin(async move {
+                            body_runs.fetch_add(1, Ordering::SeqCst);
                             let n = counter(tx).await;
                             set_counter(tx, n + 1).await?;
                             Ok(())
@@ -609,8 +625,8 @@ mod tests {
 
         assert_eq!(counter(db.as_ref()).await, 16 * 50);
         assert!(
-            write_stats().retries > retries_before,
-            "16 writers on one row must have conflicted at least once"
+            body_runs.load(Ordering::SeqCst) > 16 * 50,
+            "16 writers on one row must have conflicted and re-run at least once"
         );
     }
 
@@ -618,19 +634,22 @@ mod tests {
     async fn persistent_conflicts_commit_through_the_immediate_fallback() {
         let dir = tempfile::tempdir().expect("tempdir");
         let db = wal_db(&dir, Duration::from_secs(5), 4).await;
-        let fallbacks_before = write_stats().immediate_fallbacks;
-        let attempts = Arc::new(AtomicUsize::new(0));
-        let (counted, other_connection) = (attempts.clone(), db.clone());
+        let modes = Arc::new(StdMutex::new(Vec::new()));
+        let (recorded, other_connection) = (modes.clone(), db.clone());
 
         with_write(&db, move |tx| {
-            let (attempts, other_connection) = (counted.clone(), other_connection.clone());
+            let (modes, other_connection) = (recorded.clone(), other_connection.clone());
             Box::pin(async move {
                 let n = counter(tx).await;
+                let attempt = {
+                    let mut modes = modes.lock().expect("modes");
+                    modes.push(tx.mode());
+                    modes.len()
+                };
                 // Every concurrent attempt loses: another connection
                 // commits to the same row after this snapshot was taken.
                 // The final attempt holds the write lock (BEGIN IMMEDIATE),
                 // so interfering then would only deadlock on it.
-                let attempt = attempts.fetch_add(1, Ordering::SeqCst) + 1;
                 if attempt < MAX_ATTEMPTS {
                     // From a separate task: it stands for another request,
                     // and (unlike the body's own task) may use the pool.
@@ -646,8 +665,12 @@ mod tests {
         .await
         .expect("the immediate fallback must commit");
 
-        assert_eq!(attempts.load(Ordering::SeqCst), MAX_ATTEMPTS);
-        assert!(write_stats().immediate_fallbacks > fallbacks_before);
+        let modes = modes.lock().expect("modes");
+        assert_eq!(modes.len(), MAX_ATTEMPTS);
+        assert!(modes[..MAX_ATTEMPTS - 1]
+            .iter()
+            .all(|m| *m == BeginMode::Concurrent));
+        assert_eq!(modes[MAX_ATTEMPTS - 1], BeginMode::Immediate);
         // The last attempt re-read the row the interference left behind.
         assert_eq!(counter(&db).await, 1000 + (MAX_ATTEMPTS as i64 - 1) + 1);
     }
@@ -700,6 +723,20 @@ mod tests {
             other => panic!("expected Exhausted, got {other:?}"),
         }
         assert!(!err.is_retryable());
+    }
+
+    #[test]
+    fn the_pause_before_a_retry_grows() {
+        for _ in 0..200 {
+            assert!(backoff(1) <= Duration::from_millis(10));
+            assert!(backoff(2) <= Duration::from_millis(20));
+            assert!(backoff(5) <= Duration::from_millis(160));
+            // Capped: a late retry never sleeps longer than 160 ms.
+            assert!(backoff(MAX_ATTEMPTS - 1) <= Duration::from_millis(160));
+            assert!(backoff(1) >= Duration::from_millis(1));
+        }
+        // The upper bound really is reached: not a constant small pause.
+        assert!((0..500).any(|_| backoff(5) > Duration::from_millis(80)));
     }
 
     #[tokio::test]
