@@ -301,7 +301,7 @@ use utoipa::OpenApi;
         // vitals
         crate::routes::vitals::VitalsReport,
         // places
-        crate::dto::place::PlaceOut,
+        crate::dto::place::PlaceEngine,
         crate::dto::place::PlaceListResponse,
         crate::dto::place::PlaceSearchHit,
         crate::dto::place::PlaceSearchResponse,
