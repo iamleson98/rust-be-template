@@ -72,6 +72,45 @@ fn ensure_owner(owner: Option<Uuid>, caller: Option<&str>) -> AppResult<()> {
     }
 }
 
+/// The gateways switched on (`*_ENABLED=true`) whose credentials are
+/// incomplete. Such a gateway cannot take or verify a payment, so the
+/// process must not start with one: an operator who enabled it expects it
+/// to work.
+pub fn misconfigured_gateways(cfg: &PaymentConfig) -> Vec<&'static str> {
+    [
+        (providers::VNPAY, cfg.vnpay.enabled, cfg.vnpay.is_active()),
+        (providers::MOMO, cfg.momo.enabled, cfg.momo.is_active()),
+        (
+            providers::ZALOPAY,
+            cfg.zalopay.enabled,
+            cfg.zalopay.is_active(),
+        ),
+        (
+            providers::VIETQR,
+            cfg.vietqr.enabled,
+            cfg.vietqr.is_active(),
+        ),
+    ]
+    .into_iter()
+    .filter(|(_, enabled, active)| *enabled && !*active)
+    .map(|(name, _, _)| name)
+    .collect()
+}
+
+/// Boot-time check: fails with the list of enabled-but-misconfigured
+/// gateways (called by `Config::validate`).
+pub fn ensure_gateways_configured(cfg: &PaymentConfig) -> anyhow::Result<()> {
+    let bad = misconfigured_gateways(cfg);
+    if bad.is_empty() {
+        return Ok(());
+    }
+    anyhow::bail!(
+        "payment gateway(s) enabled but missing credentials: {} \
+         (set the credentials or switch `<PROVIDER>_ENABLED` off)",
+        bad.join(", ")
+    )
+}
+
 // ────────────────────────────────────────────────────────────────
 //  Service
 // ────────────────────────────────────────────────────────────────
@@ -171,6 +210,10 @@ impl PaymentService {
         if hold_expired(&booking) {
             return Err(AppError::Gone("booking hold has expired".into()));
         }
+        // A provider that is switched off (or misconfigured) is refused
+        // BEFORE the booking's hold moves: a refused request must leave the
+        // checkout hold and its deadline exactly as they were.
+        let provider = self.select_provider(&req.provider)?;
         // A coupon can cover the whole fare. Gateways refuse a zero amount,
         // so such a booking is placed with pay-on-board (nothing to collect).
         if booking.total <= 0 && req.provider != providers::COD {
@@ -201,7 +244,6 @@ impl PaymentService {
         self.cancel_prior_pending_payments(booking.id).await?;
 
         // Dispatch to provider.
-        let provider = self.select_provider(&req.provider)?;
         let return_url = format!(
             "{}/payments/{}/return",
             self.cfg.public_base_url.trim_end_matches('/'),
@@ -431,6 +473,7 @@ impl PaymentService {
         &self,
         params: &std::collections::BTreeMap<String, String>,
     ) -> AppResult<()> {
+        self.select_provider(providers::VNPAY)?;
         let (_, txn_ref) = self.vnpay.verify_ipn(params)?;
 
         // Look up payment by txn_ref.
@@ -513,6 +556,7 @@ impl PaymentService {
 
     /// MoMo IPN: POST JSON body.
     pub async fn handle_momo_ipn(&self, payload: &MomoIpnPayload) -> AppResult<()> {
+        self.select_provider(providers::MOMO)?;
         let verification = self.momo.verify_ipn(payload)?;
 
         let p = self
@@ -584,6 +628,7 @@ impl PaymentService {
         payload: &ZalopayCallbackPayload,
         raw_body: &[u8],
     ) -> AppResult<()> {
+        self.select_provider(providers::ZALOPAY)?;
         let verification = self.zalopay.verify_callback(payload, raw_body)?;
 
         // ZaloPay uses `app_trans_id` (yyMMdd_bookingcode) as the txn ref.
