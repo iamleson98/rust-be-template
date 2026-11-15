@@ -14,6 +14,23 @@
 //! 3. **HEAD/OPTIONS bypass** — allowed through for health checks + CORS
 //!    preflight.
 //!
+//! ## Exemptions
+//!
+//! * `/health`, `/ready`: uptime probes use curl.
+//! * Machine callers that authenticate by signature, not by browser
+//!   headers: `/api/payments/ipn/*` (payment gateways) and
+//!   `/api/webhooks/*` (Telegram, Zalo, Messenger, Discord). They are exempt
+//!   from BOTH the User-Agent rules and the Origin/Referer rule; a gateway's
+//!   UA is whatever its HTTP library sends and its POSTs carry no Origin.
+//! * `/api/vitals`: the browser beacon sends no Referer.
+//! * `X-Client: mobile` (the native app): exempt from the Origin/Referer
+//!   rule only, as in the Worker (`edge-guard.ts`): a native client has no
+//!   Origin. The header alone is NOT a pass for the User-Agent blocklist, so
+//!   `curl -H 'X-Client: mobile'` is still blocked; the app's HTTP stack is
+//!   not a browser, so it is also not held to the browser-UA rule below.
+//!   The header is client-supplied: it only relaxes what a native client
+//!   cannot satisfy, and per-IP rate limits apply to every request.
+//!
 //! ## What this does NOT do
 //!
 //! - Block Googlebot (we WANT Google to crawl our site for SEO).
@@ -148,6 +165,12 @@ fn is_infra_path(path: &str) -> bool {
     matches!(path, "/health" | "/ready")
 }
 
+/// Machine callers that sign their requests instead of sending browser
+/// headers: payment-gateway callbacks and chat-platform webhooks.
+fn is_gateway_path(path: &str) -> bool {
+    path.starts_with("/api/payments/ipn/") || path.starts_with("/api/webhooks/")
+}
+
 /// Anti-scraping middleware.
 ///
 /// Applied to all `/api/*` routes. Does NOT apply to:
@@ -165,7 +188,7 @@ pub async fn anti_scraping(
 
     // ── 0. Infra paths are ALWAYS exempt ────────────────────────
     // Matches the module docs ("Does NOT apply to /health and /ready").
-    if is_infra_path(path.as_str()) {
+    if is_infra_path(path.as_str()) || is_gateway_path(path.as_str()) {
         return Ok(next.run(req).await);
     }
 
@@ -176,7 +199,7 @@ pub async fn anti_scraping(
         .unwrap_or("");
     let is_mobile_client = is_mobile_client(headers);
 
-    if !is_mobile_client && is_blocked_ua(ua) {
+    if is_blocked_ua(ua) {
         tracing::warn!(
             ua = %ua,
             path = %path,
@@ -197,11 +220,9 @@ pub async fn anti_scraping(
         Method::POST | Method::PATCH | Method::PUT | Method::DELETE
     ) && path.starts_with("/api/")
     {
-        // IPN webhook endpoints are exempt — payment gateways send POSTs
-        // without Referer/Origin headers.
-        if path.contains("/ipn/") || path.contains("/vitals") || is_mobile_client {
-            // Payment webhooks, vitals beacon, and the native mobile app do
-            // not have browser Referer/Origin headers.
+        if path == "/api/vitals" || is_mobile_client {
+            // The vitals beacon and the native mobile app do not have
+            // browser Referer/Origin headers.
         } else {
             let referer = headers
                 .get(axum::http::header::REFERER)
@@ -403,5 +424,127 @@ mod tests {
             None,
             &["http://localhost:5173".to_string()]
         ));
+    }
+
+    mod layered {
+        use axum::body::Body;
+        use axum::http::{Request, StatusCode};
+        use axum::routing::any;
+        use axum::Router;
+        use tower::ServiceExt;
+
+        const BROWSER: &str =
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36";
+        const SITE: &str = "https://datxevui.com";
+
+        async fn status(method: &str, path: &str, headers: &[(&str, &str)]) -> StatusCode {
+            super::init_allowed_origins(vec![SITE.to_string()]);
+            let app = Router::new()
+                .route("/{*p}", any(|| async { "ok" }))
+                .layer(axum::middleware::from_fn(super::anti_scraping));
+            let mut req = Request::builder().method(method).uri(path);
+            for (k, v) in headers {
+                req = req.header(*k, *v);
+            }
+            app.oneshot(req.body(Body::empty()).unwrap())
+                .await
+                .unwrap()
+                .status()
+        }
+
+        #[tokio::test]
+        async fn gateways_and_chat_platforms_pass_without_browser_headers() {
+            for (method, path) in [
+                ("POST", "/api/payments/ipn/momo"),
+                ("GET", "/api/payments/ipn/vnpay"),
+                ("POST", "/api/webhooks/telegram"),
+                ("POST", "/api/webhooks/zalo"),
+                ("POST", "/api/webhooks/messenger"),
+                ("POST", "/api/webhooks/discord"),
+            ] {
+                for ua in ["curl/8.4.0", "Go-http-client/2.0", "node-fetch/1.0", ""] {
+                    assert_eq!(
+                        status(method, path, &[("user-agent", ua)]).await,
+                        StatusCode::OK,
+                        "{method} {path} as {ua:?}"
+                    );
+                }
+            }
+        }
+
+        #[tokio::test]
+        async fn lookalike_paths_get_no_gateway_pass() {
+            for path in ["/api/foo/ipn/x", "/api/webhooksx", "/api/vitals/x"] {
+                assert_eq!(
+                    status("POST", path, &[("user-agent", "curl/8.4.0")]).await,
+                    StatusCode::FORBIDDEN,
+                    "{path}"
+                );
+                assert_eq!(
+                    status("POST", path, &[("user-agent", BROWSER)]).await,
+                    StatusCode::FORBIDDEN,
+                    "{path} without Origin"
+                );
+            }
+        }
+
+        #[tokio::test]
+        async fn the_mobile_header_alone_is_no_pass_for_scraping_tools() {
+            for ua in [
+                "curl/8.4.0",
+                "python-requests/2.31",
+                "HeadlessChrome/120",
+                "",
+            ] {
+                let headers = [("user-agent", ua), ("x-client", "mobile")];
+                assert_eq!(
+                    status("GET", "/api/brands", &headers).await,
+                    StatusCode::FORBIDDEN,
+                    "{ua:?}"
+                );
+                assert_eq!(
+                    status("POST", "/api/bookings", &headers).await,
+                    StatusCode::FORBIDDEN,
+                    "{ua:?}"
+                );
+            }
+        }
+
+        #[tokio::test]
+        async fn the_native_app_needs_no_origin() {
+            let app = [("user-agent", "Dart/3.5 (dart:io)"), ("x-client", "mobile")];
+            assert_eq!(status("POST", "/api/bookings", &app).await, StatusCode::OK);
+            assert_eq!(status("GET", "/api/brands", &app).await, StatusCode::OK);
+            // Without the header the same client is a non-browser.
+            let bare = [("user-agent", "Dart/3.5 (dart:io)")];
+            assert_eq!(
+                status("GET", "/api/brands", &bare).await,
+                StatusCode::FORBIDDEN
+            );
+        }
+
+        #[tokio::test]
+        async fn browsers_keep_the_origin_rule_on_mutations() {
+            let ua = ("user-agent", BROWSER);
+            assert_eq!(status("GET", "/api/brands", &[ua]).await, StatusCode::OK);
+            assert_eq!(
+                status("POST", "/api/bookings", &[ua]).await,
+                StatusCode::FORBIDDEN
+            );
+            assert_eq!(
+                status("POST", "/api/bookings", &[ua, ("origin", SITE)]).await,
+                StatusCode::OK
+            );
+            assert_eq!(
+                status(
+                    "POST",
+                    "/api/bookings",
+                    &[ua, ("referer", "https://evil.example/")]
+                )
+                .await,
+                StatusCode::FORBIDDEN
+            );
+            assert_eq!(status("POST", "/api/vitals", &[ua]).await, StatusCode::OK);
+        }
     }
 }
