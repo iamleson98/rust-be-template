@@ -54,6 +54,7 @@ pub mod state;
 pub mod storage;
 pub mod store;
 pub mod validation;
+pub mod web;
 pub mod worker;
 pub mod ws;
 
