@@ -189,7 +189,7 @@ pub async fn ws_upgrade(
         // (~4-8 KiB) still fits without back-pressure.
         .write_buffer_size(st.config.ws.write_buffer_bytes());
 
-    let heartbeat_sec = st.config.ws.heartbeat_sec.max(5);
+    let heartbeat_sec = crate::ws::ping_interval_sec(st.config.ws.heartbeat_sec).max(5);
     let idle_timeout_sec = st.config.ws.idle_timeout_sec.max(heartbeat_sec * 2 + 1);
 
     // Channel capacity from config — was previously hardcoded to 64.
@@ -260,12 +260,11 @@ pub async fn handle_socket(
     );
 
     // ── Write pump ──────────────────────────────────────────────────────
-    // TURN credentials (`rest` mode) expire; a socket can stay open far
-    // longer (staff stay connected all shift), so it gets fresh ones on a
-    // timer and every call starts from credentials that outlive it.
-    let refresh_config = config
-        .audio_call
-        .uses_rest_turn_auth()
+    // TURN credentials (`rest` and `cloudflare` modes) expire; a socket
+    // can stay open far longer (staff stay connected all shift), so it
+    // gets fresh ones on a timer and every call starts from credentials
+    // that outlive it.
+    let refresh_config = super::turn::credentials_expire(&config.audio_call)
         .then(|| (config.clone(), user.id.to_string()));
     let mut write_task = tokio::spawn(async move {
         use futures::SinkExt;
@@ -281,7 +280,7 @@ pub async fn handle_socket(
                     let Some((config, uid)) = &refresh_config else { continue };
                     let frame = json!({
                         "type": "ice-servers",
-                        "iceServers": config.audio_call.ice_servers_for(uid),
+                        "iceServers": super::turn::ice_servers_for(&config.audio_call, uid).await,
                     });
                     if sink.send(Message::Text(frame.to_string().into())).await.is_err() {
                         break;
@@ -376,11 +375,14 @@ pub async fn handle_socket(
                                         continue;
                                     }
                                     // STUN/TURN servers for the `registered` frame:
-                                    // per-user credentials minted now in `rest` mode
-                                    // (see `AudioCallConfig::ice_servers_for`), the
-                                    // env JSON as-is in `static` mode.
-                                    let ice_servers =
-                                        config.audio_call.ice_servers_for(&user_r.id.to_string());
+                                    // credentials minted now in `rest` and
+                                    // `cloudflare` modes, the env JSON as-is in
+                                    // `static` mode (see `turn::ice_servers_for`).
+                                    let ice_servers = super::turn::ice_servers_for(
+                                        &config.audio_call,
+                                        &user_r.id.to_string(),
+                                    )
+                                    .await;
                                     if let Ok(role) =
                                         process_register(&user_r, &v, &tx, sid, &ice_servers)
                                     {

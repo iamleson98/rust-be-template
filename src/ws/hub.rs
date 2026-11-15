@@ -824,8 +824,23 @@ impl ChatHub {
     /// socket in brand scope. Called whenever availability changes
     /// (staff connect/disconnect, call start/end, assignment change) so
     /// dashboards + routing UIs stay live.
+    ///
+    /// Customers hear the same change too, but only as far as it concerns
+    /// them: whether the bot is on duty ([`Self::broadcast_to_customers`]).
     pub fn broadcast_staff_presence(&self, brand_id: Option<&str>) {
         self.broadcast_to_staff(&presence().staff_json(brand_id));
+        self.broadcast_to_customers(&presence().customer_json(brand_id));
+    }
+
+    /// Send a JSON message to every NON-staff socket (customers).
+    pub fn broadcast_to_customers(&self, msg: &serde_json::Value) {
+        let payload = serde_json::to_string(msg).unwrap_or_default();
+        let bytes = bytes::Bytes::copy_from_slice(payload.as_bytes());
+        for entry in self.sessions.iter() {
+            if !entry.value().user.is_staff() {
+                self.try_send_counted(entry.value(), bytes.clone());
+            }
+        }
     }
 
     // ── idempotency (clientMsgId → stored message id) ─────────
@@ -1537,6 +1552,23 @@ mod tests {
         assert!(std::str::from_utf8(&ma)
             .unwrap_or("")
             .contains("staff_ping"));
+    }
+
+    #[test]
+    fn broadcast_to_customers_skips_every_staff_socket() {
+        let h = fresh_hub();
+        let (tx_c, mut rx_c) = make_tx();
+        let (tx_e, mut rx_e) = make_tx();
+        let (tx_a, mut rx_a) = make_tx();
+        h.register(sample_user("uc", "user"), "1.1.1.1".into(), tx_c);
+        h.register(sample_user("ue", "employee"), "2.2.2.2".into(), tx_e);
+        h.register(sample_user("ua", "admin"), "3.3.3.3".into(), tx_a);
+
+        h.broadcast_to_customers(&serde_json::json!({ "type": "staff_presence" }));
+
+        assert!(rx_c.try_recv().is_ok(), "the customer hears it");
+        assert!(rx_e.try_recv().is_err(), "employees do not");
+        assert!(rx_a.try_recv().is_err(), "admins do not");
     }
 
     #[test]

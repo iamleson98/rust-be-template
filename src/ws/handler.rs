@@ -109,7 +109,7 @@ impl WsLimits {
     fn from_config(cfg: &crate::config::Config) -> Self {
         Self {
             channel_cap: cfg.ws.channel_capacity,
-            heartbeat_sec: cfg.ws.heartbeat_sec,
+            heartbeat_sec: super::ping_interval_sec(cfg.ws.heartbeat_sec),
             idle_timeout_sec: cfg.ws.idle_timeout_sec,
             max_per_ip: cfg.ws.max_per_ip,
         }
@@ -244,6 +244,18 @@ pub async fn handle_socket(
     // NORMAL teardown path, so rooms/presence/slots are all released.
     hub().set_closer(sid, close_tx.clone());
 
+    // Who the server took this socket for: the first frame, as in the
+    // Cloudflare hub, so a client can confirm its sign-in before it joins.
+    hub().send_to(
+        sid,
+        &json!({
+            "type": "hello",
+            "userId": user.id,
+            "name": user.name,
+            "role": user.role,
+        }),
+    );
+
     // If this is staff (employee OR admin), register their presence
     // socket and let every staff dashboard know availability changed.
     // Broadcast scope is GLOBAL (None): every staff client renders the
@@ -277,7 +289,7 @@ pub async fn handle_socket(
     // ── Write pump ──────────────────────────────────────────────────────
     let mut write_task = {
         let mut sink = sink;
-        let mut heartbeat = tokio::time::interval(Duration::from_secs(limits.heartbeat_sec.max(1)));
+        let mut heartbeat = tokio::time::interval(Duration::from_secs(limits.heartbeat_sec));
         heartbeat.tick().await; // consume immediate tick
         tokio::spawn(async move {
             use futures::SinkExt;
@@ -430,6 +442,12 @@ async fn handle_text(
         "read" => handle_read(st, user, &msg).await,
         "typing" => {
             handle_typing(sid, user, &msg);
+            Ok(())
+        }
+        // Liveness probe (the SPA sends it when a tab wakes up): a dead
+        // socket surfaces when the answer never comes.
+        "ping" => {
+            hub().send_to(sid, &json!({ "type": "pong" }));
             Ok(())
         }
         _ => {
@@ -989,7 +1007,7 @@ fn handle_typing(sid: u64, user: &SessionUser, msg: &serde_json::Value) {
             "type": "typing",
             "channelId": channel_id,
             "userId": user.id,
-            "userName": user.name,
+            "name": user.name,
             "isTyping": is_typing,
         }),
         sid,

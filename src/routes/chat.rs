@@ -23,7 +23,7 @@ use crate::state::AppState;
 #[into_params(parameter_in = Query)]
 pub struct ListChannelsQuery {
     pub limit: Option<u64>,
-    /// 0-based page offset on the `last_message_at DESC` ordering —
+    /// 0-based page offset on the newest-activity-first ordering —
     /// `offset=30` returns the next 30 less-recent channels. Powers
     /// the admin workspace's infinite channel list.
     pub offset: Option<u64>,
@@ -40,7 +40,7 @@ pub struct ListChannelsQuery {
 /// display "who" without a second round-trip per channel.
 ///
 /// **Pagination**: `limit` (default 50, max 200) + `offset` (default
-/// 0) page through the `last_message_at DESC` ordering — the initial
+/// 0) page through the newest-activity-first ordering — the initial
 /// page returns the most recently active channels; scrolling the
 /// admin channel list down fetches subsequent pages. The list is
 /// ordered most-recent-first, so a full page means "there may be more".
@@ -340,25 +340,15 @@ pub async fn create_channel(
         .to_string(),
     );
 
-    // Populate the customer's user row so the response includes
-    // `user.fullName` / `user.email` / `user.phone` for the admin's
-    // channel list.
-    let user_info = st
-        .users
-        .find_by_ids(&[channel.user_id])
+    // The customer's row and the assignee (routing may already have
+    // handed the channel to an employee) ride along, so the admin's
+    // channel list needs no second round-trip.
+    let channel = channels_to_dtos(&st, uid, vec![channel])
         .await?
-        .get(&channel.user_id)
-        .map(|u| ChannelUserOut {
-            id: u.id,
-            full_name: Some(u.full_name.clone()),
-            email: Some(u.email.clone()),
-            phone: u.phone.clone(),
-            avatar_url: u.avatar_url.clone(),
-        });
+        .pop()
+        .ok_or_else(|| AppError::Internal("channel DTO missing".into()))?;
 
-    Ok(Json(CreateChannelResponse {
-        channel: channel_to_dto(channel, user_info, None, false),
-    }))
+    Ok(Json(CreateChannelResponse { channel }))
 }
 
 /// `POST /api/chat/channels/{id}/messages` — REST fallback for posting

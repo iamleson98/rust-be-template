@@ -190,13 +190,13 @@ impl ChatService {
                 .chat_store()
                 .list_open_channels(brand_id, limit, offset)
                 .await
-                .map_err(|e| AppError::Internal(e.to_string()))
+                .map_err(AppError::from)
         } else {
             self.store
                 .chat_store()
                 .list_channels(user_id, limit, offset)
                 .await
-                .map_err(|e| AppError::Internal(e.to_string()))
+                .map_err(AppError::from)
         }
     }
 
@@ -214,20 +214,20 @@ impl ChatService {
             .chat_store()
             .list_open_channels_of_users(brand_id, user_ids)
             .await
-            .map_err(|e| AppError::Internal(e.to_string()))
+            .map_err(AppError::from)
     }
 
-    /// Create a new chat channel, OR return the user's existing OPEN
-    /// channel if one already exists. This enforces the business rule:
-    /// **a user has at most one open channel with support at a time.**
-    /// Without this, every call to `POST /api/chat/channels` would
-    /// create a duplicate, cluttering the admin dashboard with
-    /// near-empty channels.
+    /// Create a new chat channel, OR return the customer's live one.
+    /// This enforces the business rule: **a customer has at most one
+    /// live (`open` or `assigned`) channel per brand at a time.** Once
+    /// staff take a chat the channel turns `assigned`; asking again must
+    /// still land in that conversation, not start a second one that
+    /// clutters the support queue. Only a `closed` channel is left
+    /// behind.
     ///
-    /// `brand_id` matching: if the user passes a `brand_id`, we only
-    /// reuse an existing open channel for that brand. If they pass
-    /// `None` (general support), we reuse any open channel regardless
-    /// of brand.
+    /// `brand_id` matching is exact: a brand-scoped request reuses that
+    /// brand's live channel, a general-support request (`None`) the
+    /// brand-less one. The topic of the request is ignored on reuse.
     pub async fn create_channel(
         &self,
         user_id: Uuid,
@@ -235,14 +235,12 @@ impl ChatService {
         topic: Option<String>,
     ) -> AppResult<chat_channel::Model> {
         // The `AuthUser` extractor only verifies the JWT signature — it
-        // does NOT confirm the user still exists in the DB. The
-        // `chat_channel` table has `fk_chatchannel_user` (ON DELETE
-        // CASCADE), so inserting a row for a deleted user fails with a
-        // FOREIGN KEY constraint error (SQLite code 787) that surfaces
-        // as a 500. Verify the user exists first and return 401 for a
-        // stale token instead.
-        let user = self
-            .store
+        // does NOT confirm the user still exists in the DB. Verify it
+        // first so a stale token gets a clear 401. (Were the user
+        // deleted between this check and the insert below,
+        // `fk_chatchannel_user` rejects the row and the store reports a
+        // `Conflict`, which surfaces as 409 — not a 500.)
+        self.store
             .user_store()
             .get_user(user_id)
             .await
@@ -250,43 +248,30 @@ impl ChatService {
                 crate::store::StoreError::NotFound(_) => AppError::Unauthorized(
                     "authentication token references a non-existent user".into(),
                 ),
-                other => AppError::Internal(other.to_string()),
+                other => AppError::from(other),
             })?;
-        let _ = user; // Just verifying existence.
 
         // `fk_chatchannel_brand` requires `brand_id` to reference an
         // existing brand. Validate it up front so an invalid id returns
-        // 400 instead of a 500 FK error.
+        // a precise 400.
         if let Some(brand_id) = brand_id {
-            let brand = self
-                .store
-                .brand_store()
-                .get_by_id(brand_id)
-                .await
-                .map_err(|e| AppError::Internal(e.to_string()))?;
+            let brand = self.store.brand_store().get_by_id(brand_id).await?;
             if brand.is_none() {
                 return Err(AppError::Validation(format!("brand not found: {brand_id}")));
             }
         }
 
-        // ── Enforce 1 open channel per user ──────────────────────
-        // Check if the user already has an OPEN channel. If yes,
-        // return it instead of creating a new one. This prevents
-        // the "lots of channels" problem the user reported.
+        // ── Enforce one live channel per brand ───────────────────
         let existing = self
             .store
             .chat_store()
             .list_channels(user_id, 50, 0)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-        if let Some(open) = existing
+            .await?;
+        if let Some(live) = existing
             .into_iter()
-            .find(|c| c.status == "open" && brand_id == c.brand_id)
+            .find(|c| c.status != "closed" && brand_id == c.brand_id)
         {
-            // Reuse the existing open channel. The topic/brand_id
-            // from the request body are ignored — the user's existing
-            // channel keeps its original topic.
-            return Ok(open);
+            return Ok(live);
         }
 
         let channel = self
@@ -297,8 +282,7 @@ impl ChatService {
                 brand_id,
                 topic.or_else(|| Some("Hỗ trợ".to_string())),
             )
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
+            .await?;
 
         // ── Auto-join members: customer + NullClaw bot + admin ──────
         //
@@ -400,6 +384,7 @@ impl ChatService {
         //
         // Best-effort: assignment failures never break channel
         // creation.
+        let mut assigned = false;
         match self.route_user_message(&channel.id.to_string()).await {
             Ok(outcome) => {
                 // "If admin is away and not online, the server should auto
@@ -411,6 +396,7 @@ impl ChatService {
                 if let crate::service::chat_service::RoutingOutcome::NewlyAssigned { employee_id } =
                     &outcome
                 {
+                    assigned = true;
                     if let Ok(emp_uuid) = Uuid::parse_str(employee_id) {
                         if let Err(e) = self
                             .store
@@ -443,6 +429,13 @@ impl ChatService {
             }
         }
 
+        // The caller answers with the channel as it is NOW: routing may
+        // have just handed it to an employee.
+        if assigned {
+            if let Some(routed) = self.get_channel(&channel.id.to_string()).await? {
+                return Ok(routed);
+            }
+        }
         Ok(channel)
     }
 
@@ -452,7 +445,7 @@ impl ChatService {
             .chat_store()
             .channel_exists(channel_id)
             .await
-            .map_err(|e| AppError::Internal(e.to_string()))
+            .map_err(AppError::from)
     }
 
     /// Fetch a channel by id (used by the NullClaw hook to get the
@@ -462,7 +455,7 @@ impl ChatService {
             .chat_store()
             .get_channel(channel_id)
             .await
-            .map_err(|e| AppError::Internal(e.to_string()))
+            .map_err(AppError::from)
     }
 
     // ── Messages ───────────────────────────────────────────────
@@ -478,7 +471,7 @@ impl ChatService {
             .chat_store()
             .list_messages(channel_id, limit.min(200), offset)
             .await
-            .map_err(|e| AppError::Internal(e.to_string()))
+            .map_err(AppError::from)
     }
 
     /// Insert a chat message + update the channel's last-message preview.
@@ -501,8 +494,7 @@ impl ChatService {
                 attachments: msg.attachments,
                 client_msg_id: msg.client_msg_id,
             })
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
+            .await?;
 
         // Best-effort: update the channel's last-message preview.
         let preview: String = stored
@@ -533,7 +525,7 @@ impl ChatService {
             .chat_store()
             .find_message_by_client_id(channel_id, client_msg_id)
             .await
-            .map_err(|e| AppError::Internal(e.to_string()))
+            .map_err(AppError::from)
     }
 
     /// Clear the unread counter for one side of a channel (`"user"` or
@@ -542,8 +534,7 @@ impl ChatService {
         self.store
             .chat_store()
             .clear_unread(channel_id, side)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
+            .await?;
         Ok(())
     }
 
@@ -559,8 +550,7 @@ impl ChatService {
         self.store
             .chat_store()
             .increment_unread(channel_id, side)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
+            .await?;
         Ok(())
     }
 
@@ -616,7 +606,7 @@ impl ChatService {
             .chat_store()
             .list_nullclaw_exchanges(limit.min(200), offset)
             .await
-            .map_err(|e| AppError::Internal(e.to_string()))
+            .map_err(AppError::from)
     }
 
     /// Aggregate chat stats for the admin dashboard's top-row cards.
@@ -629,12 +619,7 @@ impl ChatService {
     /// (capped at 200). Without this, the "Đang chờ" card would max
     /// out at the list's page size.
     pub async fn chat_stats(&self) -> AppResult<crate::dto::chat::ChatStatsResponse> {
-        let counts = self
-            .store
-            .chat_store()
-            .count_channels_by_status()
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
+        let counts = self.store.chat_store().count_channels_by_status().await?;
 
         let mut open_count: i64 = 0;
         let mut assigned_count: i64 = 0;
@@ -654,8 +639,7 @@ impl ChatService {
             .store
             .chat_store()
             .avg_first_response_time_secs()
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
+            .await?;
 
         Ok(crate::dto::chat::ChatStatsResponse {
             open_count,
@@ -699,8 +683,7 @@ impl ChatService {
             .store
             .chat_store()
             .get_active_assignment(channel_id)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?
+            .await?
         {
             if let Some(emp_id) = assignment.employee_id.clone() {
                 if presence().is_online(&emp_id) {
@@ -734,8 +717,7 @@ impl ChatService {
                 self.store
                     .chat_store()
                     .upsert_assignment(channel_id, &picked.user_id)
-                    .await
-                    .map_err(|e| AppError::Internal(e.to_string()))?;
+                    .await?;
                 presence().adjust_active_chats(&picked.user_id, 1);
                 presence().mark_assigned(&picked.user_id);
                 Ok(RoutingOutcome::NewlyAssigned {
@@ -771,7 +753,7 @@ impl ChatService {
             .chat_store()
             .get_active_assignment(channel_id)
             .await
-            .map_err(|e| AppError::Internal(e.to_string()))
+            .map_err(AppError::from)
     }
 
     /// Batch-fetch active assignments for the channel list DTO.
@@ -783,7 +765,7 @@ impl ChatService {
             .chat_store()
             .list_active_assignments(channel_ids)
             .await
-            .map_err(|e| AppError::Internal(e.to_string()))
+            .map_err(AppError::from)
     }
 
     /// Manual claim — a staff member takes over a channel (employee
@@ -801,8 +783,7 @@ impl ChatService {
             .store
             .chat_store()
             .get_active_assignment(channel_id)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?
+            .await?
         {
             if let Some(prev_id) = prev.employee_id.clone() {
                 if prev_id != staff_id {
@@ -826,8 +807,7 @@ impl ChatService {
         self.store
             .chat_store()
             .upsert_assignment(channel_id, &staff_id)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
+            .await?;
         presence().adjust_active_chats(&staff_id, 1);
         presence().mark_assigned(&staff_id);
         Ok(staff_id)
@@ -853,8 +833,7 @@ impl ChatService {
             .store
             .chat_store()
             .get_active_assignment(channel_id)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
+            .await?;
         let assignee = assignment.and_then(|a| a.employee_id.clone());
         if let Some(emp) = assignee {
             self.release_assignment_internal(channel_id, &emp).await;
@@ -871,13 +850,8 @@ impl ChatService {
             .store
             .chat_store()
             .get_active_assignment(channel_id)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-        self.store
-            .chat_store()
-            .close_channel(channel_id)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
+            .await?;
+        self.store.chat_store().close_channel(channel_id).await?;
         if let Some(emp) = assignment.and_then(|a| a.employee_id) {
             presence().adjust_active_chats(&emp, -1);
         }
@@ -916,8 +890,7 @@ impl ChatService {
             .store
             .chat_store()
             .get_channel(channel_id)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::NotFound("chat channel not found".into()))?;
 
         if channel.user_id == user_id {
