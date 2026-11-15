@@ -1,17 +1,14 @@
 #!/usr/bin/env bash
 # backup.sh — consistent hot backup of the datxevui stack's state.
 #
-# WHY THIS SHAPE: the backend's database is the rust-sql (rustqlite)
-# engine's NATIVE file format — NOT SQLite format — so the sqlite3
-# online-backup trick used by /opt/pdf-tts/backup.sh cannot work here
-# ("file is not a database"). Instead:
+# WHY THIS SHAPE: one pause-and-copy pattern for every volume:
 #
 #   * backend volume (app.db + app.db-wal): `docker pause` the backend
 #     (cgroup freezer — in-flight syscalls complete, scheduling stops),
-#     copy BOTH files at that instant, then unpause. The image is
-#     exactly a crash-state snapshot: the engine's WAL recovery on
-#     restore rolls it to a consistent point. Pause lasts only the
-#     local-disk copy of the data volume (~seconds on this node).
+#     copy the files at that instant, then unpause. The image is
+#     exactly a crash-state snapshot: SQLite's WAL recovery on restore
+#     rolls it to a consistent point. Pause lasts only the local-disk
+#     copy of the data volume (~seconds on this node).
 #   * rustfs volume (route pictures / thumbnails): same pause-copy
 #     pattern against the rustfs container.
 #   * tantivy index volume: SKIPPED — rebuildable from the OSM PBF via

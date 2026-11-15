@@ -45,7 +45,7 @@ services:
     env_file:
       - .env
     environment:
-      # rust-sql (rustqlite) engine file on the app-data volume. Migrations auto-apply on boot
+      # SQLite file on the app-data volume. Migrations auto-apply on boot
       # (built-in `serve` behavior — no separate migration step).
       DATABASE_URL: ${DATABASE_URL:-sqlite:/app/data/app.db?mode=rwc}
       # Tantivy place-search index — NESTED inside the osm-index volume
@@ -68,7 +68,7 @@ services:
       STORAGE_S3_FORCE_PATH_STYLE: "true"
       STORAGE_PUBLIC_BASE_URL: ${STORAGE_PUBLIC_BASE_URL:-}
     volumes:
-      - app-data:/app/data      # rust-sql DB file + OSM PBF downloads
+      - app-data:/app/data      # SQLite DB file + OSM PBF downloads
       - app-storage:/app/storage # local uploads (dev / fallback backend)
       - osm-index:/app/index     # Tantivy index (survives redeploys)
     healthcheck:

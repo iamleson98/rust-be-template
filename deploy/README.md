@@ -18,7 +18,7 @@ Production runbook for the single-image stack. **Two supported topologies:**
                      ▼
                datxevui_backend:8080  (overlay network pdf-tts_pdf-tts)
                      │  serves frontend/dist + API + WS
-                     ├ /app/data   [vol]  rust-sql DB + OSM PBF
+                     ├ /app/data   [vol]  SQLite DB + OSM PBF
                      ├ /app/index  [vol]  Tantivy index (nested osm-index)
                      └ /app/storage[vol]  local uploads
 ```
@@ -38,7 +38,7 @@ Production runbook for the single-image stack. **Two supported topologies:**
                                  │ http://backend:8080└──────────────────┘
                       ┌──────────▼───────────┐
                       │  backend (Rust)       │  serves frontend/dist + API + WS
-                      │  ├ /app/data  [vol]   │  rust-sql DB + OSM PBF
+                      │  ├ /app/data  [vol]   │  SQLite DB + OSM PBF
                       │  ├ /app/index [vol]   │  Tantivy place-search index
                       │  └ /app/storage[vol]  │  local uploads
                       └──────────────────────┘
@@ -54,7 +54,7 @@ Production runbook for the single-image stack. **Two supported topologies:**
 - **Tag-driven CI/CD** — push a `v*` tag to GitHub and
   `.github/workflows/deploy.yml` builds the image, pushes it to GHCR, and
   SSHes into the VPS to `docker compose up -d` with the new tag. The three
-  volumes (rust-sql DB file, Tantivy index, uploads) persist across every release.
+  volumes (SQLite DB file, Tantivy index, uploads) persist across every release.
 
 > Prefer classic proxied mode (orange-cloud A record, Caddy on 80/443)?
 > See [§ Direct mode (Caddy)](#direct-mode-caddy---profile-direct) below.
@@ -515,7 +515,7 @@ $COMPOSE start backend
 ```
 
 (The Tantivy index is rebuildable from the PBF — you can skip its backup if
-disk is tight. The rust-sql DB file in `app-data` is the crown jewel.)
+disk is tight. The SQLite DB file in `app-data` is the crown jewel.)
 
 ## Direct mode (Caddy, `--profile direct`)
 

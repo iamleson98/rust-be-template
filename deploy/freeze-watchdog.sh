@@ -33,7 +33,7 @@
 #   * tokio-rt-worker state R + high CPU           → busy loop
 #   * threads in `running` with no syscall         → userspace spin
 #   * futex on sqlx threads                        → pool contention
-#   * gdb frames inside rustqlite/rust-sql locks   → engine-level wedge
+#   * gdb frames inside sqlite3 mutex/lock calls   → database-level wedge
 
 DUMPS=/root/freeze-dumps
 SVC=datxevui_backend
