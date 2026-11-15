@@ -1690,30 +1690,29 @@ mod tests {
         cfg.validate().expect("defaults validate");
     }
 
+    fn assert_rejected(name: &str, mutate: impl FnOnce(&mut Config)) {
+        let mut cfg = valid_config();
+        mutate(&mut cfg);
+        let err = cfg.validate().expect_err(name).to_string();
+        assert!(err.contains(name), "{name}: {err}");
+    }
+
     #[test]
     fn validation_rejects_malformed_new_settings() {
-        let broken: [(&str, fn(&mut Config)); 5] = [
-            ("CLIENT_IP_SOURCE", |c| {
-                c.server.client_ip_source = "cf".into()
-            }),
-            ("AUTH_LOCKOUT_MAX_FAILURES", |c| {
-                c.auth.lockout_max_failures = 0
-            }),
-            ("PLACES_PROFILE", |c| c.places.profile = "everything".into()),
-            ("GOOGLE_ADS_API_VERSION", |c| {
-                c.google_ads.api_version = "21".into()
-            }),
-            ("TURN_KEY_ID", |c| {
-                c.audio_call.turn_auth_mode = "cloudflare".into();
-                c.audio_call.turn_key_id = String::new();
-            }),
-        ];
-        for (name, mutate) in broken {
-            let mut cfg = valid_config();
-            mutate(&mut cfg);
-            let err = cfg.validate().expect_err(name).to_string();
-            assert!(err.contains(name), "{name}: {err}");
-        }
+        assert_rejected("CLIENT_IP_SOURCE", |c| {
+            c.server.client_ip_source = "cf".into()
+        });
+        assert_rejected("AUTH_LOCKOUT_MAX_FAILURES", |c| {
+            c.auth.lockout_max_failures = 0
+        });
+        assert_rejected("PLACES_PROFILE", |c| c.places.profile = "everything".into());
+        assert_rejected("GOOGLE_ADS_API_VERSION", |c| {
+            c.google_ads.api_version = "21".into()
+        });
+        assert_rejected("TURN_KEY_ID", |c| {
+            c.audio_call.turn_auth_mode = "cloudflare".into();
+            c.audio_call.turn_key_id = String::new();
+        });
     }
 
     #[test]
