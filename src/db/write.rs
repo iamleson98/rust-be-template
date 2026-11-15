@@ -24,6 +24,15 @@
 //! and always use `BEGIN IMMEDIATE`.
 //!
 //! DDL and migrations do not belong here: they use the plain connection.
+//!
+//! A body must run every statement on its `tx` and never touch the pool
+//! (`db`, a store holding it, another `with_write`): that borrows a SECOND
+//! connection, which in the `BEGIN IMMEDIATE` attempt waits for the write
+//! lock the body's own transaction holds, so it blocks itself for the
+//! whole busy timeout, and a handful of such bodies drain the pool. The
+//! pools built by [`crate::db::pool`] detect it: a connection checkout
+//! while a body runs on the same task panics in debug builds and logs an
+//! error in release builds.
 
 use std::future::Future;
 use std::pin::Pin;
@@ -108,6 +117,30 @@ pub fn write_stats() -> WriteStats {
 /// that single order cannot form a cycle.
 static COMMIT_LOCK: Mutex<()> = Mutex::const_new(());
 
+tokio::task_local! {
+    /// Set while a [`with_write`] body runs on this task.
+    static IN_WRITE_BODY: ();
+}
+
+/// Report a pool checkout (or a nested [`with_write`]) from inside a
+/// [`with_write`] body: see the module docs. Called by the pool hooks and
+/// by [`ConcurrentTx::begin`]. Panics in debug builds, logs in release.
+///
+/// Detection covers the body's own task; a task it spawns does not
+/// inherit the marker.
+pub(crate) fn forbid_inside_write_body(what: &str) {
+    if IN_WRITE_BODY.try_with(|_| ()).is_ok() {
+        tracing::error!(
+            what,
+            "database pool used inside a with_write body; run every statement on `tx`"
+        );
+        debug_assert!(
+            false,
+            "{what} inside a with_write body: use the `tx` the body was given, never the pool"
+        );
+    }
+}
+
 /// A write transaction on one pooled connection. Implements sea-orm's
 /// [`ConnectionTrait`], so entities, `Query` builders and raw statements
 /// run on it exactly as they do on a `DatabaseTransaction`.
@@ -127,6 +160,7 @@ impl ConcurrentTx {
     /// An `Immediate` transaction first waits its turn in the write queue
     /// (see [`COMMIT_LOCK`]).
     pub async fn begin(pool: &SqlitePool, mode: BeginMode) -> Result<Self, DbErr> {
+        forbid_inside_write_body("starting a write transaction");
         let turn = match mode {
             BeginMode::Immediate => Some(COMMIT_LOCK.lock().await),
             BeginMode::Concurrent => None,
@@ -316,7 +350,7 @@ where
     F: for<'a> FnMut(&'a ConcurrentTx) -> WriteFuture<'a, T>,
 {
     let tx = ConcurrentTx::begin(pool, mode).await?;
-    match body(&tx).await {
+    match IN_WRITE_BODY.scope((), body(&tx)).await {
         Ok(value) => {
             tx.commit().await?;
             Ok(value)
@@ -598,7 +632,12 @@ mod tests {
                 // so interfering then would only deadlock on it.
                 let attempt = attempts.fetch_add(1, Ordering::SeqCst) + 1;
                 if attempt < MAX_ATTEMPTS {
-                    set_counter(&other_connection, 1000 + attempt as i64).await?;
+                    // From a separate task: it stands for another request,
+                    // and (unlike the body's own task) may use the pool.
+                    let other = other_connection.clone();
+                    tokio::spawn(async move { set_counter(&other, 1000 + attempt as i64).await })
+                        .await
+                        .expect("interfering task")?;
                 }
                 set_counter(tx, n + 1).await?;
                 Ok(())
@@ -684,6 +723,59 @@ mod tests {
                 .await
                 .expect("the answer must come from memory, not from a connection");
         assert!(answer.expect("known"));
+    }
+
+    /// The misuse the module docs warn about: the body reaches for the
+    /// pool instead of `tx`.
+    #[cfg(debug_assertions)]
+    #[tokio::test]
+    #[should_panic(expected = "inside a with_write body")]
+    async fn using_the_pool_inside_a_body_is_caught() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let db = wal_db(&dir, Duration::from_secs(5), 4).await;
+        let sneaky = db.clone();
+        let _ = with_write::<(), _>(&db, move |_tx| {
+            let sneaky = sneaky.clone();
+            Box::pin(async move {
+                count(&sneaky, "t1").await; // checks a connection out of the pool
+                Ok(())
+            })
+        })
+        .await;
+    }
+
+    #[cfg(debug_assertions)]
+    #[tokio::test]
+    #[should_panic(expected = "inside a with_write body")]
+    async fn a_nested_with_write_is_caught() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let db = wal_db(&dir, Duration::from_secs(5), 4).await;
+        let inner = db.clone();
+        let _ = with_write::<(), _>(&db, move |_tx| {
+            let inner = inner.clone();
+            Box::pin(
+                async move { with_write::<(), _>(&inner, |_tx| Box::pin(async { Ok(()) })).await },
+            )
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn the_pool_stays_usable_after_a_body_finishes() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let db = wal_db(&dir, Duration::from_secs(5), 4).await;
+        with_write(&db, |tx| {
+            Box::pin(async move {
+                tx.execute_unprepared("INSERT INTO t1 (v) VALUES (1)")
+                    .await?;
+                Ok(())
+            })
+        })
+        .await
+        .expect("write");
+        // The marker is scoped to the body: the same task may use the pool
+        // again, and a spawned task may use it while a body is running.
+        assert_eq!(count(&db, "t1").await, 1);
     }
 
     #[tokio::test]

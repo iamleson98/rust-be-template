@@ -93,7 +93,34 @@ pub fn connect_options(cfg: &DatabaseConfig) -> anyhow::Result<SqliteConnectOpti
 /// Attach the pool-level safety hooks to `options`. Every pool that serves
 /// write transactions must be built through this (see [`connect`]).
 pub(crate) fn with_guards(options: SqlitePoolOptions) -> SqlitePoolOptions {
-    options.after_release(discard_if_in_transaction)
+    options
+        .after_release(discard_if_in_transaction)
+        .before_acquire(reject_use_inside_write_body)
+        .after_connect(reject_connect_inside_write_body)
+}
+
+/// `before_acquire` hook: a checkout from inside a `with_write` body is a
+/// bug (see `db::write`). Runs on the caller's task, so it can tell.
+fn reject_use_inside_write_body(
+    _conn: &mut SqliteConnection,
+    _meta: PoolConnectionMetadata,
+) -> BoxFuture<'_, Result<bool, sqlx::Error>> {
+    Box::pin(async {
+        super::write::forbid_inside_write_body("checking a connection out of the pool");
+        Ok(true)
+    })
+}
+
+/// The same check for a checkout that opens a NEW connection, which
+/// skips `before_acquire`.
+fn reject_connect_inside_write_body(
+    _conn: &mut SqliteConnection,
+    _meta: PoolConnectionMetadata,
+) -> BoxFuture<'_, Result<(), sqlx::Error>> {
+    Box::pin(async {
+        super::write::forbid_inside_write_body("opening a pool connection");
+        Ok(())
+    })
 }
 
 /// `after_release` hook: close a connection that is still inside a
