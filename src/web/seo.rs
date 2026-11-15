@@ -279,16 +279,22 @@ pub fn page_seo(
 }
 
 /// Where `/foo/` is redirected to (308, query kept): a path and its
-/// slash-terminated twin must not both answer 200.
+/// slash-terminated twin must not both answer 200. Browsers read a leading
+/// `//` or `/\` as a protocol-relative URL, so those runs collapse into one
+/// `/` and the redirect can never leave this host.
 pub fn trailing_slash_target(path: &str, query: Option<&str>) -> Option<String> {
     if path.len() < 2 || !path.ends_with('/') {
         return None;
     }
     let trimmed = path.trim_end_matches('/');
-    let target = if trimmed.is_empty() { "/" } else { trimmed };
+    let target = if trimmed.is_empty() {
+        "/".to_owned()
+    } else {
+        format!("/{}", trimmed.trim_start_matches(['/', '\\']))
+    };
     Some(match query {
         Some(q) => format!("{target}?{q}"),
-        None => target.to_owned(),
+        None => target,
     })
 }
 
@@ -358,6 +364,22 @@ mod tests {
             corridor_canonical("Phan Rang - Tháp Chàm", "Nha Trang & Cam Ranh"),
             "https://datxevui.com/search?from=Phan+Rang+-+Th%C3%A1p+Ch%C3%A0m&to=Nha+Trang+%26+Cam+Ranh"
         );
+    }
+
+    #[test]
+    fn trailing_slash_redirect_never_leaves_the_host() {
+        for (path, want) in [
+            ("//evil.example/", "/evil.example"),
+            ("///evil.example//", "/evil.example"),
+            ("/\\evil/", "/evil"),
+            ("/\\/evil.example/", "/evil.example"),
+            ("//", "/"),
+            ("/\\/", "/"),
+        ] {
+            let target = trailing_slash_target(path, None).unwrap();
+            assert_eq!(target, want, "{path}");
+            assert!(!target.starts_with("//") && !target.starts_with("/\\"));
+        }
     }
 
     #[test]
