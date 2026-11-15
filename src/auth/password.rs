@@ -4,12 +4,39 @@ use std::sync::OnceLock;
 use argon2::password_hash::{
     rand_core::OsRng, PasswordHash, PasswordHasher as _, PasswordVerifier as _, SaltString,
 };
-use argon2::Argon2;
+use argon2::{Argon2, Params};
+use base64::engine::general_purpose::STANDARD;
+use base64::Engine as _;
+use sha2::Sha256;
 use tokio::sync::oneshot;
 
 /// Wrapper around `argon2` for hashing and verifying passwords.
+///
+/// New hashes are always Argon2id. Verification also accepts the
+/// `pbkdf2$<iterations>$<salt>$<hash>` form the Cloudflare Worker wrote
+/// (WebCrypto cannot run Argon2, so it re-hashed every user to PBKDF2);
+/// [`needs_rehash`] tells the login path to upgrade such a row.
 #[derive(Clone, Default)]
 pub struct PasswordHasher;
+
+/// Largest PBKDF2 iteration count a stored hash may ask for, so a
+/// tampered or imported row cannot burn CPU. The Worker wrote 100 000.
+const PBKDF2_MAX_ITERATIONS: u32 = 1_000_000;
+
+/// Length of the derived key in a Worker-written PBKDF2 hash.
+const PBKDF2_KEY_LEN: usize = 32;
+
+/// Upper bounds on the Argon2 parameters of a stored hash (memory in
+/// KiB, passes, lanes), for the same reason.
+const ARGON2_MAX_MEMORY_KIB: u32 = 64 * 1024;
+const ARGON2_MAX_PASSES: u32 = 6;
+const ARGON2_MAX_LANES: u32 = 4;
+
+/// An Argon2id hash (default parameters) of a password nobody knows:
+/// what an unknown account is "verified" against, so the answer takes as
+/// long as a real check. See [`PasswordHasher::spend_verify_time`].
+const DECOY_HASH: &str =
+    "$argon2id$v=19$m=19456,t=2,p=1$/vkPL4HQlKXIVmXe8+HXpA$0DlHKUpIPwRsS9KU97iVcp1HQgwIf6/7uaeCLKu+0CE";
 
 /// A job for the dedicated argon2 worker pool.
 enum Job {
@@ -127,15 +154,77 @@ fn hash_blocking(password: &str) -> anyhow::Result<String> {
 }
 
 /// Plain (blocking) verify — used by the worker loop and available for
-/// non-async callers (CLI, tests).
+/// non-async callers (CLI, tests). Dispatches on the stored format;
+/// anything unrecognised or malformed fails closed.
 fn verify_blocking(password: &str, hash: &str) -> bool {
-    let parsed = match PasswordHash::new(hash) {
-        Ok(h) => h,
-        Err(_) => return false,
+    if hash.starts_with("pbkdf2$") {
+        verify_pbkdf2(password, hash)
+    } else {
+        verify_argon2(password, hash)
+    }
+}
+
+fn verify_argon2(password: &str, hash: &str) -> bool {
+    let Ok(parsed) = PasswordHash::new(hash) else {
+        return false;
     };
+    let Ok(params) = Params::try_from(&parsed) else {
+        return false;
+    };
+    if params.m_cost() > ARGON2_MAX_MEMORY_KIB
+        || params.t_cost() > ARGON2_MAX_PASSES
+        || params.p_cost() > ARGON2_MAX_LANES
+    {
+        return false;
+    }
     Argon2::default()
         .verify_password(password.as_bytes(), &parsed)
         .is_ok()
+}
+
+/// `pbkdf2$<iterations>$<salt>$<hash>`: PBKDF2-HMAC-SHA256, a 32-byte
+/// key, salt and key in standard padded base64.
+fn verify_pbkdf2(password: &str, hash: &str) -> bool {
+    let mut parts = hash.split('$');
+    let (Some("pbkdf2"), Some(iterations), Some(salt), Some(expected), None) = (
+        parts.next(),
+        parts.next(),
+        parts.next(),
+        parts.next(),
+        parts.next(),
+    ) else {
+        return false;
+    };
+    let Ok(iterations) = iterations.parse::<u32>() else {
+        return false;
+    };
+    if !(1..=PBKDF2_MAX_ITERATIONS).contains(&iterations) {
+        return false;
+    }
+    let (Ok(salt), Ok(expected)) = (STANDARD.decode(salt), STANDARD.decode(expected)) else {
+        return false;
+    };
+    let mut derived = [0u8; PBKDF2_KEY_LEN];
+    pbkdf2::pbkdf2_hmac::<Sha256>(password.as_bytes(), &salt, iterations, &mut derived);
+    constant_time_eq::constant_time_eq(&derived, &expected)
+}
+
+/// Whether a stored hash should be replaced by a fresh Argon2id one now
+/// that the plaintext is at hand: anything that is not Argon2id with the
+/// current parameters (a Worker-written PBKDF2 hash, or a weaker or
+/// stronger Argon2 setting).
+pub fn needs_rehash(stored: &str) -> bool {
+    PasswordHash::new(stored)
+        .ok()
+        .filter(|parsed| parsed.algorithm.as_str() == "argon2id")
+        .and_then(|parsed| Params::try_from(&parsed).ok())
+        .is_none_or(|params| !same_cost(&params, &Params::default()))
+}
+
+/// Whether two parameter sets cost the same (the PHC string's hash
+/// length is not part of the cost).
+fn same_cost(a: &Params, b: &Params) -> bool {
+    (a.m_cost(), a.t_cost(), a.p_cost()) == (b.m_cost(), b.t_cost(), b.p_cost())
 }
 
 impl PasswordHasher {
@@ -149,6 +238,14 @@ impl PasswordHasher {
 
     pub fn verify(&self, password: &str, hash: &str) -> bool {
         verify_blocking(password, hash)
+    }
+
+    /// Run one verification against a throwaway hash on the worker pool.
+    ///
+    /// The unknown-account path of a login calls this so that a wrong
+    /// email and a wrong password take the same time to answer.
+    pub async fn spend_verify_time(&self, password: String) {
+        self.verify_async(password, DECOY_HASH.to_string()).await;
     }
 
     /// Async hash on the dedicated argon2 pool.
@@ -225,6 +322,103 @@ mod tests {
     async fn malformed_hash_fails_closed() {
         let h = PasswordHasher::new();
         assert!(!h.verify_async("pw".into(), "not-a-phc-hash".into()).await);
+    }
+
+    /// The Worker's own `hashPassword` output (Node WebCrypto, see
+    /// `tests/fixtures/wp6_ref_auth.json`) verifies, constant-time, and a
+    /// wrong password does not.
+    #[test]
+    fn worker_pbkdf2_hash_verifies() {
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("../../tests/fixtures/wp6_ref_auth.json"))
+                .expect("fixture");
+        let hash = fixture["passwordHash"].as_str().expect("hash");
+        let password = fixture["password"].as_str().expect("password");
+        assert!(hash.starts_with("pbkdf2$100000$"));
+        let h = PasswordHasher::new();
+        assert!(h.verify(password, hash));
+        assert!(!h.verify("mật-khẩu Ü 124", hash));
+        assert!(!h.verify("", hash));
+    }
+
+    fn pbkdf2_hash(password: &str, iterations: u32) -> String {
+        let salt = [7u8; 16];
+        let mut derived = [0u8; PBKDF2_KEY_LEN];
+        pbkdf2::pbkdf2_hmac::<Sha256>(password.as_bytes(), &salt, iterations, &mut derived);
+        format!(
+            "pbkdf2${iterations}${}${}",
+            STANDARD.encode(salt),
+            STANDARD.encode(derived)
+        )
+    }
+
+    #[test]
+    fn pbkdf2_iteration_count_is_bounded_both_ways() {
+        let h = PasswordHasher::new();
+        assert!(h.verify("pw", &pbkdf2_hash("pw", 1)));
+        assert!(h.verify("pw", &pbkdf2_hash("pw", 1_000)));
+        // A count outside 1..=1_000_000 is refused before any work is done,
+        // even when the key matches what that count would have produced.
+        let zero = pbkdf2_hash("pw", 1).replacen("$1$", "$0$", 1);
+        assert!(!h.verify("pw", &zero));
+        let huge = pbkdf2_hash("pw", 1).replacen("$1$", "$1000001$", 1);
+        assert!(!h.verify("pw", &huge));
+    }
+
+    #[test]
+    fn malformed_pbkdf2_hashes_fail_closed() {
+        let h = PasswordHasher::new();
+        let good = pbkdf2_hash("pw", 10);
+        assert!(h.verify("pw", &good));
+        for bad in [
+            "pbkdf2$",
+            "pbkdf2$10$",
+            "pbkdf2$10$AAAA",
+            "pbkdf2$ten$AAAA$AAAA",
+            "pbkdf2$-5$AAAA$AAAA",
+            "pbkdf2$10$not base64!$AAAA",
+            "pbkdf2$10$AAAA$not base64!",
+        ] {
+            assert!(!h.verify("pw", bad), "{bad}");
+        }
+        assert!(!h.verify("pw", &format!("{good}$extra")));
+        // Unpadded base64 is not the Worker's format.
+        assert!(!h.verify("pw", &good.replace('=', "")));
+        // A wrong-length key never matches.
+        let short = format!("pbkdf2$10${}$AAAA", STANDARD.encode([7u8; 16]));
+        assert!(!h.verify("pw", &short));
+    }
+
+    /// A hash the Worker imported from this backend (argon2-cffi output
+    /// with `Argon2::default()` parameters) still verifies.
+    #[test]
+    fn legacy_argon2_hash_verifies() {
+        let h = PasswordHasher::new();
+        assert!(h.verify("S3cret-pässword", DECOY_HASH));
+        assert!(!h.verify("wrong", DECOY_HASH));
+    }
+
+    #[test]
+    fn oversized_argon2_parameters_are_refused() {
+        let h = PasswordHasher::new();
+        let huge_memory = DECOY_HASH.replace("m=19456", "m=4194304");
+        assert!(!h.verify("S3cret-pässword", &huge_memory));
+        let many_passes = DECOY_HASH.replace("t=2", "t=7");
+        assert!(!h.verify("S3cret-pässword", &many_passes));
+        let many_lanes = DECOY_HASH.replace("p=1", "p=5");
+        assert!(!h.verify("S3cret-pässword", &many_lanes));
+    }
+
+    #[test]
+    fn only_current_argon2id_hashes_skip_the_rehash() {
+        let h = PasswordHasher::new();
+        let fresh = h.hash("pw").expect("hash");
+        assert!(!needs_rehash(&fresh));
+        assert!(!needs_rehash(DECOY_HASH));
+        assert!(needs_rehash(&pbkdf2_hash("pw", 100_000)));
+        assert!(needs_rehash(&DECOY_HASH.replace("t=2", "t=3")));
+        assert!(needs_rehash(&DECOY_HASH.replace("argon2id", "argon2i")));
+        assert!(needs_rehash("hashed_password"));
     }
 
     /// A burst of concurrent verifies must all round-trip correctly

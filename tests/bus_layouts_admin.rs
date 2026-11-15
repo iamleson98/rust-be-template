@@ -122,11 +122,13 @@ async fn boot_state() -> anyhow::Result<backend::state::AppState> {
 async fn first_admin_user_id(st: &backend::state::AppState) -> anyhow::Result<uuid::Uuid> {
     let user = st
         .auth
-        .register(
-            "admin.bus-layout@example.com".into(),
-            "adminbuslayout".into(),
-            "Sup3rSecret!pass".into(),
-        )
+        .register(backend::service::auth_service::RegisterInput {
+            full_name: "adminbuslayout".into(),
+            email: Some("admin.bus-layout@example.com".into()),
+            phone: None,
+            password: "Sup3rSecret!pass".into(),
+            locale: None,
+        })
         .await?;
     Ok(user.id)
 }
