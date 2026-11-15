@@ -109,7 +109,7 @@ async fn schedule(
             route_id: Some(route_id),
             departure_time: Some(at.into()),
             days_of_week: Some("1111111".into()),
-            vehicle_type_id: Some(limousine(st).await?),
+            vehicle_type_id: Some(Some(limousine(st).await?)),
             base_price_adult: Some(price),
             amenities: amenities.map(str::to_string),
             ..Default::default()
@@ -240,6 +240,7 @@ async fn a_coordinate_search_boards_at_the_schedules_own_stop_and_time() -> anyh
         name: Some(name.into()),
         lat: Some(lat),
         lon: Some(lon),
+        city_id: Some("ha-noi".into()),
         ..Default::default()
     };
     let start = st
@@ -266,7 +267,7 @@ async fn a_coordinate_search_boards_at_the_schedules_own_stop_and_time() -> anyh
             route_id: Some(route_id),
             departure_time: Some("06:00".into()),
             days_of_week: Some("1111111".into()),
-            vehicle_type_id: Some(limousine(&st).await?),
+            vehicle_type_id: Some(Some(limousine(&st).await?)),
             base_price_adult: Some(150_000),
             points: Some(vec![
                 point(start, None),
@@ -355,7 +356,7 @@ async fn trips_are_priced_from_their_fares_until_opened_then_get_their_seats() -
             route_id: Some(route_id),
             departure_time: Some("21:00".into()),
             days_of_week: Some("1111111".into()),
-            bus_layout_id: Some(layout),
+            bus_layout_id: Some(Some(layout)),
             base_price_adult: Some(200_000),
             class_fares: Some(vec![SeatClassFare {
                 seat_class: "vip".into(),
@@ -430,7 +431,7 @@ async fn a_shared_layout_keeps_its_own_seat_count_on_every_trip() -> anyhow::Res
                 route_id: Some(route_id),
                 departure_time: Some(at.clone()),
                 days_of_week: Some("1111111".into()),
-                bus_layout_id: Some(layout),
+                bus_layout_id: Some(Some(layout)),
                 base_price_adult: Some(600_000),
                 ..Default::default()
             })

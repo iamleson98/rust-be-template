@@ -18,8 +18,10 @@ use crate::rbac::model::consts as rbac;
 use crate::state::AppState;
 
 /// `GET /api/admin/addresses?brandId=&q=&limit=&offset=` — list a
-/// brand's addresses. `q`/`limit`/`offset` feed the searchable,
-/// infinite-scroll schedule point picker; omitting `limit` returns all.
+/// brand's addresses, each with how many schedule stops use it
+/// (`stopCount`). `q` matches the name or the street; `q`/`limit`/`offset`
+/// feed the searchable, infinite-scroll schedule point picker; omitting
+/// `limit` returns all.
 #[utoipa::path(
     get,
     path = "/api/admin/addresses",
@@ -55,7 +57,7 @@ pub async fn list(
     ))
 }
 
-/// `POST /api/admin/addresses` — create an address.
+/// `POST /api/admin/addresses` — create an address in one of our cities.
 #[utoipa::path(
     post,
     path = "/api/admin/addresses",
@@ -63,7 +65,7 @@ pub async fn list(
     request_body = UpsertAddressRequest,
     responses(
         (status = 201, description = "Created", body = AdminMutationResponse),
-        (status = 400, description = "Bad request — missing name/lat/lon/brandId"),
+        (status = 400, description = "Bad request — missing name/lat/lon/brandId, or a missing or unknown cityId"),
         (status = 401, description = "Unauthorized"),
         (status = 403, description = "Forbidden"),
         (status = 404, description = "Brand not found"),
@@ -81,7 +83,8 @@ pub async fn create(
     Ok(Json(st.admin.create_address(&body).await?))
 }
 
-/// `PUT /api/admin/addresses/{id}` — update an address.
+/// `PUT /api/admin/addresses/{id}` — update an address; fields left out
+/// keep their values and a blank (or `null`) detail is cleared.
 #[utoipa::path(
     put,
     path = "/api/admin/addresses/{id}",
@@ -109,7 +112,8 @@ pub async fn update(
     Ok(Json(st.admin.update_address(id, &body).await?))
 }
 
-/// `DELETE /api/admin/addresses/{id}` — delete an address.
+/// `DELETE /api/admin/addresses/{id}` — delete an address no schedule
+/// stops at (deleting it would silently drop those stops).
 #[utoipa::path(
     delete,
     path = "/api/admin/addresses/{id}",

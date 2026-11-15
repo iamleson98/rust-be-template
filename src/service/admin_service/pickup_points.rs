@@ -3,7 +3,7 @@
 use sea_orm::Set;
 use uuid::Uuid;
 
-use super::{now_iso, AdminService};
+use super::{now_iso, optional_trimmed, AdminService};
 use crate::dto::admin::{
     AdminMutationResponse, AdminPickupPointListResponse, AdminPickupPointOut,
     UpsertPickupPointRequest,
@@ -49,6 +49,8 @@ impl AdminService {
         let route_id = body
             .route_id
             .ok_or_else(|| AppError::BadRequest("routeId is required".into()))?;
+        self.ensure_route_exists(route_id).await?;
+        check_coordinates(body.lat, body.lon)?;
 
         let id = Uuid::new_v4();
         let now = now_iso();
@@ -56,11 +58,11 @@ impl AdminService {
             id: Set(id),
             route_id: Set(route_id),
             name: Set(body.name.clone()),
-            address: Set(body.address.clone()),
+            address: Set(optional_trimmed(body.address.as_deref())),
             lat: Set(body.lat),
             lon: Set(body.lon),
             stop_order: Set(body.stop_order.unwrap_or(0)),
-            kind: Set(body.kind.clone()),
+            kind: Set(optional_trimmed(body.kind.as_deref())),
             created_at: Set(now),
         };
 
@@ -73,7 +75,8 @@ impl AdminService {
         Ok(AdminMutationResponse { id })
     }
 
-    /// Update a pickup point by id.
+    /// Update a pickup point by id: a field left out keeps its value, a
+    /// blank address or kind is cleared.
     pub async fn update_pickup_point(
         &self,
         id: Uuid,
@@ -87,13 +90,21 @@ impl AdminService {
             .map_err(|e| AppError::Internal(e.to_string()))?
             .ok_or_else(|| AppError::NotFound("pickup point not found".into()))?;
 
+        check_coordinates(body.lat, body.lon)?;
+        if let Some(route_id) = body.route_id {
+            self.ensure_route_exists(route_id).await?;
+        }
+
         let mut active: pickup_point::ActiveModel = existing.into();
 
+        if let Some(route_id) = body.route_id {
+            active.route_id = Set(route_id);
+        }
         if let Some(ref v) = body.name {
             active.name = Set(Some(v.clone()));
         }
-        if let Some(ref v) = body.address {
-            active.address = Set(Some(v.clone()));
+        if body.address.is_some() {
+            active.address = Set(optional_trimmed(body.address.as_deref()));
         }
         if let Some(v) = body.lat {
             active.lat = Set(Some(v));
@@ -104,8 +115,8 @@ impl AdminService {
         if let Some(v) = body.stop_order {
             active.stop_order = Set(v);
         }
-        if let Some(ref v) = body.kind {
-            active.kind = Set(Some(v.clone()));
+        if body.kind.is_some() {
+            active.kind = Set(optional_trimmed(body.kind.as_deref()));
         }
 
         self.store
@@ -126,4 +137,15 @@ impl AdminService {
             .map_err(|e| AppError::Internal(e.to_string()))?;
         Ok(())
     }
+}
+
+/// The geo search reads these as degrees, so an impossible point is refused.
+fn check_coordinates(lat: Option<f64>, lon: Option<f64>) -> AppResult<()> {
+    if lat.is_some_and(|v| !(-90.0..=90.0).contains(&v)) {
+        return Err(AppError::Validation("lat must be within -90..90".into()));
+    }
+    if lon.is_some_and(|v| !(-180.0..=180.0).contains(&v)) {
+        return Err(AppError::Validation("lon must be within -180..180".into()));
+    }
+    Ok(())
 }

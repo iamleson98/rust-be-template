@@ -34,12 +34,14 @@ fn internal(e: impl ToString) -> AppError {
 }
 
 impl AdminService {
-    /// List bus layouts with an optional brand filter and offset
-    /// pagination (`limit=None` returns every matching row — the
-    /// schedule form's seat-map picker relies on that).
+    /// List bus layouts with an optional brand filter (plus the shared
+    /// catalog when `include_shared`) and offset pagination (`limit=None`
+    /// returns every matching row — the schedule form's seat-map picker
+    /// relies on that).
     pub async fn list_bus_layouts(
         &self,
         brand_id: Option<&str>,
+        include_shared: bool,
         limit: Option<u64>,
         offset: u64,
     ) -> AppResult<AdminBusLayoutListResponse> {
@@ -47,7 +49,7 @@ impl AdminService {
         let page = self
             .store
             .schedule_store()
-            .list_bus_layouts_page(brand_id, limit, offset)
+            .list_bus_layouts_page(brand_id, include_shared, limit, offset)
             .await
             .map_err(internal)?;
         let class_counts = self
@@ -163,7 +165,7 @@ impl AdminService {
         };
         let layout = bus_layout::ActiveModel {
             id: Set(id),
-            brand_id: Set(body.brand_id),
+            brand_id: Set(body.brand_id.flatten()),
             name: Set(Some(name)),
             vehicle_type: Set(vehicle_type),
             total_seats: Set(Some(total_seats)),
@@ -205,7 +207,7 @@ impl AdminService {
             active.name = Set(Some(name));
         }
         if let Some(brand_id) = body.brand_id {
-            active.brand_id = Set(Some(brand_id));
+            active.brand_id = Set(brand_id);
         }
         if let Some(ref vt) = body.vehicle_type {
             // Patch semantics: `""` clears, non-empty sets a validated
