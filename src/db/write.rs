@@ -483,8 +483,7 @@ mod tests {
         let err = pool
             .begin_with("BEGIN IMMEDIATE")
             .await
-            .err()
-            .expect("second immediate writer must fail");
+            .expect_err("second immediate writer must fail");
         assert!(
             matches!(
                 StoreError::from(DbErr::Exec(RuntimeErr::SqlxError(err))),
@@ -665,7 +664,7 @@ mod tests {
         .await
         .expect("the immediate fallback must commit");
 
-        let modes = modes.lock().expect("modes");
+        let modes = modes.lock().expect("modes").clone();
         assert_eq!(modes.len(), MAX_ATTEMPTS);
         assert!(modes[..MAX_ATTEMPTS - 1]
             .iter()

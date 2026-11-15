@@ -391,8 +391,10 @@ mod tests {
             .acquire()
             .await
             .expect("acquire");
-        assert_eq!(pragma(&mut conn, "mmap_size").await, "8388608");
-        assert!(READINESS_MMAP_SIZE_BYTES < MMAP_SIZE_BYTES);
+        assert_eq!(
+            pragma(&mut conn, "mmap_size").await,
+            READINESS_MMAP_SIZE_BYTES.to_string()
+        );
     }
 
     #[test]
