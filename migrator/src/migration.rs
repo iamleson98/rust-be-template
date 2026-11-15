@@ -28,6 +28,9 @@
 //! | 19 | `create_background_job` | background_job (worker queue; replaces the runtime-created `jobs`) |
 //! | 20 | `create_discount_campaigns` | discount_campaign, discount_campaign_brand, discount_tier, coupon + admin-only grant |
 //! | 21 | `brand_child_amount_drop_accent` | brand: child discount as an amount; brand colour dropped |
+//! | 22 | `geo_search_indexes` | address / pickup_point (lat, lon) indexes |
+//! | 23 | `address_city_id` | address.city_id + province backfill |
+//! | 24 | `user_role_drop_users_read` | RBAC: customers lose `users:read` |
 //!
 //! Tables are created strictly in FK dependency order (referenced tables
 //! first). All seed data lives in the final migration so it runs after
@@ -67,6 +70,8 @@ mod m20261010_000019_create_background_job;
 mod m20261011_000020_create_discount_campaigns;
 mod m20261011_000021_brand_child_amount_drop_accent;
 mod m20261013_000022_geo_search_indexes;
+mod m20261116_000023_address_city_id;
+mod m20261116_000024_user_role_drop_users_read;
 
 pub struct Migrator;
 
@@ -96,6 +101,8 @@ impl MigratorTrait for Migrator {
             Box::new(m20261011_000020_create_discount_campaigns::Migration),
             Box::new(m20261011_000021_brand_child_amount_drop_accent::Migration),
             Box::new(m20261013_000022_geo_search_indexes::Migration),
+            Box::new(m20261116_000023_address_city_id::Migration),
+            Box::new(m20261116_000024_user_role_drop_users_read::Migration),
         ]
     }
 }
