@@ -4,7 +4,6 @@
 //! Follows the template's store pattern: `TripStore` trait +
 //! `DbTripStore` (`#[retry]`).
 
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -103,29 +102,11 @@ pub trait TripStore: Send + Sync {
         model: seat_inventory::ActiveModel,
     ) -> StoreResult<seat_inventory::Model>;
 
-    /// Bulk release — flips ALL seats held by the given booking back to
-    /// 'available' in a single conditional UPDATE. Used by
-    /// `booking_service::cancel`, `::confirm` (expiry-cleanup path) and
-    /// `hold`'s conflict rollback. Returns the number of seats released.
-    /// Idempotent — safe to call even if no seats are currently held.
-    async fn release_held_seats_for_booking(&self, held_by_booking_id: &str) -> StoreResult<u64>;
-
     /// Bulk mark held seats as 'booked' for a given booking (the
     /// confirmation step). Single SQL UPDATE replaces the per-seat
     /// loop in `booking_service::confirm`. Returns the number of seats
     /// flipped. Idempotent — safe to call on already-booked seats.
     async fn mark_seats_booked_for_booking(&self, held_by_booking_id: &str) -> StoreResult<u64>;
-
-    /// Bulk claim — flips ALL of `seat_ids` from 'available' → 'held' in a
-    /// single conditional UPDATE (the booking `hold` step). See the impl
-    /// for the TOCTOU/serialization argument.
-    async fn try_hold_seats_bulk(
-        &self,
-        trip_session_id: &str,
-        seat_ids: &[String],
-        held_by_booking_id: &str,
-        held_until: &str,
-    ) -> StoreResult<u64>;
 
     /// Atomic `available_seats = available_seats - n` (one UPDATE, value
     /// derived in SQL). Replaces the read-modify-write in `hold` where two
@@ -219,10 +200,6 @@ pub trait TripStore: Send + Sync {
         date_from: &str,
         date_to: &str,
     ) -> StoreResult<Vec<trip_session::Model>>;
-
-    /// The city (slug) each of these addresses is in; addresses without
-    /// one are left out.
-    async fn list_address_city_ids(&self, ids: Vec<Uuid>) -> StoreResult<HashMap<Uuid, String>>;
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -481,42 +458,6 @@ impl TripStore for DbTripStore {
     }
 
     #[store_macros::no_retry]
-    async fn try_hold_seats_bulk(
-        &self,
-        trip_session_id: &str,
-        seat_ids: &[String],
-        held_by_booking_id: &str,
-        held_until: &str,
-    ) -> StoreResult<u64> {
-        use sea_orm::sea_query::Expr;
-        if seat_ids.is_empty() {
-            return Ok(0);
-        }
-        let tid = parse_uuid(trip_session_id)?;
-        let bid = parse_uuid(held_by_booking_id)?;
-        let sids: Result<Vec<uuid::Uuid>, _> = seat_ids.iter().map(|s| parse_uuid(s)).collect();
-        let sids = sids?;
-        // One conditional UPDATE for the whole request — the
-        // `status = 'available'` guard makes this safe under concurrent
-        // holds: the engine serializes the UPDATE, so only one request
-        // can flip a given seat from 'available' to 'held'; an overlapping
-        // hold simply leaves that row unclaimed (rows_affected < seat
-        // count → caller rolls back). Callers must validate duplicates
-        // BEFORE calling: an IN-list with the same seat twice would claim
-        // one row and report a false conflict.
-        let res = seat_inventory::Entity::update_many()
-            .col_expr(seat_inventory::Column::Status, Expr::value("held"))
-            .col_expr(seat_inventory::Column::HeldUntil, Expr::value(held_until))
-            .col_expr(seat_inventory::Column::HeldByBookingId, Expr::value(bid))
-            .filter(seat_inventory::Column::TripSessionId.eq(tid))
-            .filter(seat_inventory::Column::SeatId.is_in(sids))
-            .filter(seat_inventory::Column::Status.eq("available"))
-            .exec(self.db.as_ref())
-            .await?;
-        Ok(res.rows_affected)
-    }
-
-    #[store_macros::no_retry]
     async fn decrement_available_seats(&self, trip_session_id: &str, n: i64) -> StoreResult<u64> {
         use sea_orm::sea_query::{BinOper, Expr};
         let tid = parse_uuid(trip_session_id)?;
@@ -529,30 +470,6 @@ impl TripStore for DbTripStore {
                     .binary(BinOper::Sub, Expr::value(n)),
             )
             .filter(trip_session::Column::Id.eq(tid))
-            .exec(self.db.as_ref())
-            .await?;
-        Ok(res.rows_affected)
-    }
-
-    #[store_macros::no_retry]
-    async fn release_held_seats_for_booking(&self, held_by_booking_id: &str) -> StoreResult<u64> {
-        // Single bulk UPDATE — replaces the N-row load + N sequential
-        // UPDATE pattern that previously dominated cancel/confirm latency
-        // for multi-seat bookings. Conditional on `held_by_booking_id`
-        // so it never releases a different booking's holds.
-        use sea_orm::sea_query::Expr;
-        let bid = parse_uuid(held_by_booking_id)?;
-        let res = seat_inventory::Entity::update_many()
-            .col_expr(seat_inventory::Column::Status, Expr::value("available"))
-            .col_expr(
-                seat_inventory::Column::HeldUntil,
-                Expr::value(None::<String>),
-            )
-            .col_expr(
-                seat_inventory::Column::HeldByBookingId,
-                Expr::value(None::<uuid::Uuid>),
-            )
-            .filter(seat_inventory::Column::HeldByBookingId.eq(bid))
             .exec(self.db.as_ref())
             .await?;
         Ok(res.rows_affected)
@@ -812,37 +729,6 @@ impl TripStore for DbTripStore {
                     .order_by_asc(trip_session::Column::DepartureDate)
                     .all(self.db.as_ref())
                     .await?,
-            );
-        }
-        Ok(out)
-    }
-
-    async fn list_address_city_ids(&self, ids: Vec<Uuid>) -> StoreResult<HashMap<Uuid, String>> {
-        use sea_orm::{ConnectionTrait, FromQueryResult, Statement};
-
-        #[derive(FromQueryResult)]
-        struct Row {
-            id: Uuid,
-            city_id: String,
-        }
-
-        let mut out = HashMap::new();
-        for chunk in ids.chunks(super::FANOUT_CHUNK) {
-            let sql = format!(
-                "SELECT id, city_id FROM address WHERE city_id IS NOT NULL AND id IN ({})",
-                vec!["?"; chunk.len()].join(", ")
-            );
-            let stmt = Statement::from_sql_and_values(
-                self.db.get_database_backend(),
-                sql,
-                chunk.iter().map(|id| (*id).into()),
-            );
-            out.extend(
-                Row::find_by_statement(stmt)
-                    .all(self.db.as_ref())
-                    .await?
-                    .into_iter()
-                    .map(|r| (r.id, r.city_id)),
             );
         }
         Ok(out)

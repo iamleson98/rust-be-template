@@ -86,11 +86,12 @@ impl CompositeStore {
     }
 
     /// Expose the underlying `DatabaseConnection` so services can run
-    /// SeaORM transactions (`db.transaction(|txn| ...)`) for multi-table
-    /// writes. The store traits don't accept a `&DatabaseTransaction`
-    /// parameter (that would explode the trait surface), so transactional
-    /// writes bypass the store layer and issue raw SeaORM queries on the
-    /// transaction handle.
+    /// multi-table writes through `crate::db::write::with_write` (never
+    /// `db.transaction`: the real C SQLite needs the `BEGIN CONCURRENT`
+    /// retry loop). The store traits don't accept a transaction handle
+    /// (that would explode the trait surface), so those writes bypass the
+    /// store layer and issue raw SeaORM queries on the transaction
+    /// handle.
     pub fn db(&self) -> &DatabaseConnection {
         self.db.as_ref()
     }

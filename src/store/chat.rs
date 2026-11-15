@@ -642,22 +642,17 @@ impl ChatStore for DbChatStore {
     async fn increment_unread(&self, channel_id: &str, side: &str) -> StoreResult<()> {
         let uuid = Uuid::parse_str(channel_id)
             .map_err(|_| StoreError::Validation(format!("invalid channel id: {channel_id}")))?;
-        let existing = chat_channel::Entity::find_by_id(uuid)
-            .one(self.db.as_ref())
-            .await?
-            .ok_or_else(|| StoreError::NotFound(format!("channel {channel_id}")))?;
-        // Capture the current counters BEFORE `existing.into()` moves
-        // the model into `ActiveModel` (the original `existing` would
-        // be borrowed-after-move otherwise).
-        let next_unread_user = existing.unread_user + 1;
-        let next_unread_employee = existing.unread_employee + 1;
-        let mut am: chat_channel::ActiveModel = existing.into();
-        if side == "user" {
-            am.unread_user = Set(next_unread_user);
+        let column = if side == "user" {
+            chat_channel::Column::UnreadUser
         } else {
-            am.unread_employee = Set(next_unread_employee);
-        }
-        am.update(self.db.as_ref()).await?;
+            chat_channel::Column::UnreadEmployee
+        };
+        // One statement, so two messages arriving together both count.
+        chat_channel::Entity::update_many()
+            .col_expr(column, Expr::col(column).add(1))
+            .filter(chat_channel::Column::Id.eq(uuid))
+            .exec(self.db.as_ref())
+            .await?;
         Ok(())
     }
 

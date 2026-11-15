@@ -1008,13 +1008,7 @@ impl PublicService {
         let address_rows = self
             .store
             .address_store()
-            .list_addresses_by_ids(address_ids.clone())
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-        let city_ids = self
-            .store
-            .trip_store()
-            .list_address_city_ids(address_ids)
+            .list_addresses_by_ids(address_ids)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
         let address_map: std::collections::HashMap<Uuid, crate::entity::address::Model> =
@@ -1030,7 +1024,7 @@ impl PublicService {
                     arrival_time: p.arrival_time.clone(),
                     name: a.name.clone(),
                     address: a.address.clone(),
-                    city_id: city_ids.get(&a.id).cloned(),
+                    city_id: a.city_id.clone(),
                     lat: a.lat,
                     lon: a.lon,
                 })
