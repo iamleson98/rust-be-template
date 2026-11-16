@@ -747,6 +747,19 @@ export const en: TranslationMap = {
   'adminCronJobs.noSchedule': 'Not scheduled',
   'adminCronJobs.on': 'On',
   'adminCronJobs.couponsExpireLabel': 'Expire unused coupons',
+  'adminCronJobs.couponsExpireDesc':
+    'Expires unused coupons whose campaign window has passed (also enforced on every read; this tidies the rest).',
+  'adminCronJobs.placesBuildLabel': 'Rebuild the place-search index',
+  'adminCronJobs.placesBuildDesc':
+    'Builds the place index from the latest OpenStreetMap extract of Vietnam and publishes it as a new generation; does nothing when the extract has not changed.',
+  'adminCronJobs.placesBuilding': 'Building the place index…',
+  'adminCronJobs.placesPublished': 'Published a new generation',
+  'adminCronJobs.placesUnchanged': 'Unchanged: extract md5 matches the live generation',
+  'adminCronJobs.placesGeneration': 'generation {generation}',
+  'adminCronJobs.placesCount': '{n} places',
+  'adminCronJobs.placesDropped': '{n} dropped (outside the served provinces)',
+  'adminCronJobs.placesProfile': 'profile {profile}',
+  'adminCronJobs.placesMd5': 'extract md5 {md5}',
   'adminCronJobs.queuedToast': 'Queued «{job}»',
   'adminCronJobs.resetNextRun': 'Reset next run',
   'adminCronJobs.resetNextRunHint':
