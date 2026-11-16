@@ -2,16 +2,28 @@
 #
 #   git tag v1.0.0 && git push origin v1.0.0
 #
-# Builds the x86_64 glibc release binary and the frontend, packs them with
-# the systemd units and scripts of deploy/vps/ into one tarball, signs it
-# with RELEASE_SIGNING_KEY and publishes a GitHub release. The VPS installs
-# it by itself within 5 minutes: datxevui-update.timer finds the new tag,
-# checks the SHA-256 and the signature against the key pinned in
-# deploy/vps/update.sh, swaps the release, and rolls back if /ready does not
-# answer. Nothing can reach into the VPS to deploy.
+# One push takes a tag all the way to a verified production deploy:
 #
-# Cut tags from a commit whose CI run (ci.yml) is green: this workflow builds
-# and packages, it does not repeat the test suites.
+#   test         fmt + the whole Rust test suite + the frontend checks,
+#                on the tagged commit; nothing below runs if it is red
+#   build        x86_64 glibc release binary + frontend, packed with the
+#                systemd units and scripts of deploy/vps/ into one tarball,
+#                signed with RELEASE_SIGNING_KEY; the binary carries the tag
+#                (RELEASE_TAG) and reports it as `version` on GET /ready
+#   publish      the GitHub release (tarball, SHA-256, signature)
+#   (VPS)        datxevui-update.timer finds the new release within 5
+#                minutes, checks the SHA-256 and the signature against the
+#                key pinned in deploy/vps/update.sh, swaps the release and
+#                rolls back if /ready does not answer. Nothing can reach
+#                into the VPS to deploy: it pulls.
+#   verify-deploy  polls https://datxevui.com/ready until it reports the tag
+#                (deploy/vps/verify-release.sh); red after 15 minutes means
+#                the VPS did not install it or rolled it back: read
+#                `journalctl -u datxevui-update` there.
+#
+# A suffixed tag (v1.2.0-rc1) is a prerelease: the VPS only follows
+# `releases/latest`, so it is built and published but never deployed, and
+# verify-deploy is skipped.
 #
 # The previous (Worker) frontend's /_next/static is served from the binary's
 # LEGACY_NEXT_DIR for a month after cutover, so cached shells keep booting.
@@ -34,8 +46,10 @@ on:
   push:
     tags: ['v[0-9]+.[0-9]+.[0-9]+*']
 
+# One run per tag, never cancelled halfway: a release that is being published
+# or verified must finish.
 concurrency:
-  group: release-vps
+  group: release-vps-${{ github.ref_name }}
   cancel-in-progress: false
 
 permissions:
@@ -46,8 +60,83 @@ env:
   ASSET: datxevui-x86_64-linux.tar.gz
 
 jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      # The same flags as ci.yml, so its cached build output is reusable.
+      RUSTFLAGS: "-D warnings"
+      RUST_BACKTRACE: 1
+      # The test settings of ci.yml: everything that talks to the outside is off.
+      DATABASE_URL: "sqlite::memory:"
+      JWT_SECRET: ci-test-secret-at-least-32-bytes-long-aaaaaaaa
+      COOKIE_SECURE: "false"
+      COOKIE_DOMAIN: localhost
+      CACHE_BACKEND: moka
+      WORKER_BACKEND: db
+      SEARCH_INDEX_DIR: ""
+      AUDIO_CALL_ENABLED: "false"
+      NULLCLAW_ENABLED: "false"
+      VNPAY_ENABLED: "false"
+      MOMO_ENABLED: "false"
+      ZALOPAY_ENABLED: "false"
+      VIETQR_ENABLED: "false"
+      OAUTH_GOOGLE_ENABLED: "false"
+      OAUTH_FACEBOOK_ENABLED: "false"
+      OAUTH_TWITTER_ENABLED: "false"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Rust toolchain
+        run: rustup toolchain install stable --profile minimal --component rustfmt && rustup default stable
+
+      - name: Native build dependencies
+        # cmake: aws-lc-sys, the rustls crypto provider.
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends pkg-config libssl-dev cmake
+
+      - name: Restore cargo's registry and build output
+        # Only restores: ci.yml's weekly run on master saves the entry (same
+        # key and flags), and a cache saved from a tag would be visible to
+        # that one tag alone.
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      - name: Rustfmt
+        # Our crates only: vendor/ carries upstream code in upstream style.
+        run: cargo fmt -p backend -p store_macros -p migrator -- --check
+
+      - name: Rust tests
+        run: cargo test --workspace --locked
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: latest
+
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('frontend/bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
+
+      - name: Frontend checks
+        working-directory: frontend
+        run: |
+          bun install --frozen-lockfile
+          bun run typecheck
+          bun run lint
+          bun run test
+
   build:
     name: Build and sign
+    needs: test
     # Ubuntu 22.04 (glibc 2.35): the binary also runs on every newer Ubuntu.
     runs-on: ubuntu-22.04
     timeout-minutes: 60
@@ -83,6 +172,11 @@ jobs:
           test -f dist/index.html
 
       - name: Build the release binary
+        env:
+          # Read with option_env! in src/routes/health.rs: /ready reports the
+          # tag, which is how verify-deploy knows this build is serving.
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_COMMIT: ${{ github.sha }}
         run: |
           cargo build --release --locked
           target/release/backend --version
@@ -164,3 +258,23 @@ jobs:
             # Created with its files in one step: the VPS never sees a release without them.
             gh release create "$RELEASE" "${files[@]}" "${flags[@]}" --verify-tag --title "$RELEASE" --generate-notes
           fi
+
+  verify-deploy:
+    name: Verify the production deploy
+    needs: publish
+    # The VPS follows `releases/latest`, which never includes a prerelease.
+    if: ${{ !contains(github.ref_name, '-') }}
+    runs-on: ubuntu-latest
+    # 15 minutes of polling, plus a margin.
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          sparse-checkout: deploy/vps/verify-release.sh
+          sparse-checkout-cone-mode: false
+      - name: Wait for production to report the tag
+        env:
+          RELEASE: ${{ github.ref_name }}
+        run: deploy/vps/verify-release.sh "$RELEASE"
