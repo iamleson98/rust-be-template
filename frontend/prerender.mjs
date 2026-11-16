@@ -5,7 +5,8 @@
  * providers' reviewers read the privacy policy and terms without running
  * scripts. Every other page is a client-rendered shell: the backend fills
  * `<!--app-head-->` in these files per request (title, description,
- * canonical, robots, Open Graph, structured data).
+ * canonical, robots, Open Graph, structured data) and `<!--app-html-->` with
+ * the page's text (`src/web/content.rs`), which the app replaces on mount.
  *
  * Also injects the Google tags into the built template, from env vars:
  *   - `VITE_GSC_VERIFICATION` — Search Console verification meta tag
@@ -16,14 +17,15 @@
  *
  * gtag.js is one shared script regardless of how many Google tag IDs
  * exist — the script src just needs any one of them; each ID gets its
- * own `gtag('config', …)` line.
+ * own `gtag('config', …)` line. The script itself is fetched once the page
+ * has loaded and the browser is idle, never in the way of the first paint:
+ * the `gtag()` calls queue in `dataLayer` until it arrives.
  */
 
 import { readFileSync, writeFileSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createServer } from 'vite'
-import { gzipSync, brotliCompressSync } from 'node:zlib'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = __dirname
@@ -38,17 +40,49 @@ const GOOGLE_ADS_CONVERSIONS = process.env.VITE_GOOGLE_ADS_CONVERSIONS?.trim() |
 /** Content pages whose text is prerendered into their own `dist/<page>.html`. */
 const PAGES = ['/privacy', '/terms']
 
-/** Writes `file` plus the .gz/.br twins the backend serves precompressed. */
-function writeHtml(file, html) {
-  writeFileSync(file, html, 'utf-8')
-  const buf = Buffer.from(html, 'utf-8')
-  writeFileSync(file + '.gz', gzipSync(buf, { level: 9 }))
-  writeFileSync(file + '.br', brotliCompressSync(buf))
+/**
+ * Starts the app's scripts once the page has loaded (its hero photo, styles
+ * and fonts included) and painted, instead of in the middle of loading them:
+ * the first paint is the server's HTML, so it needs no script, and a script
+ * that downloads and compiles beside the photo takes the bandwidth and the
+ * main thread the photo is waiting for. A timer starts them anyway if `load`
+ * is slow (a stuck image). The links the
+ * server wrote work meanwhile as ordinary navigations.
+ */
+function deferAppScripts(html) {
+  // The entry script and the preload links Vite wrote for its static imports.
+  const tag =
+    /(?:<script type="module" crossorigin src="(\/assets\/[^"]+\.js)"><\/script>|<link rel="modulepreload" crossorigin href="(\/assets\/[^"]+\.js)">)\s*/g
+  const sources = [...html.matchAll(tag)].map((m) => m[1] ?? m[2])
+  if (sources.length === 0) throw new Error('no module script in the built index.html')
+  const loader = `<script>
+      (function () {
+        var sources = ${JSON.stringify(sources)};
+        var started = false;
+        function start() {
+          if (started) return;
+          started = true;
+          sources.forEach(function (src) {
+            var script = document.createElement('script');
+            script.type = 'module';
+            script.crossOrigin = '';
+            script.src = src;
+            document.head.appendChild(script);
+          });
+        }
+        // A moment after load: the photo and the text have been presented by then.
+        addEventListener('load', function () {
+          setTimeout(start, 250);
+        });
+        setTimeout(start, 3000);
+      })();
+    </script>`
+  return html.replace(tag, '').replace('</head>', `${loader}\n  </head>`)
 }
 
 async function main() {
   const templatePath = resolve(distDir, 'index.html')
-  let template = readFileSync(templatePath, 'utf-8')
+  let template = deferAppScripts(readFileSync(templatePath, 'utf-8'))
 
   // ── Inject Google Search Console verification meta tag ──────
   // Replaces `<!-- %VITE_GSC_VERIFICATION_META% -->` in index.html.
@@ -78,12 +112,19 @@ async function main() {
       ? `\n  window.__GOOGLE_ADS_CONVERSIONS__ = ${GOOGLE_ADS_CONVERSIONS};`
       : ''
     const googleTagsScript = `
-<script async src="https://www.googletagmanager.com/gtag/js?id=${tagIds[0]}"></script>
 <script>${conversionsScript}
   window.dataLayer = window.dataLayer || [];
   function gtag(){dataLayer.push(arguments);}
   gtag('js', new Date());
   ${configLines.join('\n  ')}
+  addEventListener('load', function () {
+    (window.requestIdleCallback ? function (f) { requestIdleCallback(f, { timeout: 4000 }); } : function (f) { setTimeout(f, 2000); })(function () {
+      var s = document.createElement('script');
+      s.async = true;
+      s.src = 'https://www.googletagmanager.com/gtag/js?id=${tagIds[0]}';
+      document.head.appendChild(s);
+    });
+  });
 </script>`
     template = template.replace('<!-- %GOOGLE_TAGS% -->', googleTagsScript)
     console.log(
@@ -108,16 +149,14 @@ async function main() {
 
     for (const url of PAGES) {
       const html = template.replace('<!--app-html-->', await render(url))
-      writeHtml(resolve(distDir, `${url.slice(1)}.html`), html)
+      writeFileSync(resolve(distDir, `${url.slice(1)}.html`), html, 'utf-8')
       console.log('[prerender] ✓ wrote dist%s.html (%d bytes)', url, html.length)
     }
 
-    // The shell the backend serves for every other page: no prerendered body.
-    // Re-compressed so the backend's precompressed_gzip / precompressed_br
-    // serve this file, not the placeholder from vite build.
-    template = template.replace('<!--app-html-->', '')
-    writeHtml(templatePath, template)
-    console.log('[prerender] ✓ wrote dist/index.html (+ .gz, .br; %d bytes)', template.length)
+    // The shell the backend serves for every other page: no prerendered body;
+    // the `<!--app-html-->` marker stays for the backend to fill per page.
+    writeFileSync(templatePath, template, 'utf-8')
+    console.log('[prerender] ✓ wrote dist/index.html (%d bytes)', template.length)
   } finally {
     await vite.close()
   }

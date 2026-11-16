@@ -1,6 +1,5 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import viteCompression from 'vite-plugin-compression'
 import { visualizer } from 'rollup-plugin-visualizer'
 import path from 'node:path'
 
@@ -10,13 +9,11 @@ import path from 'node:path'
 // time (see prerender.mjs) for SEO; interactive views (search, chat,
 // booking, login, admin) are lazy-loaded client-side islands.
 //
-// Precompressed assets: `vite-plugin-compression` emits `.gz` (gzip)
-// and `.br` (brotli) sidecar files for every asset ≥1024 bytes. The
-// Rust `ServeDir::precompressed_gzip()` / `.precompressed_br()`
-// fallback in `backend-rust/src/main.rs` serves these directly when
-// the client advertises `Accept-Encoding: gzip` / `br`, skipping
-// runtime compression entirely. Net effect: ~70-85% smaller wire
-// bytes for JS/CSS at zero per-request CPU cost.
+// Precompressed assets: `scripts/precompress.mjs` (the last step of
+// `bun run build`) writes `.br` and `.gz` twins of every compressible file.
+// The backend's `ServeDir::precompressed_br()` / `.precompressed_gzip()`
+// (`src/web/mod.rs`) serves them directly when the client advertises
+// `Accept-Encoding: br` / `gzip`, with no per-request compression work.
 /**
  * Where the dev server sends API and WebSocket traffic: the backend on :8080
  * unless DEV_API_TARGET says otherwise (a second backend on another port).
@@ -26,20 +23,12 @@ const API = process.env.DEV_API_TARGET ?? 'http://localhost:8080'
 export default defineConfig({
   plugins: [
     react(),
-    // Gzip sidecars — compatible with every browser since ~2002.
-    viteCompression({ algorithm: 'gzip', threshold: 1024 }),
-    // Brotli sidecars — ~15-20% smaller than gzip; supported by every
-    // modern browser (Chrome 50+, Firefox 44+, Safari 11+).
-    viteCompression({ algorithm: 'brotliCompress', threshold: 1024 }),
-    // Bundle visualizer — emits dist/stats.html with a treemap of the
-    // production bundle. Run `bun run build:client` and open the file
-    // to spot oversized deps / duplicate imports.
-    visualizer({
-      open: false,
-      filename: 'dist/stats.html',
-      gzipSize: true,
-      brotliSize: true,
-    }),
+    // Bundle visualizer — `ANALYZE=1 bun run build:client` writes
+    // dist/stats.html, a treemap of the production bundle, to spot oversized
+    // deps / duplicate imports. Not part of a release: the file is 1.5 MB.
+    ...(process.env.ANALYZE
+      ? [visualizer({ open: false, filename: 'dist/stats.html', gzipSize: true, brotliSize: true })]
+      : []),
   ],
   resolve: {
     alias: {
@@ -77,79 +66,45 @@ export default defineConfig({
     rollupOptions: {
       input: path.resolve(import.meta.dirname, 'index.html'),
       output: {
-        // Rolldown (Vite 8) requires manualChunks as a FUNCTION, not an object.
-        // Split vendor code into stable, cacheable chunks. Islands that
-        // import the same vendor lib (e.g. Base UI Dialog used by both
-        // BookingDialog and ChatWidget) will share a single vendor chunk,
-        // so navigating between islands doesn't re-download React.
-        manualChunks(id) {
-          if (!id.includes('node_modules')) return undefined
-
-          // ⚠️ ORDER MATTERS — check the most specific packages FIRST.
-          // Base UI's package path ('@base-ui/react/...') contains the
-          // substring '/react/', so a loose includes('/react/') react
-          // check swallows all ~315 Base UI modules (~230KB) into
-          // vendor-react. Base UI must be matched BEFORE react.
-          // Base UI primitives — shared across most shadcn/ui components.
-          if (id.includes('@base-ui/react')) {
-            return 'vendor-base-ui'
-          }
-
-          // React core — changes almost never; cached effectively forever.
-          // Exact segment match so react-* packages are NOT matched here.
-          if (
-            /\/node_modules\/react\//.test(id) ||
-            id.includes('/react-dom/') ||
-            id.includes('/scheduler/')
-          ) {
-            return 'vendor-react'
-          }
-
-          // Form validation stack — used by every form island.
-          if (
-            id.includes('react-hook-form') ||
-            id.includes('@hookform/resolvers') ||
-            id.includes('/zod/')
-          ) {
-            return 'vendor-form'
-          }
-
-          // TanStack Query — the react bindings AND its engine core
-          // (query-core) in ONE chunk; splitting them strays the engine
-          // into vendor-misc and breaks cache stability.
-          if (id.includes('@tanstack/react-query') || id.includes('@tanstack/query-core')) {
-            return 'vendor-query'
-          }
-
-          // TanStack app framework (router / table / virtual / store /
-          // history) — shell-critical, updates together, cache separately
-          // from the grab-bag below.
-          if (id.includes('@tanstack/')) {
-            return 'vendor-tanstack'
-          }
-
-          // Leaflet map — heavy (~155KB), only needed for map views.
-          // (MapLibre GL was removed with the OpenFreeMap bridge — the
-          // basemap is now native CARTO raster tiles via Leaflet.)
-          if (id.includes('leaflet') || id.includes('react-leaflet')) {
-            return 'vendor-leaflet'
-          }
-
-          // Icons — shared by shell + all islands.
-          if (id.includes('lucide-react')) {
-            return 'vendor-icons'
-          }
-
-          // Date utilities — used by search + booking calendars.
-          if (id.includes('date-fns') || id.includes('react-day-picker')) {
-            return 'vendor-date'
-          }
-
-          // Everything else in node_modules goes to a generic vendor chunk.
-          // (No charts chunk: recharts is not a dependency — the admin
-          // dashboard renders its own SVG donut. If a chart lib is ever
-          // added, add a branch for it here.)
-          return 'vendor-misc'
+        // Chunks follow what a first visit needs. React and everything the
+        // entry imports statically (router, query, the parts of Base UI the
+        // header uses, i18n, stores) become three cacheable files. What a page
+        // loads later is grouped by library so it arrives in a few files, not
+        // one per icon: the rest of Base UI, the icons, the form and date
+        // libraries, the shared UI components, Leaflet. (Grouping a whole
+        // library into one chunk *first* made the first page download the
+        // parts only other pages use: all of Base UI, every icon the admin
+        // shows, the form and date libraries.) Groups are filled in priority
+        // order: a module the first visit needs stays in its initial chunk.
+        codeSplitting: {
+          groups: [
+            // Changes only when React does: cached for as long as the release lives.
+            {
+              name: 'vendor-react',
+              test: /node_modules[\\/](react|react-dom|scheduler)[\\/]/,
+              priority: 5,
+            },
+            { name: 'vendor', test: /node_modules/, tags: ['$initial'], priority: 4 },
+            { name: 'app', tags: ['$initial'], priority: 3 },
+            { name: 'vendor-leaflet', test: /node_modules[\\/].*leaflet/, priority: 2 },
+            { name: 'vendor-icons', test: /node_modules[\\/]lucide-react/, priority: 2 },
+            {
+              name: 'vendor-base-ui',
+              test: /node_modules[\\/](@base-ui|@floating-ui)/,
+              priority: 2,
+            },
+            {
+              name: 'vendor-date',
+              test: /node_modules[\\/](date-fns|react-day-picker)/,
+              priority: 2,
+            },
+            {
+              name: 'vendor-form',
+              test: /node_modules[\\/](react-hook-form|@hookform|zod)[\\/]/,
+              priority: 2,
+            },
+            { name: 'ui', test: /src[\\/]components[\\/]ui[\\/]/, priority: 2 },
+          ],
         },
       },
     },

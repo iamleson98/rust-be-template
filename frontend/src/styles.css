@@ -1,6 +1,17 @@
-@import 'tailwindcss';
+@import 'tailwindcss' source(none);
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
+
+/* Only the app's own source is scanned for classes: not the component gallery,
+   the tests, the build output or the generated SDK. The shell and the server
+   write the first paint of the public pages with the same class names. */
+@source '.';
+@source not './ui-gallery';
+@source not './test';
+@source not './api/generated';
+@source not '**/__tests__';
+@source '../index.html';
+@source '../../src/web/content.rs';
 
 @custom-variant dark (&:is(.dark *));
 

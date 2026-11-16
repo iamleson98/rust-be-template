@@ -9,10 +9,11 @@
     "lint": "eslint --max-warnings 0 .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "build": "bun run build:client && bun run build:prerender && bun run build:seo-strings",
+    "build": "bun run build:client && bun run build:prerender && bun run build:seo-strings && bun run build:precompress",
     "build:client": "vite build",
     "build:prerender": "bun run prerender.mjs",
     "build:seo-strings": "bun run scripts/emit-seo-strings.mjs",
+    "build:precompress": "bun run scripts/precompress.mjs",
     "seo:golden": "bun run scripts/seo-golden.mjs",
     "preview": "vite preview",
     "test": "vitest run",
@@ -71,6 +72,7 @@
     "prettier": "^3.9.10",
     "react-resizable-panels": "^3.0.6",
     "rollup-plugin-visualizer": "^7.1.1",
+    "shadcn": "^4.21.4",
     "sharp": "^0.35.5",
     "tailwindcss": "^4.3.3",
     "tw-animate-css": "^1.4.0",
@@ -78,8 +80,6 @@
     "typescript-eslint": "^8.71.1",
     "vaul": "^1.1.2",
     "vite": "^8.3.4",
-    "vite-plugin-compression": "^0.5.1",
-    "vitest": "^4.1.11",
-    "shadcn": "^4.21.4"
+    "vitest": "^4.1.11"
   }
 }
