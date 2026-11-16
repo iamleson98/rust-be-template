@@ -5,13 +5,13 @@
  */
 
 import { format } from 'date-fns'
-import type { Locale } from 'date-fns'
+import { enUS, vi } from 'date-fns/locale'
 
 import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
 import { LunarDayButton, LunarFooter } from '@/components/ui/lunar-day'
 import { TimeColumns } from '@/components/ui/time-picker'
-import { useT } from '@/lib/i18n'
+import { useT, type Lang } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 
 const DAY_FMT = 'yyyy-MM-dd'
@@ -22,7 +22,7 @@ const MINUTE_STEP = 15
 export function TripDatePanel({
   date,
   minDay,
-  locale,
+  lang,
   isMobile,
   time,
   onTime,
@@ -31,7 +31,7 @@ export function TripDatePanel({
 }: {
   date: Date | null
   minDay: Date
-  locale: Locale
+  lang: Lang
   isMobile: boolean
   /** `HH:MM` or '' (any time); undefined hides the time columns. */
   time?: string
@@ -47,7 +47,7 @@ export function TripDatePanel({
     <div className={cn('flex gap-3', isMobile ? 'flex-col' : 'p-3')}>
       <Calendar
         mode="single"
-        locale={locale}
+        locale={lang === 'en' ? enUS : vi}
         selected={date ?? undefined}
         defaultMonth={date ?? minDay}
         onSelect={(d) => {

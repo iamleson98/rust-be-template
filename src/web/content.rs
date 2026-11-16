@@ -69,10 +69,9 @@ pub struct CorridorData {
     pub days: Vec<CorridorDay>,
 }
 
-/// The text keys this module reads from the build's `seo-strings.json`:
-/// strings the app shows too (so the first paint reads like the app), then
-/// those only the server writes.
-pub const TEXT_KEYS: [&str; 40] = [
+/// The text keys this module reads from the build's `seo-strings.json` that
+/// the app shows too, so the first paint reads like the app.
+pub const TEXT_KEYS: [&str; 38] = [
     "nav.home",
     "nav.searchTrips",
     "trips.imageTagline",
@@ -111,12 +110,12 @@ pub const TEXT_KEYS: [&str; 40] = [
     "common.seatsAvailable",
     "layout.footer.privacyPolicy",
     "layout.footer.termsOfUse",
-    "seo.page.corridorHeading",
-    "seo.page.corridorIntro",
 ];
 
-/// The rest of the server-only text.
-pub const SERVER_TEXT_KEYS: [&str; 5] = [
+/// The text only the server writes (the app has no use for it).
+pub const SERVER_TEXT_KEYS: [&str; 7] = [
+    "seo.page.corridorHeading",
+    "seo.page.corridorIntro",
     "seo.page.corridorNoTrips",
     "seo.page.searchHeading",
     "seo.page.rating",

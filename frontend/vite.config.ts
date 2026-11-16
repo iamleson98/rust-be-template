@@ -88,6 +88,13 @@ export default defineConfig({
             { name: 'app', tags: ['$initial'], priority: 3 },
             { name: 'vendor-leaflet', test: /node_modules[\\/].*leaflet/, priority: 2 },
             { name: 'vendor-icons', test: /node_modules[\\/]lucide-react/, priority: 2 },
+            // Menus and selects come with the header's menus (loaded when the page is idle) and the forms.
+            {
+              name: 'vendor-base-ui-menu',
+              test: /node_modules[\\/]@base-ui[\\/]react[\\/](menu|select)[\\/]/,
+              priority: 3,
+              includeDependenciesRecursively: false,
+            },
             {
               name: 'vendor-base-ui',
               test: /node_modules[\\/](@base-ui|@floating-ui)/,
@@ -98,12 +105,17 @@ export default defineConfig({
               test: /node_modules[\\/](date-fns|react-day-picker)/,
               priority: 2,
             },
+            // The form library alone: the search form needs it, the schema libraries only the booking, auth and admin forms.
+            { name: 'vendor-form', test: /node_modules[\\/]react-hook-form[\\/]/, priority: 2 },
+            { name: 'vendor-schema', test: /node_modules[\\/](zod|@hookform)[\\/]/, priority: 2 },
+            // The small components most screens use. Those that bring a library of their own
+            // (calendar, select, menus, sliders, tabs) stay out, or whoever needs a button
+            // would download them too.
             {
-              name: 'vendor-form',
-              test: /node_modules[\\/](react-hook-form|@hookform|zod)[\\/]/,
+              name: 'ui',
+              test: /src[\\/]components[\\/]ui[\\/](button|input|label|popover|tooltip|dialog|sheet|form|avatar|shimmer|skeleton|badge|card|separator|textarea|alert|alert-dialog|slot|modal-styles|resolve-native-button)\.tsx?$/,
               priority: 2,
             },
-            { name: 'ui', test: /src[\\/]components[\\/]ui[\\/]/, priority: 2 },
           ],
         },
       },

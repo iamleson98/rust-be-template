@@ -6,14 +6,13 @@
  */
 
 import { lazy, Suspense, useState } from 'react'
-import { format } from 'date-fns'
-import { enUS, vi } from 'date-fns/locale'
 import { CalendarIcon, Plus, X } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { dayLabel } from '@/lib/day-label'
 import { useT } from '@/lib/i18n'
 import { parseIsoDate } from '@/lib/iso-date'
 import { cn } from '@/lib/utils'
@@ -54,7 +53,6 @@ export function TripDatePicker({
   const [open, setOpen] = useState(false)
   const isMobile = useIsMobile()
   const lang = usePrefs((s) => s.lang)
-  const locale = lang === 'en' ? enUS : vi
   const date = parseIsoDate(day)
   const withTime = !!onTime
   const minDay = new Date(minDate.toDateString())
@@ -79,7 +77,7 @@ export function TripDatePicker({
       <span className="min-w-0 truncate">
         {date
           ? // A set time takes the room of the long weekday name.
-            format(date, time ? 'EEEEEE, dd/MM' : 'EEEE, dd/MM', { locale })
+            dayLabel(date, lang, !!time)
           : placeholder}
       </span>
       {date && time && (
@@ -95,7 +93,7 @@ export function TripDatePicker({
       <TripDatePanel
         date={date}
         minDay={minDay}
-        locale={locale}
+        lang={lang}
         isMobile={isMobile}
         time={withTime ? (time ?? '') : undefined}
         onTime={onTime}
