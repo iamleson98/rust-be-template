@@ -285,8 +285,11 @@ the `background_job` table is created by a normal migration, and
 
 ## Architecture: scheduled (cron) background jobs
 
-Recurring jobs — e.g. the **daily expiry of unused discount coupons**
-(`src/jobs/coupon_expiry.rs`) — run on the worker through a small scheduler:
+Recurring jobs — the **daily expiry of unused discount coupons**
+(`src/jobs/coupon_expiry.rs`) and the **weekly place-index build**
+(`src/jobs/places_build.rs`, which runs `places-build` as a niced,
+OOM-first child process of the server and shows its result in the run
+history) — run on the worker through a small scheduler:
 
 - `scheduled_job` / `job_run` tables — one row per schedule ("every N
   days at HH:MM" local wall-clock) and one row per run (queued →
@@ -321,7 +324,7 @@ Config: `SCHEDULER_ENABLED` (default true; `false` = pure-API instance,
 UTC+7, fixed offset — no DST in Vietnam), `SCHEDULER_TICK_INTERVAL_SECS`,
 `WORKER_CONCURRENCY`, `WORKER_POLL_INTERVAL_MS`, `WORKER_IDLE_POLL_MAX_MS`,
 `JOB_RUN_RETENTION_DAYS`. (`SEARCH_OSM_DOWNLOAD_URL` is the mirror
-override for `places-build`.)
+override for the `places.build` job.)
 
 ## Architecture: WebSocket hub
 

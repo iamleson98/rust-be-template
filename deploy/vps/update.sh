@@ -130,6 +130,12 @@ install_deploy() {
   for f in "$src"/*.service "$src"/*.timer; do
     install -m 0644 "$f" "/etc/systemd/system/$(basename "$f")"
   done
+  # The weekly place build is the `places.build` job inside datxevui now; a box
+  # installed before that still has the old timer, which would build a second time.
+  if [ -e /etc/systemd/system/datxevui-places.timer ]; then
+    systemctl disable --now datxevui-places.timer >/dev/null 2>&1 || true
+    rm -f /etc/systemd/system/datxevui-places.timer /etc/systemd/system/datxevui-places.service
+  fi
   install -m 0755 "$src/backup.sh" /usr/local/sbin/datxevui-backup.new
   mv -f /usr/local/sbin/datxevui-backup.new /usr/local/sbin/datxevui-backup
   install -m 0755 "$src/update.sh" /usr/local/sbin/datxevui-update.new
@@ -151,8 +157,8 @@ mv "$new" "$target"
 ln -sfn "$target" "$root/current.new"
 mv -T "$root/current.new" "$root/current"
 install_deploy "$target"
-systemctl enable datxevui.service datxevui-update.timer datxevui-places.timer datxevui-backup.timer >/dev/null 2>&1
-systemctl start datxevui-update.timer datxevui-places.timer datxevui-backup.timer
+systemctl enable datxevui.service datxevui-update.timer datxevui-backup.timer >/dev/null 2>&1
+systemctl start datxevui-update.timer datxevui-backup.timer
 systemctl restart datxevui
 
 port="$(sed -n 's/^SERVER_PORT=//p' "$env_file" | tail -n1)"

@@ -307,7 +307,7 @@ Activating FCM:
 | Contabo VPS | 2 vCPU / 4 GB RAM is comfortable (Cloud 4 line). Ubuntu 22.04/24.04 recommended. |
 | Domain on Cloudflare | Free plan is fine. Nameservers pointed at Cloudflare. |
 | This GitHub repo | Default branch `master`; Actions enabled. |
-| Place index volume | Created automatically by compose; populate it with [`places-build.sh`](#place-index-management). |
+| Place index volume | Created automatically by compose; populate it with the `places.build` job ([Place index management](#place-index-management)). |
 
 ## One-time server setup (Contabo)
 
@@ -335,7 +335,6 @@ What ends up where:
 /opt/vexevn/
 ├── docker-compose.contabo.yml
 ├── Caddyfile.cloudflare          # only used in --profile direct
-├── places-build.sh
 └── .env                          # 600, contains JWT_SECRET + TUNNEL_TOKEN
 ```
 
@@ -415,7 +414,7 @@ Then:
 
 - Visit `https://yourdomain/` — register the first account; it becomes the
   **admin** automatically.
-- Build the place index: `bash places-build.sh` (see below).
+- Build the place index: admin -> Cron jobs -> `places.build` -> Run now (see below).
 
 ## Releasing (the daily workflow)
 
@@ -440,8 +439,8 @@ fine at this scale; scale-out paths are documented in the root
 
 ## Place index management
 
-Place search is answered in memory from a **generation** built by
-`backend places-build`. The `osm-index` volume is mounted at `/app/index`
+Place search is answered in memory from a **generation** built by the
+`places.build` job (`backend places-build` run as a child of the server). The `osm-index` volume is mounted at `/app/index`
 and `PLACES_DIR=/app/index/places` holds:
 
 ```
@@ -455,18 +454,23 @@ Generations and the symlink share the volume's filesystem, so the flip is
 one atomic `rename(2)`. The server polls `current` and swaps the engine in
 memory: no restart. A failed build leaves the live generation untouched.
 
-**One-off (recommended for a new server):**
+**New server:** the job rebuilds the index every Monday 03:30 (scheduler
+time, `SCHEDULER_TZ_OFFSET_MINUTES`); on a new server press Run now on
+`places.build` in the admin Cron jobs tab. It downloads the ~500 MB Geofabrik
+Vietnam extract (skipped when its MD5 is unchanged), builds and validates
+`records.bin`, publishes it, and shows the outcome in the run history.
+
+By hand, for diagnosis (`--force` rebuilds even when the extract is unchanged;
+log lines on stderr, one JSON summary line on stdout):
 
 ```bash
-cd /opt/vexevn && bash places-build.sh
-# → downloads the ~500 MB Geofabrik Vietnam extract (skipped when its MD5
-#   is unchanged), builds and validates records.bin, publishes it.
-#   `--force` rebuilds even when the extract is unchanged.
+cd /opt/vexevn && docker compose -f docker-compose.contabo.yml exec -T backend /app/backend places-build --force
 ```
 
-Re-run it whenever the map should be refreshed (the extract changes about
-weekly). `SEARCH_OSM_DOWNLOAD_URL` in `.env` points it at a mirror. The
-build peaks around 650 MB of memory, so run it while the box is quiet.
+`SEARCH_OSM_DOWNLOAD_URL` in `.env` points the build at a mirror. The build
+is a child of the backend container and peaks around 650 MB of memory (it is
+niced and the OOM killer's first choice), so leave room for it in the
+container's memory.
 
 ## Operations
 
@@ -510,7 +514,7 @@ docker run --rm -v vexevn_osm-index:/data -v $(pwd):/backup alpine \
 $COMPOSE start backend
 ```
 
-(The place index is rebuildable with `places-build.sh` — you can skip its backup if
+(The place index is rebuildable by the `places.build` job — you can skip its backup if
 disk is tight. The SQLite DB file in `app-data` is the crown jewel.)
 
 ## Direct mode (Caddy, `--profile direct`)
@@ -538,7 +542,7 @@ is still the recommended mode (no certs, no exposed ports).
 | Symptom | Fix |
 | --- | --- |
 | `cloudflared` log: `failed to connect to origin` | Backend unhealthy: `$COMPOSE logs backend`. It waits for `service_healthy` before starting — check it started at all. |
-| Site loads but search returns nothing | No place generation yet — run `bash places-build.sh`; `PLACES_DIR` must be `/app/index/places`. |
+| Site loads but search returns nothing | No place generation yet — run `places.build` from the admin Cron jobs tab; `PLACES_DIR` must be `/app/index/places`. |
 | 502 from Cloudflare after deploy | Health gate failed in CI — check the Actions log tail of backend logs; rollback with `APP_IMAGE=<previous> $COMPOSE up -d`. |
 | `pull access denied` for image on the VPS | GHCR package is private — make it public, or set `GHCR_USER`/`GHCR_TOKEN` GitHub secrets. |
 | Can't SSH after UFW enable | Use the Contabo web console/VNC; `ufw allow OpenSSH` then `ufw reload`. |

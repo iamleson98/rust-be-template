@@ -262,7 +262,6 @@ jobs:
           COOKIE_DOMAIN: localhost
           CACHE_BACKEND: moka
           WORKER_BACKEND: db
-          SEARCH_INDEX_DIR: ""
           AUDIO_CALL_ENABLED: "false"
           NULLCLAW_ENABLED: "false"
           VNPAY_ENABLED: "false"
@@ -283,7 +282,6 @@ jobs:
           COOKIE_DOMAIN: localhost
           CACHE_BACKEND: moka
           WORKER_BACKEND: db
-          SEARCH_INDEX_DIR: ""
           AUDIO_CALL_ENABLED: "false"
           NULLCLAW_ENABLED: "false"
           VNPAY_ENABLED: "false"

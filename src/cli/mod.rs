@@ -10,6 +10,7 @@
 //! - `ads-sweep` — backfill-upload stored ad conversions to Google Ads
 //! - `layouts-normalize` — give legacy bus layouts a real seat plan
 //! - `places-build` — build a place-index generation from the OSM extract
+//!   (the weekly `places.build` job runs it as a child; by hand it is a diagnostic)
 //! - `import-d1` — import a Cloudflare D1 export into the app database
 //!
 //! Database migration commands have been moved to the standalone `migrator`

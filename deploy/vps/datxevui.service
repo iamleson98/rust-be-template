@@ -39,12 +39,18 @@ LimitCORE=0
 # tokio's blocking pool alone may use 512 threads.
 TasksMax=1024
 
-# Memory (2 GB box shared with the k3s agent, the 256Mi quiz pod and
+# Memory (4 GB box shared with the k3s agent, the 256Mi quiz pod and
 # cloudflared; see README.md). Past MemoryHigh the kernel reclaims and
-# throttles the process; MemoryMax is the hard stop. The weekly place-index
-# build runs in its own capped unit, so it is not charged here.
-MemoryHigh=900M
-MemoryMax=1300M
+# throttles the process; MemoryMax is the hard stop. The server itself uses
+# about 330 MB. The rest is headroom for the weekly place-index build (the
+# `places.build` job): it runs as a CHILD of this process, so it is charged to
+# this cgroup. The extraction peaked at ~665 MB (measured on a macOS debug
+# build; the Linux release peak is a cutover gate, docs/CUTOVER.md). The child
+# is niced to 19, idle I/O, and gets oom_score_adj 1000, so if the cgroup ever
+# hits MemoryMax the kernel kills the child and the site keeps serving; the
+# job then reports the run as failed.
+MemoryHigh=1400M
+MemoryMax=1900M
 
 # Hardening: the process reads its release and writes only its state directory.
 NoNewPrivileges=yes

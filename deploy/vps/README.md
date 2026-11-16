@@ -4,13 +4,12 @@ One process, `datxevui`, serves the API, the SPA and the WebSockets on
 `127.0.0.1:8080`. Cloudflare stays DNS, proxy and the `cloudflared` tunnel
 (outbound only): no Caddy, no Docker, and ufw stays SSH-only. The box is
 shared with the k3s agent, the 256Mi quiz pod and `cloudflared`, so
-everything below is sized for 2 GB of RAM. (`deploy/stack.yml`, the Swarm
+everything below is sized for 4 GB of RAM. (`deploy/stack.yml`, the Swarm
 stack, is for other hosts; this one does not use it.)
 
 | File | Installed as | Job |
 |---|---|---|
-| `datxevui.service` | `/etc/systemd/system/` | The app: dedicated user, sandboxed, `MemoryHigh=900M` / `MemoryMax=1300M`, restarts on failure. |
-| `datxevui-places.service` + `.timer` | same | Weekly (Mon 03:30 ICT) `datxevui places-build`: new place-index generation. `MemoryHigh=1000M` / `MemoryMax=1200M`, `Nice=19`, idle I/O, `CPUWeight=10`. The app picks up the new generation within a minute; no restart. |
+| `datxevui.service` | `/etc/systemd/system/` | The app: dedicated user, sandboxed, `MemoryHigh=1400M` / `MemoryMax=1900M` (headroom for the place build, see below), restarts on failure. |
 | `datxevui-backup.service` + `.timer` | same | Every 6 h: `VACUUM INTO` a snapshot, integrity check, gzip, prune, upload to S3. |
 | `datxevui-update.service` + `.timer` | same | Every 5 min: install the newest signed release, if any. |
 | `backup.sh` | `/usr/local/sbin/datxevui-backup` | What the backup unit runs (`--local-only` skips the upload). |
@@ -31,10 +30,10 @@ journalctl -u datxevui -f
 
 `bootstrap.sh` refuses to continue if something else already listens on
 8080 (check `ss -ltnup` first), installs `sqlite3` and `rclone`, and sets the
-host timezone to Asia/Ho_Chi_Minh (the timers use host time, so
-`OnCalendar=Mon *-*-* 03:30:00` in `datxevui-places.timer` is 03:30 ICT; check
-with `timedatectl` and `systemctl list-timers 'datxevui-*'`). It never
-opens a port and leaves k3s's firewall rules alone.
+host timezone to Asia/Ho_Chi_Minh (the systemd timers use host time; the
+app's own jobs use `SCHEDULER_TZ_OFFSET_MINUTES`, default UTC+7; check with
+`timedatectl` and `systemctl list-timers 'datxevui-*'`). It never opens a
+port and leaves k3s's firewall rules alone.
 
 ## Layout on the box
 
@@ -75,6 +74,36 @@ If the old binary rejects a migrated database, restore the snapshot taken in
 step 2 (below). Install or roll back a specific tag by hand with
 `sudo datxevui-update v1.2.0`; an installed or failed tag is retried only
 when named explicitly. The three newest releases are kept.
+
+## The place index
+
+The index is rebuilt by the `places.build` job inside `datxevui`, not by a
+systemd timer: weekly, Mondays 03:30 (`SCHEDULER_TZ_OFFSET_MINUTES`, UTC+7 by
+default). Admin -> Cron jobs shows each run (status, started, duration, the
+generation published or "unchanged: extract md5 matches"), edits the
+schedule and has "Run now". Run it once after the first install: until a
+generation exists, place search answers `engine: "unavailable"`.
+
+The job never extracts in the server process. It runs `datxevui places-build`
+as a child of the server (niced to 19, idle I/O, `oom_score_adj` 1000, one
+hour at most, one build at a time through `places/.lock`), so the extraction's
+memory is charged to `datxevui.service`'s cgroup (limits above) and the
+kernel kills the child first under memory pressure. The app picks up the
+new generation within a minute; no restart.
+
+`datxevui places-build [--force]` is the same build by hand, for diagnosis:
+log lines on stderr, one JSON summary line on stdout, exit status 1 on
+failure. It is not limited by the unit's cgroup, so it is niced here:
+
+```bash
+sudo -u datxevui bash -c 'set -a; . /etc/datxevui/env; set +a
+  SERVER_HOST=127.0.0.1 SERVER_PORT=8080 PLACES_DIR=/var/lib/datxevui/places \
+  DATABASE_URL="sqlite:///var/lib/datxevui/app.db?mode=rwc" \
+  nice -n 19 /opt/datxevui/current/datxevui places-build --force'
+```
+
+It refuses to start while the job's build runs (`places/.lock`).
+`PLACES_DIR`, `PLACES_PROFILE` and `SEARCH_OSM_DOWNLOAD_URL` apply to both.
 
 ## Rolling back the place index
 
@@ -120,21 +149,22 @@ sudo rm -f /var/lib/datxevui/app.db-wal /var/lib/datxevui/app.db-shm
 sudo systemctl start datxevui
 ```
 
-## Memory budget (2 GB, 1 GB swap)
+## Memory budget (4 GB, 1 GB swap)
 
 | Consumer | Steady | Limit |
 |---|---|---|
 | k3s agent | ~350 MB | none |
 | quiz pod | <= 256 MB | pod limit |
 | cloudflared | ~40 MB | none |
-| datxevui | ~500 MB | high 900M, max 1300M |
-| place build (Mon 03:30, ~1 min) | 665 MB peak (debug, macOS; Linux release not yet measured) | high 1000M, max 1200M, killed first |
+| datxevui | ~330 MB | high 1400M, max 1900M |
+| place build (Mon 03:30), a child of datxevui | 665 MB peak (debug, macOS; Linux release not yet measured) | inside datxevui's limits, killed first |
 
 Peak figures: the place build's is a debug build on macOS; the cutover gate
 in `docs/CUTOVER.md` replaces it with a Linux release measurement and the
-caps follow it. The place build runs in its own cgroup, so it never counts against the app's
-limit; at its peak the total can touch swap, which is why it runs at idle
-priority in the quietest hour. On a 4 GB box raise the app to 1500M / 2G.
+limits follow it. The build is charged to the app's cgroup (it is its child),
+so `MemoryHigh` leaves room for ~330 MB + ~665 MB + ~265 MB while a new index
+is swapped in; the build runs at idle priority in the quietest hour and is
+the first thing the OOM killer takes.
 Hardening notes: no syscall filter or `MemoryDenyWriteExecute` is set because
 neither could be tested without the box; add them after the staging soak
 guided by `systemd-analyze security datxevui`.
@@ -142,9 +172,9 @@ guided by `systemd-analyze security datxevui`.
 ## Checks
 
 ```bash
-systemctl status datxevui datxevui-update.timer datxevui-places.timer datxevui-backup.timer
+systemctl status datxevui datxevui-update.timer datxevui-backup.timer
 curl -s http://127.0.0.1:8080/ready
 systemctl list-timers 'datxevui-*'
-sudo systemctl start datxevui-places.service     # build a place index now
+# build a place index now: admin -> Cron jobs -> places.build -> Run now
 sudo systemctl start datxevui-backup.service     # back up now
 ```

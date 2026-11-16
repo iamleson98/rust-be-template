@@ -51,8 +51,8 @@ it; there is no way to recover it afterwards.
 T-7d to T-2d:
 
 1. Install the VPS: `deploy/vps/README.md` (bootstrap, env file, first
-   `datxevui-update auto`). Check `free -m` (2 GB or 4 GB; the unit limits
-   assume 2 GB) and that nothing else holds 8080.
+   `datxevui-update auto`). Check `free -m` (the unit limits assume a 4 GB
+   box) and that nothing else holds 8080.
 2. Add the tunnel hostnames from `deploy/vps/cloudflared-ingress.yml`:
    `staging.datxevui.com` first, protected by a Cloudflare Access policy;
    `datxevui.com` and `www.datxevui.com` can already be in the ingress file
@@ -61,18 +61,21 @@ T-7d to T-2d:
 3. Nightly: import a fresh D1 export into the staging database and read the
    report (below). Run the parity harness against `staging.datxevui.com`.
 4. 24 h soak on staging: `systemctl status datxevui` memory stays under
-   `MemoryHigh`, no 5xx, `datxevui-places.service` completes inside its
-   1200M cap (see the memory gate below), `datxevui-backup.timer` produces
+   `MemoryHigh`, no 5xx, the `places.build` job (a child of `datxevui`)
+   completes inside the app's cgroup limits (see the memory gate below),
+   `datxevui-backup.timer` produces
    archives and uploads them.
    Restore one backup into a scratch file and compare table counts.
-5. Memory gate: run `sudo systemctl start datxevui-places.service` on the
-   VPS with the release build and read the peak
-   (`systemctl show datxevui-places -p MemoryPeak`, or `/usr/bin/time -v`
-   around `datxevui places-build --force`). The only figure so far is 665 MB
-   from a debug build on macOS. The unit allows 1200M (high 1000M); if the
-   Linux release peak exceeds 900M, raise the caps and re-check the memory
-   table in `deploy/vps/README.md` against free RAM (~2.7 GB available).
-   Do not cut over before this number is recorded.
+5. Memory gate: press "Run now" on `places.build` (admin -> Cron jobs) on the
+   VPS with the release build and read the peak of the app's cgroup
+   (`systemctl show datxevui -p MemoryPeak`, taken before and after; or
+   `/usr/bin/time -v` around `datxevui places-build --force` for the build
+   alone). The only figure so far is 665 MB from a debug build on macOS. The
+   build is a child of `datxevui`, so it is charged to that unit, which
+   allows 1900M (high 1400M, server ~330 MB); if the Linux release peak plus
+   ~330 MB exceeds ~1200M, raise the limits and re-check the memory table in
+   `deploy/vps/README.md` against free RAM. Do not cut over before this
+   number is recorded.
 6. Rehearse the rollback once.
 7. Confirm in the Cloudflare dashboard that no "Cache Everything" rule exists
    for the zone (it would cache cookie-bearing HTML) and that no page rule
@@ -87,7 +90,7 @@ T-1d:
 2. Pre-sync objects: `scripts/r2-sync.sh` (the equivalent of
    `rclone copy r2:datxevui-uploads /var/lib/datxevui/uploads`, same keys).
    It runs again at T-0 for the delta only.
-3. Build a place index now: `sudo systemctl start datxevui-places.service`;
+3. Build a place index now: admin -> Cron jobs -> `places.build` -> Run now;
    `/var/lib/datxevui/places/current` must point at a `gen-*` directory.
    Until a generation exists, place search answers `engine: "unavailable"`.
 4. Prepare, but do not enable, the freeze rule (T-0, step 1). Make sure the
