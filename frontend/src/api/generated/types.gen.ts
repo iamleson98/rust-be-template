@@ -1690,7 +1690,14 @@ export type FitSeatPlanRequest = {
 };
 
 export type HealthResponse = {
+    /**
+     * The commit of a release build; absent for a local build.
+     */
+    commit?: string | null;
     status: string;
+    /**
+     * The release tag (`v1.2.3`), or `dev-<crate version>` for a local build.
+     */
     version: string;
 };
 
