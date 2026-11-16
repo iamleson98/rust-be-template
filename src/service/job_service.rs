@@ -110,12 +110,17 @@ impl JobService {
             if self.store.find_schedule(def.kind).await?.is_some() {
                 continue;
             }
-            let next = next_occurrence(
-                Utc::now(),
-                schedule.at_hour,
-                schedule.at_minute,
-                self.tz_offset(),
-            );
+            let (now_utc, tz) = (Utc::now(), self.tz_offset());
+            let next = match schedule.first_weekday {
+                Some(weekday) => scheduler::next_weekday_occurrence(
+                    now_utc,
+                    weekday,
+                    schedule.at_hour,
+                    schedule.at_minute,
+                    tz,
+                ),
+                None => next_occurrence(now_utc, schedule.at_hour, schedule.at_minute, tz),
+            };
             let now = now_iso();
             self.store
                 .insert_schedule(scheduled_job::ActiveModel {
@@ -608,6 +613,26 @@ mod tests {
             let next = parse_iso(row.next_run_at.as_deref().unwrap()).unwrap();
             assert!(next > Utc::now());
         }
+    }
+
+    #[tokio::test]
+    async fn the_place_build_is_seeded_weekly_on_monday_at_0330_local() {
+        use chrono::{Datelike, Timelike};
+        let (svc, store, _) = service(false).await;
+        svc.ensure_default_jobs().await.unwrap();
+        let row = store
+            .find_schedule(jobs::places_build::PlacesBuild::KIND)
+            .await
+            .unwrap()
+            .expect("the place build has a default schedule");
+        assert_eq!((row.interval_days, row.at_hour, row.at_minute), (7, 3, 30));
+        assert!(row.enabled);
+        let next = parse_iso(row.next_run_at.as_deref().unwrap()).unwrap();
+        assert!(next > Utc::now());
+        // Local time at the scheduler's UTC offset (+07 in the test config).
+        let local = next + chrono::Duration::minutes(420);
+        assert_eq!(local.weekday(), chrono::Weekday::Mon);
+        assert_eq!((local.hour(), local.minute()), (3, 30));
     }
 
     #[tokio::test]

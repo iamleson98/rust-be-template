@@ -15,7 +15,7 @@ set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 [ "$(id -u)" -eq 0 ] || { echo "run as root" >&2; exit 1; }
-for f in datxevui.service datxevui-places.service datxevui-places.timer datxevui-backup.service \
+for f in datxevui.service datxevui-backup.service \
   datxevui-backup.timer datxevui-update.service datxevui-update.timer backup.sh update.sh env.example; do
   [ -f "$here/$f" ] || { echo "$here/$f is missing: run this from a full copy of deploy/vps" >&2; exit 1; }
 done
@@ -24,10 +24,10 @@ export DEBIAN_FRONTEND=noninteractive
 echo "== memory"
 mem_mb="$(awk '/^MemTotal:/ {print int($2 / 1024)}' /proc/meminfo)"
 free -m
-if [ "$mem_mb" -lt 1700 ]; then
-  echo "WARNING: ${mem_mb} MB of RAM. The limits in datxevui.service assume 2 GB; lower MemoryHigh/MemoryMax first." >&2
+if [ "$mem_mb" -lt 3500 ]; then
+  echo "WARNING: ${mem_mb} MB of RAM. The limits in datxevui.service assume 4 GB; lower MemoryHigh/MemoryMax first." >&2
 fi
-# The weekly place build peaks near 665 MB (debug build, macOS; see docs/CUTOVER.md): swap absorbs it instead of the OOM killer.
+# The weekly place build runs inside datxevui.service's cgroup and peaks near 665 MB (debug build, macOS; see docs/CUTOVER.md): swap absorbs it instead of the OOM killer.
 if [ -z "$(swapon --show --noheadings)" ]; then
   echo "no swap: creating /swapfile (1 GiB)"
   fallocate -l 1G /swapfile
@@ -70,7 +70,7 @@ if [ ! -f /etc/datxevui/env ]; then
 fi
 
 echo "== units and scripts"
-for u in datxevui.service datxevui-places.service datxevui-places.timer datxevui-backup.service \
+for u in datxevui.service datxevui-backup.service \
   datxevui-backup.timer datxevui-update.service datxevui-update.timer; do
   install -m 0644 "$here/$u" "/etc/systemd/system/$u"
 done

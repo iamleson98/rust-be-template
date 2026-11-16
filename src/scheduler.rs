@@ -23,7 +23,7 @@
 //!   several intervals while the server was down fires once, not N
 //!   times).
 
-use chrono::{DateTime, Duration, NaiveDate, NaiveTime, TimeZone, Utc};
+use chrono::{DateTime, Datelike, Duration, NaiveDate, NaiveTime, TimeZone, Utc, Weekday};
 
 /// The local wall-clock time of `t` under a fixed UTC offset, as a
 /// naive date + time pair.
@@ -62,6 +62,23 @@ pub fn next_occurrence(
             at_minute,
             offset_minutes,
         );
+    }
+    slot
+}
+
+/// The first `at_hour:at_minute` (local, fixed offset) strictly after `after`
+/// that falls on `weekday` — where a weekly schedule starts, so that it keeps
+/// that weekday (each later slot is whole weeks after the previous one).
+pub fn next_weekday_occurrence(
+    after: DateTime<Utc>,
+    weekday: Weekday,
+    at_hour: i16,
+    at_minute: i16,
+    offset_minutes: i32,
+) -> DateTime<Utc> {
+    let mut slot = next_occurrence(after, at_hour, at_minute, offset_minutes);
+    while to_local(slot, offset_minutes).0.weekday() != weekday {
+        slot = advance_slot(slot, 1, at_hour, at_minute, offset_minutes);
     }
     slot
 }
@@ -114,6 +131,23 @@ mod tests {
 
     fn utc(y: i32, m: u32, d: u32, h: u32, min: u32) -> DateTime<Utc> {
         Utc.with_ymd_and_hms(y, m, d, h, min, 0).unwrap()
+    }
+
+    // ── next_weekday_occurrence ─────────────────────────────────────
+
+    #[test]
+    fn weekday_slot_is_the_next_such_weekday_at_the_local_time() {
+        // Mon 2026-11-16 02:00 +07 (Sun 19:00Z): Monday 03:30 is still ahead.
+        let slot = next_weekday_occurrence(utc(2026, 11, 15, 19, 0), Weekday::Mon, 3, 30, VN);
+        assert_eq!(slot, utc(2026, 11, 15, 20, 30)); // Mon 03:30 +07
+                                                     // Past it: the Monday after.
+        let slot = next_weekday_occurrence(utc(2026, 11, 15, 21, 0), Weekday::Mon, 3, 30, VN);
+        assert_eq!(slot, utc(2026, 11, 22, 20, 30));
+        // Midweek: still Monday.
+        let slot = next_weekday_occurrence(utc(2026, 11, 18, 5, 0), Weekday::Mon, 3, 30, VN);
+        assert_eq!(slot, utc(2026, 11, 22, 20, 30));
+        // Weekly advances keep the weekday.
+        assert_eq!(advance_slot(slot, 7, 3, 30, VN), utc(2026, 11, 29, 20, 30));
     }
 
     // ── next_occurrence ─────────────────────────────────────────────

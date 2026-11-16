@@ -86,7 +86,7 @@ hr "Interpretation cheat-sheet"
 cat <<'EOF'
 • Section 1/2 exit 137 or OOMKilled:true        → the backend itself outgrew the 2 GB task limit.
   → check Section 6: rss_mb slope. Rising slope = leak or undersized limit
-    (bump APP_MEM_LIMIT in .env, or find the leak). Flat = spike (places-build?).
+    (bump APP_MEM_LIMIT in .env, or find the leak). Flat = spike (the places.build job?).
 • Section 3 has 'Killed process' lines           → HOST-level OOM. The kernel chose the fattest
   victim (often this backend, sometimes pdf-tts — both stacks restart).
   → check Section 4: which co-tenant eats the RAM; add limits on both stacks.

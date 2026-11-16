@@ -6,9 +6,11 @@ import {
   elapsedLabel,
   humanizeDuration,
   isActiveRun,
+  jobDescription,
   jobHeading,
   jobTypeLabel,
   progressMessage,
+  runDetailText,
   runStatusClass,
   runStatusLabel,
   scheduleIntervalLabel,
@@ -118,6 +120,75 @@ describe('cron-jobs helpers', () => {
     })
   })
 
+  describe('runDetailText (places.build facts)', () => {
+    const published = {
+      phase: 'done',
+      message: 'published generation 20261116T033000Z (326729 places)',
+      outcome: 'published',
+      generation: '20261116T033000Z',
+      places: 326729,
+      dropped: 12,
+      extractMd5: '0123456789abcdef0123456789abcdef',
+      durationSecs: 754,
+      profile: 'all',
+    }
+
+    it('lists what a published build reported, in Vietnamese', () => {
+      const text = runDetailText('places.build', published)
+      expect(text).toBe(
+        [
+          'Đã phát hành thế hệ mới',
+          'thế hệ 20261116T033000Z',
+          `${(326729).toLocaleString('vi-VN')} địa điểm`,
+          '12 bị loại (ngoài các tỉnh phục vụ)',
+          'hồ sơ all',
+          'md5 bản trích 0123456789abcdef0123456789abcdef',
+        ].join(' · '),
+      )
+    })
+
+    it('says an unchanged extract changed nothing and shows only the reported facts', () => {
+      const text = runDetailText('places.build', {
+        outcome: 'unchanged',
+        generation: '20261109T033000Z',
+        places: 326000,
+        extractMd5: 'abc',
+      })
+      expect(text).toContain('Không đổi: md5 bản trích khớp với thế hệ đang chạy')
+      expect(text).toContain('thế hệ 20261109T033000Z')
+      expect(text).toContain('md5 bản trích abc')
+      expect(text).not.toContain('bị loại')
+      expect(text).not.toContain('hồ sơ')
+    })
+
+    it('shows nothing invented for a bare outcome', () => {
+      expect(runDetailText('places.build', { outcome: 'published' })).toBe(
+        'Đã phát hành thế hệ mới',
+      )
+      expect(runDetailText('places.build', { outcome: 'published', places: Number.NaN })).toBe(
+        'Đã phát hành thế hệ mới',
+      )
+    })
+
+    it('shows a failure through the run error, not the detail', () => {
+      expect(runDetailText('places.build', { outcome: 'failed', reason: 'boom' })).toBeNull()
+    })
+
+    it('localises the running phase and ignores unknown or empty detail', () => {
+      expect(runDetailText('places.build', { phase: 'running', message: 'building' })).toBe(
+        'Đang dựng chỉ mục địa điểm…',
+      )
+      expect(runDetailText('places.build', null)).toBeNull()
+      expect(runDetailText('places.build', {})).toBeNull()
+    })
+
+    it('leaves other jobs to their progress message', () => {
+      expect(runDetailText('coupons.expire', { message: 'expired 3 unused coupons' })).toBe(
+        'expired 3 unused coupons',
+      )
+    })
+  })
+
   describe('job status helpers', () => {
     it('treats queued/running as active', () => {
       expect(isActiveRun('queued')).toBe(true)
@@ -126,6 +197,15 @@ describe('cron-jobs helpers', () => {
       expect(isActiveRun('failed')).toBe(false)
       // Cancelled is terminal — the job can be triggered again.
       expect(isActiveRun('cancelled')).toBe(false)
+    })
+
+    it('labels and describes the place-index build in Vietnamese', () => {
+      expect(jobTypeLabel('places.build')).toBe('Dựng lại chỉ mục tìm kiếm địa điểm')
+      expect(jobDescription({ jobType: 'places.build', description: 'catalog text' })).toContain(
+        'OpenStreetMap',
+      )
+      expect(jobDescription({ jobType: 'x.y', description: 'catalog text' })).toBe('catalog text')
+      expect(jobDescription({ jobType: 'x.y' })).toBeNull()
     })
 
     it('labels the coupon-expiry job in Vietnamese', () => {

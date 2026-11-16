@@ -829,6 +829,7 @@ dependencies = [
  "image",
  "indexmap",
  "jsonwebtoken",
+ "libc",
  "libmimalloc-sys",
  "libsqlite3-sys",
  "md-5 0.10.6",

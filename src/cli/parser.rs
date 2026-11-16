@@ -94,7 +94,9 @@ pub enum Command {
 
     /// Build a fresh place-index generation from the Geofabrik Vietnam
     /// extract and publish it under `PLACES_DIR` (skips the work when the
-    /// extract is unchanged, unless `--force`).
+    /// extract is unchanged, unless `--force`). The server runs this weekly
+    /// as its `places.build` job; by hand it is a diagnostic. Log lines go
+    /// to stderr, the last stdout line is a JSON summary, a failure exits 1.
     PlacesBuild {
         /// Rebuild even when the extract's MD5 matches the live generation.
         #[arg(long)]

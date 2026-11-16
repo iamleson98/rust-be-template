@@ -14,12 +14,12 @@ pub async fn run() -> anyhow::Result<()> {
 
     let cli = Cli::parse();
 
-    init_tracing(cli.verbose);
-
     let command = cli.command.unwrap_or(Command::Serve {
         no_migrate: false,
         bind: None,
     });
+    // `places-build` keeps stdout for its one machine-readable summary line.
+    init_tracing(cli.verbose, matches!(command, Command::PlacesBuild { .. }));
 
     match command {
         Command::Serve { no_migrate, bind } => commands::serve::run(no_migrate, bind).await,
@@ -40,7 +40,7 @@ pub async fn run() -> anyhow::Result<()> {
     }
 }
 
-fn init_tracing(verbose: u8) {
+fn init_tracing(verbose: u8, to_stderr: bool) {
     let default_directive = match verbose {
         0 => "info,backend=info,tower_http=warn,sea_orm_migration=warn",
         1 => "info,backend=debug,tower_http=info,sea_orm_migration=info",
@@ -51,8 +51,16 @@ fn init_tracing(verbose: u8) {
         EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(default_directive));
     // `try_init` returns Err if a subscriber is already installed; that's
     // fine, we just keep using the existing one.
-    let _ = tracing_subscriber::registry()
-        .with(fmt::layer().with_target(true))
-        .with(filter)
-        .try_init();
+    let layer = fmt::layer().with_target(true);
+    let _ = if to_stderr {
+        tracing_subscriber::registry()
+            .with(layer.with_writer(std::io::stderr))
+            .with(filter)
+            .try_init()
+    } else {
+        tracing_subscriber::registry()
+            .with(layer)
+            .with(filter)
+            .try_init()
+    };
 }

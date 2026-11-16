@@ -748,6 +748,19 @@ export const vi: TranslationMap = {
   'adminCronJobs.noSchedule': 'Chưa đặt lịch',
   'adminCronJobs.on': 'Bật',
   'adminCronJobs.couponsExpireLabel': 'Hết hạn mã giảm giá chưa dùng',
+  'adminCronJobs.couponsExpireDesc':
+    'Chuyển các mã giảm giá chưa dùng của chiến dịch đã hết hạn sang trạng thái hết hạn (khi đọc cũng đã được kiểm tra; việc này dọn phần còn lại).',
+  'adminCronJobs.placesBuildLabel': 'Dựng lại chỉ mục tìm kiếm địa điểm',
+  'adminCronJobs.placesBuildDesc':
+    'Dựng chỉ mục địa điểm từ bản trích OpenStreetMap mới nhất của Việt Nam và phát hành thành một thế hệ mới; không làm gì nếu bản trích không đổi.',
+  'adminCronJobs.placesBuilding': 'Đang dựng chỉ mục địa điểm…',
+  'adminCronJobs.placesPublished': 'Đã phát hành thế hệ mới',
+  'adminCronJobs.placesUnchanged': 'Không đổi: md5 bản trích khớp với thế hệ đang chạy',
+  'adminCronJobs.placesGeneration': 'thế hệ {generation}',
+  'adminCronJobs.placesCount': '{n} địa điểm',
+  'adminCronJobs.placesDropped': '{n} bị loại (ngoài các tỉnh phục vụ)',
+  'adminCronJobs.placesProfile': 'hồ sơ {profile}',
+  'adminCronJobs.placesMd5': 'md5 bản trích {md5}',
   'adminCronJobs.queuedToast': 'Đã đưa «{job}» vào hàng chờ',
   'adminCronJobs.resetNextRun': 'Đặt lại lần chạy kế tiếp',
   'adminCronJobs.resetNextRunHint':

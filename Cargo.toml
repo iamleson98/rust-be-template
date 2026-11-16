@@ -41,8 +41,10 @@ mimalloc = "0.1"
 libmimalloc-sys = { version = "0.1", features = ["extended"] }
 
 # Async runtime — explicit features instead of "full" to keep compile + binary lean.
-# Add "process" only if you need to spawn child processes (currently not used).
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "io-util", "time", "signal", "sync", "fs"] }
+# "process" runs the place-index build as a child (see src/jobs/places_build.rs).
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "io-util", "time", "signal", "sync", "fs", "process"] }
+# setpriority / ioprio / oom_score_adj for the place-index build child.
+libc = "0.2"
 futures = "0.3"
 async-trait = "0.1"
 

@@ -13,8 +13,9 @@ import {
   durationLabel,
   elapsedLabel,
   isActiveRun,
+  jobDescription,
   jobHeading,
-  progressMessage,
+  runDetailText,
   runStatusClass,
   runStatusLabel,
   scheduleIntervalLabel,
@@ -101,11 +102,12 @@ export function JobCard({
 }) {
   const t = useT()
   const active = job.lastRun ? isActiveRun(job.lastRun.status) : false
-  const progress = job.lastRun ? progressMessage(job.lastRun.detail) : null
+  const progress = job.lastRun ? runDetailText(job.jobType, job.lastRun.detail) : null
   // Heading prefers a localised label; the catalog description (from
   // the API) then goes in the subtitle when it isn't already the heading.
   const heading = jobHeading(job)
-  const catalogNote = heading !== job.description ? job.description : null
+  const description = jobDescription(job)
+  const catalogNote = heading !== description ? description : null
 
   return (
     <Card className="py-0" data-testid="cron-job-card" data-job-type={job.jobType}>
@@ -270,6 +272,7 @@ export const buildRunHistoryColumns = (t: ReturnType<typeof useT>) =>
       header: t('adminCronJobs.colDetail'),
       cell: ({ row }) => {
         const run = row.original
+        const progress = runDetailText(run.jobType, run.detail)
         return run.error ? (
           <span
             className="block max-w-[320px] truncate text-xs text-rose-600 dark:text-rose-400"
@@ -280,9 +283,9 @@ export const buildRunHistoryColumns = (t: ReturnType<typeof useT>) =>
         ) : (
           <span
             className="block max-w-[320px] truncate text-xs text-muted-foreground"
-            title={progressMessage(run.detail) ?? undefined}
+            title={progress ?? undefined}
           >
-            {progressMessage(run.detail) ?? '—'}
+            {progress ?? '—'}
           </span>
         )
       },

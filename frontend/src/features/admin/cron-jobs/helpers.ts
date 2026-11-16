@@ -7,7 +7,7 @@
  */
 
 import { usePrefs } from '@/stores/prefs'
-import { translate, tSync } from '@/lib/i18n'
+import { localeOf, translate, tSync } from '@/lib/i18n'
 
 /** Human label for a run status (matching the admin UI language). */
 export function runStatusLabel(status: string): string {
@@ -115,6 +115,69 @@ export function progressMessage(detail: unknown): string | null {
   return message ?? phase
 }
 
+/** What a `places.build` run reports in its `detail` (each field only when known). */
+interface PlacesBuildDetail {
+  phase?: string
+  outcome?: 'published' | 'unchanged' | 'failed'
+  generation?: string
+  places?: number
+  dropped?: number
+  extractMd5?: string
+  profile?: string
+}
+
+function placesBuildDetail(detail: unknown): PlacesBuildDetail | null {
+  if (!detail || typeof detail !== 'object') return null
+  const d = detail as Record<string, unknown>
+  const str = (v: unknown) => (typeof v === 'string' && v !== '' ? v : undefined)
+  const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : undefined)
+  const outcome = d.outcome
+  return {
+    phase: str(d.phase),
+    outcome:
+      outcome === 'published' || outcome === 'unchanged' || outcome === 'failed'
+        ? outcome
+        : undefined,
+    generation: str(d.generation),
+    places: num(d.places),
+    dropped: num(d.dropped),
+    extractMd5: str(d.extractMd5),
+    profile: str(d.profile),
+  }
+}
+
+/**
+ * The one line a run shows under its status: what the job reported, in the
+ * admin's language. `places.build` reports structured facts (outcome,
+ * generation, places, dropped, extract md5, profile) which are listed only
+ * when present; a failed build shows nothing here because its reason is the
+ * run's error. Other jobs show their progress message.
+ */
+export function runDetailText(jobType: string, detail: unknown): string | null {
+  if (jobType !== 'places.build') return progressMessage(detail)
+  const lang = usePrefs.getState().lang
+  const d = placesBuildDetail(detail)
+  if (!d) return null
+  if (d.outcome === 'failed') return null
+  if (!d.outcome) {
+    return d.phase === 'running' ? translate(lang, 'adminCronJobs.placesBuilding') : null
+  }
+  const count = (n: number) => n.toLocaleString(localeOf(lang))
+  const facts = [
+    d.generation && translate(lang, 'adminCronJobs.placesGeneration', { generation: d.generation }),
+    d.places !== undefined && translate(lang, 'adminCronJobs.placesCount', { n: count(d.places) }),
+    d.dropped !== undefined &&
+      translate(lang, 'adminCronJobs.placesDropped', { n: count(d.dropped) }),
+    d.profile && translate(lang, 'adminCronJobs.placesProfile', { profile: d.profile }),
+    d.extractMd5 && translate(lang, 'adminCronJobs.placesMd5', { md5: d.extractMd5 }),
+  ].filter((fact): fact is string => typeof fact === 'string')
+  const headline = translate(
+    lang,
+    d.outcome === 'published' ? 'adminCronJobs.placesPublished' : 'adminCronJobs.placesUnchanged',
+  )
+  return [headline, ...facts].join(' · ')
+}
+
 /** A run is queued or running → the job cannot be triggered again. */
 export function isActiveRun(status: string): boolean {
   return status === 'queued' || status === 'running'
@@ -136,5 +199,18 @@ export function jobTypeLabel(jobType: string): string {
   if (jobType === 'coupons.expire') {
     return tSync('adminCronJobs.couponsExpireLabel')
   }
+  if (jobType === 'places.build') {
+    return tSync('adminCronJobs.placesBuildLabel')
+  }
   return jobType
+}
+
+/** One-line description: localised for known jobs, else the API's catalog text. */
+export function jobDescription(job: {
+  jobType: string
+  description?: string | null
+}): string | null {
+  if (job.jobType === 'coupons.expire') return tSync('adminCronJobs.couponsExpireDesc')
+  if (job.jobType === 'places.build') return tSync('adminCronJobs.placesBuildDesc')
+  return job.description ?? null
 }

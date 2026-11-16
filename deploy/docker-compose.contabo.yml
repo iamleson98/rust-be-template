@@ -48,7 +48,7 @@ services:
       # SQLite file on the app-data volume. Migrations auto-apply on boot
       # (built-in `serve` behavior — no separate migration step).
       DATABASE_URL: ${DATABASE_URL:-sqlite:/app/data/app.db?mode=rwc}
-      # Place-search generations (`places-build`) live on the osm-index
+      # Place-search generations (the `places.build` job) live on the osm-index
       # volume, so every generation and the `current` symlink share one
       # filesystem.
       PLACES_DIR: ${PLACES_DIR:-/app/index/places}

@@ -12,7 +12,7 @@
 #   * rustfs volume (route pictures / thumbnails): same pause-copy
 #     pattern against the rustfs container.
 #   * place index volume: SKIPPED — rebuildable from the OSM extract via
-#     `places-build` (see deploy/places-build.sh); backing it up would
+#     the `places.build` job; backing it up would
 #     double the archive size for no data value.
 #
 # Result: <output_dir>/datxevui-backup-YYYYmmdd-HHMMSS.tar.gz
