@@ -30,8 +30,11 @@
 //! (visible, not silently dropped).
 
 pub mod coupon_expiry;
+pub mod places_build;
 
 use std::sync::Arc;
+
+use chrono::Weekday;
 
 use crate::store::CampaignStore;
 use crate::worker::{Job, JobRegistry};
@@ -50,6 +53,9 @@ pub struct JobSchedule {
     pub interval_days: i16,
     pub at_hour: i16,
     pub at_minute: i16,
+    /// Weekday of the first slot (local), for weekly schedules that should
+    /// stay on one day. `None` = the next `at_hour:at_minute`, any day.
+    pub first_weekday: Option<Weekday>,
 }
 
 /// One built-in job.
@@ -66,18 +72,35 @@ pub struct JobDefinition {
 
 /// Every built-in job. See the module docs for adding one.
 pub fn catalog() -> &'static [JobDefinition] {
-    &[JobDefinition {
-        kind: coupon_expiry::CouponExpiry::KIND,
-        description: "Expire unused discount coupons whose campaign window passed \
+    &[
+        JobDefinition {
+            kind: coupon_expiry::CouponExpiry::KIND,
+            description: "Expire unused discount coupons whose campaign window passed \
                       (also enforced on every read; this tidies the rest).",
-        schedule: Some(JobSchedule {
-            // Daily, just after midnight local.
-            interval_days: 1,
-            at_hour: 0,
-            at_minute: 10,
-        }),
-        register: |registry, deps| registry.add(coupon_expiry::CouponExpiry::new(deps)),
-    }]
+            schedule: Some(JobSchedule {
+                // Daily, just after midnight local.
+                interval_days: 1,
+                at_hour: 0,
+                at_minute: 10,
+                first_weekday: None,
+            }),
+            register: |registry, deps| registry.add(coupon_expiry::CouponExpiry::new(deps)),
+        },
+        JobDefinition {
+            kind: places_build::PlacesBuild::KIND,
+            description: "Rebuild the place-search index from the latest OpenStreetMap \
+                      extract of Vietnam and publish it as a new generation \
+                      (does nothing when the extract has not changed).",
+            schedule: Some(JobSchedule {
+                // Mondays, the quietest hour of the week.
+                interval_days: 7,
+                at_hour: 3,
+                at_minute: 30,
+                first_weekday: Some(Weekday::Mon),
+            }),
+            register: |registry, _| registry.add(places_build::PlacesBuild::default()),
+        },
+    ]
 }
 
 /// The catalog entry for `kind`.
