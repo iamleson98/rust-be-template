@@ -79,7 +79,11 @@ T-7d to T-2d:
    or cache rule matches `/api/*`.
 8. Publish the legacy assets once (see the header of
    `.github/workflows/release-vps.yml`), then tag the release that is going
-   live, so the box already runs it and serves `/_next/static`.
+   live, so the box already runs it and serves `/_next/static`. The tag does
+   the rest from GitHub: tests, build, signature, release, and (within 5
+   minutes) the box's own install; the workflow's last job turns red unless
+   `https://datxevui.com/ready` reports the tag in its `version` field (a
+   red job: read `journalctl -u datxevui-update` on the box).
 
 T-1d:
 
