@@ -5,34 +5,26 @@
  * recently-viewed, popular routes, brand showcase, what we promise,
  * testimonials, recommendations.
  *
- * All sections are lazy-loaded islands (code-split). The hero is in the
- * shell bundle so it paints immediately; the rest stream in as chunks
- * download.
+ * The sections are small and sit in the page's own chunk, so the page shows
+ * whole the moment it mounts (a section per chunk meant a skeleton, then a
+ * request each). Only the campaign band, which most days has nothing to
+ * show, loads apart. The server has already written the first screen's text
+ * and data into the HTML (see `entry-client.tsx`).
  */
 import { lazy, Suspense } from 'react'
+import { BrandShowcase } from '@/features/brand/brand-showcase'
 import { Hero } from '@/features/home/hero'
+import { PopularRoutes } from '@/features/home/popular-routes'
+import { Recommendations } from '@/features/home/recommendations'
+import { RecentlyViewed } from '@/features/home/recently-viewed'
+import { Testimonials } from '@/features/home/testimonials'
 import { TrustCommitments } from '@/features/home/trust-commitments'
-import { IslandFallback } from '../../components/island-fallback'
 
+// Only for a signed-in customer or a running campaign: nothing to show until then.
 const CampaignSpotlight = lazy(() =>
   import('@/features/campaigns/campaign-spotlight').then((m) => ({
     default: m.CampaignSpotlight,
   })),
-)
-const RecentlyViewed = lazy(() =>
-  import('@/features/home/recently-viewed').then((m) => ({ default: m.RecentlyViewed })),
-)
-const PopularRoutes = lazy(() =>
-  import('@/features/home/popular-routes').then((m) => ({ default: m.PopularRoutes })),
-)
-const BrandShowcase = lazy(() =>
-  import('@/features/brand/brand-showcase').then((m) => ({ default: m.BrandShowcase })),
-)
-const Testimonials = lazy(() =>
-  import('@/features/home/testimonials').then((m) => ({ default: m.Testimonials })),
-)
-const Recommendations = lazy(() =>
-  import('@/features/home/recommendations').then((m) => ({ default: m.Recommendations })),
 )
 
 export function HomePage() {
@@ -43,23 +35,12 @@ export function HomePage() {
       <Suspense fallback={null}>
         <CampaignSpotlight />
       </Suspense>
-      <Suspense fallback={<IslandFallback minHeight={120} />}>
-        <RecentlyViewed />
-      </Suspense>
-      <Suspense fallback={<IslandFallback minHeight={500} />}>
-        <PopularRoutes />
-      </Suspense>
-      <Suspense fallback={<IslandFallback minHeight={300} />}>
-        <BrandShowcase />
-      </Suspense>
-      {/* In the shell bundle (static, prerendered): the promises sit in the page's HTML. */}
+      <RecentlyViewed />
+      <PopularRoutes />
+      <BrandShowcase />
       <TrustCommitments />
-      <Suspense fallback={<IslandFallback minHeight={400} />}>
-        <Testimonials />
-      </Suspense>
-      <Suspense fallback={<IslandFallback minHeight={300} />}>
-        <Recommendations />
-      </Suspense>
+      <Testimonials />
+      <Recommendations />
     </div>
   )
 }

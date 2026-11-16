@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Armchair, BusFront, QrCode, ShieldCheck } from 'lucide-react'
 import { statsOptions } from '@/api'
+import { CATALOG_QUERY } from '@/api/catalog-cache'
 import { SearchWidget } from '@/features/search/widget/search-widget'
 import { formatNum } from '@/lib/format'
 import { useT } from '@/lib/i18n'
@@ -22,7 +23,7 @@ const FEATURES = [
  */
 export function Hero() {
   const t = useT()
-  const { data: stats } = useQuery(statsOptions())
+  const { data: stats } = useQuery({ ...statsOptions(), ...CATALOG_QUERY })
   const counts = stats
     ? [
         { value: Number(stats.brands) || 0, label: t('home.statBrands') },

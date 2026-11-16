@@ -121,7 +121,7 @@ fn write(dir: &std::path::Path, rel: &str, content: &str) {
     std::fs::write(path, content).unwrap();
 }
 
-const SHELL: &str = "<!doctype html><html lang=\"vi\"><head><meta charset=\"UTF-8\" />\n    <!--app-head-->\n  </head><body><div id=\"root\"><!--app-html--></div></body></html>";
+const SHELL: &str = "<!doctype html><html lang=\"vi\"><head><meta charset=\"UTF-8\" />\n    <link rel=\"preload\" href=\"/fonts/geist-latin.woff2\" as=\"font\" type=\"font/woff2\" crossorigin />\n    <script type=\"module\" crossorigin src=\"/assets/app-abc123.js\"></script>\n    <!--app-head-->\n  </head><body><div id=\"root\"><!--app-html--></div></body></html>";
 
 fn site() -> &'static Site {
     static SITE: OnceLock<Site> = OnceLock::new();
@@ -356,7 +356,7 @@ async fn only_the_home_page_carries_the_faq_and_the_hero_preload() {
     for uri in ["/search", "/privacy", "/login", "/does-not-exist"] {
         let page = get(&app, uri).await;
         assert!(!page.body.contains("FAQPage"), "{uri}");
-        assert!(!page.body.contains("rel=\"preload\""), "{uri}");
+        assert!(!page.body.contains("as=\"image\""), "{uri}");
     }
     for uri in ["/", "/search", "/login", "/does-not-exist"] {
         let page = get(&app, uri).await;
@@ -599,10 +599,7 @@ async fn static_files_are_cached_as_the_worker_did() {
             .header("cache-control"),
         "public, max-age=31536000, immutable"
     );
-    assert_eq!(
-        get(&app, "/").await.header("cache-control"),
-        "no-cache, must-revalidate"
-    );
+    assert_eq!(get(&app, "/").await.header("cache-control"), PUBLIC_CACHE);
     // Files with no rule of their own keep the configured default; a plain
     // `.html` file that is not a shell is still a file.
     let ads = get(&app, "/ads.txt").await;
@@ -685,4 +682,453 @@ async fn media_is_served_under_a_sandboxing_csp() {
         );
         assert!(!reply.header("permissions-policy").is_empty(), "{uri}");
     }
+}
+
+// ── Crawlable content and edge caching ───────────────────────────────
+
+const PUBLIC_CACHE: &str =
+    "public, max-age=0, s-maxage=300, stale-while-revalidate=3600, stale-if-error=86400";
+
+/// A brand with two daily departures Hà Nội → Đà Nẵng, and the trips of
+/// today and tomorrow (a search opens them, as it does in production).
+async fn seed_catalog(state: &backend::state::AppState) {
+    use backend::dto::admin::{UpsertBrandRequest, UpsertRouteRequest, UpsertScheduleRequest};
+    use backend::service::trip_search::{Filters, Options, Sort};
+    let brand = state
+        .admin
+        .create_brand(&UpsertBrandRequest {
+            name: Some("Sao Việt <b>Express</b>".into()),
+            slug: Some("sao-viet".into()),
+            description: Some("Xe giường nằm & limousine".into()),
+            contact_phone: Some("0900000000".into()),
+            ..Default::default()
+        })
+        .await
+        .expect("brand")
+        .id;
+    let route = state
+        .admin
+        .create_route(&UpsertRouteRequest {
+            name: Some("Hà Nội - Đà Nẵng".into()),
+            brand_id: Some(brand),
+            start_location_id: Some("ha-noi".into()),
+            end_location_id: Some("da-nang".into()),
+            status: None,
+        })
+        .await
+        .expect("route")
+        .id;
+    let vehicle = state
+        .admin
+        .list_vehicle_types(Some("limousine"), Some(1), 0)
+        .await
+        .expect("vehicle types")
+        .items[0]
+        .id;
+    for (at, price) in [("06:00", 300_000), ("21:00", 250_000)] {
+        state
+            .admin
+            .create_schedule(&UpsertScheduleRequest {
+                route_id: Some(route),
+                departure_time: Some(at.into()),
+                days_of_week: Some("1111111".into()),
+                vehicle_type_id: Some(Some(vehicle)),
+                base_price_adult: Some(price),
+                ..Default::default()
+            })
+            .await
+            .expect("schedule");
+    }
+    for days in 0..2 {
+        let date = (chrono::Utc::now() + chrono::Duration::days(days))
+            .format("%Y-%m-%d")
+            .to_string();
+        let options = Options::new(
+            &date,
+            Some(1),
+            None,
+            Sort::Departure,
+            None,
+            None,
+            Filters::default(),
+        )
+        .expect("options");
+        state
+            .public
+            .search_trips("Hà Nội", "Đà Nẵng", &options)
+            .await
+            .expect("open the day");
+    }
+}
+
+/// The JSON-LD blocks of a page, parsed.
+fn json_ld(html: &str) -> Vec<serde_json::Value> {
+    html.split("<script type=\"application/ld+json\">")
+        .skip(1)
+        .map(|chunk| {
+            let end = chunk.find("</script>").expect("a closed script");
+            serde_json::from_str(&chunk[..end]).expect("valid JSON-LD")
+        })
+        .collect()
+}
+
+fn ld_of<'a>(blocks: &'a [serde_json::Value], kind: &str) -> &'a serde_json::Value {
+    blocks
+        .iter()
+        .find(|b| b["@type"] == kind)
+        .unwrap_or_else(|| panic!("no {kind} block"))
+}
+
+#[tokio::test]
+async fn the_home_page_is_readable_without_a_script() {
+    let (app, state) = boot().await;
+    seed_catalog(&state).await;
+    let page = get(&app, "/").await;
+    assert_eq!(page.status, StatusCode::OK);
+    let body = &page.body;
+
+    assert_eq!(body.matches("<h1").count(), 1, "one headline");
+    assert!(body.contains(">Đặt vé xe khách <span"));
+    assert!(!body.contains("<!--app-html-->"));
+    assert!(body.contains("<div id=\"root\"><div class=\"flex min-h-screen"));
+    // Real links to the corridor and the brand, the brand's name escaped.
+    assert!(
+        body.contains("href=\"/search?from=H%C3%A0+N%E1%BB%99i&amp;to=%C4%90%C3%A0+N%E1%BA%B5ng\"")
+    );
+    assert!(body.contains("href=\"/brands/sao-viet\""));
+    assert!(body.contains("Sao Việt &lt;b&gt;Express&lt;/b&gt;"));
+    assert!(!body.contains("<b>Express"));
+    // The cheapest fare of the corridor, read from the schedules.
+    assert!(body.contains("250.000\u{a0}₫"));
+    assert!(body.contains("href=\"/privacy\""));
+    // The search card is a real form; a brand's rating is not shown here (the
+    // list does not say how many reviews stand behind it).
+    assert!(body.contains("<form action=\"/search\" method=\"get\""));
+    assert!(!body.contains("★"));
+
+    // The corridors are a list of the site's own pages for search engines.
+    let blocks = json_ld(body);
+    let list = ld_of(&blocks, "ItemList");
+    assert_eq!(
+        list["itemListElement"][0]["url"],
+        "https://datxevui.com/search?from=H%C3%A0+N%E1%BB%99i&to=%C4%90%C3%A0+N%E1%BA%B5ng"
+    );
+
+    // What the app's first screen would fetch rides along, as JSON.
+    let marker = "<script type=\"application/json\" id=\"initial-data\">";
+    let from = body.find(marker).expect("initial data") + marker.len();
+    let end = body[from..].find("</script>").unwrap();
+    let data: serde_json::Value = serde_json::from_str(&body[from..from + end]).unwrap();
+    assert_eq!(data["routes"]["items"][0]["from"]["name"], "Hà Nội");
+    assert_eq!(data["brands"]["items"][0]["slug"], "sao-viet");
+    assert_eq!(data["stats"]["brands"], 1);
+    assert!(data["generatedAt"].as_i64().unwrap() > 1_700_000_000_000);
+    // The same data the API answers, not a second shape.
+    let api = get(&app, "/api/routes").await;
+    let api: serde_json::Value = serde_json::from_str(&api.body).unwrap();
+    assert_eq!(data["routes"], api);
+}
+
+#[tokio::test]
+async fn a_brand_page_lists_the_routes_with_their_fares() {
+    let (app, state) = boot().await;
+    seed_catalog(&state).await;
+    let page = get(&app, "/brands/sao-viet").await;
+    assert_eq!(page.status, StatusCode::OK);
+    let body = &page.body;
+
+    assert_eq!(body.matches("<h1").count(), 1);
+    assert!(body.contains("Sao Việt &lt;b&gt;Express&lt;/b&gt;</h1>"));
+    assert!(body.contains("Xe giường nằm &amp; limousine"));
+    assert!(body.contains("Điện thoại: 0900000000"));
+    assert!(body.contains("Hà Nội → Đà Nẵng"));
+    assert!(body.contains("Từ 250.000\u{a0}₫"));
+    assert!(body.contains("06:00, 21:00"), "the departures");
+    assert!(body.contains("href=\"/trips/"), "the trips about to leave");
+
+    let blocks = json_ld(body);
+    let crumbs = ld_of(&blocks, "BreadcrumbList");
+    assert_eq!(
+        crumbs["itemListElement"][1]["name"],
+        "Sao Việt <b>Express</b>"
+    );
+    assert_eq!(
+        crumbs["itemListElement"][1]["item"],
+        "https://datxevui.com/brands/sao-viet"
+    );
+    let routes = ld_of(&blocks, "ItemList");
+    assert_eq!(routes["numberOfItems"], 1);
+    // Both hreflang alternates and an og:image of its own.
+    assert!(body.contains("hreflang=\"vi\" href=\"https://datxevui.com/brands/sao-viet\""));
+    assert!(body.contains("hreflang=\"x-default\""));
+    assert!(body.contains("property=\"og:image\" content=\"https://datxevui.com/og-image.png\""));
+}
+
+#[tokio::test]
+async fn a_corridor_page_lists_the_next_departures() {
+    let (app, state) = boot().await;
+    seed_catalog(&state).await;
+    let page = get(&app, "/search?from=ha-noi&to=da-nang").await;
+    assert_eq!(page.status, StatusCode::OK);
+    let body = &page.body;
+
+    assert!(body.contains("Xe từ Hà Nội đi Đà Nẵng</h1>"), "{body}");
+    assert!(body.contains("Ngày mai"));
+    assert!(body.contains("href=\"/trips/"));
+    assert!(body.contains("href=\"/brands/sao-viet\""));
+    assert!(body.contains("06:00"));
+    let blocks = json_ld(body);
+    let crumbs = ld_of(&blocks, "BreadcrumbList");
+    assert_eq!(crumbs["itemListElement"].as_array().unwrap().len(), 3);
+    assert_eq!(
+        crumbs["itemListElement"][2]["item"],
+        "https://datxevui.com/search?from=H%C3%A0+N%E1%BB%99i&to=%C4%90%C3%A0+N%E1%BA%B5ng"
+    );
+    // Trip pages are not for search results: they are not listed as data.
+    assert!(blocks.iter().all(|b| b["@type"] != "ItemList"));
+    assert!(blocks.iter().all(|b| !b.to_string().contains("/trips/")));
+    // A search form that works before the app does, with the names the app reads.
+    assert!(body.contains("<form action=\"/search\" method=\"get\""));
+    for field in [
+        "name=\"from\" type=\"text\" value=\"Hà Nội\"",
+        "name=\"to\" type=\"text\" value=\"Đà Nẵng\"",
+        "name=\"date\" type=\"date\"",
+    ] {
+        assert!(body.contains(field), "{field}");
+    }
+    assert_eq!(page.header("cache-control"), PUBLIC_CACHE);
+}
+
+/// The head, the heading, the breadcrumb and the canonical URL of a corridor
+/// name its cities the same way, whatever the request wrote.
+#[tokio::test]
+async fn a_corridor_has_one_set_of_names_everywhere() {
+    let (app, state) = boot().await;
+    seed_catalog(&state).await;
+    let canonical =
+        "https://datxevui.com/search?from=H%C3%A0+N%E1%BB%99i&to=%C4%90%C3%A0+N%E1%BA%B5ng";
+    for uri in [
+        "/search?from=ha-noi&to=da-nang",
+        "/search?from=h%C3%A0+n%E1%BB%99i&to=%C4%90%C3%A0+N%E1%BA%B5ng",
+        "/search?from=HA+NOI&to=da+nang&date=2026-12-01",
+    ] {
+        let page = get(&app, uri).await;
+        let head = head_of(&page.body);
+        assert_eq!(
+            head.title, "Vé xe Hà Nội đi Đà Nẵng — Đặt vé online | DatXeVui",
+            "{uri}"
+        );
+        assert_eq!(head.canonical.as_deref(), Some(canonical), "{uri}");
+        assert_eq!(head.robots, "index, follow", "{uri}");
+        assert!(page.body.contains("Xe từ Hà Nội đi Đà Nẵng</h1>"), "{uri}");
+        let blocks = json_ld(&page.body);
+        let crumbs = ld_of(&blocks, "BreadcrumbList");
+        assert_eq!(
+            crumbs["itemListElement"][2]["name"], "Xe từ Hà Nội đi Đà Nẵng",
+            "{uri}"
+        );
+        assert_eq!(crumbs["itemListElement"][2]["item"], canonical, "{uri}");
+        assert_eq!(page.header("cache-control"), PUBLIC_CACHE, "{uri}");
+    }
+    // An alias stays as typed, in all four places.
+    let page = get(
+        &app,
+        "/search?from=S%C3%A0i+G%C3%B2n&to=%C4%90%C3%A0+N%E1%BA%B5ng",
+    )
+    .await;
+    assert_eq!(
+        head_of(&page.body).title,
+        "Vé xe Sài Gòn đi Đà Nẵng — Đặt vé online | DatXeVui"
+    );
+    assert!(page.body.contains("Xe từ Sài Gòn đi Đà Nẵng</h1>"));
+}
+
+/// Names the catalogue does not know, or that name several cities, are not a
+/// corridor: the app still answers them (200), but the page is `noindex`, has
+/// no canonical or preview, no text of its own, and the edge does not keep it.
+/// However many such names a visitor invents, nothing is cached or queried.
+#[tokio::test]
+async fn a_search_between_unknown_names_is_neither_indexed_nor_cached() {
+    let (app, state) = boot().await;
+    seed_catalog(&state).await;
+    let junk: Vec<String> = (0..300)
+        .map(|n| format!("/search?from=junk{n}&to=%C4%90%C3%A0+N%E1%BA%B5ng"))
+        .chain([
+            "/search?from=an&to=ha-noi".to_owned(),
+            "/search?from=Phan+Rang+-+Th%C3%A1p+Ch%C3%A0m&to=Nha+Trang+%26+Cam+Ranh".to_owned(),
+        ])
+        .collect();
+    for uri in &junk {
+        let page = get(&app, uri).await;
+        assert_eq!(page.status, StatusCode::OK, "{uri}");
+        let head = head_of(&page.body);
+        assert_eq!(head.robots, "noindex, follow", "{uri}");
+        assert_eq!(head.canonical, None, "{uri}");
+        assert!(!page.body.contains("og:title"), "{uri}");
+        assert!(!page.body.contains("hreflang"), "{uri}");
+        assert!(page.body.contains("<div id=\"root\"></div>"), "{uri}");
+        assert_eq!(
+            page.header("cache-control"),
+            "no-cache, must-revalidate",
+            "{uri}"
+        );
+        assert!(page.headers.get("etag").is_none(), "{uri}");
+    }
+    // Spellings of a known city share one answer.
+    for from in ["Hà Nội", "ha-noi", "HA NOI"] {
+        let uri = format!(
+            "/search?from={}&to=da-nang",
+            url::form_urlencoded::byte_serialize(from.as_bytes()).collect::<String>()
+        );
+        assert_eq!(get(&app, &uri).await.status, StatusCode::OK);
+    }
+}
+
+#[tokio::test]
+async fn the_search_and_compare_pages_have_a_headline_and_the_routes() {
+    let (app, state) = boot().await;
+    seed_catalog(&state).await;
+    let search = get(&app, "/search").await;
+    assert!(search.body.contains("Tìm chuyến xe khách</h1>"));
+    assert!(search.body.contains("href=\"/search?from="));
+    let compare = get(&app, "/compare").await;
+    assert_eq!(compare.body.matches("<h1").count(), 1);
+    // Private pages and unknown ones carry no text of their own.
+    for uri in ["/login", "/admin", "/account", "/does-not-exist"] {
+        let page = get(&app, uri).await;
+        assert!(page.body.contains("<div id=\"root\"></div>"), "{uri}");
+    }
+}
+
+#[tokio::test]
+async fn public_pages_are_cacheable_by_the_edge_and_revalidate_cheaply() {
+    let (app, state) = boot().await;
+    seed_catalog(&state).await;
+    for uri in [
+        "/",
+        "/search",
+        "/search?from=ha-noi&to=da-nang",
+        "/compare",
+        "/privacy",
+        "/brands/sao-viet",
+        "/trips/3f2c8c1e",
+    ] {
+        let page = get(&app, uri).await;
+        assert_eq!(page.status, StatusCode::OK, "{uri}");
+        assert_eq!(page.header("cache-control"), PUBLIC_CACHE, "{uri}");
+        assert_eq!(page.header("vary"), "Accept-Encoding", "{uri}");
+        assert!(page.headers.get("set-cookie").is_none(), "{uri}");
+        let etag = page.header("etag").to_owned();
+        assert!(etag.starts_with("W/\""), "{uri}");
+
+        // Asking again with the validator costs no body.
+        let req = Request::builder()
+            .uri(uri)
+            .header(header::USER_AGENT, BROWSER)
+            .header(header::IF_NONE_MATCH, &etag)
+            .body(Body::empty())
+            .unwrap();
+        let again = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(again.status(), StatusCode::NOT_MODIFIED, "{uri}");
+        assert_eq!(again.headers()[header::ETAG], etag.as_str(), "{uri}");
+        assert_eq!(
+            again.headers()[header::CACHE_CONTROL],
+            PUBLIC_CACHE,
+            "{uri}"
+        );
+        let bytes = axum::body::to_bytes(again.into_body(), 1 << 20)
+            .await
+            .unwrap();
+        assert!(bytes.is_empty(), "{uri}");
+    }
+    // A page that differs has another validator.
+    let a = get(&app, "/brands/sao-viet").await;
+    let b = get(&app, "/compare").await;
+    assert_ne!(a.header("etag"), b.header("etag"));
+}
+
+#[tokio::test]
+async fn private_pages_and_errors_are_never_kept_by_the_edge() {
+    let (app, _) = boot().await;
+    for uri in [
+        "/login",
+        "/admin/brands",
+        "/account",
+        "/bookings/DXV-1",
+        "/payments/abc/return",
+        "/does-not-exist",
+        "/brands/khong-co",
+    ] {
+        let page = get(&app, uri).await;
+        assert_eq!(
+            page.header("cache-control"),
+            "no-cache, must-revalidate",
+            "{uri}"
+        );
+        assert!(page.headers.get("etag").is_none(), "{uri}");
+    }
+    // The API keeps its own policy.
+    let api = get(&app, "/api/brands").await;
+    assert!(!api.header("cache-control").contains("s-maxage"));
+}
+
+#[tokio::test]
+async fn pages_hint_their_fonts_and_hero_to_the_edge() {
+    let (app, _) = boot().await;
+    let home = get(&app, "/").await;
+    let links: Vec<&str> = home
+        .headers
+        .get_all("link")
+        .iter()
+        .map(|v| v.to_str().unwrap())
+        .collect();
+    assert!(
+        links.iter().all(|l| !l.contains("app-abc123.js")),
+        "scripts start after load"
+    );
+    assert!(links.contains(
+        &"</fonts/geist-latin.woff2>; rel=preload; as=\"font\"; type=\"font/woff2\"; crossorigin"
+    ));
+    assert!(links
+        .iter()
+        .any(|l| l.starts_with("</hero-vietnam-bus.avif>; rel=preload; as=\"image\"")));
+    // The hero is the home page's alone.
+    let search = get(&app, "/search").await;
+    assert!(search
+        .headers
+        .get_all("link")
+        .iter()
+        .all(|v| !v.to_str().unwrap().contains("hero")));
+}
+
+#[tokio::test]
+async fn the_sitemap_dates_only_what_the_catalogue_dates() {
+    let (app, state) = boot().await;
+    seed_catalog(&state).await;
+    let xml = get(&app, "/sitemap.xml").await.body;
+    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+    let entry = |loc: &str| {
+        let from = xml.find(&format!("<loc>{loc}</loc>")).expect(loc);
+        let end = xml[from..].find("</url>").unwrap();
+        xml[from..from + end].to_owned()
+    };
+    for undated in [
+        "https://datxevui.com/",
+        "https://datxevui.com/search",
+        "https://datxevui.com/privacy",
+    ] {
+        assert!(!entry(undated).contains("<lastmod>"), "{undated}");
+    }
+    let brand = entry("https://datxevui.com/brands/sao-viet");
+    assert!(
+        brand.contains(&format!("<lastmod>{today}</lastmod>")),
+        "{brand}"
+    );
+    let corridor = entry(
+        "https://datxevui.com/search?from=H%C3%A0+N%E1%BB%99i&amp;to=%C4%90%C3%A0+N%E1%BA%B5ng",
+    );
+    assert!(
+        corridor.contains(&format!("<lastmod>{today}</lastmod>")),
+        "{corridor}"
+    );
 }

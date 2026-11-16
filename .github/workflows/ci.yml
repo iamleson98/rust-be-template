@@ -607,6 +607,9 @@ jobs:
           done < <(git ls-files '*.sh')
           exit $status
 
+      - name: Release script tests (asset carry-over and pruning)
+        run: bash deploy/vps/test-update-assets.sh
+
       - name: Dockerfile lint (hadolint)
         run: hadolint Dockerfile
 

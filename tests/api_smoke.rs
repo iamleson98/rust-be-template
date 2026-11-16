@@ -379,9 +379,9 @@ async fn root_serves_spa_index_when_built() -> anyhow::Result<()> {
         )
         .await?;
 
-    // When the frontend is built, "/" must serve the SPA shell with
-    // no-cache; when it isn't (CI without a dist), a 404 with the
-    // "frontend not built" hint is acceptable.
+    // When the frontend is built, "/" must serve the SPA shell for the edge to
+    // keep (browsers always revalidate it); when it isn't (CI without a dist), a
+    // 404 with the "frontend not built" hint is acceptable.
     if response.status() == StatusCode::OK {
         let content_type = response
             .headers()
@@ -398,8 +398,8 @@ async fn root_serves_spa_index_when_built() -> anyhow::Result<()> {
             .and_then(|v| v.to_str().ok())
             .unwrap_or("");
         assert!(
-            cache_control.contains("no-cache"),
-            "/ index.html must be served with no-cache, got: {cache_control}"
+            cache_control.contains("max-age=0") && cache_control.contains("s-maxage="),
+            "/ index.html must be revalidated by browsers and kept by the edge, got: {cache_control}"
         );
     } else {
         assert_eq!(

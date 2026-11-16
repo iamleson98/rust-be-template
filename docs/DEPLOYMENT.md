@@ -60,6 +60,14 @@ The published port 8443 is loopback-only (DOCKER-USER drop), so the only
 thing that can reach Caddy's `:443` listener is the nginx SNI router —
 trusting the private range vouches for nginx and nothing else.
 
+## Edge cache and page speed
+
+The HTML pages are marked for the Cloudflare edge (`s-maxage=300`, `ETag`,
+`Link: rel=preload` for Early Hints); the cache rule that makes use of it is
+set in the dashboard, see "Edge caching of the pages" in
+[deploy/vps/README.md](../deploy/vps/README.md). What was measured and what
+changed is in [PERFORMANCE.md](PERFORMANCE.md).
+
 ## Release
 
 Production releases are tag-driven:

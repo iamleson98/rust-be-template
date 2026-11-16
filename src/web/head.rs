@@ -4,8 +4,10 @@
 //! The shell (`index.html`, and the prerendered `privacy.html` / `terms.html`)
 //! holds a [`PLACEHOLDER`]; every response replaces it with the page's own
 //! title, description, canonical URL, robots rule, Open Graph and Twitter
-//! card, plus the structured data. The home page alone carries the FAQ
-//! structured data and the preload of its hero image (its largest paint).
+//! card, the `hreflang` alternates and the structured data. The home page
+//! alone carries the FAQ structured data and the preload of its hero image
+//! (its largest paint); a page with content of its own (breadcrumbs, a list of
+//! routes) adds that as further structured data.
 
 use once_cell::sync::Lazy;
 use serde_json::{json, Value};
@@ -14,8 +16,16 @@ use super::seo::SITE_URL;
 
 /// Where `index.html` says the per-request head goes.
 pub const PLACEHOLDER: &str = "<!--app-head-->";
+/// Where it says the page's text goes, inside the app's root.
+pub const APP_HTML: &str = "<!--app-html-->";
 
-const HERO_IMAGE: &str = "/hero-vietnam-bus.avif";
+/// The hero photo per screen: a phone gets the small file, the rest the wide one.
+pub const HERO_DESKTOP: &str = "/hero-vietnam-bus.avif";
+pub const HERO_MOBILE: &str = "/hero-vietnam-bus-mobile.avif";
+/// A phone's screen, and the rest, with no width in between that matches
+/// neither (a fractional viewport): `640.02px` is the first width past 640.
+pub const HERO_MOBILE_MEDIA: &str = "(max-width: 640px)";
+pub const HERO_WIDE_MEDIA: &str = "(min-width: 640.02px)";
 const OG_IMAGE: &str = "/og-image.png";
 
 /// What one response's head says.
@@ -28,10 +38,12 @@ pub struct Head<'a> {
     pub canonical: Option<&'a str>,
     pub robots: &'a str,
     pub home: bool,
+    /// Structured data of the page itself (breadcrumbs, lists).
+    pub structured: &'a [Value],
 }
 
 /// Text inside an element or an attribute value.
-fn escape(text: &str) -> String {
+pub fn escape(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     for c in text.chars() {
         match c {
@@ -46,10 +58,17 @@ fn escape(text: &str) -> String {
     out
 }
 
-/// A JSON-LD `<script>`: `<` is written `\u003c` so no value can close the tag.
+/// JSON for a `<script>` body: `<` is written `\u003c` so no value can close the tag.
+pub fn script_json(value: &Value) -> String {
+    value.to_string().replace('<', "\\u003c")
+}
+
+/// A JSON-LD `<script>`.
 fn ld_script(value: &Value) -> String {
-    let json = value.to_string().replace('<', "\\u003c");
-    format!("<script type=\"application/ld+json\">{json}</script>")
+    format!(
+        "<script type=\"application/ld+json\">{}</script>",
+        script_json(value)
+    )
 }
 
 /// On every page: who runs the site.
@@ -143,6 +162,13 @@ impl Head<'_> {
         if let Some(canonical) = self.canonical {
             let url = escape(canonical);
             tags.push(format!("<link rel=\"canonical\" href=\"{url}\" />"));
+            // One address per page, in Vietnamese: the app switches language
+            // without changing the URL, so no other alternate exists.
+            for lang in ["vi", "x-default"] {
+                tags.push(format!(
+                    "<link rel=\"alternate\" hreflang=\"{lang}\" href=\"{url}\" />"
+                ));
+            }
             let meta = |attr: &str, name: &str, content: &str| {
                 format!("<meta {attr}=\"{name}\" content=\"{content}\" />")
             };
@@ -166,13 +192,17 @@ impl Head<'_> {
         }
         if self.home {
             tags.push(format!(
-                "<link rel=\"preload\" as=\"image\" href=\"{HERO_IMAGE}\" type=\"image/avif\" fetchpriority=\"high\" />"
+                "<link rel=\"preload\" as=\"image\" href=\"{HERO_DESKTOP}\" type=\"image/avif\" media=\"{HERO_WIDE_MEDIA}\" fetchpriority=\"high\" />"
+            ));
+            tags.push(format!(
+                "<link rel=\"preload\" as=\"image\" href=\"{HERO_MOBILE}\" type=\"image/avif\" media=\"{HERO_MOBILE_MEDIA}\" fetchpriority=\"high\" />"
             ));
         }
         tags.push(SITE_JSON_LD.clone());
         if self.home {
             tags.push(FAQ_JSON_LD.clone());
         }
+        tags.extend(self.structured.iter().map(ld_script));
         tags.join("\n    ")
     }
 }
@@ -188,6 +218,7 @@ mod tests {
             canonical,
             robots: "index, follow",
             home,
+            structured: &[],
         }
     }
 
@@ -204,6 +235,8 @@ mod tests {
         let home = head("t", Some("https://datxevui.com/"), true).render();
         assert!(home.contains("\"FAQPage\""));
         assert!(home.contains("rel=\"preload\" as=\"image\" href=\"/hero-vietnam-bus.avif\""));
+        assert!(home.contains("href=\"/hero-vietnam-bus-mobile.avif\""));
+        assert!(home.contains("media=\"(max-width: 640px)\""));
         let other = head("t", Some("https://datxevui.com/search"), false).render();
         assert!(!other.contains("FAQPage"));
         assert!(!other.contains("preload"));
@@ -220,6 +253,7 @@ mod tests {
                 canonical: None,
                 robots: "noindex, follow",
                 home: false,
+                structured: &[],
             }
             .render(),
         ] {
@@ -247,5 +281,28 @@ mod tests {
         let json = ld_script(&json!({"name": "</script><b>"}));
         assert_eq!(json.matches("</script>").count(), 1);
         assert!(json.contains("\\u003c/script>"));
+    }
+
+    #[test]
+    fn an_indexable_page_names_its_one_language_and_its_own_data() {
+        let crumbs = json!({"@type": "BreadcrumbList", "name": "</script>"});
+        let html = Head {
+            structured: std::slice::from_ref(&crumbs),
+            ..head("t", Some("https://datxevui.com/brands/x"), false)
+        }
+        .render();
+        for lang in ["vi", "x-default"] {
+            assert!(html.contains(&format!(
+                "<link rel=\"alternate\" hreflang=\"{lang}\" href=\"https://datxevui.com/brands/x\" />"
+            )));
+        }
+        assert!(html.contains("\"@type\":\"BreadcrumbList\""));
+        assert_eq!(
+            html.matches("</script>").count(),
+            3,
+            "site data x2 + page data"
+        );
+        let private = head("t", None, false).render();
+        assert!(!private.contains("hreflang"));
     }
 }

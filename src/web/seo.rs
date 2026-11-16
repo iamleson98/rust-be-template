@@ -10,6 +10,8 @@
 
 use std::collections::HashMap;
 
+use super::content;
+
 /// The public origin every canonical URL is built on.
 pub const SITE_URL: &str = "https://datxevui.com";
 
@@ -119,6 +121,14 @@ impl Query {
         )
     }
 
+    /// The query of a corridor search: the two ends, as the page names them.
+    pub fn with_route(from: &str, to: &str) -> Self {
+        Self(vec![
+            ("from".to_owned(), from.to_owned()),
+            ("to".to_owned(), to.to_owned()),
+        ])
+    }
+
     /// The first value of `name`.
     pub fn get(&self, name: &str) -> Option<&str> {
         self.0
@@ -141,13 +151,70 @@ pub fn search_route(query: &Query) -> Option<(&str, &str)> {
     (!from.is_empty() && !to.is_empty()).then_some((from, to))
 }
 
-/// The canonical URL of the search page for the corridor `from` to `to`.
-pub fn corridor_canonical(from: &str, to: &str) -> String {
+/// Longest city name a corridor page looks up.
+const CITY_NAME_MAX: usize = 64;
+
+/// A corridor whose two ends are each exactly one city of the catalogue.
+#[derive(Debug, PartialEq, Eq)]
+pub struct Corridor {
+    pub from_slug: &'static str,
+    pub to_slug: &'static str,
+    /// What the page calls the ends (head, heading, breadcrumb, canonical):
+    /// the city's own name when the text is that name (`ha-noi`, `hà nội`),
+    /// else the text as typed (`Sài Gòn` stays `Sài Gòn`).
+    pub from: String,
+    pub to: String,
+}
+
+/// The one city `text` names, with the name to show for it; `None` for text
+/// that names no city or several (`an` is half of Vietnam): such a search page
+/// is not a corridor.
+fn one_city(text: &str) -> Option<(&'static str, String)> {
+    let text = js_trim(text);
+    if text.is_empty() || text.chars().count() > CITY_NAME_MAX {
+        return None;
+    }
+    let slugs = crate::cities::match_city_slugs(text);
+    let [slug] = slugs.as_slice() else {
+        return None;
+    };
+    let city = crate::cities::find_by_slug(slug)?;
+    let own =
+        crate::cities::normalize_for_match(text) == crate::cities::normalize_for_match(city.name);
+    Some((
+        city.slug,
+        if own {
+            city.name.to_owned()
+        } else {
+            text.to_owned()
+        },
+    ))
+}
+
+/// The corridor `from` to `to` names, or `None` when either end is unknown or
+/// ambiguous. The slugs are what a cache is keyed by, never the typed text.
+pub fn resolve_corridor(from: &str, to: &str) -> Option<Corridor> {
+    let ((from_slug, from), (to_slug, to)) = (one_city(from)?, one_city(to)?);
+    Some(Corridor {
+        from_slug,
+        to_slug,
+        from,
+        to,
+    })
+}
+
+/// The path and query of the search page for the corridor `from` to `to`.
+pub fn corridor_path(from: &str, to: &str) -> String {
     let query = url::form_urlencoded::Serializer::new(String::new())
         .append_pair("from", from)
         .append_pair("to", to)
         .finish();
-    format!("{SITE_URL}/search?{query}")
+    format!("/search?{query}")
+}
+
+/// The canonical URL of the search page for the corridor `from` to `to`.
+pub fn corridor_canonical(from: &str, to: &str) -> String {
+    format!("{SITE_URL}{}", corridor_path(from, to))
 }
 
 /// What the build wrote to `dist/seo-strings.json`.
@@ -181,6 +248,12 @@ impl Strings {
             .flat_map(|key| [format!("seo.{key}.title"), format!("seo.{key}.description")])
             .collect();
         required.extend(
+            content::TEXT_KEYS
+                .iter()
+                .chain(&content::SERVER_TEXT_KEYS)
+                .map(|key| (*key).to_owned()),
+        );
+        required.extend(
             [
                 "seo.searchRoute.title",
                 "seo.searchRoute.description",
@@ -202,14 +275,35 @@ impl Strings {
         }
     }
 
-    /// The text for `key` with `{name}` placeholders filled, one parameter at a
-    /// time in the order given (as the SPA's translate does).
+    /// The text for `key` with `{name}` placeholders filled in one pass: a
+    /// value that itself holds `{to}` is not substituted again.
     pub fn t(&self, key: &str, params: &[(&str, &str)]) -> String {
-        let mut text = self.0.get(key).cloned().unwrap_or_else(|| key.to_owned());
-        for (name, value) in params {
-            text = text.replace(&format!("{{{name}}}"), value);
+        let text = self.0.get(key).map(String::as_str).unwrap_or(key);
+        let mut out = String::with_capacity(text.len());
+        let mut rest = text;
+        while let Some(open) = rest.find('{') {
+            out.push_str(&rest[..open]);
+            let tail = &rest[open..];
+            let filled = tail.find('}').and_then(|close| {
+                let name = &tail[1..close];
+                params
+                    .iter()
+                    .find(|(n, _)| *n == name)
+                    .map(|(_, value)| (value, close))
+            });
+            match filled {
+                Some((value, close)) => {
+                    out.push_str(value);
+                    rest = &tail[close + 1..];
+                }
+                None => {
+                    out.push('{');
+                    rest = &tail[1..];
+                }
+            }
         }
-        text
+        out.push_str(rest);
+        out
     }
 }
 
@@ -404,9 +498,50 @@ mod tests {
     }
 
     #[test]
-    fn placeholders_are_filled_in_parameter_order() {
-        let strings = Strings(HashMap::from([("k".into(), "{a}-{b}".into())]));
-        assert_eq!(strings.t("k", &[("a", "{b}"), ("b", "x")]), "x-x");
+    fn placeholders_are_filled_in_one_pass() {
+        let strings = Strings(HashMap::from([("k".into(), "{a}-{b}-{c}".into())]));
+        // A value holding another placeholder is left as it is.
+        assert_eq!(strings.t("k", &[("a", "{b}"), ("b", "x")]), "{b}-x-{c}");
+        assert_eq!(strings.t("k", &[]), "{a}-{b}-{c}");
         assert_eq!(strings.t("unknown", &[]), "unknown");
+        let odd = Strings(HashMap::from([("k".into(), "{ {a} }{".into())]));
+        assert_eq!(odd.t("k", &[("a", "x")]), "{ x }{");
+    }
+
+    #[test]
+    fn a_corridor_needs_one_known_city_at_each_end() {
+        let c = resolve_corridor("ha-noi", " Hải Phòng ").unwrap();
+        assert_eq!((c.from_slug, c.to_slug), ("ha-noi", "hai-phong"));
+        // The city's own name, whatever the spelling of it.
+        assert_eq!((c.from.as_str(), c.to.as_str()), ("Hà Nội", "Hải Phòng"));
+        assert_eq!(resolve_corridor("hà nội", "DA NANG").unwrap().to, "Đà Nẵng");
+        // An alias stays as typed.
+        assert_eq!(
+            resolve_corridor("Sài Gòn", "Đà Lạt").unwrap().from,
+            "Sài Gòn"
+        );
+        // Unknown, empty or ambiguous ends are no corridor.
+        for (from, to) in [
+            ("zzz", "Hà Nội"),
+            ("Hà Nội", ""),
+            ("an", "Hà Nội"),
+            ("Phan Rang - Tháp Chàm", "Nha Trang"),
+        ] {
+            assert_eq!(resolve_corridor(from, to), None, "{from} -> {to}");
+        }
+        assert_eq!(resolve_corridor(&"a".repeat(200), "Hà Nội"), None);
+    }
+
+    #[test]
+    fn every_spelling_of_a_city_is_the_same_cache_key() {
+        let key =
+            |from: &str, to: &str| resolve_corridor(from, to).map(|c| (c.from_slug, c.to_slug));
+        let spellings = ["Hà Nội", "ha noi", "HA-NOI", "  hà nội ", "hanoi"];
+        for a in spellings {
+            assert_eq!(key(a, "Đà Nẵng"), Some(("ha-noi", "da-nang")), "{a}");
+        }
+        for n in 0..500 {
+            assert_eq!(key(&format!("junk{n}"), "Đà Nẵng"), None);
+        }
     }
 }

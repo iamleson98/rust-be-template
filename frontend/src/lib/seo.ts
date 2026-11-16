@@ -37,9 +37,68 @@ const PAGES: Array<[RegExp, string, PageKind]> = [
 ]
 
 /**
- * Every translation key a head is built from. The build writes these
+ * The text of a public page the server writes into its HTML (`src/web/content.rs`),
+ * so a crawler reads it without running the app: strings the app shows too,
+ * then the ones only the server writes. The Rust `TEXT_KEYS` / `SERVER_TEXT_KEYS`
+ * lists name the same keys; the server refuses to start a page without them.
+ */
+const PAGE_TEXT_KEYS = [
+  'nav.home',
+  'nav.searchTrips',
+  'trips.imageTagline',
+  'hero.title',
+  'hero.titleHighlight',
+  'hero.subtitle',
+  'home.welcomeGuest',
+  'home.welcomeGuestSteps',
+  'home.statBrands',
+  'home.statRoutes',
+  'home.statTrips',
+  'home.popularRoutesTitle',
+  'home.popularRoutesSubtitle',
+  'home.priceFrom',
+  'home.viewAllRoutes',
+  'home.recommendationsTitle',
+  'home.recommendationsSubtitle',
+  'home.featureCompare',
+  'home.featureCompareBody',
+  'home.featureSeats',
+  'home.featureSeatsBody',
+  'home.featureTicket',
+  'home.featureTicketBody',
+  'home.featurePay',
+  'home.featurePayBody',
+  'brandDetail.partnersTitle',
+  'brandDetail.partnersSubtitle',
+  'brandPage.routesTitle',
+  'brandPage.tripsTitle',
+  'brandPage.locationsTitle',
+  'brandPage.today',
+  'brandPage.tomorrow',
+  'brandPage.seatsLeft',
+  'brandPage.soldOut',
+  'brandPage.noPrice',
+  'common.seatsAvailable',
+  'layout.footer.privacyPolicy',
+  'layout.footer.termsOfUse',
+  'search.from',
+  'search.to',
+  'search.date',
+  'search.btn',
+  'seo.page.corridorHeading',
+  'seo.page.corridorIntro',
+  'seo.page.corridorNoTrips',
+  'seo.page.searchHeading',
+  'seo.page.rating',
+  'seo.page.phone',
+  'seo.page.timetable',
+]
+
+/**
+ * Every translation key the server renders from. The build writes these
  * strings (Vietnamese) to `dist/seo-strings.json`, so the server renders the
- * same head without running the SPA; `seo.notFound.title` is the 404 page's.
+ * same head and page text without running the SPA; `seo.notFound.title` is
+ * the 404 page's.
  */
 export const SEO_STRING_KEYS: readonly string[] = [
   ...PAGES.flatMap(([, key]) => [`seo.${key}.title`, `seo.${key}.description`]),
@@ -48,6 +107,7 @@ export const SEO_STRING_KEYS: readonly string[] = [
   'seo.brand.title',
   'seo.brand.description',
   'seo.notFound.title',
+  ...PAGE_TEXT_KEYS,
 ]
 
 /** The page `pathname` shows, or null when no page has that path. */

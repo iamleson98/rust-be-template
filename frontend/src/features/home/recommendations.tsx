@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { Clock } from 'lucide-react'
 import { recommendationsOptions } from '@/api'
+import { CATALOG_QUERY } from '@/api/catalog-cache'
 import { formatCurrency, formatDateVN } from '@/lib/format'
 import { useT } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
@@ -12,7 +13,7 @@ import { HomeSection, RAIL, RailSkeleton } from './section'
 export function Recommendations() {
   const currency = usePrefs((s) => s.currency)
   const t = useT()
-  const { data, isLoading } = useQuery(recommendationsOptions())
+  const { data, isLoading } = useQuery({ ...recommendationsOptions(), ...CATALOG_QUERY })
   const items = data?.items ?? []
 
   if (isLoading) return <RailSkeleton count={4} />

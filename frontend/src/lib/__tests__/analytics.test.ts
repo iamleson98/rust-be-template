@@ -3,7 +3,9 @@
  * conversion dispatch (gtag + server-side beacon) and click-id
  * capture/persistence.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+import { afterEach, describe, it, expect, vi, beforeEach } from 'vitest'
 import { trackPageView, trackConversion, captureClickIds, getClickIds } from '@/lib/analytics'
 
 const CLICK_IDS_KEY = 'datxevui:ads-click-ids'
@@ -234,6 +236,62 @@ describe('analytics', () => {
       localStorage.setItem(CLICK_IDS_KEY, '{not json')
 
       expect(getClickIds()).toEqual({})
+    })
+  })
+
+  describe('the boot script the build puts in the page (prerender.mjs)', () => {
+    const added: Array<[string, EventListener, AddEventListenerOptions]> = []
+    afterEach(() => {
+      for (const [type, fn, options] of added.splice(0))
+        window.removeEventListener(type, fn, options)
+    })
+    // The script runs before the app can, so it keeps its own copy of the
+    // capture; this runs that copy and holds it to `captureClickIds`.
+    const source = readFileSync(resolve(import.meta.dirname, '../../../prerender.mjs'), 'utf-8')
+    const template = /const boot = `<script>([\s\S]*?)<\/script>`/.exec(source)?.[1] ?? ''
+    const run = (url: string) => {
+      window.history.replaceState({}, '', url)
+      const started = vi.fn()
+      Object.assign(window, { __started: started })
+      const addEventListener = (
+        type: string,
+        fn: EventListener,
+        options: AddEventListenerOptions,
+      ) => {
+        added.push([type, fn, options])
+        window.addEventListener(type, fn, options)
+      }
+      new Function(
+        'addEventListener',
+        template
+          .replace('${JSON.stringify(entry)}', '"/assets/entry.js"')
+          .replace('import(', 'window.__started('),
+      )(addEventListener)
+      return started
+    }
+
+    it('stores what captureClickIds stores', () => {
+      run('/?gclid=G1&wbraid=W1&gbraid=B1&utm_source=x')
+      const fromScript = getClickIds()
+      localStorage.clear()
+      captureClickIds()
+      expect(fromScript).toEqual({ gclid: 'G1', wbraid: 'W1', gbraid: 'B1' })
+      expect(getClickIds()).toEqual(fromScript)
+    })
+
+    it('stores nothing for a landing without click ids', () => {
+      run('/?utm_source=x')
+      expect(localStorage.getItem(CLICK_IDS_KEY)).toBeNull()
+    })
+
+    it('starts the app once, on the first touch, key press or focus', () => {
+      const started = run('/')
+      expect(started).not.toHaveBeenCalled()
+      window.dispatchEvent(new Event('pointerdown'))
+      window.dispatchEvent(new Event('keydown'))
+      window.dispatchEvent(new Event('focusin'))
+      expect(started).toHaveBeenCalledTimes(1)
+      expect(started).toHaveBeenCalledWith('/assets/entry.js')
     })
   })
 })

@@ -81,8 +81,12 @@ On each update `update.sh`:
 
 1. downloads, checks SHA-256 and signature (refuses on any mismatch);
 2. takes a local database snapshot (a failed snapshot aborts the update);
-3. carries the previous release's hashed `assets/` into the new `dist/`, so
-   tabs opened before the swap can still lazy-load their chunks;
+3. carries the hashed `assets/` each of the last three releases shipped (and
+   of every release younger than 48 h, whichever is more) into the new
+   `dist/`, so tabs opened before the swap, and pages the edge cache still
+   holds, can load their chunks; a file that falls out of that window is not
+   carried on, so `dist/` stays bounded (`bash deploy/vps/test-update-assets.sh`
+   proves the carry-over and the pruning on fake releases);
 4. flips `current`, refreshes units and scripts from the release, restarts;
 5. requires `GET /ready` to answer 200 within 90 s, else flips back, marks
    the tag failed (never retried) and restarts the previous release.
@@ -91,7 +95,8 @@ Migrations run when the new binary starts and are not undone by a rollback.
 If the old binary rejects a migrated database, restore the snapshot taken in
 step 2 (below). Install or roll back a specific tag by hand with
 `sudo datxevui-update v1.2.0`; an installed or failed tag is retried only
-when named explicitly. The three newest releases are kept.
+when named explicitly. The three newest releases are kept, plus any younger
+than 48 h, at most ten; the active and the previous release always stay.
 
 ## The place index
 
@@ -165,6 +170,81 @@ sudo systemctl stop datxevui
 gunzip -c /var/lib/datxevui/backups/app-<stamp>.db.gz | sudo -u datxevui tee /var/lib/datxevui/app.db >/dev/null
 sudo rm -f /var/lib/datxevui/app.db-wal /var/lib/datxevui/app.db-shm
 sudo systemctl start datxevui
+```
+
+## Edge caching of the pages (Cloudflare)
+
+The pages are the same for every visitor (no per-user markup, no cookies), so
+the app marks them for the edge. Without a cache rule Cloudflare passes every
+HTML request to the origin (`cf-cache-status: DYNAMIC`, 180-215 ms from
+Vietnam, almost all network).
+
+What the app sends:
+
+| Response | `Cache-Control` | Also |
+|---|---|---|
+| public pages: `/`, `/search` (any query), `/compare`, `/privacy`, `/terms`, `/brands/<slug>`, `/trips/<id>` | `public, max-age=0, s-maxage=300, stale-while-revalidate=3600, stale-if-error=86400` | `ETag` (weak) and `304` on `If-None-Match`, `Vary: Accept-Encoding` only, `Link: rel=preload` headers (fonts, stylesheet, home hero photo) |
+| private pages (`/login`, `/admin*`, `/account*`, `/bookings/*`, `/payments/*`), 404s, a page the database could not fill | `no-cache, must-revalidate` | no `ETag` |
+| `/assets/*` (content-hashed) | `public, max-age=31536000, immutable` | `.br` / `.gz` twins served as they are |
+| fonts, icons, hero photos, logo | `public, max-age=86400, stale-while-revalidate=604800` | |
+| `/api/*` | its own (60 s for anonymous public reads, `no-store` with a session) | |
+
+A response that sets a cookie is never marked for the edge (the app rewrites it
+to `no-store`), and the CORS layer's `Vary: Origin` is replaced by
+`Vary: Accept-Encoding` on cacheable pages.
+
+**The rule to create in the dashboard** (the app cannot do this itself):
+Caching -> Cache Rules -> Create rule, in this order:
+
+1. *Bypass the private areas.* If **Hostname equals `datxevui.com`** and
+   (**URI Path starts with `/admin`** or `/account` or `/console` or
+   `/payments` or `/bookings` or `/login` or `/api` or `/ws`), then
+   **Bypass cache**. (Edge cache never sees these; the origin already sends
+   `no-cache`, this is the second lock.)
+2. *Cache the pages.* If **Hostname equals `datxevui.com`** and **Request
+   Method equals GET**, then **Eligible for cache**, **Edge TTL: Use
+   cache-control header if present, bypass cache if not**, **Browser TTL:
+   Respect origin**. Leave "Serve stale content while revalidating" on. No
+   cookie condition is needed: the pages hold nothing per user, so a signed-in
+   visitor is served the same cached page (the private areas are rule 1's, by
+   path, whatever cookie they carry).
+
+Rule 2 caches the HTML pages *and* the hashed assets with the origin's own
+lifetimes; no TTL is set in the dashboard, so a header change in the app is
+all it takes to change what is kept. The anonymous public reads of the API are
+`public, max-age=60` and, being under `/api`, stay out of the cache by rule 1
+until someone decides to cache them (drop `/api` from rule 1 and they are
+cached for 60 s).
+
+**Deploys.** A page cached at the edge names the previous release's hashed
+files for up to five minutes, an hour more while `stale-while-revalidate`
+refreshes it, and a day more only if the origin is failing (`stale-if-error`).
+`update.sh` carries the assets of the last three releases (and everything
+younger than 48 h) into each new release, so such a page keeps working for far
+longer than the edge keeps it. After a release that changes the shell's
+structure you can still purge at once: Caching -> Configuration -> Purge Cache
+-> Purge Everything (or purge by URL for `/`).
+
+**Cache key.** The page does not depend on `utm_*`, `fbclid`, `gclid`, `gbraid`
+or `wbraid`, so a campaign link must not get a copy of its own. In rule 2 set
+Cache key -> Query string -> **Exclude** `utm_source`, `utm_medium`,
+`utm_campaign`, `utm_term`, `utm_content`, `fbclid`, `gclid`, `gbraid`,
+`wbraid` (`from`, `to`, `date` and the rest stay in the key: they change the
+page). The app keeps the click ids itself, in a script that runs before the
+first navigation.
+
+**Early Hints.** Caching -> Configuration -> Early Hints: On. Cloudflare reads
+the `Link: rel=preload` headers of the cached page and sends them as a `103`
+before the body, so the browser starts on the stylesheet, the two fonts and
+(on `/`) the hero photo while the page is still on its way. The app's scripts
+are not preloaded here: they are an ordinary module script of the page (see
+`docs/PERFORMANCE.md`).
+
+**Check** (from anywhere, twice; the second answer should be `HIT`):
+
+```bash
+curl -s -o /dev/null -D - https://datxevui.com/ -H 'user-agent: Mozilla/5.0 (X11; Linux x86_64) Chrome/130' \
+  | grep -iE '^(cf-cache-status|cache-control|etag|age|link|vary)'
 ```
 
 ## Memory budget (4 GB, 1 GB swap)

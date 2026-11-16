@@ -1,7 +1,6 @@
 import { useSearchForm } from '@/stores/search-form'
 import { useCallback, useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
 import { useT } from '@/lib/i18n'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { Form } from '@/components/ui/form'
@@ -11,7 +10,7 @@ import { buildSearchInput } from '@/lib/search-params'
 import { cn } from '@/lib/utils'
 import { LABEL_ROW_LG } from './field-style'
 import { useMediaQuery } from '@/hooks/use-media-query'
-import { searchSchema, type SearchFormValues } from './schema'
+import { searchResolver, type SearchFormValues } from './schema'
 import { SearchRouteFields } from './route-fields'
 import { SearchDateFields } from './date-fields'
 import { SearchPassengerPicker } from './passenger-picker'
@@ -49,7 +48,7 @@ export function SearchWidget({ compact = false }: { compact?: boolean }) {
   const [submitting, setSubmitting] = useState(false)
 
   const form = useForm<SearchFormValues>({
-    resolver: zodResolver(searchSchema),
+    resolver: searchResolver,
     defaultValues: searchParams,
     // Errors appear on submit, then follow each change: an error popping up
     // on blur shifts the layout under the pointer and swallows the click.

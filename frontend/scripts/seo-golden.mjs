@@ -19,6 +19,10 @@
  * `scripts/emit-seo-strings.mjs`), so the backend's tests render heads from
  * the strings the SPA ships.
  *
+ * Corridors between names the catalogue does not know are not here: the server
+ * marks those `noindex` and leaves them out of the edge cache (see `src/web/mod.rs`),
+ * a rule the SPA's own head logic has no part in; `tests/wp8_seo.rs` covers them.
+ *
  * Run: `bun run seo:golden` (after changing `src/lib/seo.ts` or its strings).
  */
 import { mkdirSync, writeFileSync } from 'node:fs'
@@ -33,10 +37,10 @@ const stringsOut = resolve(fixtures, 'seo-strings.json')
 
 /** Crawlers and link previews get Vietnamese, filled in the way the server does. */
 function t(key, params = {}) {
-  let text = vi[key] ?? key
-  for (const [name, value] of Object.entries(params))
-    text = text.replaceAll(`{${name}}`, String(value))
-  return text
+  const text = vi[key] ?? key
+  return text.replace(/\{(\w+)\}/g, (whole, name) =>
+    Object.hasOwn(params, name) ? String(params[name]) : whole,
+  )
 }
 
 const query = (pairs) => new URLSearchParams(pairs).toString()
@@ -95,8 +99,8 @@ const CASES = [
   [
     '/search',
     [
-      ['from', 'Phan Rang - Tháp Chàm'],
-      ['to', 'Nha Trang & Cam Ranh'],
+      ['from', 'Nha Trang'],
+      ['to', 'Hà Tĩnh'],
     ],
     {},
   ],

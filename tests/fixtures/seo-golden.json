@@ -122,12 +122,12 @@
   },
   {
     "path": "/search",
-    "search": "from=Phan+Rang+-+Th%C3%A1p+Ch%C3%A0m&to=Nha+Trang+%26+Cam+Ranh",
+    "search": "from=Nha+Trang&to=H%C3%A0+T%C4%A9nh",
     "facts": {},
     "expect": {
-      "title": "Vé xe Phan Rang - Tháp Chàm đi Nha Trang & Cam Ranh — Đặt vé online | DatXeVui",
-      "description": "Đặt vé xe khách Phan Rang - Tháp Chàm đi Nha Trang & Cam Ranh: so sánh giờ chạy, giá vé và đánh giá các nhà xe, chọn ghế trên sơ đồ và thanh toán trực tuyến.",
-      "canonical": "https://datxevui.com/search?from=Phan+Rang+-+Th%C3%A1p+Ch%C3%A0m&to=Nha+Trang+%26+Cam+Ranh",
+      "title": "Vé xe Nha Trang đi Hà Tĩnh — Đặt vé online | DatXeVui",
+      "description": "Đặt vé xe khách Nha Trang đi Hà Tĩnh: so sánh giờ chạy, giá vé và đánh giá các nhà xe, chọn ghế trên sơ đồ và thanh toán trực tuyến.",
+      "canonical": "https://datxevui.com/search?from=Nha+Trang&to=H%C3%A0+T%C4%A9nh",
       "robots": "index, follow"
     }
   },

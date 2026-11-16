@@ -14,7 +14,7 @@
 
 import { usePrefs } from '@/stores/prefs'
 import { useMemo, useState } from 'react'
-import { format, parse, isValid } from 'date-fns'
+import { format } from 'date-fns'
 import { enUS, vi } from 'date-fns/locale'
 import { CalendarIcon, X } from 'lucide-react'
 
@@ -24,17 +24,11 @@ import { LunarDayButton, LunarFooter } from '@/components/ui/lunar-day'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { parseIsoDate } from '@/lib/iso-date'
 import { useT } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 
 const ISO_FMT = 'yyyy-MM-dd'
-
-/** Parse `yyyy-MM-dd` leniently → Date | null. */
-export function parseIsoDate(value: string | null | undefined): Date | null {
-  if (!value) return null
-  const d = parse(value.slice(0, 10), ISO_FMT, new Date())
-  return isValid(d) ? d : null
-}
 
 type DatePickerProps = {
   /** Selected date, `yyyy-MM-dd`. `null`/`''` = none. */

@@ -5,27 +5,24 @@
  * can be emptied again, which makes the search one-way.
  */
 
-import { useState } from 'react'
-import { format } from 'date-fns'
-import { enUS, vi } from 'date-fns/locale'
+import { lazy, Suspense, useState } from 'react'
 import { CalendarIcon, Plus, X } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
-import { Calendar } from '@/components/ui/calendar'
-import { parseIsoDate } from '@/components/ui/date-picker'
-import { LunarDayButton, LunarFooter } from '@/components/ui/lunar-day'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
-import { TimeColumns } from '@/components/ui/time-picker'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { dayLabel } from '@/lib/day-label'
 import { useT } from '@/lib/i18n'
+import { parseIsoDate } from '@/lib/iso-date'
 import { cn } from '@/lib/utils'
 import { usePrefs } from '@/stores/prefs'
 
-const DAY_FMT = 'yyyy-MM-dd'
-
-/** "Leaving from" choices: every 15 minutes is precise enough for a timetable. */
-const MINUTE_STEP = 15
+// The calendar and the time columns weigh more than the field that opens them:
+// they load when the panel does.
+const TripDatePanel = lazy(() =>
+  import('./trip-date-panel').then((m) => ({ default: m.TripDatePanel })),
+)
 
 export function TripDatePicker({
   day,
@@ -56,7 +53,6 @@ export function TripDatePicker({
   const [open, setOpen] = useState(false)
   const isMobile = useIsMobile()
   const lang = usePrefs((s) => s.lang)
-  const locale = lang === 'en' ? enUS : vi
   const date = parseIsoDate(day)
   const withTime = !!onTime
   const minDay = new Date(minDate.toDateString())
@@ -81,7 +77,7 @@ export function TripDatePicker({
       <span className="min-w-0 truncate">
         {date
           ? // A set time takes the room of the long weekday name.
-            format(date, time ? 'EEEEEE, dd/MM' : 'EEEE, dd/MM', { locale })
+            dayLabel(date, lang, !!time)
           : placeholder}
       </span>
       {date && time && (
@@ -92,59 +88,22 @@ export function TripDatePicker({
     </Button>
   )
 
-  const calendar = (
-    <Calendar
-      mode="single"
-      locale={locale}
-      selected={date ?? undefined}
-      defaultMonth={date ?? minDay}
-      onSelect={(d) => {
-        if (!d) return
-        onDay(format(d, DAY_FMT))
-        // A time may follow, so the panel stays open; a plain day is done.
-        if (!withTime) setOpen(false)
-      }}
-      disabled={(d: Date) => d < minDay}
-      className={cn('p-0 [--cell-size:--spacing(11)]', isMobile && '[--cell-size:--spacing(12)]')}
-      classNames={isMobile ? { root: 'w-full' } : undefined}
-      components={{ DayButton: LunarDayButton }}
-      footer={<LunarFooter date={date} />}
-    />
-  )
-
-  const timePanel = withTime && (
-    <div className={cn('flex flex-col gap-2', isMobile ? 'border-t pt-3' : 'w-40 border-l pl-3')}>
-      <div className="text-xs font-semibold text-slate-700">{t('search.time')}</div>
-      <button
-        type="button"
-        aria-pressed={!time}
-        onClick={() => onTime('')}
-        className={cn(
-          'h-8 rounded-lg border text-sm font-medium transition-colors',
-          time
-            ? 'border-border text-foreground hover:border-primary/40'
-            : 'border-primary bg-primary text-primary-foreground',
-        )}
-      >
-        {t('search.anyTime')}
-      </button>
-      <TimeColumns
-        value={time ?? ''}
-        minuteStep={MINUTE_STEP}
-        onChange={(next) => onTime(next)}
-        className={cn('justify-center', isMobile ? 'h-40' : 'h-56')}
-      />
-      <Button type="button" size="sm" className="mt-auto" onClick={() => setOpen(false)}>
-        {t('ui.done')}
-      </Button>
-    </div>
-  )
-
   const panel = (
-    <div className={cn('flex gap-3', isMobile ? 'flex-col' : 'p-3')}>
-      {calendar}
-      {timePanel}
-    </div>
+    <Suspense fallback={<div className={isMobile ? 'h-80' : 'h-80 w-72'} aria-busy="true" />}>
+      <TripDatePanel
+        date={date}
+        minDay={minDay}
+        lang={lang}
+        isMobile={isMobile}
+        time={withTime ? (time ?? '') : undefined}
+        onTime={onTime}
+        onDay={(day, keepOpen) => {
+          onDay(day)
+          if (!keepOpen) setOpen(false)
+        }}
+        onDone={() => setOpen(false)}
+      />
+    </Suspense>
   )
 
   return (
