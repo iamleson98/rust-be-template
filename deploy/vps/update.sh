@@ -15,9 +15,11 @@
 #   /opt/datxevui/current  -> releases/<tag>   (flipped atomically)
 #   /var/lib/datxevui/legacy-next/             (the old Worker's _next/static, persistent)
 #
-# A swap: verify, back up the database (local snapshot), carry the previous
-# release's hashed assets into the new dist/ so open tabs can still lazy-load
-# their chunks, flip `current`, restart, and require /ready to answer 200.
+# A swap: verify, back up the database (local snapshot), carry the hashed
+# assets of the last three releases (and of every release younger than 48 h,
+# whichever is more) into the new dist/ so open tabs and pages the edge cache
+# still holds can load their chunks, flip `current`, restart, and require
+# /ready to answer 200.
 # A release that does not come up is rolled back (symlink, units and scripts)
 # and not retried. Database migrations run when the new binary starts and are
 # not undone: if the old binary refuses a migrated database, restore the
@@ -38,6 +40,71 @@ env_file=/etc/datxevui/env
 # to datxevui releases: another project's artefact signed with the same key
 # is refused.
 signer='datxevui-release namespaces="datxevui-release" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKP2Bn6hh1LRPML4QBkVk5M7BzNZ3SLfR8/KR7YS8IR2'
+
+# Hashed assets stay available for as long as a page that names them can
+# still be in someone's tab or in the edge cache: the carry window is the
+# last CARRY_MIN_RELEASES releases or every release younger than
+# CARRY_WINDOW_HOURS, whichever is more. At most KEEP_MAX_RELEASES release
+# directories are kept, so the disk stays bounded: a carried file that falls
+# out of the window is simply not carried into the next release.
+CARRY_MIN_RELEASES=3
+CARRY_WINDOW_HOURS=48
+KEEP_MAX_RELEASES=10
+
+# The release directories under $1, newest first.
+releases_newest_first() {
+  local d
+  while IFS= read -r d; do
+    printf '%s\n' "${d%/}"
+  done < <(ls -1dt "$1"/*/ 2>/dev/null)
+}
+
+# Whether directory $1 was written within the carry window.
+within_window() {
+  [ -n "$(find "$1" -maxdepth 0 -mmin "-$((CARRY_WINDOW_HOURS * 60))" 2>/dev/null)" ]
+}
+
+# carry_assets RELEASES_DIR NEW_RELEASE_DIR: copies the assets each release in
+# the window shipped itself (its .own-assets list) into NEW_RELEASE_DIR/dist,
+# never replacing a file the new release has.
+carry_assets() {
+  local releases="$1" new="$2" old f n=0
+  while IFS= read -r old; do
+    [ "$old" != "$new" ] || continue
+    n=$((n + 1))
+    if [ "$n" -gt "$CARRY_MIN_RELEASES" ] && ! within_window "$old"; then
+      continue
+    fi
+    [ -f "$old/.own-assets" ] || continue
+    while IFS= read -r f; do
+      if [ -f "$old/dist/$f" ] && [ ! -e "$new/dist/$f" ]; then
+        mkdir -p "$new/dist/$(dirname "$f")"
+        cp -p "$old/dist/$f" "$new/dist/$f"
+      fi
+    done < "$old/.own-assets"
+  done < <(releases_newest_first "$releases")
+}
+
+# prune_releases RELEASES_DIR ACTIVE PREVIOUS: removes the release directories
+# that are neither among the newest CARRY_MIN_RELEASES nor inside the window,
+# nor the active or previous release; then, whatever the age, all but the
+# newest KEEP_MAX_RELEASES.
+prune_releases() {
+  local releases="$1" active="$2" previous="$3" d n=0
+  while IFS= read -r d; do
+    n=$((n + 1))
+    [ "$d" != "$active" ] && [ "$d" != "$previous" ] || continue
+    if [ "$n" -gt "$KEEP_MAX_RELEASES" ] || { [ "$n" -gt "$CARRY_MIN_RELEASES" ] && ! within_window "$d"; }; then
+      rm -rf "$d"
+    fi
+  done < <(releases_newest_first "$releases")
+}
+
+# The tests (deploy/vps/test-update-assets.sh) source this file for the
+# functions above and stop here.
+if [ -n "${DATXEVUI_UPDATE_FUNCTIONS_ONLY:-}" ]; then
+  return 0 2>/dev/null || exit 0
+fi
 
 [ "$(id -u)" -eq 0 ] || { echo "run as root" >&2; exit 1; }
 if [ ! -f "$env_file" ] || ! id datxevui >/dev/null 2>&1; then
@@ -100,18 +167,11 @@ done
 chown -R root:root "$new"
 chmod 0755 "$new/datxevui"
 
-# Remember which hashed assets this release ships itself, then add the
-# previous release's own ones: a tab opened before the swap still asks for
-# the old chunk names. Only one generation is carried, so this never grows.
+# Remember which hashed assets this release ships itself, then add the ones
+# the releases in the carry window shipped: a tab opened before the swap, or a
+# page the edge cache still holds, asks for the old chunk names.
 (cd "$new/dist" && { find assets -type f 2>/dev/null || true; } | sort) > "$new/.own-assets"
-if [ -f "$previous/.own-assets" ]; then
-  while IFS= read -r f; do
-    if [ -f "$previous/dist/$f" ] && [ ! -e "$new/dist/$f" ]; then
-      mkdir -p "$new/dist/$(dirname "$f")"
-      cp -p "$previous/dist/$f" "$new/dist/$f"
-    fi
-  done < "$previous/.own-assets"
-fi
+carry_assets "$root/releases" "$new"
 
 # The old Worker's /_next/static, shipped in the tarball when CI had it. It
 # lives outside the release so it survives updates and rollbacks.
@@ -179,12 +239,7 @@ if wait_ready; then
   echo "$release" > "$state/installed"
   rm -f "$state/failed"
   echo "datxevui $release is up: $("$root/current/datxevui" --version)"
-  # Keep the three newest releases (always including the active one and the one before it).
-  find "$root/releases" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' \
-    | sort -rn | cut -d' ' -f2- | tail -n +4 \
-    | while IFS= read -r old; do
-        [ "$old" = "$target" ] || [ "$old" = "$previous" ] || rm -rf "$old"
-      done
+  prune_releases "$root/releases" "$target" "$previous"
   exit 0
 fi
 

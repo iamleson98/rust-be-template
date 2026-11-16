@@ -81,8 +81,12 @@ On each update `update.sh`:
 
 1. downloads, checks SHA-256 and signature (refuses on any mismatch);
 2. takes a local database snapshot (a failed snapshot aborts the update);
-3. carries the previous release's hashed `assets/` into the new `dist/`, so
-   tabs opened before the swap can still lazy-load their chunks;
+3. carries the hashed `assets/` each of the last three releases shipped (and
+   of every release younger than 48 h, whichever is more) into the new
+   `dist/`, so tabs opened before the swap, and pages the edge cache still
+   holds, can load their chunks; a file that falls out of that window is not
+   carried on, so `dist/` stays bounded (`bash deploy/vps/test-update-assets.sh`
+   proves the carry-over and the pruning on fake releases);
 4. flips `current`, refreshes units and scripts from the release, restarts;
 5. requires `GET /ready` to answer 200 within 90 s, else flips back, marks
    the tag failed (never retried) and restarts the previous release.
@@ -91,7 +95,8 @@ Migrations run when the new binary starts and are not undone by a rollback.
 If the old binary rejects a migrated database, restore the snapshot taken in
 step 2 (below). Install or roll back a specific tag by hand with
 `sudo datxevui-update v1.2.0`; an installed or failed tag is retried only
-when named explicitly. The three newest releases are kept.
+when named explicitly. The three newest releases are kept, plus any younger
+than 48 h, at most ten; the active and the previous release always stay.
 
 ## The place index
 
@@ -178,7 +183,7 @@ What the app sends:
 
 | Response | `Cache-Control` | Also |
 |---|---|---|
-| public pages: `/`, `/search` (any query), `/compare`, `/privacy`, `/terms`, `/brands/<slug>`, `/trips/<id>` | `public, max-age=0, s-maxage=300, stale-while-revalidate=86400` | `ETag` (weak) and `304` on `If-None-Match`, `Vary: Accept-Encoding` only, `Link: rel=preload` headers (fonts, stylesheet, home hero photo) |
+| public pages: `/`, `/search` (any query), `/compare`, `/privacy`, `/terms`, `/brands/<slug>`, `/trips/<id>` | `public, max-age=0, s-maxage=300, stale-while-revalidate=3600, stale-if-error=86400` | `ETag` (weak) and `304` on `If-None-Match`, `Vary: Accept-Encoding` only, `Link: rel=preload` headers (fonts, stylesheet, home hero photo) |
 | private pages (`/login`, `/admin*`, `/account*`, `/bookings/*`, `/payments/*`), 404s, a page the database could not fill | `no-cache, must-revalidate` | no `ETag` |
 | `/assets/*` (content-hashed) | `public, max-age=31536000, immutable` | `.br` / `.gz` twins served as they are |
 | fonts, icons, hero photos, logo | `public, max-age=86400, stale-while-revalidate=604800` | |
@@ -212,17 +217,27 @@ until someone decides to cache them (drop `/api` from rule 1 and they are
 cached for 60 s).
 
 **Deploys.** A page cached at the edge names the previous release's hashed
-files for up to five minutes (and, with `stale-while-revalidate`, until the
-first visitor after that triggers a refresh). `update.sh` keeps the previous
-release's `assets/` in the new `dist/`, so those pages still work. After a
-release that changes the shell's structure you can purge at once: Caching ->
-Configuration -> Purge Cache -> Purge Everything (or purge by URL for `/`).
+files for up to five minutes, an hour more while `stale-while-revalidate`
+refreshes it, and a day more only if the origin is failing (`stale-if-error`).
+`update.sh` carries the assets of the last three releases (and everything
+younger than 48 h) into each new release, so such a page keeps working for far
+longer than the edge keeps it. After a release that changes the shell's
+structure you can still purge at once: Caching -> Configuration -> Purge Cache
+-> Purge Everything (or purge by URL for `/`).
+
+**Cache key.** The page does not depend on `utm_*`, `fbclid`, `gclid`, `gbraid`
+or `wbraid`, so a campaign link must not get a copy of its own. In rule 2 set
+Cache key -> Query string -> **Exclude** `utm_source`, `utm_medium`,
+`utm_campaign`, `utm_term`, `utm_content`, `fbclid`, `gclid`, `gbraid`,
+`wbraid` (`from`, `to`, `date` and the rest stay in the key: they change the
+page). The app keeps the click ids itself, in a script that runs before the
+first navigation.
 
 **Early Hints.** Caching -> Configuration -> Early Hints: On. Cloudflare reads
 the `Link: rel=preload` headers of the cached page and sends them as a `103`
 before the body, so the browser starts on the stylesheet, the two fonts and
 (on `/`) the hero photo while the page is still on its way. The app's scripts
-are deliberately not preloaded: the page starts them after `load` (see
+are not preloaded here: they are an ordinary module script of the page (see
 `docs/PERFORMANCE.md`).
 
 **Check** (from anywhere, twice; the second answer should be `HIT`):
