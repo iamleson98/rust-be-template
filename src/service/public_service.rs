@@ -1251,11 +1251,11 @@ impl PublicService {
     /// Recommended trips (up to 4) — the soonest upcoming trips with seats
     /// left, as result cards (the same card the search builds).
     pub async fn recommendations(&self) -> AppResult<TripSearchResponse> {
-        let today = trip_time::local_today();
-        let mut upcoming = self.upcoming_trips(&today).await?;
+        let now = chrono::Utc::now();
+        let mut upcoming = self.upcoming_trips(now).await?;
         if upcoming.is_empty() {
             self.fill_cold_database().await;
-            upcoming = self.upcoming_trips(&today).await?;
+            upcoming = self.upcoming_trips(now).await?;
         }
 
         let routes: HashMap<Uuid, route::Model> = self
@@ -1272,7 +1272,7 @@ impl PublicService {
             .collect();
         let candidates = upcoming
             .into_iter()
-            .filter(|(trip, schedule)| on_sale(trip, schedule))
+            .filter(|(trip, schedule)| on_sale_at(trip, schedule, now))
             .filter_map(|(trip, schedule)| {
                 let route = routes.get(&schedule.route_id)?.clone();
                 Some(trip_search::Candidate {
@@ -1292,15 +1292,16 @@ impl PublicService {
         Ok(TripSearchResponse::unpaginated(items))
     }
 
-    /// The scheduled trips from `today` with seats left to consider for
-    /// the homepage, each with its schedule, soonest first.
+    /// The scheduled trips with seats left that have not left at `now`, to
+    /// consider for the homepage, each with its schedule, soonest first.
     async fn upcoming_trips(
         &self,
-        today: &str,
+        now: chrono::DateTime<chrono::Utc>,
     ) -> AppResult<Vec<(trip_session::Model, schedule::Model)>> {
+        let (today, minute) = trip_time::local_clock(now);
         self.store
             .trip_store()
-            .list_upcoming_trips(today, RECOMMENDATION_CANDIDATES)
+            .list_upcoming_trips(&today, &minute, RECOMMENDATION_CANDIDATES)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))
     }
@@ -1372,19 +1373,28 @@ impl PublicService {
 // ────────────────────────────────────────────────────────────────
 
 /// Trips the homepage shows, and how many upcoming ones it looks at to find
-/// them (some may have left already today).
+/// them (some may lose their card, e.g. a deactivated brand).
 const RECOMMENDATIONS: usize = 4;
-const RECOMMENDATION_CANDIDATES: u64 = 16;
+const RECOMMENDATION_CANDIDATES: u64 = 32;
 
 /// Still on sale: scheduled and not yet departed.
 pub(crate) fn on_sale(trip: &trip_session::Model, schedule: &schedule::Model) -> bool {
+    on_sale_at(trip, schedule, chrono::Utc::now())
+}
+
+/// [`on_sale`] as of the instant `now`.
+pub(crate) fn on_sale_at(
+    trip: &trip_session::Model,
+    schedule: &schedule::Model,
+    now: chrono::DateTime<chrono::Utc>,
+) -> bool {
     trip.status == "scheduled"
         && !trip_time::departure_instant(
             &trip.departure_date,
             &schedule.departure_time,
             trip.actual_departure_at.as_deref(),
         )
-        .is_some_and(|departs| departs <= chrono::Utc::now())
+        .is_some_and(|departs| departs <= now)
 }
 
 /// The seats of one class on a trip, for the fare legend.

@@ -9,13 +9,13 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use sea_orm::sea_query::OnConflict;
 use sea_orm::{
-    ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
-    QuerySelect,
+    ColumnTrait, Condition, DatabaseConnection, EntityTrait, JoinType, PaginatorTrait, QueryFilter,
+    QueryOrder, QuerySelect, RelationTrait,
 };
 use store_macros::retry;
 use uuid::Uuid;
 
-use crate::entity::{schedule, seat, seat_inventory, trip_session};
+use crate::entity::{route, schedule, seat, seat_inventory, trip_session};
 
 use super::error::{StoreError, StoreResult};
 use super::retry::RetryPolicy;
@@ -183,12 +183,15 @@ pub trait TripStore: Send + Sync {
     async fn delete_unsold_seats_of_trips(&self, trip_ids: Vec<Uuid>) -> StoreResult<u64>;
     /// Scheduled trips departing on `date_gte` (`YYYY-MM-DD`) or later.
     async fn count_upcoming_trips(&self, date_gte: &str) -> StoreResult<u64>;
-    /// Scheduled trips from `date_gte` with seats left, each with its
-    /// schedule, soonest first: by date, then the schedule's departure
-    /// time, then id.
+    /// Scheduled trips on active routes with seats left that have not left
+    /// at the Vietnamese wall clock `today` (`YYYY-MM-DD`) / `now_hhmm`
+    /// (`HH:MM`): later days, or today with a schedule time after
+    /// `now_hhmm`. Each with its schedule, soonest first: by date, then
+    /// the schedule's departure time, then id.
     async fn list_upcoming_trips(
         &self,
-        date_gte: &str,
+        today: &str,
+        now_hhmm: &str,
         limit: u64,
     ) -> StoreResult<Vec<(trip_session::Model, schedule::Model)>>;
 
@@ -693,12 +696,22 @@ impl TripStore for DbTripStore {
 
     async fn list_upcoming_trips(
         &self,
-        date_gte: &str,
+        today: &str,
+        now_hhmm: &str,
         limit: u64,
     ) -> StoreResult<Vec<(trip_session::Model, schedule::Model)>> {
+        let not_left = Condition::any()
+            .add(trip_session::Column::DepartureDate.gt(today.to_string()))
+            .add(
+                Condition::all()
+                    .add(trip_session::Column::DepartureDate.eq(today.to_string()))
+                    .add(schedule::Column::DepartureTime.gt(now_hhmm.to_string())),
+            );
         Ok(trip_session::Entity::find()
             .find_also_related(schedule::Entity)
-            .filter(trip_session::Column::DepartureDate.gte(date_gte.to_string()))
+            .join(JoinType::InnerJoin, schedule::Relation::Route.def())
+            .filter(route::Column::Status.eq("active"))
+            .filter(not_left)
             .filter(trip_session::Column::AvailableSeats.gt(0))
             .filter(trip_session::Column::Status.eq("scheduled"))
             .order_by_asc(trip_session::Column::DepartureDate)
@@ -732,5 +745,163 @@ impl TripStore for DbTripStore {
             );
         }
         Ok(out)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use chrono::{DateTime, Utc};
+    use sea_orm::{ActiveModelTrait, ActiveValue::Set};
+    use sea_orm_migration::MigratorTrait;
+
+    use super::*;
+    use crate::service::test_support::seed_trip_with_seats;
+    use crate::service::trip_time;
+    use crate::store::CompositeStore;
+
+    /// 2026-11-16 12:20 in Vietnam, the minute the homepage went empty live.
+    fn at_noon_twenty() -> DateTime<Utc> {
+        DateTime::parse_from_rfc3339("2026-11-16T05:20:45Z")
+            .unwrap()
+            .with_timezone(&Utc)
+    }
+
+    /// A database with one active route and a schedule at each of `times`,
+    /// each with a trip on every date of `dates` (`available` seats left);
+    /// returns the route and the store.
+    async fn seeded(
+        times: &[String],
+        dates: &[&str],
+        available: i64,
+    ) -> (Uuid, std::sync::Arc<CompositeStore>) {
+        let store = CompositeStore::in_memory().await;
+        migrator::Migrator::up(store.db(), None).await.unwrap();
+        let (seed_trip, _, _) = seed_trip_with_seats(&store, 1).await;
+        // The seeded trip is tomorrow: drop it so only the fixtures count.
+        let seeded = store
+            .trip_store()
+            .find_trip_by_id(seed_trip)
+            .await
+            .unwrap()
+            .unwrap();
+        let route_id = schedule::Entity::find_by_id(seeded.schedule_id)
+            .one(store.db())
+            .await
+            .unwrap()
+            .unwrap()
+            .route_id;
+        trip_session::Entity::delete_by_id(seed_trip)
+            .exec(store.db())
+            .await
+            .unwrap();
+        for time in times {
+            let schedule_id = Uuid::new_v4();
+            schedule::ActiveModel {
+                id: Set(schedule_id),
+                route_id: Set(route_id),
+                departure_time: Set(time.clone()),
+                days_of_week: Set(Some("1111111".into())),
+                base_price_adult: Set(100_000),
+                created_at: Set(super::super::now_iso()),
+                ..Default::default()
+            }
+            .insert(store.db())
+            .await
+            .unwrap();
+            for date in dates {
+                trip_session::ActiveModel {
+                    id: Set(Uuid::new_v4()),
+                    schedule_id: Set(schedule_id),
+                    departure_date: Set((*date).into()),
+                    status: Set("scheduled".into()),
+                    total_seats: Set(40),
+                    available_seats: Set(available),
+                    created_at: Set(super::super::now_iso()),
+                    updated_at: Set(super::super::now_iso()),
+                    ..Default::default()
+                }
+                .insert(store.db())
+                .await
+                .unwrap();
+            }
+        }
+        (route_id, store)
+    }
+
+    async fn upcoming(
+        store: &CompositeStore,
+        now: DateTime<Utc>,
+        limit: u64,
+    ) -> Vec<(String, String)> {
+        let (today, minute) = trip_time::local_clock(now);
+        store
+            .trip_store()
+            .list_upcoming_trips(&today, &minute, limit)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|(trip, schedule)| (trip.departure_date, schedule.departure_time))
+            .collect()
+    }
+
+    fn hourly(from: u32, to: u32) -> Vec<String> {
+        (from..=to).map(|h| format!("{h:02}:00")).collect()
+    }
+
+    #[tokio::test]
+    async fn trips_that_left_today_are_not_upcoming() {
+        let (_, store) = seeded(&hourly(0, 23), &["2026-11-16", "2026-11-17"], 40).await;
+        let found = upcoming(&store, at_noon_twenty(), 100).await;
+        // Today only from 13:00, then all of tomorrow, in order.
+        assert_eq!(found.len(), 11 + 24);
+        assert_eq!(found[0], ("2026-11-16".into(), "13:00".into()));
+        assert_eq!(found[10], ("2026-11-16".into(), "23:00".into()));
+        assert_eq!(found[11], ("2026-11-17".into(), "00:00".into()));
+        let mut sorted = found.clone();
+        sorted.sort();
+        assert_eq!(found, sorted);
+    }
+
+    /// The live bug: 16+ trips that left earlier today pushed every later
+    /// trip out of the candidate limit, so the homepage showed nothing.
+    #[tokio::test]
+    async fn the_soonest_limit_counts_only_trips_that_have_not_left() {
+        // 00:00..12:00, 13 trips a day: today's have all left at 12:20.
+        let (_, store) = seeded(&hourly(0, 12), &["2026-11-16", "2026-11-17"], 40).await;
+        let found = upcoming(&store, at_noon_twenty(), 3).await;
+        assert_eq!(
+            found,
+            ["00:00", "01:00", "02:00"].map(|t| ("2026-11-17".to_string(), t.to_string()))
+        );
+    }
+
+    #[tokio::test]
+    async fn a_trip_is_upcoming_until_its_minute_and_never_without_seats() {
+        let times = vec![
+            "12:19".to_string(),
+            "12:20".to_string(),
+            "12:21".to_string(),
+        ];
+        let (_, store) = seeded(&times, &["2026-11-16"], 40).await;
+        let found = upcoming(&store, at_noon_twenty(), 10).await;
+        assert_eq!(found, vec![("2026-11-16".to_string(), "12:21".to_string())]);
+
+        let (_, sold_out) = seeded(&hourly(13, 14), &["2026-11-16"], 0).await;
+        assert!(upcoming(&sold_out, at_noon_twenty(), 10).await.is_empty());
+    }
+
+    #[tokio::test]
+    async fn trips_of_an_inactive_route_are_not_upcoming() {
+        let (route_id, store) = seeded(&hourly(13, 14), &["2026-11-16"], 40).await;
+        crate::entity::route::Entity::update_many()
+            .col_expr(
+                route::Column::Status,
+                sea_orm::sea_query::Expr::value("inactive"),
+            )
+            .filter(route::Column::Id.eq(route_id))
+            .exec(store.db())
+            .await
+            .unwrap();
+        assert!(upcoming(&store, at_noon_twenty(), 10).await.is_empty());
     }
 }

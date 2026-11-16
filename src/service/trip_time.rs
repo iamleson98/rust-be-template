@@ -50,10 +50,18 @@ pub fn departure_instant(
 
 /// Today's date in Vietnam (`YYYY-MM-DD`), the calendar trips are dated by.
 pub fn local_today() -> String {
-    Utc::now()
-        .with_timezone(&local_offset())
-        .format("%Y-%m-%d")
-        .to_string()
+    local_clock(Utc::now()).0
+}
+
+/// The Vietnamese wall clock at `now`: the date (`YYYY-MM-DD`) and the
+/// minute (`HH:MM`), the same notations trip dates and schedule times use,
+/// so they compare as plain strings.
+pub fn local_clock(now: DateTime<Utc>) -> (String, String) {
+    let local = now.with_timezone(&local_offset());
+    (
+        local.format("%Y-%m-%d").to_string(),
+        local.format("%H:%M").to_string(),
+    )
 }
 
 /// When the Vietnamese calendar day `date` (`YYYY-MM-DD`) starts, in UTC.
@@ -138,6 +146,18 @@ mod tests {
         assert_eq!(departure_instant("tomorrow", "08:30", None), None);
         assert_eq!(departure_instant("2026-10-10", "late", None), None);
         assert_eq!(departure_instant("", "", None), None);
+    }
+
+    #[test]
+    fn the_local_clock_is_vietnam_wall_clock() {
+        assert_eq!(
+            local_clock(at("2026-11-16T05:20:45Z")),
+            ("2026-11-16".to_string(), "12:20".to_string())
+        );
+        assert_eq!(
+            local_clock(at("2026-11-15T17:00:00Z")),
+            ("2026-11-16".to_string(), "00:00".to_string())
+        );
     }
 
     #[test]
