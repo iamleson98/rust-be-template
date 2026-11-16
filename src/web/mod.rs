@@ -49,7 +49,7 @@ use crate::service::trip_time;
 use crate::service::PublicService;
 use content::{Content, CorridorData, CorridorDay, HomeData};
 use head::Head;
-use seo::{BrandFacts, Page, PageFacts, PageKind, Query, Strings};
+use seo::{BrandFacts, Corridor, Page, PageFacts, PageKind, Query, Strings};
 
 /// Fonts, icons and images are not content-hashed: a day in the browser, then
 /// a week of stale-while-revalidate, not a revalidation per visit.
@@ -59,15 +59,16 @@ const IMMUTABLE_YEAR: &str = "public, max-age=31536000, immutable";
 const LEGACY_NEXT_CACHE: &str = "public, max-age=2592000, immutable";
 const SHELL_CACHE: &str = "no-cache, must-revalidate";
 
-/// A public page is the same for everyone: the edge keeps it five minutes and
-/// may serve it a day longer while it fetches a fresh one; browsers always ask.
-const PUBLIC_PAGE_CACHE: &str = "public, max-age=0, s-maxage=300, stale-while-revalidate=86400";
+/// A public page is the same for everyone: the edge keeps it five minutes, may
+/// serve it an hour longer while it fetches a fresh one (a page names the hashed
+/// files of its release, and `update.sh` keeps those for three releases), and a
+/// day longer if the origin is down; browsers always ask.
+const PUBLIC_PAGE_CACHE: &str =
+    "public, max-age=0, s-maxage=300, stale-while-revalidate=3600, stale-if-error=86400";
 
 /// How long what a page reads from the database is reused.
 const PAGE_DATA_TTL: Duration = Duration::from_secs(300);
 const PAGE_CACHE_ENTRIES: u64 = 2048;
-/// Longest city name a corridor page looks up.
-const CITY_NAME_MAX: usize = 64;
 
 /// What the database says about the brand a page names.
 enum BrandLookup {
@@ -88,7 +89,8 @@ pub struct Web {
     public: Arc<PublicService>,
     home: moka::future::Cache<(), Arc<HomeData>>,
     brands: moka::future::Cache<String, Option<Arc<BrandProfile>>>,
-    corridors: moka::future::Cache<(String, String), Arc<CorridorData>>,
+    /// Keyed by the two cities' slugs, never by the text of the request.
+    corridors: moka::future::Cache<(&'static str, &'static str), Arc<CorridorData>>,
 }
 
 /// The catch-all service for every path no other route took.
@@ -277,30 +279,19 @@ impl Web {
         }
     }
 
-    /// Today's and tomorrow's departures from `from` to `to`; `None` when
-    /// either end is not a city the catalogue knows (such a search page has
-    /// nothing to list, and must not cost a query per made-up name); an error
-    /// when the database could not be read.
-    async fn corridor_data(&self, from: &str, to: &str) -> Result<Option<Arc<CorridorData>>, ()> {
-        let (from, to) = (from.trim(), to.trim());
-        if from.chars().count() > CITY_NAME_MAX || to.chars().count() > CITY_NAME_MAX {
-            return Ok(None);
-        }
-        let city_name = |text: &str| -> Option<String> {
-            match crate::cities::match_city_slugs(text).as_slice() {
-                [] => None,
-                [slug] => Some(crate::cities::name_for_slug(slug)),
-                _ => Some(text.to_owned()),
-            }
-        };
-        let (Some(from), Some(to)) = (city_name(from), city_name(to)) else {
-            return Ok(None);
-        };
+    /// Today's and tomorrow's departures on `corridor`; an error when the
+    /// database could not be read. One entry per pair of cities, however many
+    /// ways a request spells them.
+    async fn corridor_data(&self, corridor: &Corridor) -> Result<Arc<CorridorData>, ()> {
         let public = self.public.clone();
-        let key = (from.clone(), to.clone());
+        let key = (corridor.from_slug, corridor.to_slug);
         let loaded = self
             .corridors
             .try_get_with(key, async move {
+                let (from, to) = (
+                    crate::cities::name_for_slug(key.0),
+                    crate::cities::name_for_slug(key.1),
+                );
                 let today = trip_time::local_today();
                 let tomorrow = chrono::NaiveDate::parse_from_str(&today, "%Y-%m-%d")
                     .map(|d| {
@@ -330,16 +321,11 @@ impl Web {
                         trips: found.items,
                     });
                 }
-                Ok::<_, String>(Arc::new(CorridorData {
-                    from,
-                    to,
-                    today,
-                    days,
-                }))
+                Ok::<_, String>(Arc::new(CorridorData { today, days }))
             })
             .await;
         match loaded {
-            Ok(data) => Ok(Some(data)),
+            Ok(data) => Ok(data),
             Err(e) => {
                 tracing::warn!(error = %e, "corridor page data unavailable");
                 Err(())
@@ -356,8 +342,10 @@ impl Web {
         query: &Query,
         strings: &Strings,
         brand: Option<&BrandProfile>,
+        corridor: Option<&Corridor>,
         degraded: &mut bool,
     ) -> Option<Content> {
+        let today = trip_time::local_today();
         match (page.key, seo::search_route(query)) {
             ("home", _) | ("search", None) => {
                 let data = self.home_data().await;
@@ -365,22 +353,25 @@ impl Web {
                 let empty = HomeData::default();
                 let data = data.as_deref().unwrap_or(&empty);
                 Some(if page.key == "home" {
-                    content::home(strings, data)
+                    content::home(strings, data, &today)
                 } else {
-                    content::search(strings, data)
+                    content::search(strings, data, &today)
                 })
             }
-            ("search", Some((from, to))) => match self.corridor_data(from, to).await {
-                Ok(data) => data.map(|d| content::corridor(strings, &d)),
+            ("search", Some(_)) => match self.corridor_data(corridor?).await {
+                Ok(data) => Some(content::corridor(
+                    strings,
+                    &corridor?.from,
+                    &corridor?.to,
+                    &data,
+                )),
                 Err(()) => {
                     *degraded = true;
                     None
                 }
             },
             ("compare", _) => Some(content::plain(strings, page.key)),
-            ("brandDetail", _) => {
-                brand.map(|p| content::brand(strings, p, &trip_time::local_today()))
-            }
+            ("brandDetail", _) => brand.map(|p| content::brand(strings, p, &today)),
             _ => None,
         }
     }
@@ -407,6 +398,7 @@ impl Web {
         let page = seo::match_page(path);
         let mut brand = None;
         let mut degraded = false;
+        let mut unlisted = false;
         let facts = match (seo::brand_slug(path), page) {
             (Some(slug), Some(_)) => match self.brand(slug).await {
                 BrandLookup::Found(profile) => {
@@ -450,12 +442,37 @@ impl Web {
                         .into_response();
                 }
             };
-            let query = Query::parse(query.unwrap_or(""));
-            let page_seo = facts.and_then(|facts| seo::page_seo(path, &query, strings, &facts));
+            let mut query = Query::parse(query.unwrap_or(""));
+            // A corridor is named the same way everywhere on the page: the head,
+            // the canonical URL, the heading and the breadcrumb.
+            let searched = page
+                .filter(|p| p.key == "search")
+                .and_then(|_| seo::search_route(&query))
+                .map(|(from, to)| (seo::resolve_corridor(from, to), true));
+            let (corridor, named_ends) = searched.unwrap_or((None, false));
+            if let Some(c) = &corridor {
+                query = Query::with_route(&c.from, &c.to);
+            }
+            let mut page_seo = facts.and_then(|facts| seo::page_seo(path, &query, strings, &facts));
+            // A search between names the catalogue does not know (or that name
+            // several cities) has nothing to list: it is for the app to answer,
+            // not for a search engine to keep, and not for the edge to keep.
+            if let (Some(seo), true, None) = (page_seo.as_mut(), named_ends, &corridor) {
+                seo.robots = PageKind::Noindex.robots();
+                seo.canonical = None;
+                unlisted = true;
+            }
             let content = match (page, &page_seo) {
                 (Some(page), Some(_)) => {
-                    self.page_content(page, &query, strings, brand.as_deref(), &mut degraded)
-                        .await
+                    self.page_content(
+                        page,
+                        &query,
+                        strings,
+                        brand.as_deref(),
+                        corridor.as_ref(),
+                        &mut degraded,
+                    )
+                    .await
                 }
                 _ => None,
             }
@@ -491,6 +508,7 @@ impl Web {
 
         let shared = known
             && !degraded
+            && !unlisted
             && matches!(
                 page.map(|p| p.kind),
                 Some(PageKind::Public | PageKind::Noindex)

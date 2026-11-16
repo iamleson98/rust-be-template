@@ -5,10 +5,10 @@
 //! What to hint is read from the built shell (the stylesheet carries a content
 //! hash; the fonts are `rel=preload` links the template already declares),
 //! plus the hero photo of the home page. The app's scripts are not hinted: the
-//! page starts them only after it has loaded (see `frontend/prerender.mjs`), so
-//! that they do not take bandwidth from what the first paint is waiting for.
+//! page has them as a low-priority module script and `modulepreload` links, and
+//! starts them at once on the first touch (see `frontend/prerender.mjs`).
 
-use super::head::{HERO_BREAKPOINT_PX, HERO_DESKTOP, HERO_MOBILE};
+use super::head::{HERO_DESKTOP, HERO_MOBILE, HERO_MOBILE_MEDIA, HERO_WIDE_MEDIA};
 
 /// The value of `name` in an HTML start tag (`<link a="b" />`), if it has one.
 fn attribute<'a>(tag: &'a str, name: &str) -> Option<&'a str> {
@@ -91,9 +91,10 @@ pub fn links(shell: &str, home: bool) -> Vec<String> {
         }
     }
     if home {
-        let wide = format!("(min-width: {}px)", HERO_BREAKPOINT_PX + 1);
-        let narrow = format!("(max-width: {HERO_BREAKPOINT_PX}px)");
-        for (href, media) in [(HERO_DESKTOP, &wide), (HERO_MOBILE, &narrow)] {
+        for (href, media) in [
+            (HERO_DESKTOP, HERO_WIDE_MEDIA),
+            (HERO_MOBILE, HERO_MOBILE_MEDIA),
+        ] {
             out.push(header(
                 href,
                 &[("as", "image"), ("type", "image/avif"), ("media", media)],
@@ -151,7 +152,7 @@ mod tests {
         let links = links("<head></head>", true);
         assert_eq!(links.len(), 2);
         assert!(links[0].starts_with("</hero-vietnam-bus.avif>; rel=preload; as=\"image\""));
-        assert!(links[0].contains("media=\"(min-width: 641px)\""));
+        assert!(links[0].contains("media=\"(min-width: 640.02px)\""));
         assert!(links[1].starts_with("</hero-vietnam-bus-mobile.avif>"));
         assert!(links[1].contains("media=\"(max-width: 640px)\""));
     }

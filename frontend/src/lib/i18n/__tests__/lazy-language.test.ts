@@ -10,6 +10,13 @@ describe('language loading', () => {
     expect(translate('en', 'common.close')).toBe('Close')
   })
 
+  it('fills placeholders in one pass: a value that holds one is left alone', () => {
+    expect(translate('vi', 'seo.page.corridorHeading', { from: '{to}', to: 'Huế' })).toBe(
+      'Xe từ {to} đi Huế',
+    )
+    expect(translate('vi', 'seo.page.corridorHeading')).toBe('Xe từ {from} đi {to}')
+  })
+
   it('falls back to the key for unknown strings', () => {
     expect(translate('vi', 'no.such.key')).toBe('no.such.key')
   })

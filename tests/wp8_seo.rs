@@ -599,10 +599,7 @@ async fn static_files_are_cached_as_the_worker_did() {
             .header("cache-control"),
         "public, max-age=31536000, immutable"
     );
-    assert_eq!(
-        get(&app, "/").await.header("cache-control"),
-        "public, max-age=0, s-maxage=300, stale-while-revalidate=86400"
-    );
+    assert_eq!(get(&app, "/").await.header("cache-control"), PUBLIC_CACHE);
     // Files with no rule of their own keep the configured default; a plain
     // `.html` file that is not a shell is still a file.
     let ads = get(&app, "/ads.txt").await;
@@ -689,7 +686,8 @@ async fn media_is_served_under_a_sandboxing_csp() {
 
 // ── Crawlable content and edge caching ───────────────────────────────
 
-const PUBLIC_CACHE: &str = "public, max-age=0, s-maxage=300, stale-while-revalidate=86400";
+const PUBLIC_CACHE: &str =
+    "public, max-age=0, s-maxage=300, stale-while-revalidate=3600, stale-if-error=86400";
 
 /// A brand with two daily departures Hà Nội → Đà Nẵng, and the trips of
 /// today and tomorrow (a search opens them, as it does in production).
@@ -803,6 +801,10 @@ async fn the_home_page_is_readable_without_a_script() {
     // The cheapest fare of the corridor, read from the schedules.
     assert!(body.contains("250.000\u{a0}₫"));
     assert!(body.contains("href=\"/privacy\""));
+    // The search card is a real form; a brand's rating is not shown here (the
+    // list does not say how many reviews stand behind it).
+    assert!(body.contains("<form action=\"/search\" method=\"get\""));
+    assert!(!body.contains("★"));
 
     // The corridors are a list of the site's own pages for search engines.
     let blocks = json_ld(body);
@@ -882,19 +884,104 @@ async fn a_corridor_page_lists_the_next_departures() {
         crumbs["itemListElement"][2]["item"],
         "https://datxevui.com/search?from=H%C3%A0+N%E1%BB%99i&to=%C4%90%C3%A0+N%E1%BA%B5ng"
     );
-    assert!(
-        ld_of(&blocks, "ItemList")["numberOfItems"]
-            .as_u64()
-            .unwrap()
-            >= 2
-    );
-    // The head is still the corridor's, as the golden file has it.
-    assert!(head_of(body).canonical.is_some());
+    // Trip pages are not for search results: they are not listed as data.
+    assert!(blocks.iter().all(|b| b["@type"] != "ItemList"));
+    assert!(blocks.iter().all(|b| !b.to_string().contains("/trips/")));
+    // A search form that works before the app does, with the names the app reads.
+    assert!(body.contains("<form action=\"/search\" method=\"get\""));
+    for field in [
+        "name=\"from\" type=\"text\" value=\"Hà Nội\"",
+        "name=\"to\" type=\"text\" value=\"Đà Nẵng\"",
+        "name=\"date\" type=\"date\"",
+    ] {
+        assert!(body.contains(field), "{field}");
+    }
+    assert_eq!(page.header("cache-control"), PUBLIC_CACHE);
+}
 
-    // Names that are no city cost no query and add no text.
-    let page = get(&app, "/search?from=zzz&to=qqq").await;
-    assert_eq!(page.status, StatusCode::OK);
-    assert!(page.body.contains("<div id=\"root\"></div>"));
+/// The head, the heading, the breadcrumb and the canonical URL of a corridor
+/// name its cities the same way, whatever the request wrote.
+#[tokio::test]
+async fn a_corridor_has_one_set_of_names_everywhere() {
+    let (app, state) = boot().await;
+    seed_catalog(&state).await;
+    let canonical =
+        "https://datxevui.com/search?from=H%C3%A0+N%E1%BB%99i&to=%C4%90%C3%A0+N%E1%BA%B5ng";
+    for uri in [
+        "/search?from=ha-noi&to=da-nang",
+        "/search?from=h%C3%A0+n%E1%BB%99i&to=%C4%90%C3%A0+N%E1%BA%B5ng",
+        "/search?from=HA+NOI&to=da+nang&date=2026-12-01",
+    ] {
+        let page = get(&app, uri).await;
+        let head = head_of(&page.body);
+        assert_eq!(
+            head.title, "Vé xe Hà Nội đi Đà Nẵng — Đặt vé online | DatXeVui",
+            "{uri}"
+        );
+        assert_eq!(head.canonical.as_deref(), Some(canonical), "{uri}");
+        assert_eq!(head.robots, "index, follow", "{uri}");
+        assert!(page.body.contains("Xe từ Hà Nội đi Đà Nẵng</h1>"), "{uri}");
+        let blocks = json_ld(&page.body);
+        let crumbs = ld_of(&blocks, "BreadcrumbList");
+        assert_eq!(
+            crumbs["itemListElement"][2]["name"], "Xe từ Hà Nội đi Đà Nẵng",
+            "{uri}"
+        );
+        assert_eq!(crumbs["itemListElement"][2]["item"], canonical, "{uri}");
+        assert_eq!(page.header("cache-control"), PUBLIC_CACHE, "{uri}");
+    }
+    // An alias stays as typed, in all four places.
+    let page = get(
+        &app,
+        "/search?from=S%C3%A0i+G%C3%B2n&to=%C4%90%C3%A0+N%E1%BA%B5ng",
+    )
+    .await;
+    assert_eq!(
+        head_of(&page.body).title,
+        "Vé xe Sài Gòn đi Đà Nẵng — Đặt vé online | DatXeVui"
+    );
+    assert!(page.body.contains("Xe từ Sài Gòn đi Đà Nẵng</h1>"));
+}
+
+/// Names the catalogue does not know, or that name several cities, are not a
+/// corridor: the app still answers them (200), but the page is `noindex`, has
+/// no canonical or preview, no text of its own, and the edge does not keep it.
+/// However many such names a visitor invents, nothing is cached or queried.
+#[tokio::test]
+async fn a_search_between_unknown_names_is_neither_indexed_nor_cached() {
+    let (app, state) = boot().await;
+    seed_catalog(&state).await;
+    let junk: Vec<String> = (0..300)
+        .map(|n| format!("/search?from=junk{n}&to=%C4%90%C3%A0+N%E1%BA%B5ng"))
+        .chain([
+            "/search?from=an&to=ha-noi".to_owned(),
+            "/search?from=Phan+Rang+-+Th%C3%A1p+Ch%C3%A0m&to=Nha+Trang+%26+Cam+Ranh".to_owned(),
+        ])
+        .collect();
+    for uri in &junk {
+        let page = get(&app, uri).await;
+        assert_eq!(page.status, StatusCode::OK, "{uri}");
+        let head = head_of(&page.body);
+        assert_eq!(head.robots, "noindex, follow", "{uri}");
+        assert_eq!(head.canonical, None, "{uri}");
+        assert!(!page.body.contains("og:title"), "{uri}");
+        assert!(!page.body.contains("hreflang"), "{uri}");
+        assert!(page.body.contains("<div id=\"root\"></div>"), "{uri}");
+        assert_eq!(
+            page.header("cache-control"),
+            "no-cache, must-revalidate",
+            "{uri}"
+        );
+        assert!(page.headers.get("etag").is_none(), "{uri}");
+    }
+    // Spellings of a known city share one answer.
+    for from in ["Hà Nội", "ha-noi", "HA NOI"] {
+        let uri = format!(
+            "/search?from={}&to=da-nang",
+            url::form_urlencoded::byte_serialize(from.as_bytes()).collect::<String>()
+        );
+        assert_eq!(get(&app, &uri).await.status, StatusCode::OK);
+    }
 }
 
 #[tokio::test]

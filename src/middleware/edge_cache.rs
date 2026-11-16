@@ -5,9 +5,11 @@
 //!
 //! * it sets no cookie (a stored `Set-Cookie` would sign visitors into one
 //!   another's session): such a response is downgraded to `no-store`;
-//! * it varies on nothing but the encoding. The CORS layer writes
-//!   `Vary: Origin, ...` on everything, which only splits a page that does
-//!   not depend on the origin into copies.
+//! * it varies on nothing but the encoding, and carries no CORS grant. The
+//!   CORS layer writes `Vary: Origin, ...` and `Access-Control-Allow-*` on
+//!   everything; on a page that does not depend on the origin the first only
+//!   splits it into copies and the second would let the cache hand one
+//!   origin's grant to another.
 
 use axum::extract::Request;
 use axum::http::{header, HeaderValue};
@@ -29,8 +31,10 @@ pub async fn edge_cache_guard(req: Request, next: Next) -> Response {
             resp.headers_mut()
                 .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
         } else {
-            resp.headers_mut()
-                .insert(header::VARY, HeaderValue::from_static("Accept-Encoding"));
+            let headers = resp.headers_mut();
+            headers.insert(header::VARY, HeaderValue::from_static("Accept-Encoding"));
+            headers.remove(header::ACCESS_CONTROL_ALLOW_ORIGIN);
+            headers.remove(header::ACCESS_CONTROL_ALLOW_CREDENTIALS);
         }
     }
     resp
@@ -70,9 +74,19 @@ mod tests {
         let resp = reply(&[
             ("cache-control", "public, max-age=0, s-maxage=300"),
             ("vary", "origin"),
+            ("access-control-allow-origin", "https://a.example"),
+            ("access-control-allow-credentials", "true"),
         ])
         .await;
         assert_eq!(resp.headers()[header::VARY], "Accept-Encoding");
+        assert!(resp
+            .headers()
+            .get(header::ACCESS_CONTROL_ALLOW_ORIGIN)
+            .is_none());
+        assert!(resp
+            .headers()
+            .get(header::ACCESS_CONTROL_ALLOW_CREDENTIALS)
+            .is_none());
         assert_eq!(
             resp.headers()[header::CACHE_CONTROL],
             "public, max-age=0, s-maxage=300"
@@ -91,8 +105,17 @@ mod tests {
 
     #[tokio::test]
     async fn everything_else_is_left_alone() {
-        let resp = reply(&[("cache-control", "no-cache"), ("vary", "origin")]).await;
+        let resp = reply(&[
+            ("cache-control", "no-cache"),
+            ("vary", "origin"),
+            ("access-control-allow-origin", "https://a.example"),
+        ])
+        .await;
         assert_eq!(resp.headers()[header::VARY], "origin");
+        assert!(resp
+            .headers()
+            .get(header::ACCESS_CONTROL_ALLOW_ORIGIN)
+            .is_some());
         assert_eq!(resp.headers()[header::CACHE_CONTROL], "no-cache");
     }
 }

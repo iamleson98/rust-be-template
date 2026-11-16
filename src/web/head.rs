@@ -22,8 +22,10 @@ pub const APP_HTML: &str = "<!--app-html-->";
 /// The hero photo per screen: a phone gets the small file, the rest the wide one.
 pub const HERO_DESKTOP: &str = "/hero-vietnam-bus.avif";
 pub const HERO_MOBILE: &str = "/hero-vietnam-bus-mobile.avif";
-/// Where a phone's screen ends and a tablet's begins (`sm` + 1px).
-pub const HERO_BREAKPOINT_PX: u32 = 640;
+/// A phone's screen, and the rest, with no width in between that matches
+/// neither (a fractional viewport): `640.02px` is the first width past 640.
+pub const HERO_MOBILE_MEDIA: &str = "(max-width: 640px)";
+pub const HERO_WIDE_MEDIA: &str = "(min-width: 640.02px)";
 const OG_IMAGE: &str = "/og-image.png";
 
 /// What one response's head says.
@@ -189,12 +191,11 @@ impl Head<'_> {
             }
         }
         if self.home {
-            let wide = HERO_BREAKPOINT_PX + 1;
             tags.push(format!(
-                "<link rel=\"preload\" as=\"image\" href=\"{HERO_DESKTOP}\" type=\"image/avif\" media=\"(min-width: {wide}px)\" fetchpriority=\"high\" />"
+                "<link rel=\"preload\" as=\"image\" href=\"{HERO_DESKTOP}\" type=\"image/avif\" media=\"{HERO_WIDE_MEDIA}\" fetchpriority=\"high\" />"
             ));
             tags.push(format!(
-                "<link rel=\"preload\" as=\"image\" href=\"{HERO_MOBILE}\" type=\"image/avif\" media=\"(max-width: {HERO_BREAKPOINT_PX}px)\" fetchpriority=\"high\" />"
+                "<link rel=\"preload\" as=\"image\" href=\"{HERO_MOBILE}\" type=\"image/avif\" media=\"{HERO_MOBILE_MEDIA}\" fetchpriority=\"high\" />"
             ));
         }
         tags.push(SITE_JSON_LD.clone());

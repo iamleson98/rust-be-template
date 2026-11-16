@@ -16,7 +16,9 @@ use std::collections::HashSet;
 
 use serde_json::{json, Value};
 
-use super::head::{escape, script_json, HERO_BREAKPOINT_PX, HERO_DESKTOP, HERO_MOBILE};
+use super::head::{
+    escape, script_json, HERO_DESKTOP, HERO_MOBILE, HERO_MOBILE_MEDIA, HERO_WIDE_MEDIA,
+};
 use super::seo::{corridor_canonical, corridor_path, Strings, SITE_URL};
 use crate::dto::public::{
     BrandListResponse, BrandProfile, RouteListResponse, StatsResponse, TripResult,
@@ -58,20 +60,19 @@ pub struct CorridorDay {
     pub trips: Vec<TripResult>,
 }
 
-/// The trips of the corridor a search page names.
+/// The trips of a corridor. Keyed by the two cities, never by how the page
+/// spelled them: the names to show are the page's (see [`corridor`]).
 #[derive(Debug)]
 pub struct CorridorData {
-    /// The cities' own names where the text named them, else as written.
-    pub from: String,
-    pub to: String,
-    /// Today, then tomorrow (Vietnam), as `YYYY-MM-DD`.
+    /// Today (Vietnam), as `YYYY-MM-DD`.
     pub today: String,
+    /// Today, then tomorrow.
     pub days: Vec<CorridorDay>,
 }
 
 /// The text keys this module reads from the build's `seo-strings.json` that
 /// the app shows too, so the first paint reads like the app.
-pub const TEXT_KEYS: [&str; 38] = [
+pub const TEXT_KEYS: [&str; 42] = [
     "nav.home",
     "nav.searchTrips",
     "trips.imageTagline",
@@ -110,6 +111,10 @@ pub const TEXT_KEYS: [&str; 38] = [
     "common.seatsAvailable",
     "layout.footer.privacyPolicy",
     "layout.footer.termsOfUse",
+    "search.from",
+    "search.to",
+    "search.date",
+    "search.btn",
 ];
 
 /// The text only the server writes (the app has no use for it).
@@ -305,15 +310,48 @@ fn trip_line(s: &Strings, trip: &TripResult) -> String {
     )
 }
 
+/// The day after `today` (`YYYY-MM-DD`): what the search form starts on.
+fn day_after(today: &str) -> String {
+    chrono::NaiveDate::parse_from_str(today, "%Y-%m-%d")
+        .map(|d| {
+            (d + chrono::Duration::days(1))
+                .format("%Y-%m-%d")
+                .to_string()
+        })
+        .unwrap_or_else(|_| today.to_owned())
+}
+
+/// The search form as a plain `GET /search?from=&to=&date=`: it works before
+/// the app has started (and without it), and lands on a page the edge keeps.
+/// The names are the ones `lib/search-params.ts` reads. The app swaps in its
+/// own form when it mounts and carries over what was typed.
+fn search_form(s: &Strings, from: &str, to: &str, date: &str, today: &str) -> String {
+    let field = |label_key: &str, name: &str, kind: &str, value: &str, extra: &str| {
+        format!(
+            "<label class=\"grid gap-1.5 text-sm font-medium text-slate-700\">{}\
+<input name=\"{name}\" type=\"{kind}\" value=\"{}\" required {extra} class=\"h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-base font-normal text-slate-900\" /></label>",
+            escape(&s.t(label_key, &[])),
+            escape(value),
+        )
+    };
+    format!(
+        "<form action=\"/search\" method=\"get\" class=\"grid gap-3 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1.2fr)_minmax(0,1fr)_auto] md:items-end\">{}{}{}\
+<button type=\"submit\" class=\"h-11 rounded-xl bg-primary px-5 text-base font-semibold text-primary-foreground\">{}</button></form>",
+        field("search.from", "from", "text", from, "autocomplete=\"off\""),
+        field("search.to", "to", "text", to, "autocomplete=\"off\""),
+        field("search.date", "date", "date", date, &format!("min=\"{}\"", escape(today))),
+        escape(&s.t("search.btn", &[])),
+    )
+}
+
 // ── Home ────────────────────────────────────────────────────────────────
 
 /// The hero photo, as the app picks it: the small file on a phone.
 fn hero_picture() -> String {
-    let wide = HERO_BREAKPOINT_PX + 1;
     format!(
         "<picture>\
-<source srcset=\"{HERO_MOBILE}\" type=\"image/avif\" media=\"(max-width: {HERO_BREAKPOINT_PX}px)\" />\
-<source srcset=\"{HERO_DESKTOP}\" type=\"image/avif\" media=\"(min-width: {wide}px)\" />\
+<source srcset=\"{HERO_MOBILE}\" type=\"image/avif\" media=\"{HERO_MOBILE_MEDIA}\" />\
+<source srcset=\"{HERO_DESKTOP}\" type=\"image/avif\" media=\"{HERO_WIDE_MEDIA}\" />\
 <img src=\"/hero-vietnam-bus.jpg\" alt=\"\" class=\"absolute inset-0 h-full w-full object-cover\" fetchpriority=\"high\" loading=\"eager\" decoding=\"async\" width=\"1344\" height=\"768\" />\
 </picture>"
     )
@@ -361,7 +399,7 @@ fn initial_data(data: &HomeData) -> String {
 
 /// `/`: the hero with its headline, the four promises, the routes and the
 /// brands people can book, the next departures.
-pub fn home(s: &Strings, data: &HomeData) -> Content {
+pub fn home(s: &Strings, data: &HomeData, today: &str) -> Content {
     let mut structured = Vec::new();
     let title = escape(&s.t("hero.title", &[]));
     let highlight = escape(&s.t("hero.titleHighlight", &[]));
@@ -404,13 +442,14 @@ pub fn home(s: &Strings, data: &HomeData) -> Content {
             ));
         }
     }
-    // The search card is the app's; its place is held at the height it takes.
-    main.push_str(
+    // The search card holds the height the app's takes, so the swap moves nothing.
+    main.push_str(&format!(
         "</div></div>\
 <div class=\"relative z-30 -mt-16 sm:-mt-20 sm:px-4 lg:-mt-24 lg:px-10\">\
-<div class=\"min-h-[26.25rem] rounded-3xl bg-white p-4 shadow-float ring-1 ring-slate-900/5 sm:min-h-[15rem] sm:p-5 md:p-6\" aria-hidden=\"true\"></div></div>\
+<div class=\"min-h-[26.25rem] rounded-3xl bg-white p-4 shadow-float ring-1 ring-slate-900/5 sm:min-h-[15rem] sm:p-5 md:p-6\">{}</div></div>\
 <ul class=\"mt-6 grid grid-cols-2 gap-x-3 gap-y-4 sm:mt-10 sm:gap-x-4 sm:gap-y-6 lg:grid-cols-4 lg:px-10\">",
-    );
+        search_form(s, "", "", &day_after(today), today)
+    ));
     for (title_key, body_key) in [
         ("home.featureCompare", "home.featureCompareBody"),
         ("home.featureSeats", "home.featureSeatsBody"),
@@ -448,17 +487,11 @@ pub fn home(s: &Strings, data: &HomeData) -> Content {
     if let Some(brands) = data.brands.as_ref().filter(|b| !b.items.is_empty()) {
         let mut list =
             String::from("<ul class=\"grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4\">");
+        // The list carries a rating but not how many reviews stand behind it, so
+        // unlike the brand page (which shows a rating only with reviews) it shows none.
         for brand in &brands.items {
-            let rating = brand
-                .rating
-                .map(|r| {
-                    format!(
-                        "<span class=\"mt-1 text-xs font-normal text-slate-500\">★ {r:.1}</span>"
-                    )
-                })
-                .unwrap_or_default();
             list.push_str(&format!(
-                "<li><a href=\"/brands/{}\" class=\"{CARD} h-full text-[15px] font-semibold text-slate-900 hover:ring-primary/30\">{}{rating}</a></li>",
+                "<li><a href=\"/brands/{}\" class=\"{CARD} h-full text-[15px] font-semibold text-slate-900 hover:ring-primary/30\">{}</a></li>",
                 escape(&urlencoding::encode(&brand.slug)),
                 escape(&brand.name),
             ));
@@ -495,12 +528,16 @@ pub fn home(s: &Strings, data: &HomeData) -> Content {
 // ── Search ──────────────────────────────────────────────────────────────
 
 /// `/search` with no corridor: the way into the routes.
-pub fn search(s: &Strings, data: &HomeData) -> Content {
+pub fn search(s: &Strings, data: &HomeData, today: &str) -> Content {
     let heading = s.t("seo.page.searchHeading", &[]);
     let mut main = format!(
         "<div class=\"page-x py-8\"><h1 class=\"text-2xl font-extrabold tracking-tight text-slate-900 md:text-3xl\">{}</h1>",
         escape(&heading)
     );
+    main.push_str(&format!(
+        "<div class=\"mt-4 rounded-3xl bg-white p-4 shadow-float ring-1 ring-slate-900/5 sm:p-5\">{}</div>",
+        search_form(s, "", "", &day_after(today), today)
+    ));
     let mut structured = vec![breadcrumbs(&[
         (s.t("nav.home", &[]), SITE_URL.to_owned()),
         (heading.clone(), format!("{SITE_URL}/search")),
@@ -523,9 +560,10 @@ pub fn search(s: &Strings, data: &HomeData) -> Content {
     }
 }
 
-/// A corridor: `/search?from=A&to=B`.
-pub fn corridor(s: &Strings, data: &CorridorData) -> Content {
-    let params = [("from", data.from.as_str()), ("to", data.to.as_str())];
+/// A corridor: `/search?from=A&to=B`, with the ends named `from` and `to` (the
+/// same names the head and the canonical URL use).
+pub fn corridor(s: &Strings, from: &str, to: &str, data: &CorridorData) -> Content {
+    let params = [("from", from), ("to", to)];
     let heading = s.t("seo.page.corridorHeading", &params);
     let mut main = format!(
         "<div class=\"page-x py-8\"><h1 class=\"text-2xl font-extrabold tracking-tight text-slate-900 md:text-3xl\">{}</h1>\
@@ -533,7 +571,11 @@ pub fn corridor(s: &Strings, data: &CorridorData) -> Content {
         escape(&heading),
         escape(&s.t("seo.page.corridorIntro", &params)),
     );
-    let mut listed = Vec::new();
+    main.push_str(&format!(
+        "<div class=\"mt-4 rounded-3xl bg-white p-4 shadow-float ring-1 ring-slate-900/5 sm:p-5\">{}</div>",
+        search_form(s, from, to, &day_after(&data.today), &data.today)
+    ));
+    let mut listed = false;
     for day in data.days.iter().filter(|d| !d.trips.is_empty()) {
         let label = if day.date == data.today {
             s.t("brandPage.today", &[])
@@ -547,23 +589,11 @@ pub fn corridor(s: &Strings, data: &CorridorData) -> Content {
         ));
         for trip in &day.trips {
             main.push_str(&trip_line(s, trip));
-            if listed.len() < CORRIDOR_TRIPS_PER_DAY {
-                listed.push((
-                    format!(
-                        "{} {} {}",
-                        trip.departure_time.as_deref().unwrap_or_default(),
-                        trip.brand_name,
-                        trip.vehicle_type
-                    )
-                    .trim()
-                    .to_owned(),
-                    format!("{SITE_URL}/trips/{}", trip.trip_id),
-                ));
-            }
+            listed = true;
         }
         main.push_str("</ul>");
     }
-    if listed.is_empty() {
+    if !listed {
         main.push_str(&format!(
             "<p class=\"mt-6 text-slate-600\">{}</p>",
             escape(&s.t("seo.page.corridorNoTrips", &params))
@@ -571,14 +601,12 @@ pub fn corridor(s: &Strings, data: &CorridorData) -> Content {
     }
     main.push_str("</div>");
 
-    let mut structured = vec![breadcrumbs(&[
+    // The trips are not listed as structured data: their pages are not for search results.
+    let structured = vec![breadcrumbs(&[
         (s.t("nav.home", &[]), SITE_URL.to_owned()),
         (s.t("nav.searchTrips", &[]), format!("{SITE_URL}/search")),
-        (heading.clone(), corridor_canonical(&data.from, &data.to)),
+        (heading, corridor_canonical(from, to)),
     ])];
-    if !listed.is_empty() {
-        structured.push(item_list(&heading, &listed));
-    }
     Content {
         html: frame(s, &main),
         structured,

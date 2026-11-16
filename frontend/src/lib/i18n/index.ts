@@ -8,13 +8,16 @@ export type { Lang, TranslationMap }
 
 type Params = Record<string, string | number>
 
-/** `{name}` placeholders are interpolated; a missing key falls back to Vietnamese, then to the key. */
+/**
+ * `{name}` placeholders are interpolated in one pass (a value that holds
+ * `{other}` is left as it is); a missing key falls back to Vietnamese, then to the key.
+ */
 export function translate(lang: Lang, key: string, params?: Params): string {
-  let text = dictionary(lang)[key] ?? fallbackDictionary[key] ?? key
-  for (const [name, value] of Object.entries(params ?? {})) {
-    text = text.replaceAll(`{${name}}`, String(value))
-  }
-  return text
+  const text = dictionary(lang)[key] ?? fallbackDictionary[key] ?? key
+  if (!params) return text
+  return text.replace(/\{(\w+)\}/g, (whole, name: string) =>
+    Object.hasOwn(params, name) ? String(params[name]) : whole,
+  )
 }
 
 /** BCP 47 locale for `Intl` / `toLocaleString`. */

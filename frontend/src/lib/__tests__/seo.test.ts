@@ -6,7 +6,9 @@ import { SEO_STRING_KEYS, SITE_URL, matchPage, pageSeo, type PageFacts } from '@
 
 /** Vietnamese, filled in the way the server renders a head. */
 const t = (key: string, params: Record<string, string | number> = {}) =>
-  Object.entries(params).reduce((s, [k, v]) => s.replaceAll(`{${k}}`, String(v)), vi[key] ?? key)
+  (vi[key] ?? key).replace(/\{(\w+)\}/g, (whole, name: string) =>
+    Object.hasOwn(params, name) ? String(params[name]) : whole,
+  )
 const seo = (path: string, query = '', facts: PageFacts = {}) =>
   pageSeo(path, new URLSearchParams(query), t, facts)
 
