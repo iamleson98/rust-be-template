@@ -125,8 +125,13 @@ pub fn write_stats() -> WriteStats {
 ///   queued committers (starvation), and no committer can hold the queue
 ///   while waiting for a lock the IMMEDIATE transaction owns (deadlock).
 ///
-/// Every transaction therefore acquires queue first, SQLite lock second;
-/// that single order cannot form a cycle.
+/// Every transaction acquires its pooled connection first, the queue
+/// second and SQLite's lock last; that single order cannot form a cycle.
+/// In particular nobody waits for a connection while holding the queue:
+/// otherwise an IMMEDIATE transaction holding the queue could wait for a
+/// connection while every connection belongs to a concurrent-mode
+/// transaction waiting for the queue to commit, and nothing would ever
+/// move again (the pool timeout, not progress, would end the wait).
 static COMMIT_LOCK: Mutex<()> = Mutex::const_new(());
 
 tokio::task_local! {
@@ -170,14 +175,17 @@ impl ConcurrentTx {
     /// Check out a connection and start a transaction in `mode`.
     ///
     /// An `Immediate` transaction first waits its turn in the write queue
-    /// (see [`COMMIT_LOCK`]).
+    /// (see [`COMMIT_LOCK`]), but only once it has its connection.
     pub async fn begin(pool: &SqlitePool, mode: BeginMode) -> Result<Self, DbErr> {
         forbid_inside_write_body("starting a write transaction");
+        let conn = pool.acquire().await.map_err(exec_err)?;
         let turn = match mode {
             BeginMode::Immediate => Some(COMMIT_LOCK.lock().await),
             BeginMode::Concurrent => None,
         };
-        let tx = pool.begin_with(mode.statement()).await.map_err(exec_err)?;
+        let tx = Transaction::begin(conn, Some(mode.statement().into()))
+            .await
+            .map_err(exec_err)?;
         Ok(Self {
             tx: Mutex::new(tx),
             turn,
@@ -627,6 +635,93 @@ mod tests {
             body_runs.load(Ordering::SeqCst) > 16 * 50,
             "16 writers on one row must have conflicted and re-run at least once"
         );
+    }
+
+    /// The deadlock of taking the write queue before a connection: an
+    /// IMMEDIATE transaction held the queue while it waited for a pooled
+    /// connection, and every connection was held by a concurrent-mode
+    /// transaction waiting for the queue to commit. Nothing could move.
+    #[tokio::test]
+    async fn an_immediate_writer_waiting_for_a_connection_does_not_block_commits() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let db = wal_db(&dir, Duration::from_secs(5), 2).await;
+        let pool = db.get_sqlite_connection_pool();
+
+        let a = ConcurrentTx::begin(pool, BeginMode::Concurrent)
+            .await
+            .expect("begin A");
+        let b = ConcurrentTx::begin(pool, BeginMode::Concurrent)
+            .await
+            .expect("begin B");
+        let c = {
+            let pool = pool.clone();
+            tokio::spawn(async move { ConcurrentTx::begin(&pool, BeginMode::Immediate).await })
+        };
+        // C is now parked on the pool: both connections are A's and B's.
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        assert!(!c.is_finished(), "no connection is free for C yet");
+
+        let bound = Duration::from_secs(3);
+        let outcome = tokio::time::timeout(bound, async {
+            a.commit().await.expect("A commits");
+            b.commit().await.expect("B commits");
+            c.await.expect("task").expect("C gets a connection")
+        })
+        .await
+        .expect("commits deadlocked against a writer waiting for a connection");
+        outcome.rollback().await.expect("rollback");
+    }
+
+    /// More writers than pooled connections, all fighting over one row so
+    /// that retries and the IMMEDIATE fallback happen constantly, must
+    /// always finish (this stalled for minutes before the fix).
+    async fn contended_increments(tasks: usize, connections: u32) {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let db = Arc::new(wal_db(&dir, Duration::from_millis(50), connections).await);
+        let started = write_stats().immediate_fallbacks;
+
+        let finished = tokio::time::timeout(Duration::from_secs(20), async {
+            let handles: Vec<_> = (0..tasks)
+                .map(|_| {
+                    let db = db.clone();
+                    tokio::spawn(async move {
+                        for _ in 0..10 {
+                            with_write(&db, |tx| {
+                                Box::pin(async move {
+                                    let n = counter(tx).await;
+                                    tokio::time::sleep(Duration::from_millis(2)).await;
+                                    set_counter(tx, n + 1).await?;
+                                    Ok(())
+                                })
+                            })
+                            .await
+                            .expect("increment");
+                        }
+                    })
+                })
+                .collect();
+            for handle in handles {
+                handle.await.expect("task");
+            }
+        })
+        .await;
+
+        assert!(finished.is_ok(), "contended writers stalled");
+        assert_eq!(counter(db.as_ref()).await, (tasks * 10) as i64);
+        assert!(
+            write_stats().immediate_fallbacks > started,
+            "the scenario must reach the IMMEDIATE fallback"
+        );
+    }
+
+    #[tokio::test]
+    async fn more_writers_than_connections_finish_on_one_thread() {
+        contended_increments(16, 4).await;
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn more_writers_than_connections_finish_on_many_threads() {
+        contended_increments(16, 4).await;
     }
 
     #[tokio::test]
