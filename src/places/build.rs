@@ -1,9 +1,11 @@
 //! `places-build` — the Geofabrik Vietnam extract → a new place generation.
 //!
-//! Run weekly by a systemd timer, in its own process and cgroup (`Nice=19`,
-//! `IOSchedulingClass=idle`, a memory cap): the server never builds anything,
-//! so the extractor's ~600 MB peak never lands in its heap. Cheap when
-//! nothing changed, gentle when something did:
+//! The server runs it weekly as the `places.build` job
+//! ([`crate::jobs::places_build`]), always as a child process of its own
+//! executable (niced, OOM-victim, see there): the server never builds anything
+//! itself, so the extractor's ~600 MB peak never lands in its heap. Run by hand
+//! (`datxevui places-build [--force]`) it is the same code. Cheap when nothing
+//! changed, gentle when something did:
 //!
 //! 1. fetch Geofabrik's 60-byte `.md5` and stop if the live generation was
 //!    built from that very extract (unless `--force`): no download at all;
@@ -15,6 +17,9 @@
 //!
 //! The server notices the new generation within a minute (see
 //! [`super::live`]). `work/` is emptied before and after every run.
+//!
+//! stdout carries exactly one line, written last: a [`BuildSummary`] as JSON
+//! (the job reads it). Everything for humans goes to stderr through `tracing`.
 
 use std::fs::File;
 use std::io::{BufRead, BufReader, Read};
@@ -27,6 +32,7 @@ use clap::ValueEnum;
 use md5::{Digest, Md5};
 use place_extract::travel::Profile;
 use place_extract::{prepare, Centroids, ExtractOptions, Prepared, RawPlace};
+use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
 
 use super::store::{Manifest, Store};
@@ -64,13 +70,112 @@ struct Plan {
 
 pub enum Outcome {
     /// Geofabrik's extract is the one the live generation was built from.
+    Unchanged(Manifest),
+    Published {
+        manifest: Manifest,
+        /// Extracted places that were left out (outside the served provinces).
+        dropped: usize,
+    },
+}
+
+/// How a build ended.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum BuildResult {
+    Published,
     Unchanged,
-    Published(Manifest),
+    Failed,
+}
+
+/// What a `places-build` run reports: the one JSON line it prints on stdout.
+/// A field the run did not learn is absent, never a made-up value.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BuildSummary {
+    pub outcome: BuildResult,
+    /// The generation published, or (unchanged) the one still live.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub generation: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub places: Option<usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dropped: Option<usize>,
+    /// MD5 of the Geofabrik extract the generation answers for.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub extract_md5: Option<String>,
+    pub duration_secs: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub profile: Option<String>,
+    /// Why a failed build failed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+}
+
+impl BuildSummary {
+    fn finished(outcome: &Outcome, profile: &str, took: Duration) -> Self {
+        let (result, manifest, dropped) = match outcome {
+            Outcome::Unchanged(manifest) => (BuildResult::Unchanged, manifest, None),
+            Outcome::Published { manifest, dropped } => {
+                (BuildResult::Published, manifest, Some(*dropped))
+            }
+        };
+        Self {
+            outcome: result,
+            generation: Some(manifest.generation.clone()),
+            places: Some(manifest.places),
+            dropped,
+            extract_md5: Some(manifest.source_md5.clone()),
+            duration_secs: took.as_secs(),
+            profile: Some(profile.to_string()),
+            reason: None,
+        }
+    }
+
+    pub fn failed(profile: Option<&str>, took: Duration, reason: String) -> Self {
+        Self {
+            outcome: BuildResult::Failed,
+            generation: None,
+            places: None,
+            dropped: None,
+            extract_md5: None,
+            duration_secs: took.as_secs(),
+            profile: profile.map(str::to_string),
+            reason: Some(reason),
+        }
+    }
+
+    /// The summary on the last non-blank line of a child's stdout, if it has one.
+    pub fn from_stdout(stdout: &str) -> Option<Self> {
+        let line = stdout.lines().rev().find(|l| !l.trim().is_empty())?;
+        serde_json::from_str(line.trim()).ok()
+    }
+
+    /// The one plain-English line for logs and the admin page.
+    pub fn describe(&self) -> String {
+        let generation = self.generation.as_deref().unwrap_or("?");
+        match self.outcome {
+            BuildResult::Published => format!(
+                "published generation {generation} ({} places)",
+                self.places.unwrap_or_default()
+            ),
+            BuildResult::Unchanged => {
+                format!("unchanged: the extract is generation {generation}'s")
+            }
+            BuildResult::Failed => format!(
+                "failed: {}",
+                self.reason.as_deref().unwrap_or("no reason given")
+            ),
+        }
+    }
 }
 
 /// The `places-build` command.
 pub async fn run(force: bool) -> Result<()> {
-    let config = Config::load().context("loading config")?;
+    let started = Instant::now();
+    let config = match Config::load().context("loading config") {
+        Ok(config) => config,
+        Err(e) => return fail(None, started, e),
+    };
     let plan = Plan {
         store: Store::new(&config.places.dir),
         profile: config.places.profile.clone(),
@@ -80,14 +185,39 @@ pub async fn run(force: bool) -> Result<()> {
             .clone()
             .unwrap_or_else(|| download::VIETNAM_PBF_URL.to_string()),
     };
-    match build_generation(&plan, force).await? {
-        Outcome::Unchanged => println!("unchanged: the extract is the live generation's"),
-        Outcome::Published(m) => println!(
-            "published generation {} ({} places, extract md5 {})",
-            m.generation, m.places, m.source_md5
-        ),
+    match build_generation(&plan, force).await {
+        Ok(outcome) => {
+            report(&BuildSummary::finished(
+                &outcome,
+                &plan.profile,
+                started.elapsed(),
+            ));
+            Ok(())
+        }
+        Err(e) => fail(Some(&plan.profile), started, e),
     }
-    Ok(())
+}
+
+/// Report a failed build, then fail the command (a non-zero exit).
+fn fail(profile: Option<&str>, started: Instant, error: anyhow::Error) -> Result<()> {
+    report(&BuildSummary::failed(
+        profile,
+        started.elapsed(),
+        format!("{error:#}"),
+    ));
+    Err(error)
+}
+
+fn report(summary: &BuildSummary) {
+    if summary.outcome == BuildResult::Failed {
+        warn!("{}", summary.describe());
+    } else {
+        info!("{}", summary.describe());
+    }
+    println!(
+        "{}",
+        serde_json::to_string(summary).expect("a summary always serializes")
+    );
 }
 
 async fn build_generation(plan: &Plan, force: bool) -> Result<Outcome> {
@@ -114,12 +244,13 @@ async fn refresh(plan: &Plan, force: bool) -> Result<Outcome> {
     };
     let client = download::client()?;
     let published = published_md5(&client, &plan.pbf_url).await?;
-    if !force
-        && current
+    if !force {
+        if let Some(live) = current
             .as_ref()
-            .is_some_and(|c| is_up_to_date(c, &published, &plan.profile))
-    {
-        return Ok(Outcome::Unchanged);
+            .filter(|c| is_up_to_date(c, &published, &plan.profile))
+        {
+            return Ok(Outcome::Unchanged(live.clone()));
+        }
     }
 
     let work = plan.store.work_dir();
@@ -141,9 +272,10 @@ async fn refresh(plan: &Plan, force: bool) -> Result<Outcome> {
         let (pbf, work) = (pbf.clone(), work.clone());
         tokio::task::spawn_blocking(move || extract_places(&pbf, &work, profile)).await??
     };
+    let dropped = prepared.dropped;
     info!(
         places = prepared.records.len(),
-        dropped = prepared.dropped,
+        dropped,
         "places extracted in {:.0}s",
         started.elapsed().as_secs_f64()
     );
@@ -170,7 +302,7 @@ async fn refresh(plan: &Plan, force: bool) -> Result<Outcome> {
         store.publish(&to_publish, engine.records(), KEEP_GENERATIONS)
     })
     .await??;
-    Ok(Outcome::Published(manifest))
+    Ok(Outcome::Published { manifest, dropped })
 }
 
 /// The live generation already answers for this extract and this profile: a
@@ -329,6 +461,74 @@ mod tests {
             source_md5: "m".into(),
             profile: "all".into(),
         }
+    }
+
+    #[test]
+    fn the_summary_line_reports_what_the_run_learned() {
+        let published = BuildSummary::finished(
+            &Outcome::Published {
+                manifest: Manifest {
+                    generation: "20261116T033000Z".into(),
+                    places: 326_729,
+                    source_md5: "abc".into(),
+                    ..manifest(0)
+                },
+                dropped: 12,
+            },
+            "all",
+            Duration::from_secs(754),
+        );
+        let line = serde_json::to_string(&published).unwrap();
+        assert!(!line.contains('\n'), "one line");
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&line).unwrap(),
+            serde_json::json!({
+                "outcome": "published",
+                "generation": "20261116T033000Z",
+                "places": 326_729,
+                "dropped": 12,
+                "extractMd5": "abc",
+                "durationSecs": 754,
+                "profile": "all",
+            })
+        );
+        assert_eq!(
+            BuildSummary::from_stdout(&format!("{line}\n")),
+            Some(published)
+        );
+
+        // Unchanged: the live generation's facts, nothing dropped to report.
+        let unchanged =
+            BuildSummary::finished(&Outcome::Unchanged(manifest(30)), "all", Duration::ZERO);
+        assert_eq!(unchanged.outcome, BuildResult::Unchanged);
+        assert_eq!(unchanged.places, Some(30));
+        assert_eq!(unchanged.dropped, None);
+        assert_eq!(unchanged.extract_md5.as_deref(), Some("m"));
+
+        // Failed: only what is known, with the reason.
+        let failed = BuildSummary::failed(None, Duration::from_millis(1500), "no network".into());
+        let value = serde_json::to_value(&failed).unwrap();
+        assert_eq!(
+            value,
+            serde_json::json!({"outcome": "failed", "durationSecs": 1, "reason": "no network"})
+        );
+    }
+
+    #[test]
+    fn the_summary_is_the_last_non_blank_stdout_line() {
+        let line = r#"{"outcome":"unchanged","durationSecs":3}"#;
+        let summary = BuildSummary::from_stdout(&format!("noise\n{line}\n\n")).unwrap();
+        assert_eq!(summary.outcome, BuildResult::Unchanged);
+        assert_eq!(summary.duration_secs, 3);
+        assert_eq!(BuildSummary::from_stdout(""), None);
+        assert_eq!(
+            BuildSummary::from_stdout(&format!("{line}\nnot json\n")),
+            None
+        );
+        assert_eq!(
+            BuildSummary::from_stdout(r#"{"outcome":"exploded","durationSecs":1}"#),
+            None
+        );
     }
 
     #[test]

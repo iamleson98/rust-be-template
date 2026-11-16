@@ -366,9 +366,10 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
     };
     let public_service = Arc::new(PublicService::with_warmer(store.clone(), warmer));
     let routing_service = Arc::new(RoutingService::new(&config));
-    // The place index is built by `places-build`, never here: the engine
-    // is loaded from the live generation before serving (none yet answers
-    // `unavailable`) and swapped when a newer generation appears.
+    // The place index is built by the `places.build` job's child process,
+    // never in this one: the engine is loaded from the live generation before
+    // serving (none yet answers `unavailable`) and swapped when a newer
+    // generation appears.
     let place_service = Arc::new(PlaceService::new());
     crate::places::live::start(config.places.dir.clone(), place_service.clone()).await;
     let price_alert_service = Arc::new(PriceAlertService::new(store.clone()));

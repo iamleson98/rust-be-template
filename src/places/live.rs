@@ -1,10 +1,11 @@
 //! Keeps the server's engine in step with the generation `current` points at.
 //!
-//! The server never builds an index. It loads the live generation before it
-//! starts serving, then looks at the `current` link every minute: when
-//! `places-build` has published a newer generation, the new engine is built
-//! on a blocking thread while the old one keeps answering, then swapped in
-//! with one atomic pointer store. A generation that cannot be loaded is
+//! The server never builds an index in its own process. It loads the live
+//! generation before it starts serving, then looks at the `current` link every
+//! minute: when `places-build` (the child process of the `places.build` job)
+//! has published a newer generation, the new engine is built on a blocking
+//! thread while the old one keeps answering, then swapped in with one atomic
+//! pointer store. A generation that cannot be loaded is
 //! logged once and skipped; the engine in service is never taken away.
 
 use std::path::PathBuf;
@@ -31,7 +32,7 @@ pub async fn start(dir: PathBuf, places: Arc<PlaceService>) {
     };
     watcher.check().await;
     if watcher.loaded.is_none() {
-        info!("no place index yet: `places-build` publishes the first generation");
+        info!("no place index yet: the `places.build` job (admin Cron jobs, Run now) publishes the first generation");
     }
     tokio::spawn(async move {
         loop {

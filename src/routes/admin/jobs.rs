@@ -1,7 +1,7 @@
 //! Admin — Cron job routes (`/api/admin/cron-jobs`).
 //!
-//! Recurring background jobs (e.g. the biweekly Vietnam OSM → Tantivy
-//! refresh): status, next run, work time, history, manual triggering,
+//! Recurring background jobs (coupon expiry, the weekly place-index
+//! build): status, next run, work time, history, manual triggering,
 //! and schedule editing.
 
 use axum::extract::{Path, Query, State};
