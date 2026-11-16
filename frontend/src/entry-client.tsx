@@ -1,7 +1,9 @@
 /**
  * Client entry: mounts the app over the page the server wrote (its first
- * screen: header, headline, links and the data they came from), or on an
- * empty root (private pages). In production it also registers the service
+ * screen: header, headline, links, a working search form and the data they
+ * came from), or on an empty root (private pages). The page's boot script (see
+ * `prerender.mjs`) has already kept the ad click ids and starts this at the
+ * first touch. In production it also registers the service
  * worker (offline app shell) and reports web vitals through `/api/vitals`,
  * once the page has loaded and the browser is idle.
  *
@@ -18,6 +20,7 @@ import { createQueryClient } from './api/query-client'
 import { afterLoadWhenIdle } from './lib/idle'
 import { loadLanguage } from './lib/i18n'
 import { primeFromServer } from './lib/initial-data'
+import { carryOverServerSearchForm } from './lib/server-search-form'
 import { router } from './router'
 import { usePrefs } from './stores/prefs'
 import './styles.css'
@@ -42,6 +45,7 @@ async function mount() {
   const rootEl = document.getElementById('root')!
   const queryClient = createQueryClient()
   primeFromServer(queryClient)
+  carryOverServerSearchForm(rootEl)
 
   // The server's first screen stays on show until the app can draw the same page
   // (its chunk loaded, its data in the cache): one swap, no blank or skeleton in

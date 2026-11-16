@@ -1,6 +1,6 @@
 /**
  * Prerender script — runs AFTER `vite build` to finish `dist/index.html`
- * (the Google tags) and to write `dist/<page>.html` for the content pages in
+ * (the Google tags and a small boot script) and to write `dist/<page>.html` for the content pages in
  * PAGES (the backend serves those for `/<page>`), so crawlers and the OAuth
  * providers' reviewers read the privacy policy and terms without running
  * scripts. Every other page is a client-rendered shell: the backend fills
@@ -41,48 +41,74 @@ const GOOGLE_ADS_CONVERSIONS = process.env.VITE_GOOGLE_ADS_CONVERSIONS?.trim() |
 const PAGES = ['/privacy', '/terms']
 
 /**
- * Starts the app's scripts once the page has loaded (its hero photo, styles
- * and fonts included) and painted, instead of in the middle of loading them:
- * the first paint is the server's HTML, so it needs no script, and a script
- * that downloads and compiles beside the photo takes the bandwidth and the
- * main thread the photo is waiting for. A timer starts them anyway if `load`
- * is slow (a stuck image). The links the
- * server wrote work meanwhile as ordinary navigations.
+ * A few lines that run before anything else and need no download:
+ *
+ * - they remember the Google Ads click ids (`gclid`, `wbraid`, `gbraid`) of the
+ *   landing URL, as `captureClickIds` in `src/lib/analytics.ts` does, so a
+ *   visitor who leaves through a server-written link before the app has started
+ *   (the search form, a route) is still attributed; the two lists must match
+ *   (`src/lib/__tests__/analytics.test.ts` reads this file);
+ * - they start the app at once on the first touch, key press or focus, should
+ *   it still be on its way (the app's entry is an ordinary module script, so
+ *   importing it again is the same module, not a second copy).
+ *
+ * The server-written page works without the app: its links navigate and its
+ * search form submits.
  */
-function deferAppScripts(html) {
-  // The entry script and the preload links Vite wrote for its static imports.
-  const tag =
-    /(?:<script type="module" crossorigin src="(\/assets\/[^"]+\.js)"><\/script>|<link rel="modulepreload" crossorigin href="(\/assets\/[^"]+\.js)">)\s*/g
-  const sources = [...html.matchAll(tag)].map((m) => m[1] ?? m[2])
-  if (sources.length === 0) throw new Error('no module script in the built index.html')
-  const loader = `<script>
+function addBootScript(html) {
+  const entry = /<script type="module" crossorigin src="(\/assets\/[^"]+\.js)"><\/script>/.exec(
+    html,
+  )?.[1]
+  if (!entry) throw new Error('no module script in the built index.html')
+  const boot = `<script>
       (function () {
-        var sources = ${JSON.stringify(sources)};
+        try {
+          var query = new URLSearchParams(location.search);
+          var values = {};
+          var found = false;
+          ['gclid', 'wbraid', 'gbraid'].forEach(function (name) {
+            var value = query.get(name);
+            if (value) {
+              values[name] = value;
+              found = true;
+            }
+          });
+          if (found) {
+            localStorage.setItem(
+              'datxevui:ads-click-ids',
+              JSON.stringify({ capturedAt: Date.now(), values: values }),
+            );
+          }
+        } catch (e) {}
         var started = false;
         function start() {
           if (started) return;
           started = true;
-          sources.forEach(function (src) {
-            var script = document.createElement('script');
-            script.type = 'module';
-            script.crossOrigin = '';
-            script.src = src;
-            document.head.appendChild(script);
-          });
+          import(${JSON.stringify(entry)});
         }
-        // A moment after load: the photo and the text have been presented by then.
-        addEventListener('load', function () {
-          setTimeout(start, 250);
+        ['pointerdown', 'focusin', 'keydown', 'touchstart'].forEach(function (type) {
+          addEventListener(type, start, { once: true, capture: true, passive: true });
         });
-        setTimeout(start, 3000);
       })();
     </script>`
-  return html.replace(tag, '').replace('</head>', `${loader}\n  </head>`)
+  // The page is complete and usable without the app (links, the search form), so
+  // its scripts yield to the styles, fonts and hero photo the first paint needs;
+  // a touch starts the app at once, above.
+  const lowPriority = html
+    .replace(
+      '<script type="module" crossorigin',
+      '<script type="module" crossorigin fetchpriority="low"',
+    )
+    .replaceAll(
+      '<link rel="modulepreload" crossorigin',
+      '<link rel="modulepreload" crossorigin fetchpriority="low"',
+    )
+  return lowPriority.replace('</head>', `${boot}\n  </head>`)
 }
 
 async function main() {
   const templatePath = resolve(distDir, 'index.html')
-  let template = deferAppScripts(readFileSync(templatePath, 'utf-8'))
+  let template = addBootScript(readFileSync(templatePath, 'utf-8'))
 
   // ── Inject Google Search Console verification meta tag ──────
   // Replaces `<!-- %VITE_GSC_VERIFICATION_META% -->` in index.html.

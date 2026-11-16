@@ -10,7 +10,7 @@ export function HeroBackground() {
           type="image/avif"
           media="(max-width: 640px)"
         />
-        <source srcSet="/hero-vietnam-bus.avif" type="image/avif" media="(min-width: 641px)" />
+        <source srcSet="/hero-vietnam-bus.avif" type="image/avif" media="(min-width: 640.02px)" />
         <source
           srcSet="/hero-vietnam-bus-mobile.webp 640w, /hero-vietnam-bus.webp 1344w"
           sizes="100vw"
