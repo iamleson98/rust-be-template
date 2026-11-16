@@ -1,44 +1,48 @@
-import { memo, useCallback } from 'react'
+import { lazy, memo, Suspense, useEffect, useState, type ReactNode } from 'react'
 import { useUi } from '@/stores/ui'
 import { usePrefs } from '@/stores/prefs'
 import { isStaffUser, useSession } from '@/stores/session'
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
 import { useT } from '@/lib/i18n'
+import { afterLoadWhenIdle } from '@/lib/idle'
 import { SUPPORT } from '@/lib/support'
-import { useLogout } from '@/features/auth/api'
 import { Button } from '@/components/ui/button'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import {
-  Briefcase,
-  Check,
-  Gift,
-  GitCompare,
-  Globe,
-  LayoutDashboard,
-  LogIn,
-  LogOut,
-  Mail,
-  Phone,
-  PhoneCall,
-  Ticket,
-} from 'lucide-react'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuGroup,
-} from '@/components/ui/dropdown-menu'
-import { toast } from 'sonner'
+import { Gift, GitCompare, LogIn, PhoneCall } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { personInitials } from '@/lib/text'
+import {
+  ACCOUNT_BUTTON,
+  AccountButtonContent,
+  LANGUAGE_BUTTON,
+  LanguageButtonContent,
+  tone,
+} from './header-parts'
 
-/** The site's light, translucent bar (the admin console has its own frame). */
-const tone = {
-  bar: 'border-b border-slate-200/80 bg-white/85 text-slate-900 backdrop-blur-xl',
-  icon: 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
+// Base UI's menu code is a large part of the first download and nothing in the
+// first paint needs it, so the two menus load apart (see `header-menus.tsx`).
+const LanguageMenu = lazy(() => import('./header-menus').then((m) => ({ default: m.LanguageMenu })))
+const AccountMenu = lazy(() => import('./header-menus').then((m) => ({ default: m.AccountMenu })))
+
+/**
+ * A menu whose code loads once the page is idle: until then (and while it
+ * loads) its button is drawn without the menu, and reaching for it loads the
+ * menu at once and opens it.
+ */
+function LazyMenu({
+  button,
+  menu,
+}: {
+  /** The closed button, with what to do when it is pressed before the menu is there. */
+  button: (onPress: () => void) => ReactNode
+  menu: (defaultOpen: boolean) => ReactNode
+}) {
+  const [stage, setStage] = useState<'waiting' | 'idle' | 'asked'>('waiting')
+  useEffect(() => {
+    afterLoadWhenIdle(() => setStage((s) => (s === 'waiting' ? 'idle' : s)))
+  }, [])
+  const placeholder = button(() => setStage('asked'))
+  if (stage === 'waiting') return placeholder
+  return <Suspense fallback={placeholder}>{menu(stage === 'asked')}</Suspense>
 }
 
 export const Header = memo(function Header() {
@@ -46,23 +50,10 @@ export const Header = memo(function Header() {
   const setCompareOpen = useUi((s) => s.setCompareOpen)
   const setLoyaltyOpen = useUi((s) => s.setLoyaltyOpen)
   const lang = usePrefs((s) => s.lang)
-  const setLang = usePrefs((s) => s.setLang)
   const user = useSession((s) => s.user)
   const pathname = useRouterState({ select: (s) => s.location.pathname })
   const navigate = useNavigate()
   const t = useT()
-
-  const handleLangChange = useCallback(
-    (newLang: 'vi' | 'en') => {
-      setLang(newLang)
-      toast.success(newLang === 'vi' ? t('lang.switchedVi') : t('lang.switchedEn'))
-    },
-    [setLang, t],
-  )
-
-  const logout = useLogout()
-
-  const initials = personInitials(user?.name)
 
   // Primary destinations, from md up (phones have the bottom tab bar).
   const links = [
@@ -156,38 +147,14 @@ export const Header = memo(function Header() {
             <Gift className="size-4.5" />
           </button>
 
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className={cn('h-9 gap-1.5 rounded-full px-2.5', tone.icon)}
-                />
-              }
-            >
-              <Globe className="size-4" />
-              <span className="hidden text-xs font-semibold sm:inline">
-                {lang === 'vi' ? 'VI' : 'EN'}
-              </span>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem
-                onClick={() => handleLangChange('vi')}
-                className="flex items-center gap-2"
-              >
-                <Check className={cn('size-3.5 text-primary', lang !== 'vi' && 'invisible')} />
-                Tiếng Việt
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => handleLangChange('en')}
-                className="flex items-center gap-2"
-              >
-                <Check className={cn('size-3.5 text-primary', lang !== 'en' && 'invisible')} />
-                English
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <LazyMenu
+            button={(onPress) => (
+              <Button variant="ghost" size="sm" className={LANGUAGE_BUTTON} onClick={onPress}>
+                <LanguageButtonContent lang={lang} />
+              </Button>
+            )}
+            menu={(defaultOpen) => <LanguageMenu defaultOpen={defaultOpen} />}
+          />
 
           {!user ? (
             pathname !== '/login' && (
@@ -201,91 +168,20 @@ export const Header = memo(function Header() {
               </Button>
             )
           ) : (
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <button
-                    type="button"
-                    title={user.name}
-                    aria-label={user.name}
-                    className="ml-1 inline-flex h-9 items-center gap-2 rounded-full bg-white p-1 ring-1 ring-slate-200 transition-colors hover:bg-slate-50 sm:pr-3"
-                  />
-                }
-              >
-                <Avatar className="size-7">
-                  <AvatarFallback className="bg-primary text-[11px] font-bold text-primary-foreground">
-                    {initials || 'U'}
-                  </AvatarFallback>
-                </Avatar>
-                <span className="hidden max-w-30 truncate text-xs font-semibold sm:inline">
-                  {user.name}
-                </span>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-64">
-                <DropdownMenuGroup>
-                  <DropdownMenuLabel className="flex items-center gap-2.5">
-                    <Avatar className="size-9">
-                      <AvatarFallback className="bg-primary text-xs font-bold text-primary-foreground">
-                        {initials || 'U'}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-semibold">{user.name}</div>
-                      <div className="flex items-center gap-1 text-[11px] font-normal text-muted-foreground">
-                        {user.email ? (
-                          <>
-                            <Mail className="size-3 shrink-0" />
-                            <span className="truncate">{user.email}</span>
-                          </>
-                        ) : (
-                          <>
-                            <Phone className="size-3 shrink-0" />
-                            <span className="truncate">{user.phone}</span>
-                          </>
-                        )}
-                      </div>
-                      {isStaffUser(user) && (
-                        <div className="mt-1 inline-flex items-center gap-1 rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700">
-                          <Briefcase className="size-2.5" />
-                          {user.employeeRole === 'admin'
-                            ? t('nav.role.admin')
-                            : user.employeeRole === 'support_lead'
-                              ? t('nav.role.supportLead')
-                              : user.employeeRole === 'ops'
-                                ? t('nav.role.operations')
-                                : t('nav.role.support')}
-                          {user.brandName ? ` · ${user.brandName}` : ''}
-                        </div>
-                      )}
-                    </div>
-                  </DropdownMenuLabel>
-                </DropdownMenuGroup>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => navigate({ to: '/account' })} className="gap-2">
-                  <LayoutDashboard className="size-4" /> {t('nav.myConsole')}
-                </DropdownMenuItem>
-                {!isStaffUser(user) && (
-                  <DropdownMenuItem
-                    onClick={() => navigate({ to: '/account/trips' })}
-                    className="gap-2"
-                  >
-                    <Ticket className="size-4" /> {t('layout.account.tripHistory')}
-                  </DropdownMenuItem>
-                )}
-                {isStaffUser(user) && (
-                  <DropdownMenuItem onClick={() => navigate({ to: '/admin' })} className="gap-2">
-                    <Briefcase className="size-4" /> {t('nav.admin')}
-                  </DropdownMenuItem>
-                )}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={logout}
-                  className="gap-2 text-rose-600 focus:bg-rose-50 focus:text-rose-700"
+            <LazyMenu
+              button={(onPress) => (
+                <button
+                  type="button"
+                  title={user.name}
+                  aria-label={user.name}
+                  className={ACCOUNT_BUTTON}
+                  onClick={onPress}
                 >
-                  <LogOut className="size-4" /> {t('nav.logout')}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                  <AccountButtonContent name={user.name} initials={personInitials(user.name)} />
+                </button>
+              )}
+              menu={(defaultOpen) => <AccountMenu user={user} defaultOpen={defaultOpen} />}
+            />
           )}
         </div>
       </div>

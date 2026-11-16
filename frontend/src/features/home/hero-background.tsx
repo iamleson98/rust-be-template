@@ -2,7 +2,14 @@
 export function HeroBackground() {
   return (
     <div className="absolute inset-0 -z-10 bg-slate-800">
+      {/* A phone takes the small file; the server writes the same sources into
+          the first paint and preloads the one this screen needs. */}
       <picture>
+        <source
+          srcSet="/hero-vietnam-bus-mobile.avif"
+          type="image/avif"
+          media="(max-width: 640px)"
+        />
         <source srcSet="/hero-vietnam-bus.avif" type="image/avif" media="(min-width: 641px)" />
         <source
           srcSet="/hero-vietnam-bus-mobile.webp 640w, /hero-vietnam-bus.webp 1344w"

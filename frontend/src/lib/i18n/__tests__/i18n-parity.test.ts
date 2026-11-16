@@ -1,6 +1,13 @@
-import { describe, expect, it } from 'vitest'
-import { vi as viDict } from '@/lib/i18n/vi'
-import { en as enDict } from '@/lib/i18n/en'
+import { describe, expect, it, vi as vitest } from 'vitest'
+import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { join, sep } from 'node:path'
+import { vi as viCore } from '@/lib/i18n/vi'
+import { en as enCore } from '@/lib/i18n/en'
+import { viAdmin } from '@/lib/i18n/vi-admin'
+import { enAdmin } from '@/lib/i18n/en-admin'
+
+const viDict = { ...viCore, ...viAdmin }
+const enDict = { ...enCore, ...enAdmin }
 
 /**
  * Dictionary parity guard — the vi and en dictionaries must carry
@@ -37,5 +44,41 @@ describe('i18n dictionaries', () => {
       const enValue = enDict[key]
       expect(placeholders(viValue), `placeholder mismatch for ${key}`).toBe(placeholders(enValue))
     }
+  })
+
+  it('keeps every key in the one file that its language and area belong to', async () => {
+    // The console merges its strings into the core maps in place; read fresh ones.
+    vitest.resetModules()
+    const freshVi = (await import('@/lib/i18n/vi')).vi
+    const freshEn = (await import('@/lib/i18n/en')).en
+    for (const key of Object.keys(viAdmin)) expect(Object.hasOwn(freshVi, key), key).toBe(false)
+    for (const key of Object.keys(enAdmin)) expect(Object.hasOwn(freshEn, key), key).toBe(false)
+    expect(Object.keys(viAdmin).sort()).toEqual(Object.keys(enAdmin).sort())
+  })
+
+  it('uses the console strings only inside the console, which is what loads them', () => {
+    const consoleKeys = new Set(Object.keys(viAdmin))
+    const inConsole = (path: string) =>
+      path.includes(`${sep}features${sep}admin${sep}`) ||
+      path.includes(`${sep}app${sep}layout${sep}admin`) ||
+      path.includes(`${sep}i18n${sep}`) ||
+      path.includes('__tests__')
+    const files: string[] = []
+    const walk = (dir: string) => {
+      for (const name of readdirSync(dir)) {
+        const path = join(dir, name)
+        if (statSync(path).isDirectory()) walk(path)
+        else if (/\.(ts|tsx)$/.test(name) && !inConsole(path)) files.push(path)
+      }
+    }
+    walk(join(import.meta.dirname, '../../..'))
+    const literal = /['"`]([A-Za-z][A-Za-z0-9]*\.[A-Za-z0-9_.]+)['"`]/g
+    const leaks: string[] = []
+    for (const file of files) {
+      for (const [, key] of readFileSync(file, 'utf-8').matchAll(literal)) {
+        if (consoleKeys.has(key)) leaks.push(`${file}: ${key}`)
+      }
+    }
+    expect(leaks).toEqual([])
   })
 })

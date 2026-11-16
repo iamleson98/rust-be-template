@@ -3,7 +3,7 @@ import { usePrefs } from '@/stores/prefs'
 import { dictionary, fallbackDictionary } from './dictionaries'
 import type { Lang, TranslationMap } from './types'
 
-export { loadLanguage } from './dictionaries'
+export { loadConsoleStrings, loadLanguage } from './dictionaries'
 export type { Lang, TranslationMap }
 
 type Params = Record<string, string | number>

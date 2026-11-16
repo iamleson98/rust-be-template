@@ -1,8 +1,10 @@
 /**
  * The route tree. Every page is a code-split chunk loaded by
- * `lazyRouteComponent`; layouts (customer chrome, admin and account
- * shells) are eager so they never remount between pages. `staticData`
- * carries what the document head needs (see `app/route-meta.tsx`).
+ * `lazyRouteComponent`, and so are the admin and account shells: a visitor
+ * to the public pages never downloads them, and once loaded they stay
+ * mounted across the pages of their area. Only the customer chrome (the root
+ * layout) is eager. `staticData` carries what the document head needs (see
+ * `app/route-meta.tsx`).
  */
 import {
   createRootRoute,
@@ -15,13 +17,13 @@ import {
   type RouterHistory,
   type SearchSchemaInput,
 } from '@tanstack/react-router'
-import { AccountLayout } from '@/app/layout/account-layout'
-import { AdminLayout } from '@/app/layout/admin-layout'
 import { NotFoundPage } from '@/app/not-found'
 import { RootLayout } from '@/app/root-layout'
 import { bookingsDetail, getPayment } from '@/api'
 import { paymentReturnTarget } from '@/features/booking/payment-return'
+import { loadConsoleStrings } from '@/lib/i18n'
 import { parseSearch, SEARCH_DEFAULTS, toQuery, type SearchInput } from '@/lib/search-params'
+import { usePrefs } from '@/stores/prefs'
 import { requireAdmin, requireAuth, requireStaff } from './guards'
 import { loginSearch } from './login-redirect'
 
@@ -124,7 +126,11 @@ const admin = createRoute({
   getParentRoute: () => rootRoute,
   path: '/admin',
   beforeLoad: requireStaff,
-  component: AdminLayout,
+  // The console's strings arrive with its shell, before the first page of it draws.
+  component: lazy(async () => {
+    await loadConsoleStrings(usePrefs.getState().lang)
+    return import('@/app/layout/admin-layout')
+  }, 'AdminLayout'),
   staticData: { private: true },
 })
 
@@ -232,7 +238,7 @@ const account = createRoute({
   getParentRoute: () => rootRoute,
   path: '/account',
   beforeLoad: requireAuth,
-  component: AccountLayout,
+  component: lazy(() => import('@/app/layout/account-layout'), 'AccountLayout'),
   staticData: { private: true },
 })
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { loadLanguage, translate } from '@/lib/i18n'
+import { loadConsoleStrings, loadLanguage, translate } from '@/lib/i18n'
 
 describe('language loading', () => {
   it('serves Vietnamese until English has been loaded, then English', async () => {
@@ -12,5 +12,12 @@ describe('language loading', () => {
 
   it('falls back to the key for unknown strings', () => {
     expect(translate('vi', 'no.such.key')).toBe('no.such.key')
+  })
+
+  it('brings the admin console strings with the console, in both languages', async () => {
+    await loadConsoleStrings('vi')
+    expect(translate('vi', 'admin.dashboard')).toBe('Bảng điều khiển')
+    await loadLanguage('en')
+    expect(translate('en', 'admin.dashboard')).toBe('Dashboard')
   })
 })

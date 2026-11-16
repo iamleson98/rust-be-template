@@ -8,7 +8,14 @@
 import '@testing-library/jest-dom/vitest'
 import { vi } from 'vitest'
 import { cleanup } from '@testing-library/react'
-import { afterEach } from 'vitest'
+import { afterEach, beforeAll } from 'vitest'
+import { loadConsoleStrings } from '@/lib/i18n'
+
+// The admin console's strings load with the console in the app; its tests
+// render console parts directly.
+beforeAll(async () => {
+  await loadConsoleStrings('vi')
+})
 
 // ── Web storage ──────────────────────────────────────────────
 // Node 25+ ships its own `localStorage` / `sessionStorage` globals. Without

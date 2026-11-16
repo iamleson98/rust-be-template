@@ -1,61 +1,66 @@
-// Extracted from the original 'search-widget.tsx'.
-
-import * as z from 'zod'
-import { requiredText } from '@/lib/forms'
+import type { FieldErrors, Resolver } from 'react-hook-form'
 import { tSync } from '@/lib/i18n'
 
-// Error messages use Zod's functional `{ error: () => ... }` form so the
-// string is resolved (in the store's current language) at validation
-// time, not at module load.
+/**
+ * The search form's values: `SearchParams` from the store, as typed in the
+ * form. `adults` / `children` are numbers (the passenger popover writes them
+ * as such), the coordinates are all present when the customer picked precise
+ * places and absent for a plain city search.
+ */
+export interface SearchFormValues {
+  from: string
+  to: string
+  date: string
+  /** Optional "leaving after" time, `HH:MM` or ''. */
+  time: string
+  roundTrip: boolean
+  returnDate: string
+  adults: number
+  children: number
+  sort: 'departure' | 'price' | 'rating' | 'distance'
+  vehicleTypes: string[]
+  fromLat?: number
+  fromLon?: number
+  toLat?: number
+  toLon?: number
+  /** City-level fallback names for precise picks (the place's province). */
+  fromCity?: string
+  toCity?: string
+}
 
 /**
- * Search-widget schema.
- *
- * Mirrors `SearchParams` from the store. We use `z.number()` (not
- * `z.coerce.number()`) for `adults` / `children` because the PAX
- * popover writes actual numbers via `field.onChange(next)` — there's
- * no string→number coercion needed at the zod layer, and using
- * `z.number()` keeps RHF's input/output types identical so
- * `form.watch` / `form.getValues` return `number` instead of
- * `unknown`. The two `.refine` calls encode the round-trip rules
- * that were previously inline `toast.error` checks in `doSearch`.
+ * Checks a submitted search: the three places in the form must be filled in,
+ * there is at least one adult, and a round trip comes back on or after the
+ * day it leaves. Messages are resolved in the current language when they are
+ * produced. Written by hand: the zod and resolver libraries would weigh more
+ * than the page that shows this form.
  */
-export const searchSchema = z
-  .object({
-    from: requiredText('search.from'),
-    to: requiredText('search.to'),
-    date: requiredText('search.date'),
-    /** Optional "leaving after" time, `HH:MM` or ''. */
-    time: z.string(),
-    roundTrip: z.boolean(),
-    returnDate: z.string(),
-    adults: z
-      .number()
-      .int()
-      .min(1, { error: () => tSync('searchSchema.adultsMin') }),
-    children: z.number().int().min(0),
-    sort: z.enum(['departure', 'price', 'rating', 'distance']),
-    vehicleTypes: z.array(z.string()),
-    // Smart-search coordinates (optional): set when the user picks a
-    // precise place (autocomplete hit or map click) instead of a city.
-    // All four present → the geo proximity search runs; otherwise the
-    // plain city-to-city name search does.
-    fromLat: z.number().optional(),
-    fromLon: z.number().optional(),
-    toLat: z.number().optional(),
-    toLon: z.number().optional(),
-    // City-level fallback names for precise picks (the place's province) —
-    // used by buildSearchInput when only ONE end carries coordinates.
-    fromCity: z.string().optional(),
-    toCity: z.string().optional(),
-  })
-  .refine((d) => !d.roundTrip || d.returnDate !== '', {
-    error: () => tSync('searchSchema.returnDateRequired'),
-    path: ['returnDate'],
-  })
-  .refine((d) => !d.roundTrip || d.returnDate >= d.date, {
-    error: () => tSync('searchSchema.returnDateAfter'),
-    path: ['returnDate'],
-  })
-
-export type SearchFormValues = z.infer<typeof searchSchema>
+export const searchResolver: Resolver<SearchFormValues> = (values) => {
+  const errors: FieldErrors<SearchFormValues> = {}
+  const required = (name: 'from' | 'to' | 'date', label: string) => {
+    if (values[name].trim() === '') {
+      errors[name] = {
+        type: 'too_small',
+        message: tSync('validation.requiredLabel', { label: tSync(label) }),
+      }
+    }
+  }
+  required('from', 'search.from')
+  required('to', 'search.to')
+  required('date', 'search.date')
+  if (!(values.adults >= 1)) {
+    errors.adults = { type: 'too_small', message: tSync('searchSchema.adultsMin') }
+  }
+  if (values.roundTrip) {
+    if (values.returnDate === '') {
+      errors.returnDate = { type: 'custom', message: tSync('searchSchema.returnDateRequired') }
+    } else if (values.returnDate < values.date) {
+      errors.returnDate = { type: 'custom', message: tSync('searchSchema.returnDateAfter') }
+    }
+  }
+  if (Object.keys(errors).length > 0) return { values: {}, errors }
+  return {
+    values: { ...values, from: values.from.trim(), to: values.to.trim(), date: values.date.trim() },
+    errors: {},
+  }
+}
