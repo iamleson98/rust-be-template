@@ -10,6 +10,8 @@
 
 use std::collections::HashMap;
 
+use super::content;
+
 /// The public origin every canonical URL is built on.
 pub const SITE_URL: &str = "https://datxevui.com";
 
@@ -141,13 +143,18 @@ pub fn search_route(query: &Query) -> Option<(&str, &str)> {
     (!from.is_empty() && !to.is_empty()).then_some((from, to))
 }
 
-/// The canonical URL of the search page for the corridor `from` to `to`.
-pub fn corridor_canonical(from: &str, to: &str) -> String {
+/// The path and query of the search page for the corridor `from` to `to`.
+pub fn corridor_path(from: &str, to: &str) -> String {
     let query = url::form_urlencoded::Serializer::new(String::new())
         .append_pair("from", from)
         .append_pair("to", to)
         .finish();
-    format!("{SITE_URL}/search?{query}")
+    format!("/search?{query}")
+}
+
+/// The canonical URL of the search page for the corridor `from` to `to`.
+pub fn corridor_canonical(from: &str, to: &str) -> String {
+    format!("{SITE_URL}{}", corridor_path(from, to))
 }
 
 /// What the build wrote to `dist/seo-strings.json`.
@@ -180,6 +187,12 @@ impl Strings {
             .iter()
             .flat_map(|key| [format!("seo.{key}.title"), format!("seo.{key}.description")])
             .collect();
+        required.extend(
+            content::TEXT_KEYS
+                .iter()
+                .chain(&content::SERVER_TEXT_KEYS)
+                .map(|key| (*key).to_owned()),
+        );
         required.extend(
             [
                 "seo.searchRoute.title",

@@ -203,7 +203,7 @@ pub fn build_router(state: AppState) -> Router<()> {
         // and the SPA shell with each page's head. Catches every other path.
         .merge(crate::web::router(
             &state.config.static_files,
-            state.db.clone(),
+            state.public.clone(),
         ))
         // Request body size limit — protects against memory DoS.
         .layer(tower_http::limit::RequestBodyLimitLayer::new(
@@ -244,6 +244,11 @@ pub fn build_router(state: AppState) -> Router<()> {
                     axum::http::HeaderName::from_static("x-request-id"),
                 ]),
         )
+        // What the edge may keep (`s-maxage`) is identical for everyone: no
+        // cookie, no `Vary: Origin`. Outside the CORS layer, which writes that.
+        .layer(axum::middleware::from_fn(
+            crate::middleware::edge_cache::edge_cache_guard,
+        ))
         // Anti-scraping: blocks known scraping tools (curl, python-requests,
         // selenium, etc.) + requires Referer/Origin on mutation requests.
         // Applied after CORS so preflight OPTIONS pass through.

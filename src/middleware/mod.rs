@@ -35,6 +35,7 @@ pub use self::timeout::request_timeout;
 pub mod anti_scraping;
 pub mod auth_extractor;
 pub mod client_ip;
+pub mod edge_cache;
 pub mod public_cache;
 pub mod rate_limit;
 pub mod rejection_envelope;

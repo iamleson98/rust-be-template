@@ -1,6 +1,6 @@
 //! SEO routes — `/sitemap.xml` + `/robots.txt`.
 
-use std::collections::BTreeSet;
+use std::collections::BTreeMap;
 
 use axum::extract::State;
 use axum::http::header;
@@ -53,49 +53,72 @@ fn brand_url(slug: &str) -> String {
 )]
 pub async fn sitemap(State(st): State<AppState>) -> AppResult<Response> {
     let db = st.db.as_ref();
-    let slugs: Vec<String> = brand::Entity::find()
+    let brands: Vec<(String, String)> = brand::Entity::find()
         .filter(brand::Column::Status.eq("active"))
         .select_only()
         .column(brand::Column::Slug)
+        .column(brand::Column::UpdatedAt)
         .order_by_asc(brand::Column::Slug)
         .into_tuple()
         .all(db)
         .await
         .map_err(|e| AppError::ServiceUnavailable(format!("sitemap brands: {e}")))?;
-    let pairs: Vec<(String, String)> = route::Entity::find()
+    // A corridor changed when its latest route did.
+    let pairs: Vec<(String, String, Option<String>)> = route::Entity::find()
         .filter(route::Column::Status.eq("active"))
         .select_only()
         .column(route::Column::StartLocationId)
         .column(route::Column::EndLocationId)
-        .distinct()
+        .column_as(route::Column::UpdatedAt.max(), "changed")
+        .group_by(route::Column::StartLocationId)
+        .group_by(route::Column::EndLocationId)
         .into_tuple()
         .all(db)
         .await
         .map_err(|e| AppError::ServiceUnavailable(format!("sitemap routes: {e}")))?;
 
     // A route whose end has no known city name cannot be a corridor page.
-    let corridors: BTreeSet<String> = pairs
-        .iter()
-        .filter_map(|(from, to)| {
-            let from = crate::cities::find_by_slug(from)?;
-            let to = crate::cities::find_by_slug(to)?;
-            Some(corridor_canonical(from.name, to.name))
-        })
-        .collect();
+    let mut corridors: BTreeMap<String, Option<String>> = BTreeMap::new();
+    for (from, to, changed) in pairs {
+        let (Some(from), Some(to)) = (
+            crate::cities::find_by_slug(&from),
+            crate::cities::find_by_slug(&to),
+        ) else {
+            continue;
+        };
+        let latest = corridors
+            .entry(corridor_canonical(from.name, to.name))
+            .or_default();
+        *latest = (*latest).clone().max(changed);
+    }
 
+    // `lastmod` only where the catalogue knows when a page changed: the
+    // static pages and the search page have no such date.
     let urls = STATIC_PAGES
         .iter()
-        .map(|(path, freq, priority)| (format!("{SITE_URL}{path}"), *freq, *priority))
-        .chain(slugs.iter().map(|slug| (brand_url(slug), "weekly", "0.7")))
-        .chain(corridors.into_iter().map(|url| (url, "daily", "0.8")));
+        .map(|(path, freq, priority)| (format!("{SITE_URL}{path}"), None, *freq, *priority))
+        .chain(
+            brands
+                .into_iter()
+                .map(|(slug, changed)| (brand_url(&slug), Some(changed), "weekly", "0.7")),
+        )
+        .chain(
+            corridors
+                .into_iter()
+                .map(|(url, changed)| (url, changed, "daily", "0.8")),
+        );
 
-    let lastmod = chrono::Utc::now().format("%Y-%m-%d");
     let mut xml = String::from(
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n",
     );
-    for (loc, changefreq, priority) in urls {
+    for (loc, changed, changefreq, priority) in urls {
+        let lastmod = changed
+            .as_deref()
+            .and_then(day_of)
+            .map(|day| format!("<lastmod>{day}</lastmod>"))
+            .unwrap_or_default();
         xml.push_str(&format!(
-            "  <url><loc>{}</loc><lastmod>{lastmod}</lastmod><changefreq>{changefreq}</changefreq><priority>{priority}</priority></url>\n",
+            "  <url><loc>{}</loc>{lastmod}<changefreq>{changefreq}</changefreq><priority>{priority}</priority></url>\n",
             xml_escape(&loc)
         ));
     }
@@ -109,6 +132,14 @@ pub async fn sitemap(State(st): State<AppState>) -> AppResult<Response> {
         xml,
     )
         .into_response())
+}
+
+/// The `YYYY-MM-DD` a stored timestamp starts with.
+fn day_of(timestamp: &str) -> Option<&str> {
+    let day = timestamp.get(..10)?;
+    chrono::NaiveDate::parse_from_str(day, "%Y-%m-%d")
+        .ok()
+        .map(|_| day)
 }
 
 /// `GET /robots.txt` — one rule group for every crawler; the sitemap pointer
@@ -162,6 +193,15 @@ mod tests {
     #[test]
     fn xml_text_is_escaped() {
         assert_eq!(xml_escape("a&b<c>\"d'"), "a&amp;b&lt;c&gt;&quot;d&apos;");
+    }
+
+    #[test]
+    fn a_stored_timestamp_gives_its_day() {
+        assert_eq!(day_of("2026-11-15T08:00:00.000Z"), Some("2026-11-15"));
+        assert_eq!(day_of("2026-11-15"), Some("2026-11-15"));
+        assert_eq!(day_of("yesterday"), None);
+        assert_eq!(day_of("2026-13-45T00:00"), None);
+        assert_eq!(day_of(""), None);
     }
 
     #[test]

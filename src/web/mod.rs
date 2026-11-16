@@ -13,10 +13,18 @@
 //!   `_headers` (fonts, icons, hero and logo images: a day plus a week of
 //!   stale-while-revalidate; `sw.js`: always revalidated);
 //! * everything else is a client-side route: the shell comes back with that
-//!   page's own `<head>` ([`head`], from [`seo`]), status 404 when no page has
-//!   the path or the brand it names does not exist.
+//!   page's own `<head>` ([`head`], from [`seo`]) and, for the public pages,
+//!   the page's text inside the app's root ([`content`]) so a crawler reads it
+//!   without running a script; status 404 when no page has the path or the
+//!   brand it names does not exist.
+//!
+//! A public page is the same for every visitor, so it is sent for the edge to
+//! keep (`s-maxage`, with an `ETag`); a private page and an error never are.
+//! What the pages read from the database is kept in memory for five minutes.
 
+pub mod content;
 pub mod head;
+mod hints;
 pub mod seo;
 
 use std::convert::Infallible;
@@ -28,16 +36,20 @@ use axum::body::Body;
 use axum::http::{header, HeaderValue, Method, Request, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::Router;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect};
+use sha2::{Digest, Sha256};
 use tower::service_fn;
 use tower::ServiceExt;
 use tower_http::services::ServeDir;
 
 use crate::config::StaticFilesConfig;
-use crate::entity::brand;
+use crate::dto::public::BrandProfile;
 use crate::error::AppError;
+use crate::service::trip_search::{Filters, Options, Sort};
+use crate::service::trip_time;
+use crate::service::PublicService;
+use content::{Content, CorridorData, CorridorDay, HomeData};
 use head::Head;
-use seo::{BrandFacts, PageFacts, Query, Strings};
+use seo::{BrandFacts, Page, PageFacts, PageKind, Query, Strings};
 
 /// Fonts, icons and images are not content-hashed: a day in the browser, then
 /// a week of stale-while-revalidate, not a revalidation per visit.
@@ -47,36 +59,44 @@ const IMMUTABLE_YEAR: &str = "public, max-age=31536000, immutable";
 const LEGACY_NEXT_CACHE: &str = "public, max-age=2592000, immutable";
 const SHELL_CACHE: &str = "no-cache, must-revalidate";
 
-/// How long a brand's name and description are reused for its page head.
-const BRAND_TTL: Duration = Duration::from_secs(60);
-const BRAND_CACHE_ENTRIES: u64 = 2048;
+/// A public page is the same for everyone: the edge keeps it five minutes and
+/// may serve it a day longer while it fetches a fresh one; browsers always ask.
+const PUBLIC_PAGE_CACHE: &str = "public, max-age=0, s-maxage=300, stale-while-revalidate=86400";
+
+/// How long what a page reads from the database is reused.
+const PAGE_DATA_TTL: Duration = Duration::from_secs(300);
+const PAGE_CACHE_ENTRIES: u64 = 2048;
+/// Longest city name a corridor page looks up.
+const CITY_NAME_MAX: usize = 64;
 
 /// What the database says about the brand a page names.
 enum BrandLookup {
-    Found(BrandFacts),
+    Found(Arc<BrandProfile>),
     /// No active brand has the slug.
     Missing,
     /// The database could not be read; the page still renders, generically.
     Unavailable,
 }
 
-/// The built SPA and the state its head needs.
+/// The built SPA and the state its pages need.
 pub struct Web {
     dist: PathBuf,
     default_cache_age: u64,
     files: ServeDir,
     legacy_next: Option<ServeDir>,
     strings: tokio::sync::OnceCell<Strings>,
-    brands: moka::future::Cache<String, Option<BrandFacts>>,
-    db: Arc<DatabaseConnection>,
+    public: Arc<PublicService>,
+    home: moka::future::Cache<(), Arc<HomeData>>,
+    brands: moka::future::Cache<String, Option<Arc<BrandProfile>>>,
+    corridors: moka::future::Cache<(String, String), Arc<CorridorData>>,
 }
 
 /// The catch-all service for every path no other route took.
-pub fn router<S>(config: &StaticFilesConfig, db: Arc<DatabaseConnection>) -> Router<S>
+pub fn router<S>(config: &StaticFilesConfig, public: Arc<PublicService>) -> Router<S>
 where
     S: Clone + Send + Sync + 'static,
 {
-    let web = Arc::new(Web::new(config, db));
+    let web = Arc::new(Web::new(config, public));
     let service = service_fn(move |req: Request<Body>| {
         let web = web.clone();
         async move { Ok::<_, Infallible>(web.serve(req).await) }
@@ -87,19 +107,28 @@ where
 }
 
 impl Web {
-    fn new(config: &StaticFilesConfig, db: Arc<DatabaseConnection>) -> Self {
+    fn new(config: &StaticFilesConfig, public: Arc<PublicService>) -> Self {
         let files = |dir: &Path| ServeDir::new(dir).precompressed_gzip().precompressed_br();
+        fn cache<K, V>() -> moka::future::Cache<K, V>
+        where
+            K: std::hash::Hash + Eq + Send + Sync + 'static,
+            V: Clone + Send + Sync + 'static,
+        {
+            moka::future::Cache::builder()
+                .max_capacity(PAGE_CACHE_ENTRIES)
+                .time_to_live(PAGE_DATA_TTL)
+                .build()
+        }
         Self {
             dist: config.dir.clone(),
             default_cache_age: config.cache_max_age,
             files: files(&config.dir),
             legacy_next: config.legacy_next_dir.as_deref().map(files),
             strings: tokio::sync::OnceCell::new(),
-            brands: moka::future::Cache::builder()
-                .max_capacity(BRAND_CACHE_ENTRIES)
-                .time_to_live(BRAND_TTL)
-                .build(),
-            db,
+            public,
+            home: cache(),
+            brands: cache(),
+            corridors: cache(),
         }
     }
 
@@ -112,6 +141,7 @@ impl Web {
         }
         let path = req.uri().path().to_owned();
         let query = req.uri().query().map(str::to_owned);
+        let if_none_match = req.headers().get(header::IF_NONE_MATCH).cloned();
 
         // An unknown API path is an API answer, never a page.
         if path == "/api" || path.starts_with("/api/") {
@@ -132,12 +162,16 @@ impl Web {
             return self.file(legacy, req, LEGACY_NEXT_CACHE).await;
         }
         if path == "/" || self.is_shell_file(&path).await {
-            return self.spa(&path, query.as_deref()).await;
+            return self
+                .spa(&path, query.as_deref(), if_none_match.as_ref())
+                .await;
         }
 
         let resp = serve_dir(&self.files, req).await;
         if resp.status() == StatusCode::NOT_FOUND {
-            return self.spa(&path, query.as_deref()).await;
+            return self
+                .spa(&path, query.as_deref(), if_none_match.as_ref())
+                .await;
         }
         let cache = static_cache_control(&path)
             .map(str::to_owned)
@@ -186,37 +220,178 @@ impl Web {
         let Ok(slug) = urlencoding::decode(encoded_slug) else {
             return BrandLookup::Missing;
         };
-        let db = self.db.clone();
+        let public = self.public.clone();
         let key = slug.clone().into_owned();
         let lookup = self
             .brands
             .try_get_with(key, async move {
-                let row = brand::Entity::find()
-                    .filter(brand::Column::Slug.eq(slug.as_ref()))
-                    .filter(brand::Column::Status.eq("active"))
-                    .select_only()
-                    .column(brand::Column::Name)
-                    .column(brand::Column::Description)
-                    .into_tuple::<(String, Option<String>)>()
-                    .one(db.as_ref())
-                    .await?;
-                Ok::<_, sea_orm::DbErr>(
-                    row.map(|(name, description)| BrandFacts { name, description }),
-                )
+                match public.brand_profile(&slug).await {
+                    Ok(profile) => Ok(Some(Arc::new(profile))),
+                    Err(AppError::NotFound(_)) => Ok(None),
+                    Err(e) => Err(e),
+                }
             })
             .await;
         match lookup {
-            Ok(Some(facts)) => BrandLookup::Found(facts),
+            Ok(Some(profile)) => BrandLookup::Found(profile),
             Ok(None) => BrandLookup::Missing,
             Err(e) => {
-                tracing::warn!(error = %e, "brand lookup for the page head failed");
+                tracing::warn!(error = %e, "brand lookup for the page failed");
                 BrandLookup::Unavailable
             }
         }
     }
 
-    /// A client-side route: the shell with the page's head.
-    async fn spa(&self, path: &str, query: Option<&str>) -> Response {
+    /// What the home page shows; the parts the database could not give are
+    /// absent. `None` only when it gave nothing at all.
+    async fn home_data(&self) -> Option<Arc<HomeData>> {
+        let public = self.public.clone();
+        let loaded = self
+            .home
+            .try_get_with((), async move {
+                let (routes, brands, stats, recommendations) = tokio::join!(
+                    public.list_routes(None, 50),
+                    public.list_brands(20),
+                    public.stats(),
+                    public.recommendations(),
+                );
+                let data = HomeData {
+                    routes: routes.map_err(log_unavailable).ok(),
+                    brands: brands.map_err(log_unavailable).ok(),
+                    stats: stats.map_err(log_unavailable).ok(),
+                    recommendations: recommendations.map_err(log_unavailable).ok(),
+                    generated_at_ms: chrono::Utc::now().timestamp_millis(),
+                };
+                if data.routes.is_none() && data.brands.is_none() {
+                    return Err("neither the routes nor the brands could be read");
+                }
+                Ok(Arc::new(data))
+            })
+            .await;
+        match loaded {
+            Ok(data) => Some(data),
+            Err(e) => {
+                tracing::warn!(error = %e, "home page data unavailable");
+                None
+            }
+        }
+    }
+
+    /// Today's and tomorrow's departures from `from` to `to`; `None` when
+    /// either end is not a city the catalogue knows (such a search page has
+    /// nothing to list, and must not cost a query per made-up name); an error
+    /// when the database could not be read.
+    async fn corridor_data(&self, from: &str, to: &str) -> Result<Option<Arc<CorridorData>>, ()> {
+        let (from, to) = (from.trim(), to.trim());
+        if from.chars().count() > CITY_NAME_MAX || to.chars().count() > CITY_NAME_MAX {
+            return Ok(None);
+        }
+        let city_name = |text: &str| -> Option<String> {
+            match crate::cities::match_city_slugs(text).as_slice() {
+                [] => None,
+                [slug] => Some(crate::cities::name_for_slug(slug)),
+                _ => Some(text.to_owned()),
+            }
+        };
+        let (Some(from), Some(to)) = (city_name(from), city_name(to)) else {
+            return Ok(None);
+        };
+        let public = self.public.clone();
+        let key = (from.clone(), to.clone());
+        let loaded = self
+            .corridors
+            .try_get_with(key, async move {
+                let today = trip_time::local_today();
+                let tomorrow = chrono::NaiveDate::parse_from_str(&today, "%Y-%m-%d")
+                    .map(|d| {
+                        (d + chrono::Duration::days(1))
+                            .format("%Y-%m-%d")
+                            .to_string()
+                    })
+                    .map_err(|e| e.to_string())?;
+                let mut days = Vec::new();
+                for date in [today.clone(), tomorrow] {
+                    let options = Options::new(
+                        &date,
+                        Some(content::CORRIDOR_TRIPS_PER_DAY as u64),
+                        None,
+                        Sort::Departure,
+                        None,
+                        None,
+                        Filters::default(),
+                    )
+                    .map_err(|e| e.to_string())?;
+                    let found = public
+                        .search_trips(&from, &to, &options)
+                        .await
+                        .map_err(|e| e.to_string())?;
+                    days.push(CorridorDay {
+                        date,
+                        trips: found.items,
+                    });
+                }
+                Ok::<_, String>(Arc::new(CorridorData {
+                    from,
+                    to,
+                    today,
+                    days,
+                }))
+            })
+            .await;
+        match loaded {
+            Ok(data) => Ok(Some(data)),
+            Err(e) => {
+                tracing::warn!(error = %e, "corridor page data unavailable");
+                Err(())
+            }
+        }
+    }
+
+    /// The text of the page: `None` when it has none to add (a private page,
+    /// a prerendered one). `degraded` is set when the database could not give
+    /// what the page shows, so the page is not worth keeping.
+    async fn page_content(
+        &self,
+        page: Page,
+        query: &Query,
+        strings: &Strings,
+        brand: Option<&BrandProfile>,
+        degraded: &mut bool,
+    ) -> Option<Content> {
+        match (page.key, seo::search_route(query)) {
+            ("home", _) | ("search", None) => {
+                let data = self.home_data().await;
+                *degraded |= data.is_none();
+                let empty = HomeData::default();
+                let data = data.as_deref().unwrap_or(&empty);
+                Some(if page.key == "home" {
+                    content::home(strings, data)
+                } else {
+                    content::search(strings, data)
+                })
+            }
+            ("search", Some((from, to))) => match self.corridor_data(from, to).await {
+                Ok(data) => data.map(|d| content::corridor(strings, &d)),
+                Err(()) => {
+                    *degraded = true;
+                    None
+                }
+            },
+            ("compare", _) => Some(content::plain(strings, page.key)),
+            ("brandDetail", _) => {
+                brand.map(|p| content::brand(strings, p, &trip_time::local_today()))
+            }
+            _ => None,
+        }
+    }
+
+    /// A client-side route: the shell with the page's head and text.
+    async fn spa(
+        &self,
+        path: &str,
+        query: Option<&str>,
+        if_none_match: Option<&HeaderValue>,
+    ) -> Response {
         // A path that names a file (`/vendor-dead.js`) is a missing file.
         if path.rsplit('/').next().is_some_and(|s| s.contains('.')) {
             return plain_not_found("not found");
@@ -229,21 +404,37 @@ impl Web {
             }
         };
 
-        let facts = match seo::brand_slug(path) {
-            Some(slug) if seo::match_page(path).is_some() => match self.brand(slug).await {
-                BrandLookup::Found(brand) => Some(PageFacts { brand: Some(brand) }),
+        let page = seo::match_page(path);
+        let mut brand = None;
+        let mut degraded = false;
+        let facts = match (seo::brand_slug(path), page) {
+            (Some(slug), Some(_)) => match self.brand(slug).await {
+                BrandLookup::Found(profile) => {
+                    let facts = PageFacts {
+                        brand: Some(BrandFacts {
+                            name: profile.brand.name.clone(),
+                            description: profile.brand.description.clone(),
+                        }),
+                    };
+                    brand = Some(profile);
+                    Some(facts)
+                }
                 BrandLookup::Missing => None,
-                BrandLookup::Unavailable => Some(PageFacts::default()),
+                BrandLookup::Unavailable => {
+                    degraded = true;
+                    Some(PageFacts::default())
+                }
             },
             _ => Some(PageFacts::default()),
         };
-        let known = facts.is_some() && seo::match_page(path).is_some();
+        let known = facts.is_some() && page.is_some();
         let status = if known {
             StatusCode::OK
         } else {
             StatusCode::NOT_FOUND
         };
 
+        let hints = hints::links(&template, known && path == "/");
         // A shell with no placeholder (a stand-in `static/index.html`) takes
         // no head; every real build does, and then needs its strings.
         let html = if template.contains(head::PLACEHOLDER) {
@@ -260,15 +451,24 @@ impl Web {
                 }
             };
             let query = Query::parse(query.unwrap_or(""));
-            let page = facts.and_then(|facts| seo::page_seo(path, &query, strings, &facts));
+            let page_seo = facts.and_then(|facts| seo::page_seo(path, &query, strings, &facts));
+            let content = match (page, &page_seo) {
+                (Some(page), Some(_)) => {
+                    self.page_content(page, &query, strings, brand.as_deref(), &mut degraded)
+                        .await
+                }
+                _ => None,
+            }
+            .unwrap_or_default();
             let not_found_title;
-            let head = match &page {
+            let head = match &page_seo {
                 Some(page) => Head {
                     title: &page.title,
                     description: Some(&page.description),
                     canonical: page.canonical.as_deref(),
                     robots: page.robots,
                     home: path == "/",
+                    structured: &content.structured,
                 },
                 None => {
                     not_found_title = strings.t("seo.notFound.title", &[]);
@@ -278,20 +478,41 @@ impl Web {
                         canonical: None,
                         robots: seo::NOT_FOUND_ROBOTS,
                         home: false,
+                        structured: &[],
                     }
                 }
             };
-            template.replacen(head::PLACEHOLDER, &head.render(), 1)
+            template
+                .replacen(head::PLACEHOLDER, &head.render(), 1)
+                .replacen(head::APP_HTML, &content.html, 1)
         } else {
             template
         };
-        let mut resp = (status, Body::from(html)).into_response();
+
+        let shared = known
+            && !degraded
+            && matches!(
+                page.map(|p| p.kind),
+                Some(PageKind::Public | PageKind::Noindex)
+            );
+        let mut resp = if shared {
+            page_response(status, html, if_none_match)
+        } else {
+            let mut resp = (status, Body::from(html)).into_response();
+            resp.headers_mut()
+                .insert(header::CACHE_CONTROL, HeaderValue::from_static(SHELL_CACHE));
+            resp
+        };
         let headers = resp.headers_mut();
         headers.insert(
             header::CONTENT_TYPE,
             HeaderValue::from_static("text/html; charset=utf-8"),
         );
-        headers.insert(header::CACHE_CONTROL, HeaderValue::from_static(SHELL_CACHE));
+        for link in hints {
+            if let Ok(link) = HeaderValue::from_str(&link) {
+                headers.append(header::LINK, link);
+            }
+        }
         resp
     }
 
@@ -306,6 +527,45 @@ impl Web {
         }
         tokio::fs::read_to_string(self.dist.join("index.html")).await
     }
+}
+
+/// A public page for the edge to keep: the same bytes for everyone, with a
+/// validator, so a revalidation costs no body.
+fn page_response(
+    status: StatusCode,
+    html: String,
+    if_none_match: Option<&HeaderValue>,
+) -> Response {
+    let etag = format!(
+        "W/\"{}\"",
+        &hex::encode(Sha256::digest(html.as_bytes()))[..32]
+    );
+    let unchanged = status == StatusCode::OK
+        && if_none_match
+            .and_then(|v| v.to_str().ok())
+            .is_some_and(|tags| {
+                tags.split(',')
+                    .map(|t| t.trim().trim_start_matches("W/"))
+                    .any(|t| t == "*" || t == &etag[2..])
+            });
+    let mut resp = if unchanged {
+        StatusCode::NOT_MODIFIED.into_response()
+    } else {
+        (status, Body::from(html)).into_response()
+    };
+    let headers = resp.headers_mut();
+    headers.insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static(PUBLIC_PAGE_CACHE),
+    );
+    if let Ok(etag) = HeaderValue::from_str(&etag) {
+        headers.insert(header::ETAG, etag);
+    }
+    resp
+}
+
+fn log_unavailable(e: AppError) {
+    tracing::warn!(error = %e, "home page data unavailable");
 }
 
 async fn serve_dir(dir: &ServeDir, req: Request<Body>) -> Response {

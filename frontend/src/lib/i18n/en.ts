@@ -1822,6 +1822,13 @@ export const en: TranslationMap = {
   'seo.brand.title': '{name} — Book {name} bus tickets online | DatXeVui',
   'seo.brand.description':
     'Book {name} bus tickets online: routes in service, departure times, fares and passenger reviews.',
+  'seo.page.corridorHeading': 'Buses from {from} to {to}',
+  'seo.page.corridorIntro': 'Departure times, fares and operators from {from} to {to}. Pick a trip, choose your seat and get an e-ticket on DatXeVui.',
+  'seo.page.corridorNoTrips': 'No trips are on sale from {from} to {to} today or tomorrow. Pick another date on the search page.',
+  'seo.page.searchHeading': 'Find a coach trip',
+  'seo.page.rating': 'Rated {rating}/5 ({count} reviews)',
+  'seo.page.phone': 'Phone: {phone}',
+  'seo.page.timetable': 'Departures',
   'seo.notFound.title': 'Page not found — DatXeVui',
   'seo.brandDetail.title': 'Bus operator — DatXeVui',
   'seo.brandDetail.description': 'Operator information, routes, and customer reviews.',
