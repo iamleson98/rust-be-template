@@ -11160,11 +11160,19 @@
           "version"
         ],
         "properties": {
+          "commit": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The commit of a release build; absent for a local build."
+          },
           "status": {
             "type": "string"
           },
           "version": {
-            "type": "string"
+            "type": "string",
+            "description": "The release tag (`v1.2.3`), or `dev-<crate version>` for a local build."
           }
         }
       },

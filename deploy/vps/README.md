@@ -51,11 +51,29 @@ service can write. Releases are root-owned and read-only to it.
 ## Releases
 
 `git tag vX.Y.Z && git push origin vX.Y.Z` runs
-`.github/workflows/release-vps.yml`: release binary + `frontend/dist` +
-the legacy `_next/static` (when a `legacy-next` prerelease exists) + these
-files, one tarball, SHA-256 and an `ssh-keygen -Y` signature in namespace
-`datxevui-release`. `update.sh` pins the public key; the secret
-`RELEASE_SIGNING_KEY` is its private half. To rotate the key, publish one release signed with the old key whose
+`.github/workflows/release-vps.yml`, which takes the tag all the way to a
+verified production deploy:
+
+1. **test**: `cargo fmt --check`, `cargo test --workspace`, frontend
+   typecheck, lint and tests, on the tagged commit. Red stops the release.
+2. **build and sign**: release binary (built with `RELEASE_TAG` and
+   `RELEASE_COMMIT`, so `GET /ready` reports the tag as `version`) +
+   `frontend/dist` + the legacy `_next/static` (when a `legacy-next`
+   prerelease exists) + these files, one tarball, SHA-256 and an
+   `ssh-keygen -Y` signature in namespace `datxevui-release`. `update.sh`
+   pins the public key; the secret `RELEASE_SIGNING_KEY` is its private half.
+3. **publish**: the GitHub release.
+4. **install on the VPS**: nothing is pushed to the box.
+   `datxevui-update.timer` finds the new release within 5 minutes and runs
+   `update.sh` (below).
+5. **verify-deploy**: `verify-release.sh` polls `https://datxevui.com/ready`
+   every 20 s for up to 15 minutes until `version` equals the tag. A red job
+   means the VPS did not install the release or rolled it back: run
+   `journalctl -u datxevui-update -n 100` there. A suffixed tag
+   (`v1.2.0-rc1`) is a prerelease: built and published, never installed by
+   the box, so this step is skipped.
+
+To rotate the key, publish one release signed with the old key whose
 `update.sh` pins the new public key; the box installs it, and every later
 release must be signed with the new key.
 
