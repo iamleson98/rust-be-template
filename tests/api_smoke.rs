@@ -184,6 +184,31 @@ async fn ready_endpoint_returns_2xx() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
+async fn ready_reports_the_build_version_and_is_never_cached() -> anyhow::Result<()> {
+    let app = boot_test_app().await?;
+
+    // A plain curl: no browser User-Agent, no Origin.
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/ready")
+                .header("User-Agent", "curl/8.5.0")
+                .body(Body::empty())?,
+        )
+        .await?;
+
+    assert_eq!(response.headers()["cache-control"], "no-store");
+    let body = axum::body::to_bytes(response.into_body(), 64 * 1024).await?;
+    let json: serde_json::Value = serde_json::from_slice(&body)?;
+    let version = json["version"].as_str().unwrap_or_default();
+    assert!(
+        version.starts_with("dev-") || version.starts_with('v'),
+        "unexpected version {version:?}"
+    );
+    Ok(())
+}
+
+#[tokio::test]
 async fn sitemap_xml_returns_xml() -> anyhow::Result<()> {
     let app = boot_test_app().await?;
 
