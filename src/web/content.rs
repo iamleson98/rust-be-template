@@ -72,13 +72,15 @@ pub struct CorridorData {
 /// The text keys this module reads from the build's `seo-strings.json`:
 /// strings the app shows too (so the first paint reads like the app), then
 /// those only the server writes.
-pub const TEXT_KEYS: [&str; 38] = [
+pub const TEXT_KEYS: [&str; 40] = [
     "nav.home",
     "nav.searchTrips",
     "trips.imageTagline",
     "hero.title",
     "hero.titleHighlight",
     "hero.subtitle",
+    "home.welcomeGuest",
+    "home.welcomeGuestSteps",
     "home.statBrands",
     "home.statRoutes",
     "home.statTrips",
@@ -365,6 +367,8 @@ pub fn home(s: &Strings, data: &HomeData) -> Content {
     let title = escape(&s.t("hero.title", &[]));
     let highlight = escape(&s.t("hero.titleHighlight", &[]));
     let subtitle = escape(&s.t("hero.subtitle", &[]));
+    let welcome = escape(&s.t("home.welcomeGuest", &[]));
+    let steps = escape(&s.t("home.welcomeGuestSteps", &[]));
     let mut main = format!(
         "<div class=\"pb-6\"><section class=\"page-x pt-3 sm:pt-5\">\
 <div class=\"relative isolate overflow-hidden rounded-3xl sm:rounded-[2rem]\">\
@@ -373,7 +377,10 @@ pub fn home(s: &Strings, data: &HomeData) -> Content {
 <div class=\"absolute inset-x-0 bottom-0 h-1/2 bg-linear-to-t from-slate-950/55 to-transparent\"></div></div>\
 <div class=\"px-5 pt-9 pb-24 sm:px-10 sm:pt-14 sm:pb-32 lg:px-14 lg:pt-20 lg:pb-40\">\
 <h1 class=\"max-w-2xl text-[2rem] leading-[1.08] font-extrabold tracking-tight text-balance text-white sm:text-5xl lg:text-6xl\">{title} <span class=\"text-amber-300\">{highlight}</span></h1>\
-<p class=\"mt-4 max-w-xl text-[15px] leading-relaxed text-white/85 sm:text-lg\">{subtitle}</p>",
+<p class=\"mt-4 max-w-xl text-[15px] leading-relaxed text-white/85 sm:text-lg\">{subtitle}</p>\
+<div class=\"mt-6 inline-flex max-w-full items-center gap-x-2.5 rounded-full bg-white/10 px-3.5 py-1.5 ring-1 ring-white/20 backdrop-blur-md\">\
+<span class=\"size-3.5 shrink-0\"></span><span class=\"text-sm font-semibold text-white\">{welcome}</span>\
+<span class=\"hidden items-center gap-1.5 text-xs text-blue-100/80 sm:inline-flex\">{steps}</span></div>",
         hero_picture(),
     );
     if let Some(stats) = &data.stats {
@@ -402,7 +409,7 @@ pub fn home(s: &Strings, data: &HomeData) -> Content {
     main.push_str(
         "</div></div>\
 <div class=\"relative z-30 -mt-16 sm:-mt-20 sm:px-4 lg:-mt-24 lg:px-10\">\
-<div class=\"min-h-[22rem] rounded-3xl bg-white p-4 shadow-float ring-1 ring-slate-900/5 sm:min-h-[16rem] sm:p-5 md:p-6\" aria-hidden=\"true\"></div></div>\
+<div class=\"min-h-[26.25rem] rounded-3xl bg-white p-4 shadow-float ring-1 ring-slate-900/5 sm:min-h-[15rem] sm:p-5 md:p-6\" aria-hidden=\"true\"></div></div>\
 <ul class=\"mt-6 grid grid-cols-2 gap-x-3 gap-y-4 sm:mt-10 sm:gap-x-4 sm:gap-y-6 lg:grid-cols-4 lg:px-10\">",
     );
     for (title_key, body_key) in [

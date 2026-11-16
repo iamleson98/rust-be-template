@@ -986,7 +986,7 @@ async fn private_pages_and_errors_are_never_kept_by_the_edge() {
 }
 
 #[tokio::test]
-async fn pages_hint_their_entry_script_font_and_hero_to_the_edge() {
+async fn pages_hint_their_fonts_and_hero_to_the_edge() {
     let (app, _) = boot().await;
     let home = get(&app, "/").await;
     let links: Vec<&str> = home
@@ -995,7 +995,10 @@ async fn pages_hint_their_entry_script_font_and_hero_to_the_edge() {
         .iter()
         .map(|v| v.to_str().unwrap())
         .collect();
-    assert!(links.contains(&"</assets/app-abc123.js>; rel=preload; as=\"script\"; crossorigin"));
+    assert!(
+        links.iter().all(|l| !l.contains("app-abc123.js")),
+        "scripts start after load"
+    );
     assert!(links.contains(
         &"</fonts/geist-latin.woff2>; rel=preload; as=\"font\"; type=\"font/woff2\"; crossorigin"
     ));

@@ -49,6 +49,8 @@ const PAGE_TEXT_KEYS = [
   'hero.title',
   'hero.titleHighlight',
   'hero.subtitle',
+  'home.welcomeGuest',
+  'home.welcomeGuestSteps',
   'home.statBrands',
   'home.statRoutes',
   'home.statTrips',
