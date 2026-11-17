@@ -20,6 +20,7 @@ import { createQueryClient } from './api/query-client'
 import { afterLoadWhenIdle } from './lib/idle'
 import { loadLanguage } from './lib/i18n'
 import { primeFromServer } from './lib/initial-data'
+import { installChunkRecovery } from './lib/chunk-recovery'
 import { carryOverServerSearchForm } from './lib/server-search-form'
 import { router } from './router'
 import { usePrefs } from './stores/prefs'
@@ -30,6 +31,8 @@ import { captureClickIds } from './lib/analytics'
 // URL NOW — before the SPA router rewrites history and drops them
 // (see lib/analytics.ts). Must run before render, exactly once.
 captureClickIds()
+
+installChunkRecovery()
 
 configureApiClient()
 
@@ -72,8 +75,14 @@ if (import.meta.env.PROD && typeof navigator !== 'undefined') {
   afterLoadWhenIdle(() => {
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker
-        .register('/sw.js', { scope: '/' })
+        .register('/sw.js', { scope: '/', updateViaCache: 'none' })
         .then((reg) => {
+          // A new release ships a new sw.js: look for it on every visit to the tab.
+          const checkForUpdate = () => void reg.update().catch(() => undefined)
+          document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') checkForUpdate()
+          })
+          checkForUpdate()
           reg.addEventListener('updatefound', () => {
             const newWorker = reg.installing
             if (!newWorker) return

@@ -21,6 +21,7 @@ import { NotFoundPage } from '@/app/not-found'
 import { RootLayout } from '@/app/root-layout'
 import { bookingsDetail, getPayment } from '@/api'
 import { paymentReturnTarget } from '@/features/booking/payment-return'
+import { recoverFromChunkError } from '@/lib/chunk-recovery'
 import { loadConsoleStrings } from '@/lib/i18n'
 import { parseSearch, SEARCH_DEFAULTS, toQuery, type SearchInput } from '@/lib/search-params'
 import { usePrefs } from '@/stores/prefs'
@@ -311,6 +312,8 @@ export function createAppRouter(history?: RouterHistory) {
     defaultPreloadDelay: 50,
     defaultStaleTime: 5 * 60 * 1000,
     scrollRestoration: true,
+    // A lazy route chunk of an old release is gone: reload once into the new one.
+    defaultOnCatch: (error) => void recoverFromChunkError(error),
   })
 }
 

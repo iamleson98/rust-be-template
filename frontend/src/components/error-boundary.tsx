@@ -1,5 +1,6 @@
 import { usePrefs } from '@/stores/prefs'
 import { Component, type ErrorInfo, type ReactNode } from 'react'
+import { recoverFromChunkError } from '@/lib/chunk-recovery'
 import { translate, tSync } from '@/lib/i18n'
 
 interface Props {
@@ -27,6 +28,8 @@ export class ErrorBoundary extends Component<Props, State> {
     // Surface to the console + the browser's error overlay. In production
     // this is where a Sentry/Datadog reportError() call would go.
     console.error('[ErrorBoundary] render crashed', error, info.componentStack)
+    // A chunk of an old release is gone: one reload picks up the new release.
+    recoverFromChunkError(error)
   }
 
   private handleRetry = (): void => {
